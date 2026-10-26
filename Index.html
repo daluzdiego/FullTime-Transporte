@@ -16,23 +16,19 @@
     @media(max-width:700px){#appView{display:block}.sidebar{display:none}.topbar{height:64px;padding:0 16px}.top-title{font-size:15px}.today{display:none}.content{padding:22px 14px 90px}.page-head{display:block}.page-head h1{font-size:23px}.head-actions{margin-top:16px}.stats{grid-template-columns:1fr 1fr;gap:10px}.stat-card{min-height:84px;padding:13px;gap:10px}.stat-icon{width:36px;height:36px;font-size:17px}.stat-value{font-size:22px}.stat-label{font-size:11px}.panel-head{padding:15px}.panel-body{padding:14px}.form-panel .panel-body{padding:17px}.form-grid{grid-template-columns:1fr;gap:15px}.span-2{grid-column:auto}.section-label{grid-column:auto}.form-actions{flex-direction:column-reverse}.form-actions .btn{width:100%}.table-tools{align-items:stretch}.table-tools .field{width:100%}.dev-card{margin:6vh 0;padding:28px 20px}.mobile-nav{position:fixed;z-index:10;bottom:0;left:0;right:0;display:flex;justify-content:space-around;gap:2px;padding:8px 4px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line)}.mobile-nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;border-radius:8px;color:#6b7788;padding:6px 2px;font-size:10px;min-height:48px}.mobile-nav button.active{color:var(--blue);font-weight:750;background:#f0f6ff}.mobile-nav span:first-child{font-size:18px}.login-card{padding:28px 23px;border-radius:18px}.login-title{font-size:24px}.top-right .btn{padding:8px 10px;min-height:38px;font-size:12px}}
     @media(max-width:380px){.stats{grid-template-columns:1fr}.login-card{padding:25px 19px}}
 
-    /* Navegação: painel lateral recolhido por padrão no desktop; aberto ao passar o mouse.
-       Em telas touch, o botão de menu abre um drawer com backdrop. */
+    /* Navegação fixa no desktop; menu recolhível somente em dispositivos móveis. */
     .top-heading{display:flex;align-items:center;gap:12px;min-width:0}
     .menu-toggle{display:none;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;align-items:center;justify-content:center;flex-direction:column;gap:4px;flex:none}
     .menu-toggle span{display:block;width:17px;height:2px;background:#334155;border-radius:2px}
     .nav-backdrop{display:none}
-    #appView{display:block}
-    #appView .sidebar{position:fixed;z-index:31;left:0;top:0;bottom:0;height:100dvh;min-height:0;width:246px;flex:none;overflow-y:auto;box-shadow:8px 0 32px rgba(18,42,76,.08);transform:translateX(calc(-100% + 10px));transition:transform .2s ease;will-change:transform}
-    #appView .sidebar:hover,#appView .sidebar:focus-within{transform:translateX(0)}
-    #appView .main{width:100%;min-height:100vh}
+    #appView{display:flex;min-height:100vh}
+    #appView .sidebar{position:sticky;z-index:31;left:auto;top:0;bottom:auto;height:100vh;min-height:100vh;width:218px;flex:0 0 218px;overflow-y:auto;box-shadow:none;transform:none;transition:none;will-change:auto}
+    #appView .main{flex:1;min-width:0;width:auto;min-height:100vh;margin-left:0}
     #appView .topbar{padding-left:28px}
     #appView .mobile-nav{display:none!important}
     @media(max-width:700px), (hover:none) and (pointer:coarse){
-      #appView .sidebar{width:min(290px,86vw);transform:translateX(-105%);transition:transform .22s ease}
-      #appView .sidebar.mobile-open{transform:translateX(0);box-shadow:18px 0 45px rgba(10,25,48,.2)}
-      #appView .sidebar:hover,#appView .sidebar:focus-within{transform:translateX(-105%)}
-      #appView .sidebar.mobile-open:hover,#appView .sidebar.mobile-open:focus-within{transform:translateX(0)}
+      #appView .sidebar{position:fixed;z-index:31;left:0;top:0;bottom:0;height:100dvh;min-height:0;width:min(290px,86vw);flex:none;overflow-y:auto;box-shadow:18px 0 45px rgba(10,25,48,.2);transform:translateX(-105%);transition:transform .22s ease;will-change:transform}
+      #appView .sidebar.mobile-open{transform:translateX(0)}
       #appView .nav-backdrop.visible{display:block;position:fixed;inset:0;z-index:30;background:rgba(10,25,48,.42);backdrop-filter:blur(2px)}
       #appView .menu-toggle{display:flex}
       #appView .topbar{padding-left:13px;padding-right:13px;gap:8px}
