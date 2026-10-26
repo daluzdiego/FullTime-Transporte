@@ -134,9 +134,9 @@
     document.body.style.overflow='';
   }
   function buildNav(){
-    const side=document.getElementById('sideNav'),mobile=document.getElementById('mobileNav');
+    const side=document.getElementById('sideNav');
     side.innerHTML=NAV_ITEMS.map(n=>`<button data-page="${n.id}" onclick="goPage('${n.id}')"><span class="nav-ico">${n.icon}</span>${n.label}${n.id!=='inicio'&&n.id!=='motoristas'&&n.id!=='caminhoes'?'<span style="margin-left:auto;font-size:9px;color:#a0a9b6">•</span>':''}</button>`).join('');
-    mobile.innerHTML='';paintNav();
+    paintNav();
   }
   function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
   function goPage(page){currentPage=page;closeMobileNav();paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
