@@ -159,15 +159,12 @@
     const headers=isDriver
       ? ['nome','cpf','telefone','email','cnh','categoria','validade','cidade','observacoes']
       : ['placa','renavam','marca','modelo','ano','tipo','capacidade','documento','observacoes'];
-    const sample=isDriver
-      ? ['Nome Completo','00000000000','5551999999999','exemplo@example.com','NUMERO_CNH','E','2030-12-31','Rio Grande / RS','']
-      : ['ABC1D23','00000000000','Volvo','FH 540','2024','Cavalo mecânico','27','Não conferido',''];
-    const csv='\uFEFF'+headers.join(';')+'\r\n'+sample.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')+'\r\n';
+    const csv='\uFEFF'+headers.join(';')+'\r\n';
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=isDriver?'modelo_importacao_motoristas.csv':'modelo_importacao_caminhoes.csv';
     document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-    toast('Modelo baixado. Substitua a linha de exemplo pelos dados reais antes de importar.');
+    toast('Modelo baixado. Preencha uma linha por registro e mantenha os cabeçalhos.');
   }
   function handleCsvUpload(event,kind){
     const file=event.target.files&&event.target.files[0];if(!file)return;
