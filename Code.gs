@@ -307,6 +307,90 @@ function salvarCaminhaoFullTime(token, data) {
   return { ok: true, id: id, message: 'Caminhão cadastrado e enviado para revisão.' };
 }
 
+
+/** Importação em lote via CSV UTF-8 delimitado por ponto e vírgula. */
+function importarMotoristasCsvFullTime(token, csvText) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  const rows = parseImportCsv_(csvText, [
+    'nome','cpf','telefone','email','cnh','categoria','validade','cidade','observacoes'
+  ]);
+  const sh = getSheet_('MOTORISTAS');
+  const existingCpf = new Set(sh.getLastRow() > 1 ? sh.getRange(2,5,sh.getLastRow()-1,1).getDisplayValues().flat().map(digitos_).filter(Boolean) : []);
+  const seenCpf = new Set();
+  const output = [], errors = [];
+  rows.forEach(function(row, idx) {
+    const line = idx + 2;
+    const nome = texto_(row.nome,120), cpf = digitos_(row.cpf), telefone = digitos_(row.telefone);
+    const cnh = texto_(row.cnh,40), categoria = texto_(row.categoria,5).toUpperCase();
+    if (!nome) { errors.push('Linha ' + line + ': nome obrigatório.'); return; }
+    if (!telefone || telefone.length < 10) { errors.push('Linha ' + line + ': telefone com DDD obrigatório.'); return; }
+    if (!cnh) { errors.push('Linha ' + line + ': número da CNH obrigatório.'); return; }
+    if (!['C','D','E'].includes(categoria)) { errors.push('Linha ' + line + ': categoria deve ser C, D ou E.'); return; }
+    if (!row.validade || !/^\d{4}-\d{2}-\d{2}$/.test(row.validade)) { errors.push('Linha ' + line + ': validade deve estar no formato AAAA-MM-DD.'); return; }
+    if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) { errors.push('Linha ' + line + ': CPF inválido.'); return; }
+    if (cpf && (existingCpf.has(cpf) || seenCpf.has(cpf))) { errors.push('Linha ' + line + ': CPF duplicado.'); return; }
+    if (cpf) seenCpf.add(cpf);
+    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',nome,cpf,telefone,texto_(row.email,150),cnh,categoria,row.validade,texto_(row.cidade,120),texto_(row.observacoes,1000)]);
+  });
+  if (output.length) {
+    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
+    auditar_(session,'IMPORTAR_LOTE','MOTORISTAS','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
+  }
+  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' motorista(s) importado(s); '+errors.length+' linha(s) precisam de correção.'};
+}
+
+function importarCaminhoesCsvFullTime(token, csvText) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  const rows = parseImportCsv_(csvText, [
+    'placa','renavam','marca','modelo','ano','tipo','capacidade','documento','observacoes'
+  ]);
+  const sh = getSheet_('CAMINHOES');
+  const existingPlates = new Set(sh.getLastRow() > 1 ? sh.getRange(2,4,sh.getLastRow()-1,1).getDisplayValues().flat().map(normalizarPlaca_).filter(Boolean) : []);
+  const seenPlates = new Set();
+  const output = [], errors = [];
+  rows.forEach(function(row, idx) {
+    const line = idx + 2;
+    const placa = normalizarPlaca_(row.placa), marca = texto_(row.marca,80), modelo = texto_(row.modelo,80);
+    const ano = texto_(row.ano,10), tipo = texto_(row.tipo,50), capacidade = Number(String(row.capacidade||'').replace(',','.'));
+    if (!placa || placa.length !== 7) { errors.push('Linha ' + line + ': placa deve ter 7 caracteres.'); return; }
+    if (existingPlates.has(placa) || seenPlates.has(placa)) { errors.push('Linha ' + line + ': placa duplicada.'); return; }
+    if (!marca || !modelo) { errors.push('Linha ' + line + ': marca e modelo obrigatórios.'); return; }
+    if (!/^\d{4}$/.test(ano)) { errors.push('Linha ' + line + ': ano deve ter quatro dígitos.'); return; }
+    if (!tipo) { errors.push('Linha ' + line + ': tipo de veículo obrigatório.'); return; }
+    if (!(capacidade > 0 && capacidade <= 200)) { errors.push('Linha ' + line + ': capacidade deve estar entre 0,1 e 200 toneladas.'); return; }
+    seenPlates.add(placa);
+    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',placa,digitos_(row.renavam),marca,modelo,ano,tipo,capacidade,texto_(row.documento,80),texto_(row.observacoes,1000)]);
+  });
+  if (output.length) {
+    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
+    auditar_(session,'IMPORTAR_LOTE','CAMINHOES','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
+  }
+  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' caminhão(ões) importado(s); '+errors.length+' linha(s) precisam de correção.'};
+}
+
+function parseImportCsv_(csvText, requiredHeaders) {
+  const text = String(csvText || '').replace(/^\uFEFF/, '').trim();
+  if (!text) throw new Error('O arquivo está vazio.');
+  if (text.length > 1500000) throw new Error('Arquivo muito grande. Divida em arquivos menores (limite de 1,5 MB).');
+  const delimiter = text.split(/\r?\n/)[0].includes(';') ? ';' : ',';
+  const matrix = Utilities.parseCsv(text, delimiter);
+  if (matrix.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalhos e pelo menos um registro.');
+  const normalize = function(v) { return String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); };
+  const headers = matrix[0].map(normalize);
+  const indexes = {};
+  requiredHeaders.forEach(function(h) {
+    const i = headers.indexOf(normalize(h));
+    if (i < 0) throw new Error('Cabeçalho obrigatório ausente: ' + h + '. Baixe o modelo e mantenha os nomes das colunas.');
+    indexes[h] = i;
+  });
+  return matrix.slice(1).filter(function(r) { return r.some(function(v){return String(v||'').trim();}); }).map(function(r) {
+    const obj = {};
+    requiredHeaders.forEach(function(h) { obj[h] = String(r[indexes[h]] == null ? '' : r[indexes[h]]).trim(); });
+    return obj;
+  });
+}
+function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
 function atualizarStatusFullTime(token, entidade, id, status) {
   const session = obterSessao_(token); exigirAdmin_(session);
   const mapa = { MOTORISTAS: 3, CAMINHOES: 3 };
