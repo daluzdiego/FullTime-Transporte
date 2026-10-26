@@ -174,9 +174,10 @@ function alterarMinhaSenha(token, senhaAtual, senhaNova) {
     throw new Error('Senha atual incorreta.');
   }
   const salt = Utilities.getUuid() + Utilities.getUuid();
-  sh.getRange(idx+1,4,1,5).setValues([[
-    salt, hashSenha_(senhaNova, salt), row[5], row[6], false
-  ]]);
+  // Columns D/E contain salt/hash; H tracks mandatory password reset.
+  sh.getRange(idx+1,4).setValue(salt);
+  sh.getRange(idx+1,5).setValue(hashSenha_(senhaNova, salt));
+  sh.getRange(idx+1,8).setValue(false);
   // Ensure session reflects the completed mandatory password change.
   session.trocaObrigatoria = false;
   CacheService.getScriptCache().put(FT.SESSION_PREFIX + token, JSON.stringify(session), FT.SESSION_TTL_SECONDS);
