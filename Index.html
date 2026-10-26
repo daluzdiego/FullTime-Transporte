@@ -27,7 +27,12 @@
     #appView .topbar{padding-left:28px}
     #appView .mobile-nav{display:none!important}
     @media(max-width:700px), (hover:none) and (pointer:coarse){
-      #appView .sidebar{position:fixed;z-index:31;left:0;top:0;bottom:0;height:100dvh;min-height:0;width:min(290px,86vw);flex:none;overflow-y:auto;box-shadow:18px 0 45px rgba(10,25,48,.2);transform:translateX(-105%);transition:transform .22s ease;will-change:transform}
+      #appView .sidebar{display:flex;position:fixed;z-index:31;left:0;top:0;bottom:0;height:100dvh;min-height:0;width:min(290px,86vw);flex:0 0 min(290px,86vw);overflow-y:auto;box-shadow:18px 0 45px rgba(10,25,48,.2);transform:translateX(-105%);transition:transform .22s ease;will-change:transform}
+      #appView .main{width:100%;min-width:0;flex:1 1 auto}
+      #appView .content{min-width:0;overflow-x:hidden}
+      #appView .table-wrap{max-width:100%;overflow-x:auto}
+      #appView .panel{max-width:100%}
+      #appView .form-grid input,#appView .form-grid select,#appView .form-grid textarea{max-width:100%;min-width:0}
       #appView .sidebar.mobile-open{transform:translateX(0)}
       #appView .nav-backdrop.visible{display:block;position:fixed;inset:0;z-index:30;background:rgba(10,25,48,.42);backdrop-filter:blur(2px)}
       #appView .menu-toggle{display:flex}
