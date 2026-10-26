@@ -76,22 +76,13 @@ function configurarSistemaFullTime() {
     ['MODO','MVP_VALIDACAO']
   ]);
 
-  const tempPassword = gerarSenhaTemporaria_();
-  const salt = Utilities.getUuid() + Utilities.getUuid();
-  const hash = hashSenha_(tempPassword, salt);
   const now = new Date();
-  const users = [
-    [Utilities.getUuid(),'Diego','Diego',salt,hash,'ADMIN',true,true,now,''],
-    [Utilities.getUuid(),'Bruno','Bruno',salt,hash,'ADMIN',true,true,now,'']
-  ];
-  // Separate salt and a unique temporary password per account.
   const creds = {};
-  users.forEach(function(row, index) {
-    const pw = index === 0 ? tempPassword : gerarSenhaTemporaria_();
-    const individualSalt = Utilities.getUuid() + Utilities.getUuid();
-    row[3] = individualSalt;
-    row[4] = hashSenha_(pw, individualSalt);
-    creds[row[1]] = pw;
+  const users = ['Diego','Bruno'].map(function(login) {
+    const pw = gerarSenhaTemporaria_();
+    const salt = Utilities.getUuid() + Utilities.getUuid();
+    creds[login] = pw;
+    return [Utilities.getUuid(),login,login,salt,hashSenha_(pw,salt),'ADMIN',true,true,now,''];
   });
   ss.getSheetByName(FT.SHEETS.USERS).getRange(2,1,users.length,users[0].length)
     .setValues(users);
