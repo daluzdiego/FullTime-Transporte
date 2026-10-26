@@ -171,7 +171,7 @@
     const input=event.target;const result=document.getElementById(kind+'ImportResult');
     if(!file.name.toLowerCase().endsWith('.csv')){toast('Envie um arquivo CSV. Para Excel, use Salvar como CSV UTF-8.',true);input.value='';return;}
     if(file.size>1500000){toast('O arquivo ultrapassa 1,5 MB. Divida em arquivos menores.',true);input.value='';return;}
-    if(!confirm('Importar o arquivo "'+file.name+'"? A linha de exemplo do modelo também será importada se você não a remover ou substituir.')){input.value='';return;}
+    if(!confirm('Importar o arquivo "'+file.name+'"? Cada linha preenchida será validada; os registros aceitos serão adicionados e os rejeitados serão informados.')){input.value='';return;}
     result.textContent='Lendo e validando arquivo…';
     const reader=new FileReader();
     reader.onload=function(){
