@@ -5,6 +5,62 @@ const FT_CONFIG = {
   SESSION_TTL_SECONDS: 21600
 };
 
+
+/**
+ * Cria SOMENTE as guias MOTORISTAS e CAMINHOES na planilha indicada pelo responsável.
+ * Não cria outra planilha, não apaga guias existentes e não altera FT_DATABASE_ID.
+ * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
+ */
+function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
+  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const schemas = {
+    MOTORISTAS: [
+      'ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE',
+      'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE',
+      'CIDADE_UF', 'OBSERVACOES'
+    ],
+    CAMINHOES: [
+      'ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA',
+      'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS',
+      'SITUACAO_DOCUMENTAL', 'OBSERVACOES'
+    ]
+  };
+
+  Object.keys(schemas).forEach(function(name) {
+    let sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+
+    const headers = schemas[name];
+    const firstRow = sh.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
+    const rowIsBlank = firstRow.every(function(value) { return !String(value).trim(); });
+
+    if (rowIsBlank) {
+      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    } else {
+      const matches = headers.every(function(header, i) {
+        return String(firstRow[i] || '').trim() === header;
+      });
+      if (!matches) {
+        throw new Error('A guia "' + name + '" já contém cabeçalhos diferentes. Nenhum cabeçalho foi sobrescrito. Verifique a guia antes de continuar.');
+      }
+    }
+
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, headers.length)
+      .setFontWeight('bold')
+      .setBackground('#eaf2ff')
+      .setFontColor('#16345c')
+      .setWrap(true);
+    sh.autoResizeColumns(1, headers.length);
+    sh.setTabColor(name === 'MOTORISTAS' ? '#1769e8' : '#168354');
+  });
+
+  console.log('Guias verificadas/criadas em: ' + ss.getUrl());
+  console.log('Guias processadas: MOTORISTAS, CAMINHOES. Nenhuma outra guia foi removida.');
+  return ss.getUrl();
+}
+
 function doGet() {
   const template = HtmlService.createTemplateFromFile('Index');
   template.LOGIN_BG = getLoginBackground_();
