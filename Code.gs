@@ -240,25 +240,22 @@ function salvarMotorista(token, data) {
   if (!validade || isNaN(validade.getTime())) throw new Error('Informe a validade da CNH.');
   const id = String(data.id || '');
   const all = sheet_(FT.SHEETS.DRIVERS).getDataRange().getValues();
-  const duplicate = all.slice(1).find(function(r) {
-    return somenteDigitos_(r[5]) === cpf && String(r[0]) !== id;
-  });
+  const duplicate = all.slice(1).find(function(r) { return somenteDigitos_(r[5]) === cpf && String(r[0]) !== id; });
   if (duplicate) throw new Error('Já existe um motorista cadastrado com este CPF.');
 
   const now = new Date();
-  let row;
   if (id) {
     const idx = all.findIndex(function(r,i){return i>0 && String(r[0])===id;});
     if (idx < 1) throw new Error('Motorista não encontrado.');
-    row = all[idx];
-    row[2] = now; row[4] = nome; row[5] = cpf; row[6] = telefone;
-    row[7] = email; row[8] = cnh; row[9] = categoria; row[10] = validade;
+    const row = all[idx];
+    row[2] = now;
+    row[4] = nome; row[5] = cpf; row[6] = telefone; row[7] = email;
+    row[8] = cnh; row[9] = categoria; row[10] = validade;
     row[11] = textoSeguro_(data.cidadeUf, 100, 'Cidade/UF', false);
     row[12] = textoSeguro_(data.contatoEmergencia, 160, 'Contato de emergência', false);
     row[13] = textoSeguro_(data.observacoes, 1000, 'Observações', false);
     sheet_(FT.SHEETS.DRIVERS).getRange(idx+1,1,1,row.length).setValues([row]);
   } else {
-    idOrThrow_(id);
     const sh = sheet_(FT.SHEETS.DRIVERS);
     sh.appendRow([
       Utilities.getUuid(),now,now,'PENDENTE_REVISAO',nome,cpf,telefone,email,cnh,
