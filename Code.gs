@@ -373,10 +373,14 @@ function auditoria_(s,acao,entidade,id,detalhes) {
   try { sheet_(FT.SHEETS.AUDIT).appendRow([new Date(),s&&s.id||'',s&&s.login||'',acao,entidade,id,detalhes]); } catch(e) { console.error(e); }
 }
 function gerarSenhaTemporaria_() {
-  const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  let out='';
-  for(let i=0;i<20;i++) out+=chars.charAt(Math.floor(Math.random()*chars.length));
-  return out;
+  // 20 random bytes from the Apps Script crypto service, encoded as URL-safe text.
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(
+      Utilities.DigestAlgorithm.SHA_256,
+      Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid(),
+      Utilities.Charset.UTF_8
+    )
+  ).replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
 }
 function hashSenha_(password,salt) {
   const bytes=Utilities.computeDigest(
