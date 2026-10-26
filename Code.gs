@@ -73,6 +73,76 @@ function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
   return ss.getUrl();
 }
 
+
+/**
+ * Configura a planilha operacional externa para os cadastros.
+ * Executar manualmente uma vez. Não altera a base interna de login/auditoria.
+ */
+function conectarPlanilhaOperacionalFullTime() {
+  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const ss = SpreadsheetApp.openById(spreadsheetId);
+  const expected = {
+    MOTORISTAS: ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAMINHOES: ['ID','CRIADO_EM','STATUS','PLACA','RENAVAM','MARCA','MODELO','ANO','TIPO_VEICULO','CAPACIDADE_TONELADAS','SITUACAO_DOCUMENTAL','OBSERVACOES']
+  };
+  Object.keys(expected).forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) throw new Error('Não encontrei a guia ' + name + ' na planilha operacional.');
+    const actual = sh.getRange(1,1,1,expected[name].length).getDisplayValues()[0];
+    if (expected[name].some(function(h,i){ return actual[i] !== h; })) {
+      throw new Error('Os cabeçalhos da guia ' + name + ' não correspondem ao formato esperado. Nenhuma conexão foi salva.');
+    }
+  });
+  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
+  console.log('Planilha operacional conectada: ' + ss.getUrl());
+  console.log('Somente MOTORISTAS e CAMINHOES serão lidos/escritos nesta planilha; login e auditoria permanecem na base interna.');
+  return ss.getUrl();
+}
+
+/**
+ * Adiciona exatamente cinco motoristas e cinco caminhões claramente fictícios.
+ * É idempotente: se já existirem registros com ID TESTE-FT-*, não duplica a carga.
+ * Execute apenas em ambiente de teste; os dados são marcados como TESTE.
+ */
+function inserirDadosFakeFullTime() {
+  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!registryId) throw new Error('Execute primeiro conectarPlanilhaOperacionalFullTime().');
+  const ss = SpreadsheetApp.openById(registryId);
+  const drivers = [
+    ['TESTE-FT-MOT-001','MOTORISTA TESTE 01','','(00) 90000-0001','motorista01@example.invalid','CNH-TESTE-001','C','2030-01-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-MOT-002','MOTORISTA TESTE 02','','(00) 90000-0002','motorista02@example.invalid','CNH-TESTE-002','D','2030-02-28','Pelotas / RS','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-MOT-003','MOTORISTA TESTE 03','','(00) 90000-0003','motorista03@example.invalid','CNH-TESTE-003','E','2030-03-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-MOT-004','MOTORISTA TESTE 04','','(00) 90000-0004','motorista04@example.invalid','CNH-TESTE-004','C','2030-04-30','São José do Norte / RS','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-MOT-005','MOTORISTA TESTE 05','','(00) 90000-0005','motorista05@example.invalid','CNH-TESTE-005','D','2030-05-31','Pelotas / RS','DADO FICTÍCIO — não usar em operação']
+  ];
+  const trucks = [
+    ['TESTE-FT-CAM-001','TST0001','','Volvo','FH 460 TESTE','2022','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-CAM-002','TST0002','','Scania','R 450 TESTE','2021','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-CAM-003','TST0003','','Mercedes-Benz','Actros TESTE','2023','Cavalo mecânico',26,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-CAM-004','TST0004','','Volvo','VM TESTE','2020','Truck',14,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
+    ['TESTE-FT-CAM-005','TST0005','','Iveco','Hi-Way TESTE','2022','Carreta',27,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação']
+  ];
+  const driverSheet = ss.getSheetByName('MOTORISTAS');
+  const truckSheet = ss.getSheetByName('CAMINHOES');
+  const existingDriverIds = driverSheet.getLastRow() > 1 ? driverSheet.getRange(2,1,driverSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
+  const existingTruckIds = truckSheet.getLastRow() > 1 ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
+  const now = new Date();
+  let driverCount = 0, truckCount = 0;
+  drivers.forEach(function(d) {
+    if (existingDriverIds.indexOf(d[0]) !== -1) return;
+    driverSheet.appendRow([d[0],now,'PENDENTE_REVISAO',d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9]]);
+    driverCount++;
+  });
+  trucks.forEach(function(t) {
+    if (existingTruckIds.indexOf(t[0]) !== -1) return;
+    truckSheet.appendRow([t[0],now,'PENDENTE_REVISAO',t[1],t[2],t[3],t[4],t[5],t[6],t[7],t[8],t[9]]);
+    truckCount++;
+  });
+  console.log('Dados fictícios inseridos: ' + driverCount + ' motoristas, ' + truckCount + ' caminhões.');
+  console.log('Todos estão marcados como PENDENTE_REVISAO e possuem IDs TESTE-FT-*. Remova-os antes da produção.');
+  return {motoristas:driverCount,caminhoes:truckCount};
+}
+
 function doGet() {
   const template = HtmlService.createTemplateFromFile('Index');
   template.LOGIN_BG = getLoginBackground_();
@@ -265,7 +335,18 @@ function getDbId_() {
   if (!id) throw new Error('A base ainda não foi configurada. Execute configurarSistemaFullTime().');
   return id;
 }
-function getSheet_(name) { return SpreadsheetApp.openById(getDbId_()).getSheetByName(name); }
+function getSheet_(name) {
+  // Cadastros operacionais ficam na planilha indicada pelo cliente.
+  // Usuários e auditoria permanecem na base interna do sistema.
+  const props = PropertiesService.getScriptProperties();
+  const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
+  if (registryId && (name === 'MOTORISTAS' || name === 'CAMINHOES')) {
+    const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
+    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional configurada.');
+    return sh;
+  }
+  return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
+}
 function listarRegistros_(name) {
   const sh = getSheet_(name), values = sh.getDataRange().getValues();
   if (values.length < 2) return [];
