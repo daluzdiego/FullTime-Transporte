@@ -151,7 +151,43 @@
     <div class="panel"><div class="panel-head"><h2>Comece por aqui</h2><span class="badge badge-active">Sistema inicial</span></div><div class="panel-body"><div class="form-grid"><div><div style="font-weight:700;font-size:14px;margin-bottom:7px">Cadastro de motoristas</div><div class="muted" style="font-size:12px;line-height:1.6;margin-bottom:14px">Registre os dados básicos e a CNH. Todo cadastro começa pendente até ser revisado por um administrador.</div><button class="btn btn-primary" onclick="goPage('motoristas')">Abrir motoristas →</button></div><div><div style="font-weight:700;font-size:14px;margin-bottom:7px">Cadastro de caminhões</div><div class="muted" style="font-size:12px;line-height:1.6;margin-bottom:14px">Registre placa, modelo, capacidade e situação documental para preparar a base operacional.</div><button class="btn btn-primary" onclick="goPage('caminhoes')">Abrir caminhões →</button></div></div></div></div>`;}
   function renderList(kind){const isDriver=kind==='motoristas', rows=(dashboard?.[kind]||[]);const title=isDriver?'Motoristas':'Caminhões';return `
     <div class="page-head"><div><h1>${title}</h1><p>${isDriver?'Gerencie os dados cadastrais, CNH e situação dos motoristas.':'Gerencie os dados dos veículos e a situação documental.'}</p></div><div class="head-actions"><button class="btn btn-primary" onclick="showForm('${kind}')">＋ ${isDriver?'Novo motorista':'Novo caminhão'}</button></div></div>
+    <div class="panel bulk-panel"><div class="panel-head"><h2>Importação em lote</h2><span class="badge badge-active">Vários registros</span></div><div class="panel-body"><p class="muted small" style="margin:0 0 12px">Baixe o modelo, preencha uma linha por ${isDriver?'motorista':'caminhão'} no Excel ou Google Sheets e salve como CSV UTF-8. Depois envie o arquivo para cadastrar vários de uma vez.</p><div class="head-actions"><button class="btn btn-secondary" type="button" onclick="downloadCsvTemplate('${kind}')">↓ Baixar modelo CSV</button><button class="btn btn-primary" type="button" onclick="document.getElementById('${kind}CsvFile').click()">↑ Importar arquivo CSV</button><input id="${kind}CsvFile" type="file" accept=".csv,text/csv" class="hidden" onchange="handleCsvUpload(event,'${kind}')"></div><div class="muted small" style="margin-top:10px">Validação automática: campos obrigatórios, CPF/placa duplicados e formato dos dados. Os registros importados ficam pendentes de revisão.</div><div id="${kind}ImportResult" class="small" style="margin-top:8px"></div></div></div>
     <div class="panel"><div class="panel-head"><h2>Todos os ${isDriver?'motoristas':'caminhões'}</h2><span class="muted small">${rows.length} registro(s)</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="filterInput" placeholder="Buscar por ${isDriver?'nome, CPF ou telefone':'placa, marca ou modelo'}…" oninput="filterTable()"></div><select id="statusFilter" onchange="filterTable()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todos os status</option><option value="PENDENTE_REVISAO">Pendente</option><option value="ATIVO">Ativo</option><option value="INATIVO">Inativo</option></select></div><div class="table-wrap"><table><thead><tr>${isDriver?'<th>Motorista</th><th>CPF</th><th>Telefone</th><th>CNH</th><th>Validade</th>':'<th>Veículo</th><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Documento</th>'}<th>Status</th><th>Ações</th></tr></thead><tbody id="tableBody">${rows.length?rows.map(r=>tableRow(r,isDriver)).join(''):`<tr><td colspan="7"><div class="empty"><strong>Nenhum cadastro ainda</strong>Use “${isDriver?'Novo motorista':'Novo caminhão'}” para começar.</div></td></tr>`}</tbody></table></div></div></div>`;}
+
+  function downloadCsvTemplate(kind){
+    const isDriver=kind==='motoristas';
+    const headers=isDriver
+      ? ['nome','cpf','telefone','email','cnh','categoria','validade','cidade','observacoes']
+      : ['placa','renavam','marca','modelo','ano','tipo','capacidade','documento','observacoes'];
+    const sample=isDriver
+      ? ['Nome Completo','00000000000','5551999999999','exemplo@example.com','NUMERO_CNH','E','2030-12-31','Rio Grande / RS','']
+      : ['ABC1D23','00000000000','Volvo','FH 540','2024','Cavalo mecânico','27','Não conferido',''];
+    const csv='\uFEFF'+headers.join(';')+'\r\n'+sample.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')+'\r\n';
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=isDriver?'modelo_importacao_motoristas.csv':'modelo_importacao_caminhoes.csv';
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    toast('Modelo baixado. Substitua a linha de exemplo pelos dados reais antes de importar.');
+  }
+  function handleCsvUpload(event,kind){
+    const file=event.target.files&&event.target.files[0];if(!file)return;
+    const input=event.target;const result=document.getElementById(kind+'ImportResult');
+    if(!file.name.toLowerCase().endsWith('.csv')){toast('Envie um arquivo CSV. Para Excel, use Salvar como CSV UTF-8.',true);input.value='';return;}
+    if(file.size>1500000){toast('O arquivo ultrapassa 1,5 MB. Divida em arquivos menores.',true);input.value='';return;}
+    if(!confirm('Importar o arquivo "'+file.name+'"? A linha de exemplo do modelo também será importada se você não a remover ou substituir.')){input.value='';return;}
+    result.textContent='Lendo e validando arquivo…';
+    const reader=new FileReader();
+    reader.onload=function(){
+      const fn=kind==='motoristas'?'importarMotoristasCsvFullTime':'importarCaminhoesCsvFullTime';
+      google.script.run.withSuccessHandler(function(res){
+        result.innerHTML='<strong>'+esc(res.message)+'</strong>'+(res.erros&&res.erros.length?'<ul>'+res.erros.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'');
+        toast(res.message,res.rejeitados>0);
+        google.script.run.withSuccessHandler(function(d){dashboard=d;renderPage(kind);}).withFailureHandler(function(e){toast(e.message||'Falha ao atualizar lista.',true);}).obterPainelFullTime(authToken);
+      }).withFailureHandler(function(e){result.textContent=e.message||'Falha ao importar arquivo.';toast(result.textContent,true);}).withUserObject(null)[fn](authToken,String(reader.result||''));
+    };
+    reader.onerror=function(){result.textContent='Não foi possível ler o arquivo.';toast(result.textContent,true);};
+    reader.readAsText(file,'UTF-8');input.value='';
+  }
   function tableRow(r,isDriver){const f=r.campos;const main=isDriver?f[0]:`${f[2]} ${f[3]}`;const sub=isDriver?f[2]:`Ano ${f[4]}`;const search=(f.join(' ')+' '+r.status).toLowerCase();return `<tr data-search="${esc(search)}" data-status="${esc(r.status)}"><td><div class="primary-cell">${esc(main||'—')}</div><div class="secondary-cell">${esc(sub||'')}</div></td>${isDriver?`<td>${esc(maskCpf(f[1]))}</td><td>${esc(f[2]||'—')}</td><td>${esc(f[4]||'—')} · ${esc(f[5]||'')}</td><td>${esc(formatDate(f[6]))}</td>`:`<td><span class="primary-cell">${esc(f[0]||'—')}</span></td><td>${esc(f[5]||'—')}</td><td>${esc(f[6]||'—')} t</td><td>${esc(f[7]||'Não informado')}</td>`}<td>${statusBadge(r.status)}</td><td><div class="row-actions">${r.status!=='ATIVO'?`<button class="icon-btn" title="Aprovar cadastro" onclick="setStatus('${isDriver?'MOTORISTAS':'CAMINHOES'}','${r.id}','ATIVO')">✓</button>`:''}${r.status!=='INATIVO'?`<button class="icon-btn" title="Inativar cadastro" onclick="setStatus('${isDriver?'MOTORISTAS':'CAMINHOES'}','${r.id}','INATIVO')">⊘</button>`:''}</div></td></tr>`;}
   function statusBadge(s){const cls=s==='ATIVO'?'badge-active':s==='INATIVO'?'badge-inactive':'badge-pending';const label=s==='ATIVO'?'Ativo':s==='INATIVO'?'Inativo':'Pendente revisão';return `<span class="badge ${cls}">${label}</span>`;}
   function showForm(kind){const isDriver=kind==='motoristas';const title=isDriver?'Novo motorista':'Novo caminhão';const fields=isDriver?`
