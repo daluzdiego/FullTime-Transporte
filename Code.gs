@@ -154,7 +154,7 @@ function logout(token) {
 
 /** Must be called with current password, then replaces the stored credential. */
 function alterarMinhaSenha(token, senhaAtual, senhaNova) {
-  const session = sessao_(token);
+  const session = sessao_(token, true);
   validarSenhaNova_(senhaNova);
   const sh = sheet_(FT.SHEETS.USERS);
   const values = sh.getDataRange().getValues();
@@ -346,12 +346,12 @@ function moduloEmDesenvolvimento(token, modulo) {
 
 /* ------------------------- Private helpers ------------------------- */
 
-function sessao_(token) {
+function sessao_(token, permitirTrocaSenha) {
   if (typeof token!=='string' || !token) throw new Error('Sessão expirada. Entre novamente.');
   const raw=CacheService.getScriptCache().get(FT.SESSION_PREFIX+token);
   if (!raw) throw new Error('Sessão expirada. Entre novamente.');
   const s=JSON.parse(raw);
-  if (s.trocaObrigatoria) throw new Error('Troque a senha temporária antes de continuar.');
+  if (s.trocaObrigatoria && permitirTrocaSenha !== true) throw new Error('Troque a senha temporária antes de continuar.');
   return s;
 }
 function exigirAdmin_(s) { if (!s || s.papel!=='ADMIN') throw new Error('Acesso restrito a administradores.'); }
