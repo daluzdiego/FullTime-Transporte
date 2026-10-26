@@ -56,8 +56,20 @@ function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
     sh.setTabColor(name === 'MOTORISTAS' ? '#1769e8' : '#168354');
   });
 
+  // Remove apenas a guia padrão se estiver vazia e não for uma das duas guias-alvo.
+  // Nunca apaga guias com conteúdo nem guias com nomes diferentes do padrão.
+  ss.getSheets().slice().forEach(function(sh) {
+    const name = sh.getName();
+    const isDefaultName = name === 'Sheet1' || name === 'Planilha1';
+    const isTarget = Object.prototype.hasOwnProperty.call(schemas, name);
+    if (isDefaultName && !isTarget && sh.getLastRow() <= 1 && sh.getLastColumn() <= 1 &&
+        !String(sh.getRange(1, 1).getDisplayValue()).trim() && ss.getSheets().length > 2) {
+      ss.deleteSheet(sh);
+    }
+  });
+
   console.log('Guias verificadas/criadas em: ' + ss.getUrl());
-  console.log('Guias processadas: MOTORISTAS, CAMINHOES. Nenhuma outra guia foi removida.');
+  console.log('Guias processadas: MOTORISTAS, CAMINHOES. Somente uma guia padrão vazia pode ser removida.');
   return ss.getUrl();
 }
 
