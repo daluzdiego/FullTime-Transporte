@@ -15,6 +15,35 @@
     @media(max-width:1000px){.sidebar{width:218px;flex-basis:218px}.content{padding:24px 22px}.topbar{padding:0 22px}.stats{gap:10px}.stat-card{padding:15px}}
     @media(max-width:700px){#appView{display:block}.sidebar{display:none}.topbar{height:64px;padding:0 16px}.top-title{font-size:15px}.today{display:none}.content{padding:22px 14px 90px}.page-head{display:block}.page-head h1{font-size:23px}.head-actions{margin-top:16px}.stats{grid-template-columns:1fr 1fr;gap:10px}.stat-card{min-height:84px;padding:13px;gap:10px}.stat-icon{width:36px;height:36px;font-size:17px}.stat-value{font-size:22px}.stat-label{font-size:11px}.panel-head{padding:15px}.panel-body{padding:14px}.form-panel .panel-body{padding:17px}.form-grid{grid-template-columns:1fr;gap:15px}.span-2{grid-column:auto}.section-label{grid-column:auto}.form-actions{flex-direction:column-reverse}.form-actions .btn{width:100%}.table-tools{align-items:stretch}.table-tools .field{width:100%}.dev-card{margin:6vh 0;padding:28px 20px}.mobile-nav{position:fixed;z-index:10;bottom:0;left:0;right:0;display:flex;justify-content:space-around;gap:2px;padding:8px 4px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line)}.mobile-nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;border-radius:8px;color:#6b7788;padding:6px 2px;font-size:10px;min-height:48px}.mobile-nav button.active{color:var(--blue);font-weight:750;background:#f0f6ff}.mobile-nav span:first-child{font-size:18px}.login-card{padding:28px 23px;border-radius:18px}.login-title{font-size:24px}.top-right .btn{padding:8px 10px;min-height:38px;font-size:12px}}
     @media(max-width:380px){.stats{grid-template-columns:1fr}.login-card{padding:25px 19px}}
+
+    /* Navegação: painel lateral recolhido por padrão no desktop; aberto ao passar o mouse.
+       Em telas touch, o botão de menu abre um drawer com backdrop. */
+    .top-heading{display:flex;align-items:center;gap:12px;min-width:0}
+    .menu-toggle{display:none;width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;align-items:center;justify-content:center;flex-direction:column;gap:4px;flex:none}
+    .menu-toggle span{display:block;width:17px;height:2px;background:#334155;border-radius:2px}
+    .nav-backdrop{display:none}
+    #appView{display:block}
+    #appView .sidebar{position:fixed;z-index:31;left:0;top:0;bottom:0;height:100dvh;min-height:0;width:246px;flex:none;overflow-y:auto;box-shadow:8px 0 32px rgba(18,42,76,.08);transform:translateX(calc(-100% + 10px));transition:transform .2s ease;will-change:transform}
+    #appView .sidebar:hover,#appView .sidebar:focus-within{transform:translateX(0)}
+    #appView .main{width:100%;min-height:100vh}
+    #appView .topbar{padding-left:28px}
+    #appView .mobile-nav{display:none!important}
+    @media(max-width:700px), (hover:none) and (pointer:coarse){
+      #appView .sidebar{width:min(290px,86vw);transform:translateX(-105%);transition:transform .22s ease}
+      #appView .sidebar.mobile-open{transform:translateX(0);box-shadow:18px 0 45px rgba(10,25,48,.2)}
+      #appView .sidebar:hover,#appView .sidebar:focus-within{transform:translateX(-105%)}
+      #appView .sidebar.mobile-open:hover,#appView .sidebar.mobile-open:focus-within{transform:translateX(0)}
+      #appView .nav-backdrop.visible{display:block;position:fixed;inset:0;z-index:30;background:rgba(10,25,48,.42);backdrop-filter:blur(2px)}
+      #appView .menu-toggle{display:flex}
+      #appView .topbar{padding-left:13px;padding-right:13px;gap:8px}
+      #appView .top-heading{gap:9px}
+      #appView .top-title{font-size:15px}
+      #appView .top-right{gap:6px}
+      #appView .top-right .btn{min-height:36px;padding:7px 10px}
+      #appView .today{display:none}
+    }
+    @media(prefers-reduced-motion:reduce){#appView .sidebar{transition:none}}
+
   </style>
 </head>
 <body>
@@ -33,17 +62,17 @@
   </section>
 
   <section id="appView" class="hidden">
-    <aside class="sidebar">
+    <div id="navBackdrop" class="nav-backdrop" onclick="closeMobileNav()"></div>
+    <aside class="sidebar" id="appSidebar">
       <div class="brand"><div class="brand-mark">▰</div><div>FULL TIME<small>TRANSPORTE E CONSULTORIA</small></div></div>
       <div class="nav-label">Área de trabalho</div>
       <nav id="sideNav" class="nav"></nav>
       <div class="sidebar-bottom"><div class="user-line"><div class="avatar" id="avatar">D</div><div class="user-meta"><strong id="sideUser">Administrador</strong><span>Administrador</span></div><button class="icon-btn" title="Sair" onclick="logout()">↪</button></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div><div class="top-right"><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
+      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
       <div class="content" id="content"></div>
     </main>
-    <nav class="mobile-nav" id="mobileNav"></nav>
   </section>
 
   <div id="passwordModal" class="hidden" style="position:fixed;inset:0;z-index:50;background:#10233c88;display:grid;place-items:center;padding:18px">
@@ -82,10 +111,32 @@
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
   function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
   function loadApp(){showAppShell();google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser=data.user;paintNav();renderPage(currentPage);}).withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();}).obterPainelFullTime(authToken);}
+  function toggleMobileNav(){
+    const side=document.getElementById('appSidebar');
+    const back=document.getElementById('navBackdrop');
+    const btn=document.getElementById('menuToggle');
+    const open=!side.classList.contains('mobile-open');
+    side.classList.toggle('mobile-open',open);
+    back.classList.toggle('visible',open);
+    btn.setAttribute('aria-expanded',String(open));
+    btn.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');
+    document.body.style.overflow=open?'hidden':'';
+  }
+  function closeMobileNav(){
+    const side=document.getElementById('appSidebar');
+    const back=document.getElementById('navBackdrop');
+    const btn=document.getElementById('menuToggle');
+    if(!side)return;
+    side.classList.remove('mobile-open');
+    back.classList.remove('visible');
+    btn.setAttribute('aria-expanded','false');
+    btn.setAttribute('aria-label','Abrir menu');
+    document.body.style.overflow='';
+  }
   function buildNav(){
     const side=document.getElementById('sideNav'),mobile=document.getElementById('mobileNav');
     side.innerHTML=NAV_ITEMS.map(n=>`<button data-page="${n.id}" onclick="goPage('${n.id}')"><span class="nav-ico">${n.icon}</span>${n.label}${n.id!=='inicio'&&n.id!=='motoristas'&&n.id!=='caminhoes'?'<span style="margin-left:auto;font-size:9px;color:#a0a9b6">•</span>':''}</button>`).join('');
-    mobile.innerHTML=NAV_ITEMS.filter(n=>['inicio','cargas','motoristas','caminhoes'].includes(n.id)).map(n=>`<button data-page="${n.id}" onclick="goPage('${n.id}')"><span>${n.icon}</span>${n.label}</button>`).join('');paintNav();
+    mobile.innerHTML='';paintNav();
   }
   function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
   function goPage(page){currentPage=page;paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
