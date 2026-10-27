@@ -38,6 +38,7 @@ Ainda NÃO implementado:
 | Propriedade | Valor |
 |---|---|
 | `FT_WA_VERIFY_TOKEN` | Segredo aleatório criado por vocês; o mesmo valor será informado na configuração do webhook da Meta |
+| `FT_WA_WEBHOOK_SECRET` | Segundo segredo aleatório para proteger os POSTs; será usado como parâmetro `hook_secret` na URL de callback |
 | `FT_WA_ACCESS_TOKEN` | Token de acesso da WhatsApp Cloud API |
 | `FT_WA_PHONE_NUMBER_ID` | ID do número de telefone apresentado no painel Meta |
 | `FT_WA_GRAPH_VERSION` | Versão Graph API atualmente suportada pelo aplicativo Meta, no formato `vNN.0` |
@@ -49,13 +50,13 @@ Não coloque tokens em arquivos do GitHub, planilhas ou mensagens. O token de ac
 ## Configuração necessária na Meta
 
 1. Configurar um aplicativo Meta com o produto WhatsApp e um número de WhatsApp Business habilitado para Cloud API.
-2. Configurar o webhook para a URL pública `/exec` da implantação do Apps Script.
+2. Configurar o webhook para a URL pública `/exec` da implantação do Apps Script, acrescentando `?hook_secret=VALOR_DO_SEGREDO` à URL de callback. Use exatamente o valor guardado em `FT_WA_WEBHOOK_SECRET`.
 3. Informar o mesmo segredo de verificação usado em `FT_WA_VERIFY_TOKEN).
 4. Subscrever o webhook ao evento de mensagens (`messages`).
 5. Garantir que o token tenha permissões de leitura de mídia e que o número/conta estejam autorizados.
 6. Enviar uma imagem de teste de um número de motorista cadastrado. Confirmar a criação do arquivo na pasta Drive e uma linha em `TICKETS`.
 
-A URL do Web App precisa estar implantada para execução como a identidade configurada e acessível pela Meta. A disponibilidade de acesso anônimo e as políticas do Workspace devem ser avaliadas pelo administrador. Se a política da organização impedir que a Meta chame o endpoint do Apps Script, será necessário um intermediário HTTPS compatível com a validação de assinatura da Meta.
+A URL do Web App precisa estar implantada para execução como a identidade configurada e acessível pela Meta. O Apps Script não expõe diretamente os cabeçalhos HTTP usados para validar a assinatura HMAC da Meta; por isso, este primeiro esqueleto usa um segredo adicional na URL do webhook. Para produção com maior exigência de segurança, recomenda-se um intermediário HTTPS que valide `X-Hub-Signature-256` antes de encaminhar o evento ao Apps Script. A disponibilidade de acesso anônimo e as políticas do Workspace devem ser avaliadas pelo administrador. Se a política da organização impedir que a Meta chame o endpoint do Apps Script, será necessário um intermediário HTTPS compatível com a validação de assinatura da Meta.
 
 ## Retenção e privacidade
 
