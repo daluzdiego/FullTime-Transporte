@@ -60,6 +60,7 @@ function configurarIntegracaoCadastroBrunoFullTime() {
     sh.setFrozenRows(1);
     sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
     protegerCabecalhoFT_(sh, 'Full Time — cabeçalho controlado pelo sistema');
+    protegerGuiaInteiraFT_(sh, 'Full Time — espelho sincronizado; edição manual bloqueada');
   });
   protegerCabecalhoFT_(origem.getSheetByName('MOTORISTAS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CAVALOS'), 'Full Time — cabeçalho do cadastro');
@@ -246,4 +247,14 @@ function criarGatilhoSincronizacaoBrunoFullTime() {
   ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()===fn;}).forEach(function(t){ScriptApp.deleteTrigger(t);});
   ScriptApp.newTrigger(fn).timeBased().everyHours(1).create();
   console.log('Gatilho criado: sincronização horária. Execute somente depois de validar a importação manual.');
+}
+
+function protegerGuiaInteiraFT_(sheet, description) {
+  const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+  if (protections.some(function(p){return p.getDescription() === description;})) return;
+  const p = sheet.protect().setDescription(description);
+  p.setWarningOnly(false);
+  const editors = p.getEditors();
+  if (editors.length) p.removeEditors(editors);
+  if (p.canDomainEdit()) p.setDomainEdit(false);
 }
