@@ -679,11 +679,11 @@ function ordenarElegiveisEscalaFullTime(lista) {
     return isFinite(n) ? n : 0;
   };
   return itens.filter(function(m) {
-    return m && m.elegivel !== false && m.recusouCargaAtual !== true;
+    return m && m.elegivel !== false && m.recusouOperacaoAtual !== true && m.recusouCargaAtual !== true;
   }).sort(function(a, b) {
     const operacoesA = Math.max(0, Number(a.operacoesHoje) || 0);
     const operacoesB = Math.max(0, Number(b.operacoesHoje) || 0);
-    if ((cargasA === 0) !== (cargasB === 0)) return cargasA === 0 ? -1 : 1;
+    if ((operacoesA === 0) !== (operacoesB === 0)) return operacoesA === 0 ? -1 : 1;
 
     // Critério de assiduidade combinado, sem pesos arbitrários:
     // compara primeiro a proporção de dias disponíveis e, em seguida,
@@ -699,12 +699,12 @@ function ordenarElegiveisEscalaFullTime(lista) {
 
     const operacoes30A = Math.max(0, Number(a.operacoes30Dias) || 0);
     const operacoes30B = Math.max(0, Number(b.operacoes30Dias) || 0);
-    if (viagensA !== viagensB) return viagensA - viagensB;
+    if (operacoes30A !== operacoes30B) return operacoes30A - operacoes30B;
     const filaA = dataHora(a.dataEntradaFila);
     const filaB = dataHora(b.dataEntradaFila);
     if (filaA !== filaB) return filaA - filaB;
-    const ultimaA = dataHora(a.ultimaCargaEm) || 0;
-    const ultimaB = dataHora(b.ultimaCargaEm) || 0;
+    const ultimaA = dataHora(a.ultimaOperacaoEm || a.ultimaCargaEm) || 0;
+    const ultimaB = dataHora(b.ultimaOperacaoEm || b.ultimaCargaEm) || 0;
     if (ultimaA !== ultimaB) return ultimaA - ultimaB;
     return String(a.nome || a.motoristaId || '').localeCompare(String(b.nome || b.motoristaId || ''), 'pt-BR');
   });
