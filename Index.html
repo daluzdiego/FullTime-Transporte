@@ -89,7 +89,8 @@
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'frota',label:'Frota',icon:'▰',title:'Frota',group:true,children:[
-      {id:'caminhoes',label:'Veículos / cavalos',icon:'▰',title:'Veículos / cavalos'},
+      {id:'caminhoes',label:'Caminhões cadastrados',icon:'▰',title:'Caminhões cadastrados'},
+      {id:'cavalos',label:'Cavalos mecânicos',icon:'▰',title:'Cavalos mecânicos'},
       {id:'carretas',label:'Carretas',icon:'▱',title:'Carretas'},
       {id:'conjuntos',label:'Conjuntos e vínculos',icon:'⛓',title:'Conjuntos e vínculos'}
     ]},
@@ -149,27 +150,28 @@
     paintNav();
   }
   function toggleNavGroup(id,button){const el=document.getElementById(id);if(!el)return;const closed=el.classList.toggle('collapsed');button.setAttribute('aria-expanded',String(!closed));}
-  function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));const activeFrota=['caminhoes','carretas','conjuntos'].includes(currentPage);const sub=document.getElementById('frotaSubmenu');if(sub&&activeFrota)sub.classList.remove('collapsed');const groupBtn=document.querySelector('.nav-group-toggle');if(groupBtn&&activeFrota)groupBtn.setAttribute('aria-expanded','true');document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
+  function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));const activeFrota=['caminhoes','cavalos','carretas','conjuntos'].includes(currentPage);const sub=document.getElementById('frotaSubmenu');if(sub&&activeFrota)sub.classList.remove('collapsed');const groupBtn=document.querySelector('.nav-group-toggle');if(groupBtn&&activeFrota)groupBtn.setAttribute('aria-expanded','true');document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
   function goPage(page){if(page==='frota')page='caminhoes';currentPage=page;closeMobileNav();paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Veículos / cavalos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',cargas:'Cargas',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',cargas:'Cargas',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Programação e controle da operação':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro de veículos e cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
+    document.getElementById('topSubtitle').textContent=page==='inicio'?'Programação e controle da operação':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='inicio') c.innerHTML=renderDashboard();
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
     else if(page==='caminhoes') c.innerHTML=renderList('caminhoes');
-    else if(page==='conjuntos') c.innerHTML=renderConjuntos();
-    else if(page==='carretas') c.innerHTML=renderConjuntos();
+    else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
-    if(page==='carretas'||page==='conjuntos')setTimeout(()=>focusFrotaSection(page),0);
+    if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
   }
   function focusFrotaSection(page){
     const panels=Array.from(document.querySelectorAll('#content .panel'));
     panels.forEach(p=>{p.classList.remove('hidden');});
     if(page==='carretas'){
       panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Cavalos mecânicos'||h==='Novo conjunto')p.classList.add('hidden');});
+    }else if(page==='cavalos'){
+      panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Carretas'||h==='Novo conjunto')p.classList.add('hidden');});
     }else if(page==='conjuntos'){
       panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Cavalos mecânicos'||h==='Carretas')p.classList.add('hidden');});
     }
