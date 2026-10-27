@@ -581,7 +581,7 @@ function salvarCargaFullTime(token, data) {
   if (!cliente) throw new Error('Informe o cliente contratante.');
   if (!origem) throw new Error('Informe a origem da carga.');
   if (!destino) throw new Error('Informe o destino da carga.');
-  if (!(peso > 0 && peso <= 100)) throw new Error('Informe um peso maior que zero e de até 100 toneladas.');
+  if (!(peso > 0 && isFinite(peso))) throw new Error('Informe um peso total maior que zero, em toneladas. Não há limite fixo de 100 toneladas para a carga total.');
   if (!tiposPermitidos.includes(tipoOperacao)) throw new Error('Selecione um tipo de operação válido.');
   if (data.valorFrete != null && String(data.valorFrete).trim() !== '' && !(valorFrete >= 0 && isFinite(valorFrete))) throw new Error('Informe um valor de frete válido.');
   const lock = LockService.getScriptLock();
