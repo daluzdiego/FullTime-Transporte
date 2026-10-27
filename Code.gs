@@ -257,6 +257,9 @@ function obterPainelFullTime(token) {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
     caminhoes: listarRegistros_('CAMINHOES'),
+    cavalos: listarRegistros_('CAVALOS'),
+    carretas: listarRegistros_('CARRETAS'),
+    conjuntos: listarRegistros_('CONJUNTOS'),
     cargas: cargas,
     locais: listarRegistros_('LOCAIS'),
     counts: {
@@ -603,11 +606,74 @@ function salvarCargaFullTime(token, data) {
     lock.releaseLock();
   }
 }
+
+/** Cadastro administrativo de cavalos mecânicos. Registros começam pendentes. */
+function salvarCavaloFullTime(token, data) {
+  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
+  const placa = normalizarPlaca_(data.placa);
+  const marca = texto_(data.marca, 80), modelo = texto_(data.modelo, 80);
+  const ano = texto_(data.ano, 4);
+  const tara = Number(String(data.tara || '').replace(',', '.'));
+  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
+  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
+  if (duplicado_('CAVALOS', 4, placa) || duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já existe em CAVALOS ou CAMINHOES. Não duplique o veículo.');
+  if (!marca || !modelo) throw new Error('Informe marca e modelo.');
+  if (!/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
+  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
+  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
+  const id = Utilities.getUuid();
+  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
+  auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
+  return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
+}
+
+/** Cadastro administrativo de carretas. */
+function salvarCarretaFullTime(token, data) {
+  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
+  const placa = normalizarPlaca_(data.placa);
+  const tipo = texto_(data.tipo,60);
+  const tara = Number(String(data.tara || '').replace(',', '.'));
+  const capacidade = Number(String(data.capacidade || '').replace(',', '.'));
+  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
+  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
+  if (duplicado_('CARRETAS',4,placa) || duplicado_('CAVALOS',4,placa) || duplicado_('CAMINHOES',4,placa)) throw new Error('Esta placa já está cadastrada em outro veículo.');
+  if (!tipo) throw new Error('Selecione o tipo de carreta.');
+  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
+  if (!(capacidade > 0 && capacidade <= 100)) throw new Error('Informe a capacidade de carga em toneladas.');
+  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
+  const id=Utilities.getUuid();
+  getSheet_('CARRETAS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,tipo,tara,capacidade,pbtc,texto_(data.observacoes,1000)]);
+  auditar_(session,'CRIAR','CARRETA',id,placa+' — '+tipo);
+  return {ok:true,id:id,message:'Carreta cadastrada e enviada para revisão.'};
+}
+
+/** Associa motorista, cavalo e até duas carretas. Só ativos podem compor conjunto operacional. */
+function salvarConjuntoVeicularFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
+  const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
+  if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
+  if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
+  function findById(name,id){const rows=getSheet_(name).getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0])===String(id))return rows[i];return null;}
+  const motorista=findById('MOTORISTAS',motoristaId), cavalo=findById('CAVALOS',cavaloId);
+  if (!motorista || String(motorista[2])!=='ATIVO') throw new Error('O motorista precisa estar cadastrado e aprovado como ATIVO.');
+  if (!cavalo || String(cavalo[2])!=='ATIVO') throw new Error('O cavalo precisa estar cadastrado e aprovado como ATIVO.');
+  if (carretaMeioId) {const r=findById('CARRETAS',carretaMeioId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta do meio precisa estar aprovada como ATIVO.');}
+  if (carretaFinalId) {const r=findById('CARRETAS',carretaFinalId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta final precisa estar aprovada como ATIVO.');}
+  const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
+  // Impede dois conjuntos ativos para o mesmo motorista ou cavalo. Reativação/alteração fica explícita pelo gestor.
+  for(let i=1;i<values.length;i++) if(String(values[i][2])==='ATIVO' && (String(values[i][3])===motoristaId || String(values[i][4])===cavaloId)) throw new Error('Já existe um conjunto ATIVO com este motorista ou cavalo. Inative o conjunto anterior antes de cadastrar outro.');
+  const id=Utilities.getUuid();
+  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000)]);
+  auditar_(session,'CRIAR','CONJUNTO',id,'Motorista '+motoristaId+' / cavalo '+cavaloId);
+  return {ok:true,id:id,message:'Conjunto salvo como PENDENTE_REVISAO. Revise e aprove antes de usar na escala.'};
+}
+
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 function atualizarStatusFullTime(token, entidade, id, status) {
   const session = obterSessao_(token); exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3 };
+  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
   if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
   const sh = getSheet_(entidade);
