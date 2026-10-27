@@ -14,7 +14,7 @@ function configurarCadastroInicialFullTime() {
   const schemas = {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','INICIO_VIGENCIA','FIM_VIGENCIA','OBSERVACOES'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
     SOLICITACOES_TESTE: ['ID','CRIADO_EM','STATUS','CLIENTE','ORIGEM','DESTINO','DATA_OPERACAO','HORARIO_PREVISTO','PESO_TONELADAS','DESCRICAO','VALOR_FRETE','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','CRIADO_POR','OBSERVACOES']
   };
   Object.keys(schemas).forEach(function(name) {
@@ -152,11 +152,10 @@ function salvarConjuntoVeicularFullTime(token, data) {
   rows.forEach(function(r, i) {
     if (String(r[2]) === 'ATIVO' && (String(r[3]) === motoristaId || String(r[4]) === cavaloId)) {
       sh.getRange(i + 2, 3).setValue('INATIVO');
-      sh.getRange(i + 2, 9).setValue(new Date());
     }
   });
   const id = Utilities.getUuid();
-  sh.appendRow([id, new Date(), 'ATIVO', motoristaId, cavaloId, carretaMeioId, carretaFinalId, new Date(), '', observacoes]);
+  sh.appendRow([id, new Date(), 'ATIVO', motoristaId, cavaloId, carretaMeioId, carretaFinalId, observacoes]);
   auditar_(session, 'VINCULAR_CONJUNTO', 'CONJUNTO', id, 'Motorista=' + motoristaId + '; cavalo=' + cavaloId + '; carreta1=' + carretaMeioId + '; carreta2=' + carretaFinalId);
   return { ok: true, id: id, message: 'Conjunto veicular associado ao motorista.' };
 }
