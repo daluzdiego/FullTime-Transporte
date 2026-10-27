@@ -143,7 +143,15 @@ function inserirDadosFakeFullTime() {
   return {motoristas:driverCount,caminhoes:truckCount};
 }
 
-function doGet() {
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p['hub.mode'] === 'subscribe' && p['hub.challenge']) {
+    const expected = PropertiesService.getScriptProperties().getProperty('FT_WA_VERIFY_TOKEN') || '';
+    if (p['hub.verify_token'] && expected && p['hub.verify_token'] === expected) {
+      return ContentService.createTextOutput(String(p['hub.challenge']));
+    }
+    return ContentService.createTextOutput('Webhook verification failed');
+  }
   const template = HtmlService.createTemplateFromFile('Index');
   template.LOGIN_BG = getLoginBackground_();
   return template.evaluate()
@@ -412,19 +420,26 @@ function prepararBaseOperacionalFullTime() {
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
-    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR'],
+    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL'],
     ESCALAS: ['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES'],
-    HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR']
+    HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR'],
+    TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','CARGA_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON']
   };
   Object.keys(schemas).forEach(function(name) {
     let sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
     const headers = schemas[name];
-    const row = sh.getRange(1,1,1,headers.length).getDisplayValues()[0];
-    if (row.every(v => !String(v || '').trim())) {
+    const oldWidth = sh.getLastColumn();
+    const row = oldWidth ? sh.getRange(1,1,1,oldWidth).getDisplayValues()[0].map(v => String(v || '').trim()) : [];
+    if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
-    } else if (headers.some((h,i) => String(row[i] || '').trim() !== h)) {
-      throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
+    } else {
+      const prefix = row.every((v,i) => headers[i] === v);
+      if (prefix && row.length < headers.length) {
+        sh.getRange(1,row.length+1,1,headers.length-row.length).setValues([headers.slice(row.length)]);
+      } else if (row.length !== headers.length || headers.some((h,i) => row[i] !== h)) {
+        throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
+      }
     }
     sh.setFrozenRows(1);
     sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
@@ -550,7 +565,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES'];
+  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
