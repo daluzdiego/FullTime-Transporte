@@ -658,18 +658,18 @@ function getLoginBackground_() { return 'data:image/jpeg;base64,/9j/4AAQSkZJRgAB
 const FT_ESCALA_REGRAS = Object.freeze({
   JANELA_VIAGENS_DIAS: 30,
   HORARIOS_LEMBRETE: ['06:00', '12:00', '18:00'],
-  RECUSA_PENALIDADE: 'CARGA_ATUAL'
+  RECUSA_PENALIDADE: 'OPERACAO_ATUAL'
 });
 
 /**
- * Ordena elegíveis para uma carga.
+ * Ordena elegíveis para uma operação (não para cada volta/carga individual).
  * Cada item esperado:
- * { motoristaId, nome, dataEntradaFila, cargasHoje, viagens30Dias,
+ * { motoristaId, nome, dataEntradaFila, operacoesHoje, operacoes30Dias,
  *   diasDisponivel30Dias, diasTrabalhados30Dias, ultimaCargaEm,
- *   elegivel, recusouCargaAtual }
+ *   elegivel, recusouOperacaoAtual }
  *
  * Assiduidade é retornada como componentes, sem peso numérico inventado.
- * Quem ainda não recebeu carga hoje sempre fica no grupo prioritário.
+ * Quem ainda não recebeu operação hoje sempre fica no grupo prioritário.
  */
 function ordenarElegiveisEscalaFullTime(lista) {
   const itens = Array.isArray(lista) ? lista.slice() : [];
@@ -681,8 +681,8 @@ function ordenarElegiveisEscalaFullTime(lista) {
   return itens.filter(function(m) {
     return m && m.elegivel !== false && m.recusouCargaAtual !== true;
   }).sort(function(a, b) {
-    const cargasA = Math.max(0, Number(a.cargasHoje) || 0);
-    const cargasB = Math.max(0, Number(b.cargasHoje) || 0);
+    const operacoesA = Math.max(0, Number(a.operacoesHoje) || 0);
+    const operacoesB = Math.max(0, Number(b.operacoesHoje) || 0);
     if ((cargasA === 0) !== (cargasB === 0)) return cargasA === 0 ? -1 : 1;
 
     // Critério de assiduidade combinado, sem pesos arbitrários:
@@ -697,8 +697,8 @@ function ordenarElegiveisEscalaFullTime(lista) {
     const trabB = dispB ? Math.max(0, Number(b.diasTrabalhados30Dias) || 0) / dispB : 0;
     if (trabA !== trabB) return trabB - trabA;
 
-    const viagensA = Math.max(0, Number(a.viagens30Dias) || 0);
-    const viagensB = Math.max(0, Number(b.viagens30Dias) || 0);
+    const operacoes30A = Math.max(0, Number(a.operacoes30Dias) || 0);
+    const operacoes30B = Math.max(0, Number(b.operacoes30Dias) || 0);
     if (viagensA !== viagensB) return viagensA - viagensB;
     const filaA = dataHora(a.dataEntradaFila);
     const filaB = dataHora(b.dataEntradaFila);
@@ -710,23 +710,26 @@ function ordenarElegiveisEscalaFullTime(lista) {
   });
 }
 
-/** Retorna true quando a recusa deve retirar o motorista só desta carga. */
-function recusaAplicaSomenteCargaAtualFullTime(status) {
+/** Retorna true quando a recusa deve retirar o motorista só desta operação. */
+function recusaAplicaSomenteOperacaoAtualFullTime(status) {
   return String(status || '').toUpperCase() === 'RECUSOU' ||
          String(status || '').toUpperCase() === 'INDISPONIVEL';
 }
 
 /** Conta registros de viagem com data dentro dos últimos 30 dias, inclusive hoje. */
-function contarViagensUltimos30DiasFullTime(registros, agora) {
+function contarOperacoesDistintasUltimos30DiasFullTime(registros, agora) {
   const fim = agora instanceof Date ? agora.getTime() : (agora ? new Date(agora).getTime() : Date.now());
   const inicio = fim - FT_ESCALA_REGRAS.JANELA_VIAGENS_DIAS * 24 * 60 * 60 * 1000;
-  return (Array.isArray(registros) ? registros : []).filter(function(r) {
+  const idsVistos = {};
+  (Array.isArray(registros) ? registros : []).forEach(function(r) {
     const data = r && (r.dataConclusao || r.concluidaEm || r.dataHora || r.data);
     const t = data instanceof Date ? data.getTime() : new Date(data).getTime();
     const status = String(r && r.status || '').toUpperCase();
-    return isFinite(t) && t >= inicio && t <= fim &&
-      (!status || ['CONCLUIDA','CONCLUÍDA','FINALIZADA','CONCLUIDO','CONCLUÍDO'].indexOf(status) !== -1);
-  }).length;
+    const id = String(r && (r.operacaoId || r.idOperacao) || '').trim();
+    const statusOk = !status || ['CONCLUIDA','CONCLUÍDA','FINALIZADA','CONCLUIDO','CONCLUÍDO','ATIVA','EM_ANDAMENTO'].indexOf(status) !== -1;
+    if (id && isFinite(t) && t >= inicio && t <= fim && statusOk) idsVistos[id] = true;
+  });
+  return Object.keys(idsVistos).length;
 }
 
 /** Define quais motoristas ainda precisam da confirmação diária. */
