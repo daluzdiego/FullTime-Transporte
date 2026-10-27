@@ -47,7 +47,14 @@
 
   
   .operations-table{min-width:1250px}.operations-table th,.operations-table td{padding:12px 10px}.operations-table td{white-space:nowrap}.operations-table .date-cell{min-width:145px;font-variant-numeric:tabular-nums}.operations-table td:nth-child(2){min-width:180px}.operations-table td:nth-child(8),.operations-table td:nth-child(9){max-width:190px;overflow:hidden;text-overflow:ellipsis}
-</style>
+
+    .operation-fullscreen .sidebar,.operation-fullscreen .topbar,.operation-fullscreen #navBackdrop{display:none!important}
+    .operation-fullscreen .main{margin-left:0!important;width:100%!important;max-width:none!important}
+    .operation-fullscreen #content{width:100%;max-width:none;padding:clamp(12px,2vw,32px)}
+    .operation-fullscreen .page-head h1{font-size:clamp(24px,3vw,42px)}
+    .operation-fullscreen .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+    .operation-fullscreen #operationFullscreenButton{position:fixed;top:12px;right:12px;z-index:99999;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+  </style>
 </head>
 <body>
   <section id="loginView">
@@ -85,7 +92,7 @@
 
 <script>
   const NAV_ITEMS = [
-    {id:'inicio',label:'Início',icon:'⌂',title:'Visão geral'},
+    {id:'inicio',label:'Operação',icon:'⌂',title:'Painel da operação'},
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'frota',label:'Frota',icon:'▰',title:'Frota',group:true,children:[
@@ -95,7 +102,7 @@
       {id:'conjuntos',label:'Conjuntos e vínculos',icon:'⛓',title:'Conjuntos e vínculos'}
     ]},
     {id:'escalas',label:'Escalas',icon:'▦',title:'Escalas'},
-    {id:'viagens',label:'Viagens',icon:'⇢',title:'Viagens'},
+    {id:'viagens',label:'Localização',icon:'⌖',title:'Localização'},
     {id:'relatorios',label:'Relatórios',icon:'▥',title:'Relatórios'},
     {id:'configuracoes',label:'Configurações',icon:'⚙',title:'Configurações'}
   ];
@@ -151,11 +158,13 @@
   }
   function toggleNavGroup(id,button){const el=document.getElementById(id);if(!el)return;const closed=el.classList.toggle('collapsed');button.setAttribute('aria-expanded',String(!closed));}
   function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));const activeFrota=['caminhoes','cavalos','carretas','conjuntos'].includes(currentPage);const sub=document.getElementById('frotaSubmenu');if(sub&&activeFrota)sub.classList.remove('collapsed');const groupBtn=document.querySelector('.nav-group-toggle');if(groupBtn&&activeFrota)groupBtn.setAttribute('aria-expanded','true');document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
-  function goPage(page){if(page==='frota')page='caminhoes';currentPage=page;closeMobileNav();paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
+  function goPage(page){if(page==='frota')page='caminhoes';if(document.getElementById('appView').classList.contains('operation-fullscreen'))exitOperationFullscreen();currentPage=page;closeMobileNav();paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
+  function toggleOperationFullscreen(){const app=document.getElementById('appView');const active=app.classList.toggle('operation-fullscreen');const btn=document.getElementById('operationFullscreenButton');if(btn)btn.textContent=active?'Sair da tela cheia ✕':'Exibir operação em tela cheia ⛶';document.body.style.overflow=active?'hidden':'';}
+  function exitOperationFullscreen(){document.getElementById('appView').classList.remove('operation-fullscreen');document.body.style.overflow='';}
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',cargas:'Cargas',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Programação e controle da operação':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
+    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='inicio') c.innerHTML=renderDashboard();
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
@@ -177,7 +186,7 @@
     }
   }
   function renderDashboard(){const counts=dashboard?.counts||{motoristas:0,caminhoes:0,pendentes:0,cargasFuturas:0,aCarregar:0,emAndamento:0,semEscala:0};const loads=(dashboard?.cargas||[]).slice(0,10);return `
-    <div class="page-head"><div><h1>Olá, ${esc(currentUser?.nome||'Administrador')}</h1><p>Controle diário da programação, das cargas e das escalas da Full Time.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('motoristas')">Ver motoristas</button><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Nova carga</button></div></div>
+    <div class="page-head"><div><h1>Operação da Full Time</h1><p>Visão geral da programação, das cargas e das escalas da empresa.</p></div><div class="head-actions"><button id="operationFullscreenButton" class="btn btn-secondary" onclick="toggleOperationFullscreen()">Exibir operação em tela cheia ⛶</button><button class="btn btn-secondary" onclick="goPage('motoristas')">Ver motoristas</button><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Nova carga</button></div></div>
     <div class="stats"><div class="stat-card"><div class="stat-icon">▤</div><div><div class="stat-label">Cargas futuras</div><div class="stat-value">${counts.cargasFuturas||0}</div></div></div><div class="stat-card"><div class="stat-icon" style="background:#fff4df;color:#a96300">◷</div><div><div class="stat-label">A escalar</div><div class="stat-value">${counts.semEscala||0}</div></div></div><div class="stat-card"><div class="stat-icon">⇢</div><div><div class="stat-label">Em andamento</div><div class="stat-value">${counts.emAndamento||0}</div></div></div><div class="stat-card"><div class="stat-icon">♙</div><div><div class="stat-label">Motoristas ativos</div><div class="stat-value">${counts.motoristas||0}</div></div></div></div>
     <div class="panel"><div class="panel-head"><h2>Programação de cargas</h2><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Registrar carga</button></div><div class="panel-body"><div class="table-wrap"><table class="operations-table"><thead><tr><th>Data / hora</th><th>Motorista / CNH</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Peso</th><th>Cliente</th><th>Origem</th><th>Destino</th><th>Frete (R$)</th><th>Situação</th></tr></thead><tbody>${loads.length?loads.map(c=>`<tr><td class="date-cell">${esc(formatDate(c.data))}${c.horario?' - '+esc(c.horario):''}</td><td><div class="primary-cell">${esc(c.motoristaNome||'A definir')}</div><div class="secondary-cell">${esc(c.motoristaCnh?'CNH '+c.motoristaCnh:'CNH —')}</div></td><td>${esc(c.cavaloPlaca||'—')}</td><td>${esc(c.carretaMeioPlaca||'—')}</td><td>${esc(c.carretaFinalPlaca||'—')}</td><td>${Number(c.peso||0).toLocaleString('pt-BR')} t</td><td>${esc(c.cliente||'—')}</td><td>${esc(c.origem||'—')}</td><td>${esc(c.destino||'—')}</td><td>${c.valorFrete==null||c.valorFrete===''?'—':Number(c.valorFrete).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td>${statusCargaBadge(c.status)}</td></tr>`).join(''):`<tr><td colspan="11"><div class="empty"><strong>Nenhuma carga cadastrada</strong>Registre a programação para começar a acompanhar a operação.</div></td></tr>`}</tbody></table></div><div class="form-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Ver todas as cargas →</button><button class="btn btn-secondary" onclick="goPage('motoristas')">Motoristas</button><button class="btn btn-secondary" onclick="goPage('caminhoes')">Veículos cadastrados</button></div></div></div>`;}
   function statusCargaBadge(s){const map={A_ESCALAR:['badge-pending','A escalar'],PROGRAMADA:['badge-active','Programada'],AGUARDANDO_CARREGAMENTO:['badge-pending','A carregar'],CARREGADA:['badge-active','Carregada'],EM_TRANSITO:['badge-active','Em trânsito'],AGUARDANDO_DESCARGA:['badge-pending','Aguardando descarga'],CONCLUIDA:['badge-active','Concluída'],CANCELADA:['badge-inactive','Cancelada']};const v=map[s]||['badge-pending',s||'A escalar'];return '<span class="badge '+v[0]+'">'+esc(v[1])+'</span>';}
