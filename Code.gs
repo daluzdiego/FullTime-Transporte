@@ -438,28 +438,60 @@ function listarCargasFullTime_() {
   const sh = getSheet_('CARGAS');
   if (sh.getLastRow() < 2) return [];
   const rows = sh.getRange(2,1,sh.getLastRow()-1,16).getValues();
+  const motoristas = listarRegistros_('MOTORISTAS');
+  const caminhoes = listarRegistros_('CAMINHOES');
+  const byId = function(list) { const out = {}; list.forEach(x => out[x.id] = x); return out; };
+  const driversById = byId(motoristas);
+  const trucksById = byId(caminhoes);
+  const safeList = function(name) { try { return listarRegistros_(name); } catch (e) { return []; } };
+  const cavalosById = byId(safeList('CAVALOS'));
+  const carretasById = byId(safeList('CARRETAS'));
+  const field = function(map, id, index, fallback) {
+    if (!id) return '';
+    const item = map[id];
+    return item && item.campos ? String(item.campos[index] || '') : (fallback || '');
+  };
   return rows.map(function(r) {
+    const motoristaId = String(r[10] || '');
+    const cavaloId = String(r[11] || '');
+    const carretaMeioId = String(r[12] || '');
+    const carretaFinalId = String(r[13] || '');
+    const horaValue = r[4];
+    let horario = '';
+    if (horaValue instanceof Date) horario = Utilities.formatDate(horaValue, Session.getScriptTimeZone(), 'HH:mm');
+    else if (typeof horaValue === 'number' && isFinite(horaValue)) {
+      const mins = Math.round(horaValue * 24 * 60) % (24 * 60);
+      horario = ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2);
+    } else {
+      const raw = String(horaValue || '').trim();
+      const match = raw.match(/(?:T|\s)(\d{2}:\d{2})/);
+      horario = match ? match[1] : (/^\d{1,2}:\d{2}$/.test(raw) ? raw : '');
+    }
     return {
       id: String(r[0] || ''),
       criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-      status: String(r[2] || ''),
+      status: String(r[2] || 'A_ESCALAR'),
       data: r[3] instanceof Date ? Utilities.formatDate(r[3], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[3] || '').slice(0,10),
-      horario: String(r[4] || ''),
+      horario: horario,
       cliente: String(r[5] || ''),
       origem: String(r[6] || ''),
       destino: String(r[7] || ''),
       peso: Number(r[8] || 0),
       descricao: String(r[9] || ''),
-      motoristaId: String(r[10] || ''),
-      cavaloId: String(r[11] || ''),
-      carretaMeioId: String(r[12] || ''),
-      carretaFinalId: String(r[13] || ''),
+      motoristaId: motoristaId,
+      motoristaNome: field(driversById, motoristaId, 0, motoristaId),
+      motoristaCnh: field(driversById, motoristaId, 4, ''),
+      cavaloId: cavaloId,
+      cavaloPlaca: field(cavalosById, cavaloId, 0, field(trucksById, cavaloId, 0, cavaloId)),
+      carretaMeioId: carretaMeioId,
+      carretaMeioPlaca: field(carretasById, carretaMeioId, 0, field(trucksById, carretaMeioId, 0, carretaMeioId)),
+      carretaFinalId: carretaFinalId,
+      carretaFinalPlaca: field(carretasById, carretaFinalId, 0, field(trucksById, carretaFinalId, 0, carretaFinalId)),
       observacoes: String(r[14] || ''),
       criadoPor: String(r[15] || '')
     };
   }).sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
 }
-
 function salvarCargaFullTime(token, data) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
