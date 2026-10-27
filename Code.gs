@@ -410,6 +410,46 @@ function parseImportCsv_(csvText, requiredHeaders) {
  * Não apaga nem renomeia guias existentes e não altera os cadastros atuais.
  * Execute manualmente uma vez no Apps Script após revisar a planilha oficial.
  */
+/**
+ * Cria somente as quatro guias auxiliares da escala, sem alterar guias existentes.
+ * Executar uma vez após conectar FT_REGISTRY_DATABASE_ID à planilha operacional.
+ */
+function prepararGuiasEscalaFullTime() {
+  const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!id) throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
+  const ss = SpreadsheetApp.openById(id);
+  const schemas = {
+    DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+  };
+  const resultado = [];
+  Object.keys(schemas).forEach(function(name) {
+    let sh = ss.getSheetByName(name);
+    let criada = false;
+    if (!sh) {
+      sh = ss.insertSheet(name);
+      criada = true;
+    }
+    const headers = schemas[name];
+    const width = sh.getLastColumn();
+    const row = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(function(v) { return String(v || '').trim(); }) : [];
+    if (row.every(function(v) { return !v; })) {
+      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    } else if (row.length !== headers.length || headers.some(function(h, i) { return row[i] !== h; })) {
+      throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Não alterei os dados dessa guia.');
+    }
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
+    sh.autoResizeColumns(1, headers.length);
+    resultado.push({guia: name, criada: criada, colunas: headers.length});
+  });
+  const resposta = {sucesso: true, planilhaId: id, guias: resultado};
+  Logger.log('FULL TIME — GUIAS DE ESCALA: ' + JSON.stringify(resposta));
+  return resposta;
+}
+
 function prepararBaseOperacionalFullTime() {
   const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
