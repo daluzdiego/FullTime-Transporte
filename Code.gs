@@ -655,7 +655,13 @@ function salvarConjuntoVeicularFullTime(token, data) {
   if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
   if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
   function findById(name,id){const rows=getSheet_(name).getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0])===String(id))return rows[i];return null;}
-  const motorista=findById('MOTORISTAS',motoristaId);\n  // Compatibilidade: cavalos já cadastrados em CAMINHOES continuam válidos, sem duplicar placas.\n  let cavalo=findById('CAVALOS',cavaloId);\n  if (!cavalo) { const truck=findById('CAMINHOES',cavaloId); if (truck && String(truck[8]||'').toLowerCase().includes('cavalo')) cavalo=truck; }
+  const motorista=findById('MOTORISTAS',motoristaId);
+  // Compatibilidade: cavalos já cadastrados em CAMINHOES continuam válidos, sem duplicar placas.
+  let cavalo=findById('CAVALOS',cavaloId);
+  if (!cavalo) {
+    const truck=findById('CAMINHOES',cavaloId);
+    if (truck && String(truck[8]||'').toLowerCase().includes('cavalo')) cavalo=truck;
+  }
   if (!motorista || String(motorista[2])!=='ATIVO') throw new Error('O motorista precisa estar cadastrado e aprovado como ATIVO.');
   if (!cavalo || String(cavalo[2])!=='ATIVO') throw new Error('O cavalo precisa estar cadastrado e aprovado como ATIVO.');
   if (carretaMeioId) {const r=findById('CARRETAS',carretaMeioId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta do meio precisa estar aprovada como ATIVO.');}
