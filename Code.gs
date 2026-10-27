@@ -243,14 +243,22 @@ function trocarSenhaInicial(token, novaSenha) {
 function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
+  const cargas = listarCargasFullTime_();
+  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
     caminhoes: listarRegistros_('CAMINHOES'),
+    cargas: cargas,
+    locais: listarRegistros_('LOCAIS'),
     counts: {
       motoristas: contarAtivos_('MOTORISTAS'),
       caminhoes: contarAtivos_('CAMINHOES'),
-      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAMINHOES', 'PENDENTE_REVISAO')
+      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAMINHOES', 'PENDENTE_REVISAO'),
+      cargasFuturas: cargas.filter(c => c.data >= hoje && ['PROGRAMADA','A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length,
+      aCarregar: cargas.filter(c => c.status === 'AGUARDANDO_CARREGAMENTO').length,
+      emAndamento: cargas.filter(c => ['CARREGADA','EM_TRANSITO','AGUARDANDO_DESCARGA'].indexOf(c.status) !== -1).length,
+      semEscala: cargas.filter(c => ['A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length
     }
   };
 }
@@ -389,6 +397,92 @@ function parseImportCsv_(csvText, requiredHeaders) {
     return obj;
   });
 }
+/**
+ * Prepara as guias operacionais na planilha oficial já conectada.
+ * Não apaga nem renomeia guias existentes e não altera os cadastros atuais.
+ * Execute manualmente uma vez no Apps Script após revisar a planilha oficial.
+ */
+function prepararBaseOperacionalFullTime() {
+  const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
+  const ss = SpreadsheetApp.openById(id);
+  const schemas = {
+    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
+    LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
+    REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
+    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR'],
+    ESCALAS: ['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES'],
+    HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR']
+  };
+  Object.keys(schemas).forEach(function(name) {
+    let sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    const headers = schemas[name];
+    const row = sh.getRange(1,1,1,headers.length).getDisplayValues()[0];
+    if (row.every(v => !String(v || '').trim())) {
+      sh.getRange(1,1,1,headers.length).setValues([headers]);
+    } else if (headers.some((h,i) => String(row[i] || '').trim() !== h)) {
+      throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
+    }
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
+    sh.autoResizeColumns(1,headers.length);
+  });
+  console.log('Guias operacionais verificadas/criadas na planilha: ' + ss.getUrl());
+  return ss.getUrl();
+}
+
+function listarCargasFullTime_() {
+  const sh = getSheet_('CARGAS');
+  if (sh.getLastRow() < 2) return [];
+  const rows = sh.getRange(2,1,sh.getLastRow()-1,16).getValues();
+  return rows.map(function(r) {
+    return {
+      id: String(r[0] || ''),
+      criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
+      status: String(r[2] || ''),
+      data: r[3] instanceof Date ? Utilities.formatDate(r[3], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[3] || '').slice(0,10),
+      horario: String(r[4] || ''),
+      cliente: String(r[5] || ''),
+      origem: String(r[6] || ''),
+      destino: String(r[7] || ''),
+      peso: Number(r[8] || 0),
+      descricao: String(r[9] || ''),
+      motoristaId: String(r[10] || ''),
+      cavaloId: String(r[11] || ''),
+      carretaMeioId: String(r[12] || ''),
+      carretaFinalId: String(r[13] || ''),
+      observacoes: String(r[14] || ''),
+      criadoPor: String(r[15] || '')
+    };
+  }).sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
+}
+
+function salvarCargaFullTime(token, data) {
+  const session = obterSessao_(token);
+  exigirAdmin_(session);
+  data = data || {};
+  const dataOperacao = texto_(data.data, 10);
+  const horario = texto_(data.horario, 10);
+  const cliente = texto_(data.cliente, 120);
+  const origem = texto_(data.origem, 160);
+  const destino = texto_(data.destino, 160);
+  const peso = Number(data.peso);
+  const descricao = texto_(data.descricao, 300);
+  const observacoes = texto_(data.observacoes, 1000);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao) || isNaN(new Date(dataOperacao + 'T12:00:00').getTime())) throw new Error('Informe uma data válida para a operação.');
+  if (!cliente) throw new Error('Informe o cliente contratante.');
+  if (!origem) throw new Error('Informe a origem da carga.');
+  if (!destino) throw new Error('Informe o destino da carga.');
+  if (!(peso > 0 && peso <= 100)) throw new Error('Informe um peso maior que zero e de até 100 toneladas.');
+  const id = Utilities.getUuid();
+  getSheet_('CARGAS').appendRow([id,new Date(),'A_ESCALAR',dataOperacao,horario,cliente,origem,destino,peso,descricao,'','','','',observacoes,session.login || session.nome || 'ADMIN']);
+  auditar_(session,'CRIAR','CARGA',id,cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t)');
+  return {ok:true,id:id,message:'Carga registrada e adicionada à programação. A atribuição do conjunto será feita em etapa própria.'};
+}
+
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 function atualizarStatusFullTime(token, entidade, id, status) {
@@ -420,13 +514,14 @@ function getDbId_() {
   return id;
 }
 function getSheet_(name) {
-  // Cadastros operacionais ficam na planilha indicada pelo cliente.
-  // Usuários e auditoria permanecem na base interna do sistema.
+  // Dados operacionais ficam na planilha oficial compartilhada com a Full Time.
+  // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  if (registryId && (name === 'MOTORISTAS' || name === 'CAMINHOES')) {
+  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES'];
+  if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
-    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional configurada.');
+    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
     return sh;
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
