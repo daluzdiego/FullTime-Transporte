@@ -89,6 +89,7 @@
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'caminhoes',label:'Caminhões',icon:'▰',title:'Caminhões'},
+    {id:'conjuntos',label:'Conjuntos veiculares',icon:'⛓',title:'Conjuntos veiculares'},
     {id:'escalas',label:'Escalas',icon:'▦',title:'Escalas'},
     {id:'viagens',label:'Viagens',icon:'⇢',title:'Viagens'},
     {id:'relatorios',label:'Relatórios',icon:'▥',title:'Relatórios'},
@@ -144,12 +145,13 @@
   function paintNav(){document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===currentPage));document.getElementById('sideUser').textContent=currentUser?.nome||'Administrador';document.getElementById('avatar').textContent=(currentUser?.nome||'A').charAt(0).toUpperCase();}
   function goPage(page){currentPage=page;closeMobileNav();paintNav();renderPage(page);window.scrollTo({top:0,behavior:'smooth'});}
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões',cargas:'Cargas',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões',conjuntos:'Conjuntos veiculares',cargas:'Cargas',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';document.getElementById('topSubtitle').textContent=page==='inicio'?'Programação e controle da operação':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Gerencie os cadastros de caminhões.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='inicio') c.innerHTML=renderDashboard();
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
     else if(page==='caminhoes') c.innerHTML=renderList('caminhoes');
+    else if(page==='conjuntos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
   }
@@ -207,6 +209,49 @@
   function saveRecord(ev,kind){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveButton');const err=document.getElementById('formError');err.textContent='';btn.disabled=true;btn.textContent='Salvando…';const fn=kind==='motoristas'?'salvarMotoristaFullTime':'salvarCaminhaoFullTime';google.script.run.withSuccessHandler(res=>{btn.disabled=false;btn.textContent='Salvar cadastro';toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;goPage(kind);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar cadastro';err.textContent=e.message||'Não foi possível salvar.';}).withUserObject(null)[fn](authToken,data);}
   function setStatus(entity,id,status){const label=status==='ATIVO'?'aprovar':'inativar';if(!confirm(`Deseja ${label} este cadastro?`))return;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage(currentPage);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message,true)).atualizarStatusFullTime(authToken,entity,id,status);}
   function filterTable(){const q=(document.getElementById('filterInput')?.value||'').toLowerCase();const s=document.getElementById('statusFilter')?.value||'';document.querySelectorAll('#tableBody tr[data-search]').forEach(tr=>{tr.classList.toggle('hidden',!(tr.dataset.search.includes(q)&&(!s||tr.dataset.status===s)));});}
+
+  function renderConjuntos(){
+    const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO');
+    const horses=(dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO');
+    const trailers=(dashboard?.carretas||[]).filter(x=>x.status==='ATIVO');
+    const sets=dashboard?.conjuntos||[];
+    const opt=(arr,placeholder,plateIndex)=>'<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.campos[plateIndex]||x.id)+' — '+esc(x.campos[plateIndex+1]||'')+'</option>').join('');
+    const status=(s)=>statusBadge(s);
+    return `
+      <div class="page-head"><div><h1>Conjuntos veiculares</h1><p>Associe um motorista ao seu cavalo mecânico e às carretas autorizadas.</p></div></div>
+      <div class="notice">Somente cadastros <strong>ATIVOS</strong> aparecem nas seleções. Um conjunto novo fica pendente de revisão; não entra automaticamente na escala.</div>
+      <div class="panel form-panel"><div class="panel-head"><h2>Novo conjunto</h2><span class="badge badge-pending">Pendente de revisão</span></div><div class="panel-body">
+        <form onsubmit="saveConjunto(event)"><div class="form-grid">
+          <div class="field"><label>Motorista ativo *</label><select name="motoristaId" required>${opt(drivers,'Selecione o motorista',0)}</select><small class="muted">Motoristas: ${drivers.length} ativos</small></div>
+          <div class="field"><label>Cavalo mecânico ativo *</label><select name="cavaloId" required>${opt(horses,'Selecione o cavalo',0)}</select><small class="muted">Cavalos: ${horses.length} ativos</small></div>
+          <div class="field"><label>Carreta do meio (opcional)</label><select name="carretaMeioId">${opt(trailers,'Sem carreta do meio',0)}</select></div>
+          <div class="field"><label>Carreta final (opcional)</label><select name="carretaFinalId">${opt(trailers,'Sem carreta final',0)}</select></div>
+          <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000" placeholder="Ex.: conjunto fixo; substituição somente com autorização do gestor"></textarea></div>
+        </div><div id="conjuntoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" id="saveConjuntoButton" type="submit">Salvar conjunto</button></div></form>
+      </div></div>
+      <div class="grid-two">
+        <div class="panel"><div class="panel-head"><h2>Cavalos mecânicos</h2><span class="muted small">${(dashboard?.cavalos||[]).length} cadastro(s)</span></div><div class="panel-body">
+          <form onsubmit="saveAsset(event,'cavalo')"><div class="form-grid">
+            <div class="field"><label>Placa *</label><input name="placa" maxlength="8" required placeholder="ABC1D23"></div><div class="field"><label>Marca *</label><input name="marca" required></div>
+            <div class="field"><label>Modelo *</label><input name="modelo" required></div><div class="field"><label>Ano *</label><input name="ano" maxlength="4" inputmode="numeric" required></div>
+            <div class="field"><label>Tara (t) *</label><input name="tara" type="number" min="0" max="100" step="0.1" required></div><div class="field"><label>PBTC máximo (t) *</label><input name="pbtc" type="number" min="0.1" max="200" step="0.1" required></div>
+          </div><button class="btn btn-secondary" type="submit">Cadastrar cavalo</button></form>
+          <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Marca / modelo</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.cavalos||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1]+' '+x.campos[2])+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="4">Nenhum cavalo cadastrado.</td></tr>'}</tbody></table></div>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Carretas</h2><span class="muted small">${(dashboard?.carretas||[]).length} cadastro(s)</span></div><div class="panel-body">
+          <form onsubmit="saveAsset(event,'carreta')"><div class="form-grid">
+            <div class="field"><label>Placa *</label><input name="placa" maxlength="8" required placeholder="ABC1D23"></div><div class="field"><label>Tipo *</label><select name="tipo" required><option value="">Selecione</option><option>Carreta</option><option>Bitrem</option><option>Rodotrem</option><option>Semirreboque</option><option>Outro</option></select></div>
+            <div class="field"><label>Tara (t) *</label><input name="tara" type="number" min="0" max="100" step="0.1" required></div><div class="field"><label>Capacidade de carga (t) *</label><input name="capacidade" type="number" min="0.1" max="100" step="0.1" required></div>
+            <div class="field"><label>PBTC máximo (t) *</label><input name="pbtc" type="number" min="0.1" max="200" step="0.1" required></div>
+          </div><button class="btn btn-secondary" type="submit">Cadastrar carreta</button></form>
+          <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.carretas||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="4">Nenhuma carreta cadastrada.</td></tr>'}</tbody></table></div>
+        </div></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=(dashboard?.cavalos||[]).find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+status(x.status)+'</td><td>'+(x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CONJUNTOS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CONJUNTOS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>';}).join('')||'<tr><td colspan="6">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+  }
+  function saveConjunto(ev){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveConjuntoButton');const err=document.getElementById('conjuntoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar conjunto';err.textContent=e.message||'Não foi possível salvar o conjunto.';}).salvarConjuntoVeicularFullTime(authToken,data);}
+  function saveAsset(ev,kind){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=form.querySelector('button[type=submit]');btn.disabled=true;const fn=kind==='cavalo'?'salvarCavaloFullTime':'salvarCarretaFullTime';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;toast(e.message||'Não foi possível salvar o veículo.',true);}).withUserObject(null)[fn](authToken,data);}
+
   function renderDevelopment(title){return `<div class="dev-card"><div class="dev-icon">⚙</div><div class="dev-label">EM DESENVOLVIMENTO</div><h1 style="margin-top:18px">${esc(title)}</h1><p>Este módulo faz parte do planejamento da Full Time e será disponibilizado em uma próxima etapa. Por enquanto, estamos preparando os cadastros e a base operacional.</p><button class="btn btn-primary" onclick="goPage('inicio')">Voltar ao início</button></div>`;}
   function logout(){if(!authToken){logoutLocal();return;}google.script.run.withSuccessHandler(logoutLocal).withFailureHandler(logoutLocal).encerrarSessaoFullTime(authToken);}
   function logoutLocal(){authToken='';currentUser=null;dashboard=null;sessionStorage.removeItem('ft_token');document.getElementById('appView').classList.add('hidden');document.getElementById('loginView').classList.remove('hidden');document.getElementById('passwordModal').classList.add('hidden');document.getElementById('password').value='';}
