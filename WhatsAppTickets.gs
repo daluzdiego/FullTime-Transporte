@@ -14,6 +14,13 @@
  */
 
 function doPost(e) {
+  const props = PropertiesService.getScriptProperties();
+  const expectedSecret = props.getProperty('FT_WA_WEBHOOK_SECRET') || '';
+  const receivedSecret = e && e.parameter ? String(e.parameter.hook_secret || '') : '';
+  if (!expectedSecret || !receivedSecret || receivedSecret !== expectedSecret) {
+    console.error('Webhook WhatsApp recusado: segredo ausente ou inválido.');
+    return ContentService.createTextOutput('UNAUTHORIZED');
+  }
   try {
     const body = e && e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
     if (body.object !== 'whatsapp_business_account') {
@@ -200,7 +207,7 @@ function limparImagensTicketsExpiradasFullTime() {
 function diagnosticarIntegracaoWhatsAppFullTime() {
   const props = PropertiesService.getScriptProperties();
   const required = [
-    'FT_WA_VERIFY_TOKEN', 'FT_WA_ACCESS_TOKEN', 'FT_WA_PHONE_NUMBER_ID',
+    'FT_WA_VERIFY_TOKEN', 'FT_WA_WEBHOOK_SECRET', 'FT_WA_ACCESS_TOKEN', 'FT_WA_PHONE_NUMBER_ID',
     'FT_WA_GRAPH_VERSION', 'FT_TICKET_DRIVE_FOLDER_ID'
   ];
   const result = {};
