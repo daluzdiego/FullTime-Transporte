@@ -96,7 +96,13 @@ function sincronizarCadastroBrunoFullTime() {
         throw new Error('Cabeçalhos alterados em ' + pair[0] + '. Sincronização interrompida.');
       }
       const last = src.getLastRow();
-      const rows = last > 1 ? src.getRange(2,1,last-1,expected.length).getValues().filter(function(r){return r.some(function(v){return v !== '' && v !== null;});}) : [];
+      const rows = [];
+      if (last > 1) {
+        const sourceValues = src.getRange(2,1,last-1,expected.length).getValues();
+        sourceValues.forEach(function(r, i) {
+          if (r.some(function(v){return v !== '' && v !== null;})) rows.push({rowNumber:i+2, values:r});
+        });
+      }
       if (rows.length) {
         const keyIndex = 0;
         const existing = {};
@@ -106,13 +112,13 @@ function sincronizarCadastroBrunoFullTime() {
             if (key) existing[key] = i + 2;
           });
         }
-        rows.forEach(function(r) {
+        rows.forEach(function(item) {
+          const r = item.values;
           let key = String(r[keyIndex] || '').trim();
           if (!key) {
             key = 'BRUNO-' + pair[0] + '-' + Utilities.getUuid();
             r[keyIndex] = key;
-            // Write generated key back to the source only when the row is uniquely identifiable.
-            src.getRange(srcRowByArray_(src, r, expected.length), 1).setValue(key);
+            src.getRange(item.rowNumber, 1).setNumberFormat('@').setValue(key);
           }
           const rowNo = existing[key];
           if (rowNo) dst.getRange(rowNo,1,1,expected.length).setValues([r]);
@@ -130,14 +136,6 @@ function sincronizarCadastroBrunoFullTime() {
 }
 
 /** Acha a linha de origem pelo conteúdo da linha; evita depender de uma posição calculada fora do laço. */
-function srcRowByArray_(sheet, row, width) {
-  const values = sheet.getLastRow() > 1 ? sheet.getRange(2,1,sheet.getLastRow()-1,width).getValues() : [];
-  for (let i=0;i<values.length;i++) {
-    if (values[i].every(function(v,j){return String(v == null ? '' : v) === String(row[j] == null ? '' : row[j]);})) return i+2;
-  }
-  throw new Error('Não foi possível identificar a linha de origem para gerar o ID externo.');
-}
-
 function importarCavalosECarretasOperacionaisFT_(dest) {
   const pairs = [
     {source:'FT_CADASTRO_BRUNO_CAVALOS', target:'CAVALOS', type:'CAVALO'},
@@ -153,14 +151,21 @@ function importarCavalosECarretasOperacionaisFT_(dest) {
     const bySourceId = {}, byPlate = {};
     targetRows.slice(1).forEach(function(r,i) {
       if (r[0]) bySourceId[String(r[0])] = i+2;
-      if (r[3]) byPlate[String(r[3]).toUpperCase().replace(/[^A-Z0-9]/g,'')] = i+2;
+      if (r[3]) {
+        const normalized = String(r[3]).toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if (!byPlate[normalized]) byPlate[normalized] = [];
+        byPlate[normalized].push({row:i+2, id:String(r[0]||''), status:String(r[2]||'')});
+      }
     });
     rows.forEach(function(r) {
       const externalId = String(r[idx.ID_EXTERNO] || '').trim();
       const plate = String(r[idx.PLACA] || '').trim().toUpperCase();
       if (!externalId || !plate) return;
       const normPlate = plate.replace(/[^A-Z0-9]/g,'');
-      const rowNo = bySourceId[externalId] || byPlate[normPlate];
+      let rowNo = bySourceId[externalId];
+      if (!rowNo && byPlate[normPlate] && byPlate[normPlate].length) {
+        throw new Error('A placa ' + plate + ' já existe na guia ' + p.target + ' com outro ID. A sincronização não sobrescreveu esse registro; faça a conciliação manual.');
+      }
       const statusDoc = String(r[idx.STATUS_DOCUMENTACAO] || '').trim().toUpperCase();
       const obs = 'Importado da planilha de cadastro do Bruno; ID externo: ' + externalId + '; situação documental: ' + (statusDoc || 'NÃO INFORMADA') + '. Aprovação operacional pendente.';
       if (p.type === 'CAVALO') {
