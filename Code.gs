@@ -420,7 +420,7 @@ function prepararBaseOperacionalFullTime() {
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
-    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL'],
+    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],
     ESCALAS: ['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES'],
     HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR'],
     TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','CARGA_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON']
@@ -452,7 +452,9 @@ function prepararBaseOperacionalFullTime() {
 function listarCargasFullTime_() {
   const sh = getSheet_('CARGAS');
   if (sh.getLastRow() < 2) return [];
-  const rows = sh.getRange(2,1,sh.getLastRow()-1,16).getValues();
+  // Ler pela largura real evita perder os campos novos e tolera versões antigas da guia.
+  const width = Math.max(sh.getLastColumn(), 19);
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
   const motoristas = listarRegistros_('MOTORISTAS');
   const caminhoes = listarRegistros_('CAMINHOES');
   const byId = function(list) { const out = {}; list.forEach(x => out[x.id] = x); return out; };
@@ -503,9 +505,14 @@ function listarCargasFullTime_() {
       carretaFinalId: carretaFinalId,
       carretaFinalPlaca: field(carretasById, carretaFinalId, 0, field(trucksById, carretaFinalId, 0, carretaFinalId)),
       observacoes: String(r[14] || ''),
-      criadoPor: String(r[15] || '')
+      criadoPor: String(r[15] || ''),
+      tipoOperacao: String(r[16] || 'OUTRA'),
+      ticketCarregamentoUrl: String(r[17] || ''),
+      ticketDescargaUrl: String(r[18] || ''),
+      valorFrete: Number(r[19] || 0)
     };
-  }).sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
+  }).filter(function(c) { return c.id; })
+    .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
 }
 function salvarCargaFullTime(token, data) {
   const session = obterSessao_(token);
@@ -516,20 +523,42 @@ function salvarCargaFullTime(token, data) {
   const cliente = texto_(data.cliente, 120);
   const origem = texto_(data.origem, 160);
   const destino = texto_(data.destino, 160);
-  const peso = Number(data.peso);
+  const peso = Number(String(data.peso == null ? '' : data.peso).replace(',', '.'));
+  const valorFrete = Number(String(data.valorFrete == null ? '' : data.valorFrete).replace(/\s/g, '').replace(',', '.'));
   const descricao = texto_(data.descricao, 300);
   const observacoes = texto_(data.observacoes, 1000);
+  const tiposPermitidos = ['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
+  const tipoOperacao = texto_(data.tipoOperacao || 'OUTRA', 40).toUpperCase();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao) || isNaN(new Date(dataOperacao + 'T12:00:00').getTime())) throw new Error('Informe uma data válida para a operação.');
+  if (horario && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horario)) throw new Error('Informe o horário no formato HH:MM.');
   if (!cliente) throw new Error('Informe o cliente contratante.');
   if (!origem) throw new Error('Informe a origem da carga.');
   if (!destino) throw new Error('Informe o destino da carga.');
   if (!(peso > 0 && peso <= 100)) throw new Error('Informe um peso maior que zero e de até 100 toneladas.');
-  const id = Utilities.getUuid();
-  getSheet_('CARGAS').appendRow([id,new Date(),'A_ESCALAR',dataOperacao,horario,cliente,origem,destino,peso,descricao,'','','','',observacoes,session.login || session.nome || 'ADMIN']);
-  auditar_(session,'CRIAR','CARGA',id,cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t)');
-  return {ok:true,id:id,message:'Carga registrada e adicionada à programação. A atribuição do conjunto será feita em etapa própria.'};
+  if (!tiposPermitidos.includes(tipoOperacao)) throw new Error('Selecione um tipo de operação válido.');
+  if (data.valorFrete != null && String(data.valorFrete).trim() !== '' && !(valorFrete >= 0 && isFinite(valorFrete))) throw new Error('Informe um valor de frete válido.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const id = Utilities.getUuid();
+    const sh = getSheet_('CARGAS');
+    // O layout oficial tem 20 colunas; colunas novas são adicionadas ao final pela preparação da base.
+    const values = [
+      id, new Date(), 'A_ESCALAR', dataOperacao, horario, cliente, origem, destino,
+      peso, descricao, '', '', '', '', observacoes,
+      session.login || session.nome || 'ADMIN', tipoOperacao, '', '', 
+      (data.valorFrete == null || String(data.valorFrete).trim() === '') ? '' : valorFrete
+    ];
+    if (sh.getLastColumn() < values.length) {
+      throw new Error('A guia CARGAS ainda não tem todas as colunas. Execute prepararBaseOperacionalFullTime() e tente novamente.');
+    }
+    sh.appendRow(values);
+    auditar_(session, 'CRIAR', 'CARGA', id, cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t; frete ' + (values[19] === '' ? 'não informado' : valorFrete) + ')');
+    return {ok:true,id:id,message:'Carga registrada. O valor do frete foi salvo e a escala será feita em etapa própria.'};
+  } finally {
+    lock.releaseLock();
+  }
 }
-
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 function atualizarStatusFullTime(token, entidade, id, status) {
