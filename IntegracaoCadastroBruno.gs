@@ -67,6 +67,7 @@ function configurarIntegracaoCadastroBrunoFullTime() {
   protegerCabecalhoFT_(origem.getSheetByName('CARRETAS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CONJUNTOS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CONTROLE_DOCUMENTAL'), 'Full Time — cabeçalho do cadastro');
+  atualizarLinksGuiasFullTime_();
   PropertiesService.getScriptProperties().setProperty('FT_BRUNO_SOURCE_ID', FT_BRUNO_CONFIG.SOURCE_ID);
   PropertiesService.getScriptProperties().setProperty('FT_BRUNO_OPERATIONAL_ID', FT_BRUNO_CONFIG.OPERATIONAL_ID);
   console.log('Configuração concluída. Origem: ' + origem.getUrl() + ' | Destino: ' + destino.getUrl());
@@ -257,4 +258,27 @@ function protegerGuiaInteiraFT_(sheet, description) {
   const editors = p.getEditors();
   if (editors.length) p.removeEditors(editors);
   if (p.canDomainEdit()) p.setDomainEdit(false);
+}
+
+function atualizarLinksGuiasFullTime_() {
+  const source = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest = SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  let links = dest.getSheetByName('LINKS_GUIAS');
+  if (!links) links = dest.insertSheet('LINKS_GUIAS', 0);
+  const rows = [['PLANILHA','GUIA','LINK','FINALIDADE']];
+  source.getSheets().forEach(function(sh) {
+    rows.push(['Cadastro Bruno', sh.getName(), source.getUrl() + '#gid=' + sh.getSheetId(), 'Entrada de dados; edite apenas as linhas de cadastro, sem alterar cabeçalhos.']);
+  });
+  dest.getSheets().forEach(function(sh) {
+    if (sh.getName() === 'LINKS_GUIAS') return;
+    rows.push(['Full Time — Principal', sh.getName(), dest.getUrl() + '#gid=' + sh.getSheetId(), 'Base operacional ou guia de controle; não editar dados sincronizados manualmente.']);
+  });
+  links.clearContents();
+  links.getRange(1,1,rows.length,4).setValues(rows);
+  links.setFrozenRows(1);
+  links.getRange(1,1,1,4).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c');
+  if (rows.length > 1) links.getRange(2,3,rows.length-1,1).setShowHyperlink(true);
+  links.autoResizeColumns(1,4);
+  protegerGuiaInteiraFT_(links, 'Full Time — links de navegação controlados pelo sistema');
+  return dest.getUrl() + '#gid=' + links.getSheetId();
 }
