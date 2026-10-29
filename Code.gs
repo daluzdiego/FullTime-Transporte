@@ -256,6 +256,7 @@ function obterPainelFullTime(token) {
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
+    documentos: ftBrunoRowsAsLegacy_('DOCUMENTOS').map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))})),
     caminhoes: listarRegistros_('CAMINHOES'),
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
@@ -737,12 +738,14 @@ function listarRegistros_(name) {
   })).reverse();
 }
 function contarAtivos_(name) {
-  const sh = getSheet_(name), values = sh.getDataRange().getValues();
-  return values.slice(1).filter(r => r[2] === 'ATIVO').length;
+  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
+  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
+  return rows.filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
 }
 function contarStatus_(name, status) {
-  const sh = getSheet_(name), values = sh.getDataRange().getValues();
-  return values.slice(1).filter(r => r[2] === status).length;
+  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
+  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
+  return rows.filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
 }
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
