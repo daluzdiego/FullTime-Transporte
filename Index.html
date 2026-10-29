@@ -209,7 +209,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
-    else if(page==='entradaIA') c.innerHTML=renderEntradaOperacoesIA();
+    else if(page==='entradaIA') { c.innerHTML=renderEntradaOperacoesIA(); setTimeout(carregarEntradasIA,0); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
