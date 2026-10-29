@@ -66,4 +66,4 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Executar a sincronização várias vezes; deve ser idempotente e não gerar segunda carga.
 - [ ] Verificar que o agente grava rascunhos/confirmados na guia de entrada da planilha do Bruno e que somente o sincronizador copia para o espelho do sistema.
 - [ ] Confirmar que sincronização de cadastro continua limitada ao lote fictício da configuração existente.
-- [ ] Antes de produção, substituir a extração de padrões por modelo generativo validado e executar nova bateria de testes.
+- [ ] Testar com `FT_GEMINI_API_KEY` ausente (deve usar regras locais e avisar o usuário).
