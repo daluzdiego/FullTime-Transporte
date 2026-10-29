@@ -54,3 +54,16 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Não cadastrar documentos reais até aprovação dos controles de segurança.
 - [ ] Testar com duas sessões administrativas antes de uso conjunto.
 - [ ] Documentar como restaurar a base e recuperar acesso.
+
+
+## Entrada assistida de viagens (somente mensagens fictícias)
+
+- [ ] Executar `prepararBaseOperacionalFullTime()` e `prepararEntradaOperacoesIAFullTime()` em ambiente de teste.
+- [ ] Colar texto fictício com rota e data explícitas e confirmar que aparece como rascunho.
+- [ ] Colar texto sem cliente, peso, tipo ou descrição; conferir que são mostrados como campos pendentes e nada é gravado em `CARGAS`.
+- [ ] Tentar origem e destino iguais; confirmação deve ser bloqueada.
+- [ ] Confirmar uma entrada completa e verificar uma linha em `CARGAS` ligada pelo ID à entrada.
+- [ ] Repetir confirmação do mesmo rascunho; não deve gerar segunda carga.
+- [ ] Verificar que o agente não escreve na planilha-fonte do Bruno.
+- [ ] Confirmar que sincronização de cadastro continua limitada ao lote fictício da configuração existente.
+- [ ] Antes de produção, substituir a extração de padrões por modelo generativo validado e executar nova bateria de testes.
