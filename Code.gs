@@ -726,10 +726,12 @@ function getSheet_(name) {
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
 function listarRegistros_(name) {
-  const sh = getSheet_(name), values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
-  return values.slice(1).map(r => ({
-    id: String(r[0]), criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
+  const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
+  const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
+  if (!rows.length) return [];
+  return rows.map(r => ({
+    id: String(r[0] || ''),
+    criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v))
   })).reverse();
@@ -982,7 +984,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
   if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
   if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
   if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=getSheet_('MOTORISTAS').getDataRange().getValues();
+  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
   const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
@@ -1000,8 +1002,8 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
+  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftBrunoRowsAsLegacy_('CONJUNTOS'));
+  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
@@ -1032,4 +1034,74 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
   if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
   return ordered.map((c,i)=>({posicao:i+1,...c}));
+}
+
+
+
+/**
+ * Adaptador de leitura dos cadastros sincronizados da planilha do Bruno.
+ * A leitura é por nome de cabeçalho, nunca por posição da coluna de origem.
+ * Escritas de sincronização continuam sendo responsabilidade do arquivo PLANILHABRUNO.
+ */
+const FT_BRUNO_CADASTROS = Object.freeze({
+  MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS', fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
+  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
+  CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS', fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
+  CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS', fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
+  DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS', fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
+});
+function ftNormHeader_(v) {
+  return String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+}
+function ftReadBrunoRows_(entity) {
+  const cfg=FT_BRUNO_CADASTROS[entity];
+  if(!cfg) throw new Error('Cadastro Bruno não configurado: '+entity);
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
+  const ss=SpreadsheetApp.openById(registryId), sh=ss.getSheetByName(cfg.sheet);
+  if(!sh) throw new Error('Não encontrei a guia sincronizada '+cfg.sheet+'. Execute a validação PLANILHABRUNO antes de continuar.');
+  if(sh.getLastRow()<2 || sh.getLastColumn()<1) return [];
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  const index={}; headers.forEach((h,i)=>{const k=ftNormHeader_(h);if(k && index[k]===undefined)index[k]=i;});
+  const aliases={
+    ID:['ID','IDEXTERNO','IDDOCUMENTO','CODIGO','IDENTIFICADOR'],
+    CRIADO_EM:['CRIADOEM','DATA_CRIACAO','DATAHORACADASTRO','CADASTRADOEM'],
+    STATUS:['STATUS','SITUACAO','SITUACAO_CADASTRAL'],
+    NOME_COMPLETO:['NOMECOMPLETO','NOME','MOTORISTA','NOMEMOTORISTA'],
+    CNH_NUMERO:['CNHNUMERO','NUMEROCNH','CNH'],
+    CNH_CATEGORIA:['CNHCATEGORIA','CATEGORIACNH','CATEGORIA'],
+    CNH_VALIDADE:['CNHVALIDADE','VALIDADEC NH','VALIDADECNH'],
+    CIDADE_UF:['CIDADEUF','CIDADE','MUNICIPIOUF'],
+    CAPACIDADE_CARGA_TONELADAS:['CAPACIDADECARGATONELADAS','CAPACIDADETONELADAS','CAPACIDADE'],
+    ESTADO_CONSERVACAO:['ESTADOCONSERVACAO','CONDICAO','ESTADO'],
+    CAPACIDADE_UTIL_TONELADAS:['CAPACIDADEUTILTONELADAS','CAPACIDADEUTIL'],
+    DATA_VALIDADE:['DATAVALIDADE','VALIDADE','VENCIMENTO','VENCEDOCUMENTO'],
+    TIPO_DOCUMENTO:['TIPODOCUMENTO','DOCUMENTO','TIPO'],
+    NUMERO_DOCUMENTO:['NUMERODOCUMENTO','NUMERO','REGISTRO'],
+    ENTIDADE:['ENTIDADE','TIPOENTIDADE','CADASTRO']
+  };
+  const findCol=function(field){
+    const opts=[field].concat(aliases[field]||[]);
+    for(let i=0;i<opts.length;i++){const k=ftNormHeader_(opts[i]);if(index[k]!==undefined)return index[k];}
+    return -1;
+  };
+  const raw=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();
+  return raw.map(r=>{
+    const out={};
+    cfg.fields.forEach(f=>{
+      const col=findCol(f);
+      let v=col<0?'':r[col];
+      if(v instanceof Date) v=Utilities.formatDate(v,Session.getScriptTimeZone(),f.indexOf('DATA')===0||f.indexOf('VALIDADE')>=0?'yyyy-MM-dd':'yyyy-MM-dd HH:mm:ss');
+      out[f]=v==null?'':v;
+    });
+    if(!out.ID) out.ID=out.ID_EXTERNO||out.ID_DOCUMENTO||'';
+    if(!out.STATUS) out.STATUS='PENDENTE_REVISAO';
+    return out;
+  }).filter(r=>String(r.ID||r.ID_DOCUMENTO||'').trim()!=='');
+}
+function ftBrunoRowsAsLegacy_(entity) {
+  return ftReadBrunoRows_(entity).map(o=>{
+    const cfg=FT_BRUNO_CADASTROS[entity];
+    return cfg.fields.map(f=>o[f] == null ? '' : o[f]);
+  });
 }
