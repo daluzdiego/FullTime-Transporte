@@ -657,6 +657,8 @@ function salvarConjuntoVeicularFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
   const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
+  const capacidadeUtil=Number(String(data.capacidadeUtil||'').replace(',','.'));
+  if(!(capacidadeUtil>0&&isFinite(capacidadeUtil))) throw new Error('Informe a capacidade útil real do conjunto completo, validada para essa combinação.');
   if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
   if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
   function findById(name,id){const rows=getSheet_(name).getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0])===String(id))return rows[i];return null;}
@@ -675,7 +677,7 @@ function salvarConjuntoVeicularFullTime(token, data) {
   // Impede dois conjuntos ativos para o mesmo motorista ou cavalo. Reativação/alteração fica explícita pelo gestor.
   for(let i=1;i<values.length;i++) if(String(values[i][2])==='ATIVO' && (String(values[i][3])===motoristaId || String(values[i][4])===cavaloId)) throw new Error('Já existe um conjunto ATIVO com este motorista ou cavalo. Inative o conjunto anterior antes de cadastrar outro.');
   const id=Utilities.getUuid();
-  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000)]);
+  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
   auditar_(session,'CRIAR','CONJUNTO',id,'Motorista '+motoristaId+' / cavalo '+cavaloId);
   return {ok:true,id:id,message:'Conjunto salvo como PENDENTE_REVISAO. Revise e aprove antes de usar na escala.'};
 }
@@ -911,7 +913,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
     if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
     const cond=String(setRow[8]||'APTO').toUpperCase();
-    if(!['APTO','APTO_COM_RESTRICAO'].includes(cond)) throw new Error('O conjunto está indisponível para escala.');
+    if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
     const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
     let part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&['ATIVO','RETORNOU'].includes(String(r[5])));
     let partId;
@@ -925,10 +927,9 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
     ops.getRange(idx+1,12).setValue(novoSaldo);
     const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
-    if(pIndex>=1) {
-      parts.getRange(pIndex+1,10).setValue(Number(parts.getRange(pIndex+1,10).getValue()||0)+toneladas);
-      parts.getRange(pIndex+1,11).setValue(Number(parts.getRange(pIndex+1,11).getValue()||0)+(viagemConcluida?1:0));
-    }
+    const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
+    parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
+    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+(viagemConcluida?1:0));
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
     return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
@@ -982,7 +983,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const candidates=sets.slice(1).map(r=>{
     const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
     const cap=Number(r[10]||0);
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond!=='INDISPONIVEL'&&!activeParts.has(String(r[0]))&&cap>0;
+    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
     return {id:String(r[0]),driverId:String(r[3]),driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:0,operacoes30Dias:0,diasDisponivel30Dias:0,diasTrabalhados30Dias:0,dataEntradaFila:r[1],ultimaOperaEm:''};
   }).filter(c=>c.eligible);
   const byCategory=candidates.filter(c=>{
