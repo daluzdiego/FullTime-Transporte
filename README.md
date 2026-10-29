@@ -49,8 +49,8 @@ MVP inicial: login, painel, cadastros administrativos de motoristas e caminhões
 
 ## Entrada assistida de viagens — em testes
 
-- A planilha operacional do Bruno é fonte dos cadastros; a sincronização existente continua importando esses cadastros para a base Full Time.
+- A planilha do Bruno é a fonte de verdade para os cadastros e para a nova guia `ENTRADA_OPERACOES_IA`. A sincronização é unidirecional: Bruno → Full Time.
 - `Entrada de viagens (IA)` recebe texto copiado e colado de mensagens de WhatsApp. Não acessa o WhatsApp automaticamente.
-- O texto é guardado em `ENTRADA_OPERACOES_IA` como rascunho e só vira registro em `CARGAS` depois de revisão e confirmação.
+- A guia `ENTRADA_OPERACOES_IA` é criada/verificada nos dois arquivos. O agente grava o rascunho e a confirmação na planilha do Bruno; a sincronização copia os registros para a mesma guia no sistema e materializa a viagem confirmada em `CARGAS`.
 - A primeira implementação usa extração determinística baseada em padrões, não um modelo generativo. Use somente mensagens fictícias e não considere o módulo pronto para produção.
-- Execute `prepararBaseOperacionalFullTime()` e depois `prepararEntradaOperacoesIAFullTime()` em ambiente de teste.
+- Em ambiente de teste, execute `prepararBaseOperacionalFullTime()` no sistema e `prepararEntradaOperacoesIAFullTime()` para criar/verificar `ENTRADA_OPERACOES_IA` nas duas planilhas. Não execute com dados reais até terminar os testes.
