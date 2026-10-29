@@ -505,30 +505,90 @@ function prepararBaseOperacionalFullTime() {
 
 /** FULL TIME — Entrada assistida de operações: texto colado, rascunho, validação e confirmação. */
 const FT_IA_ENTRADA = Object.freeze({ SHEET:'ENTRADA_OPERACOES_IA', STATUS_RASCUNHO:'AGUARDANDO_REVISAO', STATUS_CONFIRMADO:'CONFIRMADO', MAX_TEXTO:12000, TIPOS:['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'] });
+const FT_IA_ENTRADA_HEADERS = Object.freeze(['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO']);
+function obterPlanilhasEntradaOperacoesIA_(){
+  const p=PropertiesService.getScriptProperties();let sourceId=p.getProperty('FT_BRUNO_SOURCE_ID')||'',destId=p.getProperty('FT_REGISTRY_DATABASE_ID')||p.getProperty('FT_BRUNO_OPERATIONAL_ID')||'';
+  if(typeof FT_BRUNO_CONFIG!=='undefined'){sourceId=sourceId||FT_BRUNO_CONFIG.SOURCE_ID||'';destId=destId||FT_BRUNO_CONFIG.OPERATIONAL_ID||'';}
+  if(!sourceId)throw new Error('ID da planilha do Bruno ausente. Configure a integração de cadastro antes de usar a entrada de viagens.');
+  if(!destId)throw new Error('ID da planilha operacional do sistema ausente. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
+  const registry=p.getProperty('FT_REGISTRY_DATABASE_ID'),configuredDest=p.getProperty('FT_BRUNO_OPERATIONAL_ID');
+  if(registry&&configuredDest&&registry!==configuredDest)throw new Error('A configuração aponta para duas planilhas de destino diferentes. Corrija a conexão antes de sincronizar.');
+  if(sourceId===destId)throw new Error('A planilha do Bruno e a planilha do sistema precisam ser arquivos distintos.');
+  return {source:SpreadsheetApp.openById(sourceId),dest:SpreadsheetApp.openById(destId),sourceId:sourceId,destId:destId};
+}
+function garantirGuiaEntradaOperacoesIA_(ss,sourceSide){
+  let sh=ss.getSheetByName(FT_IA_ENTRADA.SHEET);if(!sh)sh=ss.insertSheet(FT_IA_ENTRADA.SHEET);
+  const current=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+  if(!current.some(v=>v))sh.getRange(1,1,1,FT_IA_ENTRADA_HEADERS.length).setValues([FT_IA_ENTRADA_HEADERS.slice()]);
+  else if(current.length!==FT_IA_ENTRADA_HEADERS.length||FT_IA_ENTRADA_HEADERS.some((h,i)=>current[i]!==h))throw new Error('A guia '+FT_IA_ENTRADA.SHEET+' na planilha '+ss.getName()+' tem cabeçalhos divergentes. Nenhum dado foi sobrescrito.');
+  sh.setFrozenRows(1);sh.getRange(1,1,1,FT_IA_ENTRADA_HEADERS.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
+  if(!sourceSide&&typeof protegerGuiaInteiraFT_==='function')protegerGuiaInteiraFT_(sh,'Full Time — espelho de entrada; origem oficial é a planilha do Bruno');
+  return sh;
+}
+function validarCabecalhosEntradaOperacoesIA_(sh){const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());if(h.length!==FT_IA_ENTRADA_HEADERS.length||FT_IA_ENTRADA_HEADERS.some((v,i)=>h[i]!==v))throw new Error('Contrato de dados inválido na guia '+sh.getName()+'. Execute prepararEntradaOperacoesIAFullTime() e revise os cabeçalhos.');return h;}
+function sincronizarEntradasOperacoesIA_(c){
+  c=c||obterPlanilhasEntradaOperacoesIA_();const src=c.source.getSheetByName(FT_IA_ENTRADA.SHEET),dst=c.dest.getSheetByName(FT_IA_ENTRADA.SHEET);
+  if(!src||!dst)throw new Error('A guia de entrada precisa existir nas duas planilhas. Execute prepararEntradaOperacoesIAFullTime().');validarCabecalhosEntradaOperacoesIA_(src);validarCabecalhosEntradaOperacoesIA_(dst);
+  const sourceRows=src.getLastRow()>1?src.getRange(2,1,src.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues():[],destRows=dst.getLastRow()>1?dst.getRange(2,1,dst.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues():[],srcCounts={},dstById={};
+  sourceRows.forEach(r=>{const id=String(r[0]||'').trim();if(id)srcCounts[id]=(srcCounts[id]||0)+1;});const dupSrc=Object.keys(srcCounts).filter(k=>srcCounts[k]>1);if(dupSrc.length)throw new Error('IDs duplicados na planilha do Bruno: '+dupSrc.join(', '));
+  destRows.forEach((r,i)=>{const id=String(r[0]||'').trim();if(id)(dstById[id]||(dstById[id]=[])).push(i+2);});const dupDest=Object.keys(dstById).filter(k=>dstById[k].length>1);if(dupDest.length)throw new Error('IDs duplicados no espelho Full Time: '+dupDest.join(', '));
+  let inseridos=0,atualizados=0,iguais=0;sourceRows.forEach(r=>{const id=String(r[0]||'').trim();if(!id)return;const matches=dstById[id]||[];if(matches.length){const rowNo=matches[0],prev=dst.getRange(rowNo,1,1,FT_IA_ENTRADA_HEADERS.length).getValues()[0],norm=v=>v instanceof Date?v.getTime():v;if(JSON.stringify(prev.map(norm))===JSON.stringify(r.map(norm))){iguais++;return;}dst.getRange(rowNo,1,1,FT_IA_ENTRADA_HEADERS.length).setValues([r]);atualizados++;}else{dst.appendRow(r);inseridos++;}});
+  const mat=materializarCargasConfirmadasEntradaIA_(c.dest,dst);return {ok:mat.erros.length===0,origem:c.source.getName(),destino:c.dest.getName(),direcao:'BRUNO_PARA_FULL_TIME',entradasOrigem:sourceRows.filter(r=>String(r[0]||'').trim()).length,inseridos:inseridos,atualizados:atualizados,semAlteracao:iguais,cargasCriadas:mat.criadas,cargasJaExistentes:mat.existentes,erros:mat.erros};
+}
+function sincronizarEntradasOperacoesIAFullTime(token){const session=obterSessao_(token);exigirAdmin_(session);const lock=LockService.getScriptLock();if(!lock.tryLock(15000))throw new Error('Outra sincronização está em andamento.');try{return sincronizarEntradasOperacoesIA_(obterPlanilhasEntradaOperacoesIA_());}finally{lock.releaseLock();}}
+function materializarCargasConfirmadasEntradaIA_(destSs,entrySheet){
+  const result={criadas:0,existentes:0,erros:[]},rows=entrySheet.getLastRow()>1?entrySheet.getRange(2,1,entrySheet.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues():[],load=destSs.getSheetByName('CARGAS');
+  if(!load){result.erros.push('A guia CARGAS não existe na planilha operacional. Execute prepararBaseOperacionalFullTime().');return result;}
+  const width=load.getLastColumn(),headers=load.getRange(1,1,1,width).getDisplayValues()[0].map(String),ix={};headers.forEach((h,i)=>ix[ftNormHeader_(h)]=i);
+  const req=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],missing=req.filter(k=>ix[ftNormHeader_(k)]===undefined);if(missing.length){result.erros.push('Contrato da guia CARGAS divergente: '+missing.join(', '));return result;}
+  const existingIds=new Set(),existingEntryIds=new Set(),idCol=ix[ftNormHeader_('ID')],obsCol=ix[ftNormHeader_('OBSERVACOES')];if(load.getLastRow()>1)load.getRange(2,1,load.getLastRow()-1,width).getDisplayValues().forEach(r=>{if(r[idCol])existingIds.add(String(r[idCol]));const m=String(r[obsCol]||'').match(/Entrada IA:\s*([a-f0-9-]+)/i);if(m)existingEntryIds.add(m[1]);});
+  rows.forEach(r=>{const entryId=String(r[0]||''),status=String(r[3]||''),loadId=String(r[8]||'');if(!entryId||status!==FT_IA_ENTRADA.STATUS_CONFIRMADO||!loadId)return;try{if(existingIds.has(loadId)||existingEntryIds.has(entryId)){result.existentes++;return;}const d=JSON.parse(String(r[5]||'{}')),p=validarRascunhoOperacaoIA_(d);if(p.length)throw new Error('Campos pendentes: '+p.join(', '));const row=new Array(width).fill(''),put=(k,v)=>row[ix[ftNormHeader_(k)]]=v,now=new Date();put('ID',loadId);put('CRIADO_EM',r[1] instanceof Date?r[1]:now);put('STATUS','A_ESCALAR');put('DATA_OPERACAO',d.data);put('HORARIO_PREVISTO',d.horario||'');put('CLIENTE',d.cliente);put('ORIGEM',d.origem);put('DESTINO',d.destino);put('PESO_TONELADAS',Number(String(d.peso).replace(',','.')));put('DESCRICAO',d.descricao);put('OBSERVACOES',String(d.observacoes||'')+' | Entrada IA: '+entryId+' | confirmação por '+String(r[10]||r[2]||''));put('CRIADO_POR',String(r[10]||r[2]||''));put('TIPO_OPERACAO',String(d.tipoOperacao||'').toUpperCase());put('VALOR_FRETE',d.valorFrete===''?'':Number(String(d.valorFrete).replace(',','.')));load.appendRow(row);existingIds.add(loadId);existingEntryIds.add(entryId);result.criadas++;}catch(e){result.erros.push('Entrada '+entryId+': '+e.message);}});return result;
+}
 function prepararEntradaOperacoesIAFullTime() {
-  const id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if(!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
-  const ss=SpreadsheetApp.openById(id), schema=['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO'];
-  let sh=ss.getSheetByName(FT_IA_ENTRADA.SHEET); if(!sh) sh=ss.insertSheet(FT_IA_ENTRADA.SHEET);
-  const old=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String):[];
-  if(!old.some(v=>String(v).trim())) sh.getRange(1,1,1,schema.length).setValues([schema]);
-  else if(old.length!==schema.length||schema.some((h,i)=>old[i]!==h)) throw new Error('Cabeçalhos divergentes em '+FT_IA_ENTRADA.SHEET+'. Nenhum dado foi alterado.');
-  sh.setFrozenRows(1); sh.getRange(1,1,1,schema.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true); sh.autoResizeColumns(1,schema.length);
-  return {ok:true,planilha:ss.getUrl(),guia:FT_IA_ENTRADA.SHEET,campos:schema.length};
+  const c=obterPlanilhasEntradaOperacoesIA_();
+  const origem=garantirGuiaEntradaOperacoesIA_(c.source,true),destino=garantirGuiaEntradaOperacoesIA_(c.dest,false);
+  return {ok:true,guia:FT_IA_ENTRADA.SHEET,campos:FT_IA_ENTRADA_HEADERS.length,
+    origem:c.source.getUrl()+'#gid='+origem.getSheetId(),destino:c.dest.getUrl()+'#gid='+destino.getSheetId(),
+    direcao:'BRUNO_PARA_FULL_TIME',observacao:'Cria/verifica a guia nos dois arquivos; não cria viagens nem preenche dados fictícios.'};
 }
 function listarEntradasOperacoesIAFullTime(token) {
-  const session=obterSessao_(token); exigirAdmin_(session); const sh=getSheet_(FT_IA_ENTRADA.SHEET); if(sh.getLastRow()<2)return [];
-  return sh.getRange(2,1,sh.getLastRow()-1,12).getValues().map(r=>({id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),criadoPor:String(r[2]||''),status:String(r[3]||''),textoOriginal:String(r[4]||''),dados:(()=>{try{return JSON.parse(String(r[5]||'{}'));}catch(e){return {};}})(),camposPendentes:(()=>{try{return JSON.parse(String(r[6]||'[]'));}catch(e){return [];}})(),perguntas:String(r[7]||''),cargaId:String(r[8]||''),confirmadoEm:r[9] instanceof Date?r[9].toISOString():String(r[9]||''),confirmadoPor:String(r[10]||''),erro:String(r[11]||'')})).reverse();
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
+  if(!sh)throw new Error('Execute prepararEntradaOperacoesIAFullTime() para criar a guia nas duas planilhas.');
+  validarCabecalhosEntradaOperacoesIA_(sh); if(sh.getLastRow()<2)return [];
+  return sh.getRange(2,1,sh.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues().map(r=>({
+    id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),
+    criadoPor:String(r[2]||''),status:String(r[3]||''),textoOriginal:String(r[4]||''),
+    dados:(()=>{try{return JSON.parse(String(r[5]||'{}'));}catch(e){return {};}})(),
+    camposPendentes:(()=>{try{return JSON.parse(String(r[6]||'[]'));}catch(e){return [];}})(),
+    perguntas:String(r[7]||''),cargaId:String(r[8]||''),
+    confirmadoEm:r[9] instanceof Date?r[9].toISOString():String(r[9]||''),confirmadoPor:String(r[10]||''),erro:String(r[11]||'')
+  })).reverse();
 }
 function interpretarTextoOperacaoIAFullTime(token,textoOriginal) {
-  const session=obterSessao_(token); exigirAdmin_(session); const original=String(textoOriginal||'').trim();
-  if(!original)throw new Error('Cole a mensagem recebida no WhatsApp.'); if(original.length>FT_IA_ENTRADA.MAX_TEXTO)throw new Error('A mensagem excede o limite de '+FT_IA_ENTRADA.MAX_TEXTO+' caracteres.');
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const original=String(textoOriginal||'').trim();
+  if(!original)throw new Error('Cole a mensagem recebida no WhatsApp.');
+  if(original.length>FT_IA_ENTRADA.MAX_TEXTO)throw new Error('A mensagem excede o limite de '+FT_IA_ENTRADA.MAX_TEXTO+' caracteres.');
+  const c=obterPlanilhasEntradaOperacoesIA_(),src=garantirGuiaEntradaOperacoesIA_(c.source,true);
+  garantirGuiaEntradaOperacoesIA_(c.dest,false);
   const norm=original.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),rota=extrairRotaDiretaOperacaoIA_(original);
-  const dados={data:extrairDataOperacaoIA_(original),horario:extrairHorarioOperacaoIA_(original),cliente:extrairCampoRotuladoOperacaoIA_(original,['cliente','contratante','empresa']),origem:extrairCampoRotuladoOperacaoIA_(original,['origem','coleta','carregar em','carregamento em','retirar em','saida de','saída de'])||rota.origem,destino:extrairCampoRotuladoOperacaoIA_(original,['destino','entregar em','descarga em','descarregar em','entrega em','levar para','levar ate','levar até'])||rota.destino,peso:extrairPesoOperacaoIA_(original),descricao:extrairDescricaoOperacaoIA_(original),tipoOperacao:extrairTipoOperacaoIA_(norm),valorFrete:'',observacoes:'Entrada criada pela interpretação assistida. Revisar todos os campos antes de confirmar.',motoristaId:'',cavaloId:'',carretaMeioId:'',carretaFinalId:''};
+  const dados={
+    data:extrairDataOperacaoIA_(original),horario:extrairHorarioOperacaoIA_(original),
+    cliente:extrairCampoRotuladoOperacaoIA_(original,['cliente','contratante','empresa']),
+    origem:extrairCampoRotuladoOperacaoIA_(original,['origem','coleta','carregar em','carregamento em','retirar em','saida de','saída de'])||rota.origem,
+    destino:extrairCampoRotuladoOperacaoIA_(original,['destino','entregar em','descarga em','descarregar em','entrega em','levar para','levar ate','levar até'])||rota.destino,
+    peso:extrairPesoOperacaoIA_(original),descricao:extrairDescricaoOperacaoIA_(original),tipoOperacao:extrairTipoOperacaoIA_(norm),
+    valorFrete:'',observacoes:'Entrada criada pela interpretação assistida. Revisar todos os campos antes de confirmar.',
+    motoristaId:'',cavaloId:'',carretaMeioId:'',carretaFinalId:''
+  };
   const pendentes=validarRascunhoOperacaoIA_(dados),perguntas=montarPerguntasPendentesOperacaoIA_(pendentes),id=Utilities.getUuid(),now=new Date();
-  getSheet_(FT_IA_ENTRADA.SHEET).appendRow([id,now,session.login,FT_IA_ENTRADA.STATUS_RASCUNHO,original,JSON.stringify(dados),JSON.stringify(pendentes),perguntas,'','','','']);
-  auditar_(session,'CRIAR_RASCUNHO','ENTRADA_OPERACAO_IA',id,'Campos pendentes: '+pendentes.join(', '));
-  return {ok:true,id:id,status:FT_IA_ENTRADA.STATUS_RASCUNHO,textoOriginal:original,dados:dados,camposPendentes:pendentes,perguntas:perguntas,message:pendentes.length?'Rascunho criado. Complete os campos pendentes e revise os valores identificados.':'Rascunho criado. Revise todos os campos antes de confirmar.'};
+  src.appendRow([id,now,session.login,FT_IA_ENTRADA.STATUS_RASCUNHO,original,JSON.stringify(dados),JSON.stringify(pendentes),perguntas,'','','','']);
+  auditar_(session,'CRIAR_RASCUNHO','ENTRADA_OPERACAO_IA',id,'Criado na planilha do Bruno. Campos pendentes: '+pendentes.join(', '));
+  let aviso='';try{const sr=sincronizarEntradasOperacoesIA_(c);if(sr.erros.length)aviso=' Atenção: sincronização para Full Time pendente: '+sr.erros.join(' | ');}
+  catch(e){aviso=' A entrada foi salva na planilha do Bruno, mas a cópia para Full Time precisa ser repetida: '+e.message;}
+  return {ok:true,id:id,status:FT_IA_ENTRADA.STATUS_RASCUNHO,textoOriginal:original,dados:dados,camposPendentes:pendentes,perguntas:perguntas,
+    message:(pendentes.length?'Rascunho salvo na planilha do Bruno; complete os campos pendentes.':'Rascunho salvo na planilha do Bruno; revise todos os dados.')+aviso};
 }
 function extrairDataOperacaoIA_(text) {
   const s=String(text||''),m=s.match(/\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/); if(m){let y=Number(m[3]);if(y<100)y+=2000;const d=Number(m[1]),mo=Number(m[2]),dt=new Date(y,mo-1,d);if(dt.getFullYear()===y&&dt.getMonth()===mo-1&&dt.getDate()===d)return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2);}
@@ -542,43 +602,45 @@ function extrairDescricaoOperacaoIA_(text){const n=String(text||'').normalize('N
 function extrairTipoOperacaoIA_(n){if(/descarga.{0,20}navio|navio.{0,20}descarga|descarregamento.{0,20}navio/.test(n))return 'DESCARGA_NAVIO';if(/transferencia.{0,30}(fabrica|unidade)|entre.{0,20}(fabricas|unidades)|para.{0,20}(fabrica|unidade)/.test(n))return 'TRANSFERENCIA_FABRICAS';if(/remocao interna|movimentacao interna|dentro do porto/.test(n))return 'REMOCAO_INTERNA';if(/\bfrete\b|\bentrega\b|\btransporte\b/.test(n))return 'OUTRA';return '';}
 function validarRascunhoOperacaoIA_(d){const p=[];if(!d.data)p.push('data');if(!d.cliente)p.push('cliente');if(!d.origem)p.push('origem');if(!d.destino)p.push('destino');if(!(Number(String(d.peso||'').replace(',','.'))>0))p.push('peso');if(!FT_IA_ENTRADA.TIPOS.includes(String(d.tipoOperacao||'').toUpperCase()))p.push('tipoOperacao');if(!d.descricao)p.push('descricao');return p;}
 function montarPerguntasPendentesOperacaoIA_(f){const l={data:'Qual é a data exata da viagem? (DD/MM/AAAA)',cliente:'Qual empresa/cliente está contratando o transporte?',origem:'Qual é o local exato de origem/carregamento?',destino:'Qual é o destino exato da descarga/entrega?',peso:'Qual é o peso estimado da carga em toneladas?',tipoOperacao:'Qual é o tipo: descarga de navio, transferência entre unidades, remoção interna ou outra?',descricao:'Qual é a descrição da carga?'};return f.map(k=>l[k]||('Informe '+k+'.')).join('\n');}
-function atualizarRascunhoOperacaoIAFullTime(token,entradaId,data){const session=obterSessao_(token);exigirAdmin_(session);data=data||{};const sh=getSheet_(FT_IA_ENTRADA.SHEET),rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===String(entradaId));if(idx<1)throw new Error('Rascunho não encontrado.');if(String(rows[idx][3])!==FT_IA_ENTRADA.STATUS_RASCUNHO)throw new Error('Somente rascunhos aguardando revisão podem ser alterados.');const d=JSON.parse(String(rows[idx][5]||'{}'));['data','horario','cliente','origem','destino','peso','descricao','tipoOperacao','valorFrete','observacoes'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(data,k))d[k]=String(data[k]==null?'':data[k]).trim();});const p=validarRascunhoOperacaoIA_(d),q=montarPerguntasPendentesOperacaoIA_(p);sh.getRange(idx+1,6).setValue(JSON.stringify(d));sh.getRange(idx+1,7).setValue(JSON.stringify(p));sh.getRange(idx+1,8).setValue(q);auditar_(session,'ATUALIZAR_RASCUNHO','ENTRADA_OPERACAO_IA',entradaId,'Campos pendentes: '+p.join(', '));return {ok:true,id:entradaId,dados:d,camposPendentes:p,perguntas:q,status:FT_IA_ENTRADA.STATUS_RASCUNHO};}
-function confirmarEntradaOperacaoIAFullTime(token,entradaId,revisaoFinal){
+function atualizarRascunhoOperacaoIAFullTime(token,entradaId,data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
+  if(!sh)throw new Error('A guia de entrada não foi preparada nas planilhas.');
+  const rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===String(entradaId));
+  if(idx<1)throw new Error('Rascunho não encontrado.');
+  if(String(rows[idx][3])!==FT_IA_ENTRADA.STATUS_RASCUNHO)throw new Error('Somente rascunhos aguardando revisão podem ser alterados.');
+  const d=JSON.parse(String(rows[idx][5]||'{}'));
+  ['data','horario','cliente','origem','destino','peso','descricao','tipoOperacao','valorFrete','observacoes'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(data,k))d[k]=String(data[k]==null?'':data[k]).trim();});
+  const p=validarRascunhoOperacaoIA_(d),q=montarPerguntasPendentesOperacaoIA_(p);
+  sh.getRange(idx+1,6).setValue(JSON.stringify(d));sh.getRange(idx+1,7).setValue(JSON.stringify(p));sh.getRange(idx+1,8).setValue(q);
+  let aviso='';try{const sr=sincronizarEntradasOperacoesIA_(c);if(sr.erros.length)aviso=' Sincronização pendente: '+sr.erros.join(' | ');}catch(e){aviso=' Sincronização pendente: '+e.message;}
+  auditar_(session,'ATUALIZAR_RASCUNHO','ENTRADA_OPERACAO_IA',entradaId,'Campos pendentes: '+p.join(', '));
+  return {ok:true,id:entradaId,dados:d,camposPendentes:p,perguntas:q,status:FT_IA_ENTRADA.STATUS_RASCUNHO,message:'Revisão salva na planilha do Bruno.'+aviso};
+}
+function confirmarEntradaOperacaoIAFullTime(token,entradaId,revisaoFinal) {
   const session=obterSessao_(token);exigirAdmin_(session);revisaoFinal=revisaoFinal||{};
   const lock=LockService.getScriptLock();if(!lock.tryLock(15000))throw new Error('Outra gravação está em andamento. Tente novamente.');
   try {
-    const entrySh=getSheet_(FT_IA_ENTRADA.SHEET),rows=entrySh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===String(entradaId));
+    const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
+    if(!sh)throw new Error('A guia de entrada não foi preparada nas planilhas.');
+    const rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===String(entradaId));
     if(idx<1)throw new Error('Rascunho não encontrado.');
     if(String(rows[idx][3])!==FT_IA_ENTRADA.STATUS_RASCUNHO)throw new Error('Este rascunho já foi processado.');
     const d=JSON.parse(String(rows[idx][5]||'{}'));
     Object.keys(revisaoFinal).forEach(k=>{if(['data','horario','cliente','origem','destino','peso','descricao','tipoOperacao','valorFrete','observacoes'].includes(k))d[k]=String(revisaoFinal[k]==null?'':revisaoFinal[k]).trim();});
-    const p=validarRascunhoOperacaoIA_(d);if(p.length)throw new Error('Não é possível confirmar. Campos pendentes: '+p.join(', ')+'.');
+    const pend=validarRascunhoOperacaoIA_(d);if(pend.length)throw new Error('Não é possível confirmar. Campos pendentes: '+pend.join(', ')+'.');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data))||isNaN(new Date(d.data+'T12:00:00').getTime()))throw new Error('A data informada é inválida.');
     if(d.horario&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.horario))throw new Error('O horário deve estar no formato HH:MM.');
     if(String(d.origem).trim().toLowerCase()===String(d.destino).trim().toLowerCase())throw new Error('Origem e destino não podem ser iguais.');
-    const loadSh=getSheet_('CARGAS'),width=loadSh.getLastColumn();
-    const headers=loadSh.getRange(1,1,1,width).getDisplayValues()[0].map(String),ix={};headers.forEach((h,i)=>ix[ftNormHeader_(h)]=i);
-    const required=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],missing=required.filter(k=>ix[ftNormHeader_(k)]===undefined);
-    if(missing.length)throw new Error('Contrato da guia CARGAS divergente: '+missing.join(', '));
-    const obsIndex=ix[ftNormHeader_('OBSERVACOES')];
-    if(obsIndex!==undefined&&loadSh.getLastRow()>1){
-      const existing=loadSh.getRange(2,1,loadSh.getLastRow()-1,width).getDisplayValues();
-      const existingRow=existing.find(r=>String(r[obsIndex]||'').indexOf('Entrada IA: '+entradaId)!==-1);
-      if(existingRow){
-        const existingId=String(existingRow[ix[ftNormHeader_('ID')]]||'');
-        throw new Error('Esta entrada já gerou a carga '+existingId+'. Não foi criada uma segunda viagem. Atualize o histórico para conferir o estado da entrada.');
-      }
-    }
-    const cargaId=Utilities.getUuid(),now=new Date();
-    const row=new Array(width).fill(''),put=(k,v)=>row[ix[ftNormHeader_(k)]]=v;
-    put('ID',cargaId);put('CRIADO_EM',now);put('STATUS','A_ESCALAR');put('DATA_OPERACAO',d.data);put('HORARIO_PREVISTO',d.horario||'');put('CLIENTE',d.cliente);put('ORIGEM',d.origem);put('DESTINO',d.destino);put('PESO_TONELADAS',Number(String(d.peso).replace(',','.')));put('DESCRICAO',d.descricao);put('OBSERVACOES',String(d.observacoes||'')+' | Entrada IA: '+entradaId+' | confirmação manual por '+session.login);put('CRIADO_POR',session.login);put('TIPO_OPERACAO',String(d.tipoOperacao).toUpperCase());put('VALOR_FRETE',d.valorFrete===''?'':Number(String(d.valorFrete).replace(',','.')));
-    loadSh.appendRow(row);
-    entrySh.getRange(idx+1,4).setValue(FT_IA_ENTRADA.STATUS_CONFIRMADO);entrySh.getRange(idx+1,6).setValue(JSON.stringify(d));entrySh.getRange(idx+1,7).setValue('[]');entrySh.getRange(idx+1,8).setValue('');entrySh.getRange(idx+1,9).setValue(cargaId);entrySh.getRange(idx+1,10).setValue(now);entrySh.getRange(idx+1,11).setValue(session.login);
-    auditar_(session,'CONFIRMAR_ENTRADA_IA','CARGA',cargaId,'Entrada '+entradaId+'; '+d.origem+' -> '+d.destino+'; '+d.tipoOperacao);
-    return {ok:true,id:cargaId,entradaId:entradaId,message:'Viagem confirmada e registrada em CARGAS. A viagem aguarda escala.'};
+    const cargaId=String(rows[idx][8]||Utilities.getUuid()),now=new Date();
+    sh.getRange(idx+1,4,1,9).setValues([[FT_IA_ENTRADA.STATUS_CONFIRMADO,rows[idx][4],JSON.stringify(d),'[]','',cargaId,now,session.login,'']]);
+    auditar_(session,'CONFIRMAR_ENTRADA_IA','ENTRADA_OPERACAO_IA',entradaId,'Confirmada na planilha do Bruno; carga prevista '+cargaId+'; '+d.origem+' -> '+d.destino+'; '+d.tipoOperacao);
+    let sync=null,aviso='';try{sync=sincronizarEntradasOperacoesIA_(c);if(sync.erros.length)aviso=' Erros de sincronização: '+sync.erros.join(' | ');}
+    catch(e){aviso=' Sincronização pendente; a confirmação permanece na planilha do Bruno: '+e.message;}
+    return {ok:true,id:cargaId,entradaId:entradaId,sincronizado:!!(sync&&sync.erros.length===0),
+      message:(sync&&sync.erros.length===0?'Viagem confirmada na planilha do Bruno e sincronizada para Full Time.':'Viagem confirmada na planilha do Bruno; a sincronização para o sistema está pendente.')+aviso};
   } finally {lock.releaseLock();}
 }
-
 /** Testes automatizados puros: não abre planilhas nem grava dados. */
 function testarExtracaoEntradaOperacoesIAFullTime() {
   const cases = [
