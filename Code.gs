@@ -967,7 +967,8 @@ function retornarConjuntoOperacaoFullTime(token, data) {
   const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
   const idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='SAIU');
   if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
-  sh.getRange(idx+1,6).setValue('RETORNOU'); sh.getRange(idx+1,9).setValue(new Date()); sh.getRange(idx+1,12).setValue('Retorno: '+motivo); sh.getRange(idx+1,13).setValue(session.login);
+  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto ainda está ativo em outra operação. Registre primeiro sua saída/remanejamento dessa operação.');
+  sh.getRange(idx+1,6).setValue('ATIVO'); sh.getRange(idx+1,9).setValue(new Date()); sh.getRange(idx+1,12).setValue('Retorno: '+motivo); sh.getRange(idx+1,13).setValue(session.login);
   auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou. Motivo: '+motivo);
   return {ok:true,message:'Retorno registrado no histórico.'};
 }
