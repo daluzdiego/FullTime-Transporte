@@ -399,12 +399,12 @@
     }).filter(Boolean).sort((a,b)=>a.days-b.days);
     if(!due.length){host.innerHTML='';return;}
     const key='ft_doc_notice_dismissed_at';
-    const dismissed=Number(sessionStorage.getItem(key)||0);
+    const dismissed=Number(localStorage.getItem(key)||0);
     if(dismissed&&Date.now()-dismissed<DOC_ALERT_DELAY_MS){host.innerHTML='';return;}
     host.innerHTML='<section class="doc-expiry-notice" role="status" aria-live="polite"><div class="doc-expiry-copy"><strong>Documentos próximos do vencimento</strong><span>'+due.length+' documento(s) vencido(s) ou com vencimento nos próximos 30 dias. A operação continua visível.</span></div><button class="btn btn-secondary" type="button" onclick="dismissDocumentExpiryNotice()">Fechar</button><div class="doc-expiry-details">'+due.slice(0,5).map(d=>'<span>'+esc(d.name)+' — '+esc(formatDate(d.expiry))+(d.days<0?' (vencido)':' ('+d.days+' dia(s))')+'</span>').join('')+'</div></section>';
   }
   function dismissDocumentExpiryNotice(){
-    sessionStorage.setItem('ft_doc_notice_dismissed_at',String(Date.now()));
+    localStorage.setItem('ft_doc_notice_dismissed_at',String(Date.now()));
     const host=document.getElementById('documentExpiryNotice');if(host)host.innerHTML='';
   }
   function renderDevelopment(title){return `<div class="dev-card"><div class="dev-icon">⚙</div><div class="dev-label">EM DESENVOLVIMENTO</div><h1 style="margin-top:18px">${esc(title)}</h1><p>Este módulo faz parte do planejamento da Full Time e será disponibilizado em uma próxima etapa. Por enquanto, estamos preparando os cadastros e a base operacional.</p><button class="btn btn-primary" onclick="goPage('inicio')">Voltar ao início</button></div>`;}
