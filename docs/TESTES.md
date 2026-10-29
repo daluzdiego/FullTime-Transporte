@@ -62,8 +62,8 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Colar texto fictício com rota e data explícitas e confirmar que aparece como rascunho.
 - [ ] Colar texto sem cliente, peso, tipo ou descrição; conferir que são mostrados como campos pendentes e nada é gravado em `CARGAS`.
 - [ ] Tentar origem e destino iguais; confirmação deve ser bloqueada.
-- [ ] Confirmar uma entrada completa e verificar uma linha em `CARGAS` ligada pelo ID à entrada.
-- [ ] Repetir confirmação do mesmo rascunho; não deve gerar segunda carga.
-- [ ] Verificar que o agente não escreve na planilha-fonte do Bruno.
+- [ ] Confirmar uma entrada completa na guia do Bruno, verificar a cópia de mesmo ID para o espelho Full Time e verificar exatamente uma linha em `CARGAS` com referência ao ID de entrada.
+- [ ] Executar a sincronização várias vezes; deve ser idempotente e não gerar segunda carga.
+- [ ] Verificar que o agente grava rascunhos/confirmados na guia de entrada da planilha do Bruno e que somente o sincronizador copia para o espelho do sistema.
 - [ ] Confirmar que sincronização de cadastro continua limitada ao lote fictício da configuração existente.
 - [ ] Antes de produção, substituir a extração de padrões por modelo generativo validado e executar nova bateria de testes.
