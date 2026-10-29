@@ -44,3 +44,8 @@ Data, usuário, login, ação, entidade, identificador e breve descrição da a�
 - Não armazena imagens de documentos.
 - Não realiza validação externa de CNH, CRLV-e, CPF ou situação legal.
 - Google Sheets não deve ser presumido como banco definitivo para uma operação crítica com concorrência sem testes de carga, revisão de arquitetura e plano de recuperação.
+
+
+## Entrada de operações por mensagem colada
+
+`ENTRADA_OPERACOES_IA` é a fila de rascunhos com texto original, JSON extraído, campos pendentes e confirmação. Nenhuma linha é criada em `CARGAS` enquanto houver campos obrigatórios pendentes. Após confirmação do administrador, `CARGAS` recebe uma linha com o contrato de dados existente, status `A_ESCALAR`, ID próprio e referência da entrada nas observações. A captura é manual por copiar/colar; não é integração automática com WhatsApp. A primeira versão usa extração determinística e deve ser tratada como protótipo, não como IA generativa.
