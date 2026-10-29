@@ -915,12 +915,9 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const cond=String(setRow[8]||'APTO').toUpperCase();
     if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
     const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
-    let part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&['ATIVO','RETORNOU'].includes(String(r[5])));
-    let partId;
-    if(!part) {
-      partId=Utilities.getUuid();
-      parts.appendRow([partId,new Date(),operacaoId,conjuntoId,String(setRow[3]||''),'ATIVO',new Date(),'','','0',0,'',session.login]);
-    } else partId=String(part[0]);
+    const part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
+    if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
+    const partId=String(part[0]);
     const moveId=Utilities.getUuid();
     getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
     const novoSaldo=Math.max(0,saldo-toneladas);
