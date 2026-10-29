@@ -260,6 +260,8 @@ function obterPainelFullTime(token) {
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
     conjuntos: listarRegistros_('CONJUNTOS'),
+    operacoes: listarRegistros_('OPERACOES'),
+    participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
     cargas: cargas,
     locais: listarRegistros_('LOCAIS'),
     counts: {
@@ -460,7 +462,10 @@ function prepararBaseOperacionalFullTime() {
   const schemas = {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR'],
+    PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
+    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],
@@ -710,7 +715,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA'];
+  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
@@ -856,4 +861,137 @@ function motoristasSemConfirmacaoDiariaFullTime(motoristas, confirmacoes, dataIS
   return (Array.isArray(motoristas) ? motoristas : []).filter(function(m) {
     return m && m.motoristaId && m.ativo !== false && !confirmados[String(m.motoristaId)];
   });
+}
+
+
+/**
+ * FULL TIME — módulo inicial de operações e escala por operação.
+ * Migração aditiva: não apaga nem reescreve registros existentes.
+ */
+function listarOperacoesFullTime(token) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  return listarRegistros_('OPERACOES').map(function(r) {
+    const f = r.campos;
+    return {id:r.id,criado:r.criado,status:r.status,data:f[0]||'',cliente:f[1]||'',nome:f[2]||'',origem:f[3]||'',destino:f[4]||'',categoria:f[5]||'',volumeTotal:Number(f[6]||0),cargasPrevistas:Number(f[7]||0),saldo:Number(f[8]||0),observacoes:f[9]||'',criadoPor:f[10]||''};
+  });
+}
+function salvarOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
+  const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), cargas=Math.floor(Number(data.cargasPrevistas));
+  const observacoes=texto_(data.observacoes,1000);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
+  if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
+  if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
+  if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
+  if(!(cargas>0&&cargas<=100000)) throw new Error('Informe a quantidade prevista de cargas.');
+  const id=Utilities.getUuid(), now=new Date();
+  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,cargas,volume,observacoes,session.login]);
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; cargas='+cargas);
+  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t.'};
+}
+function registrarMovimentacaoOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
+  const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
+  const viagemConcluida=data.viagemConcluida===true||String(data.viagemConcluida)==='true';
+  const observacoes=texto_(data.observacoes,1000);
+  if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
+  if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
+  const lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
+    if(idx<1) throw new Error('Operação não encontrada.');
+    const op=rows[idx], status=String(op[2]||'');
+    if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
+    const saldo=Number(op[11]||0);
+    if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
+    const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
+    const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
+    if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
+    const cond=String(setRow[8]||'APTO').toUpperCase();
+    if(!['APTO','APTO_COM_RESTRICAO'].includes(cond)) throw new Error('O conjunto está indisponível para escala.');
+    const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
+    let part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&['ATIVO','RETORNOU'].includes(String(r[5])));
+    let partId;
+    if(!part) {
+      partId=Utilities.getUuid();
+      parts.appendRow([partId,new Date(),operacaoId,conjuntoId,String(setRow[3]||''),'ATIVO',new Date(),'','','0',0,'',session.login]);
+    } else partId=String(part[0]);
+    const moveId=Utilities.getUuid();
+    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
+    const novoSaldo=Math.max(0,saldo-toneladas);
+    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+    ops.getRange(idx+1,12).setValue(novoSaldo);
+    const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
+    if(pIndex>=1) {
+      parts.getRange(pIndex+1,10).setValue(Number(parts.getRange(pIndex+1,10).getValue()||0)+toneladas);
+      parts.getRange(pIndex+1,11).setValue(Number(parts.getRange(pIndex+1,11).getValue()||0)+(viagemConcluida?1:0));
+    }
+    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
+    return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
+  } finally { lock.releaseLock(); }
+}
+function alterarEstadoConjuntoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const id=texto_(data.conjuntoId,100), estado=texto_(data.estado,40).toUpperCase(), restricoes=texto_(data.restricoes,1000);
+  if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado)) throw new Error('Selecione um conjunto e um estado válido.');
+  if(estado==='APTO_COM_RESTRICAO'&&!restricoes) throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
+  const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
+  if(idx<1) throw new Error('Conjunto não encontrado.');
+  sh.getRange(idx+1,9).setValue(estado); sh.getRange(idx+1,10).setValue(restricoes); sh.getRange(idx+1,11).setValue(Number(data.capacidadeUtil||0)); sh.getRange(idx+1,12).setValue(session.login);
+  auditar_(session,'ALTERAR_CONSERVACAO','CONJUNTO',id,estado+'; '+restricoes);
+  return {ok:true,message:'Estado de conservação atualizado.'};
+}
+function remanejarConjuntoOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const operacaoAtual=texto_(data.operacaoAtualId,100), operacaoDestino=texto_(data.operacaoDestinoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
+  if(!operacaoAtual||!operacaoDestino||!conjuntoId||!motivo) throw new Error('Informe operação de origem, destino, conjunto e justificativa.');
+  if(operacaoAtual===operacaoDestino) throw new Error('A operação de destino deve ser diferente da atual.');
+  const ops=getSheet_('OPERACOES').getDataRange().getValues();
+  const validOp=id=>ops.some((r,i)=>i>0&&String(r[0])===id&&['ABERTA','EM_ANDAMENTO'].includes(String(r[2])));
+  if(!validOp(operacaoAtual)||!validOp(operacaoDestino)) throw new Error('As duas operações precisam estar abertas ou em andamento.');
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoAtual&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
+  if(idx<1) throw new Error('Não existe participação ativa desse conjunto na operação de origem.');
+  sh.getRange(idx+1,6).setValue('SAIU'); sh.getRange(idx+1,8).setValue(new Date()); sh.getRange(idx+1,12).setValue(motivo); sh.getRange(idx+1,13).setValue(session.login);
+  const id=Utilities.getUuid(); sh.appendRow([id,new Date(),operacaoDestino,conjuntoId,String(rows[idx][4]||''),'ATIVO',new Date(),'','','0',0,'Transferência: '+motivo,session.login]);
+  auditar_(session,'REMANEJAR_CONJUNTO','OPERACAO',operacaoAtual,'Conjunto '+conjuntoId+' transferido para '+operacaoDestino+'. Motivo: '+motivo);
+  return {ok:true,message:'Remanejamento registrado. O histórico da operação anterior foi preservado.'};
+}
+function retornarConjuntoOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
+  if(!operacaoId||!conjuntoId||!motivo) throw new Error('Informe operação, conjunto e motivo do retorno.');
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
+  const idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='SAIU');
+  if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
+  sh.getRange(idx+1,6).setValue('RETORNOU'); sh.getRange(idx+1,9).setValue(new Date()); sh.getRange(idx+1,12).setValue('Retorno: '+motivo); sh.getRange(idx+1,13).setValue(session.login);
+  auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou. Motivo: '+motivo);
+  return {ok:true,message:'Retorno registrado no histórico.'};
+}
+function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
+  if(!op) throw new Error('Operação não encontrada.');
+  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
+  const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
+  const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
+  const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
+  const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
+  const candidates=sets.slice(1).map(r=>{
+    const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
+    const cap=Number(r[10]||0);
+    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond!=='INDISPONIVEL'&&!activeParts.has(String(r[0]))&&cap>0;
+    return {id:String(r[0]),driverId:String(r[3]),driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:0,operacoes30Dias:0,diasDisponivel30Dias:0,diasTrabalhados30Dias:0,dataEntradaFila:r[1],ultimaOperaEm:''};
+  }).filter(c=>c.eligible);
+  const byCategory=candidates.filter(c=>{
+    if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
+    if(op.categoria==='MANOBRA_DIFICIL')return c.capacity>0;
+    return true;
+  });
+  const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
+  if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
+  if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
+  return ordered.map((c,i)=>({posicao:i+1,...c}));
 }
