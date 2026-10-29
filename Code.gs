@@ -522,7 +522,7 @@ function garantirGuiaEntradaOperacoesIA_(ss,sourceSide){
   if(!current.some(v=>v))sh.getRange(1,1,1,FT_IA_ENTRADA_HEADERS.length).setValues([FT_IA_ENTRADA_HEADERS.slice()]);
   else if(current.length!==FT_IA_ENTRADA_HEADERS.length||FT_IA_ENTRADA_HEADERS.some((h,i)=>current[i]!==h))throw new Error('A guia '+FT_IA_ENTRADA.SHEET+' na planilha '+ss.getName()+' tem cabeçalhos divergentes. Nenhum dado foi sobrescrito.');
   sh.setFrozenRows(1);sh.getRange(1,1,1,FT_IA_ENTRADA_HEADERS.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
-  if(!sourceSide&&typeof protegerGuiaInteiraFT_==='function')protegerGuiaInteiraFT_(sh,'Full Time — espelho de entrada; origem oficial é a planilha do Bruno');
+  // A guia de destino é espelho gerenciado pelo sincronizador. Não aplicar proteção automaticamente para evitar bloquear o usuário de execução.
   return sh;
 }
 function validarCabecalhosEntradaOperacoesIA_(sh){const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());if(h.length!==FT_IA_ENTRADA_HEADERS.length||FT_IA_ENTRADA_HEADERS.some((v,i)=>h[i]!==v))throw new Error('Contrato de dados inválido na guia '+sh.getName()+'. Execute prepararEntradaOperacoesIAFullTime() e revise os cabeçalhos.');return h;}
