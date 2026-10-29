@@ -173,6 +173,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
+    else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
   }
@@ -254,6 +255,46 @@
   function saveConjunto(ev){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveConjuntoButton');const err=document.getElementById('conjuntoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar conjunto';err.textContent=e.message||'Não foi possível salvar o conjunto.';}).salvarConjuntoVeicularFullTime(authToken,data);}
   function saveAsset(ev,kind){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=form.querySelector('button[type=submit]');btn.disabled=true;const fn=kind==='cavalo'?'salvarCavaloFullTime':'salvarCarretaFullTime';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;toast(e.message||'Não foi possível salvar o veículo.',true);}).withUserObject(null)[fn](authToken,data);}
 
+
+
+  function renderEscalas(){
+    const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
+    const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.campos[2]||o.id):id;};
+    const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
+    const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
+    const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
+    const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
+    const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
+    const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
+    return `
+      <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
+      <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
+      <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
+      <div class="grid-two">
+        <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
+          <div class="field"><label>Operação de origem *</label><select name="operacaoAtualId" required>${opOptions}</select></div>
+          <div class="field"><label>Operação de destino *</label><select name="operacaoDestinoId" required>${opOptions}</select></div>
+          <div class="field"><label>Conjunto *</label><select name="conjuntoId" required>${setOptions}</select></div>
+          <div class="field span-2"><label>Motivo obrigatório *</label><textarea name="motivo" required maxlength="500"></textarea></div>
+        </div><div id="remanejamentoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar transferência</button></div></form></div></div>
+        <div class="panel form-panel"><div class="panel-head"><h2>Registrar retorno</h2></div><div class="panel-body"><form onsubmit="submitRetorno(event)"><div class="form-grid">
+          <div class="field"><label>Operação anterior *</label><select name="operacaoId" required>${opOptions}</select></div>
+          <div class="field"><label>Conjunto que saiu *</label><select name="conjuntoId" required>${setOptions}</select></div>
+          <div class="field span-2"><label>Motivo do retorno *</label><textarea name="motivo" required maxlength="500"></textarea></div>
+        </div><div id="retornoError" class="error"></div><div class="form-actions"><button class="btn btn-secondary" type="submit">Registrar retorno</button></div></form></div></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Saídas registradas</h2><span class="muted small">${departed.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Saída</th><th>Motivo</th></tr></thead><tbody>${departed.length?departed.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[5]||'').slice(0,10)))+'</td><td>'+esc(p.campos[9]||'—')+'</td></tr>').join(''):'<tr><td colspan="5">Nenhuma saída registrada.</td></tr>'}</tbody></table></div></div></div>`;
+  }
+  function submitRemanejamento(ev){
+    ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
+    if(data.operacaoAtualId===data.operacaoDestinoId){document.getElementById('remanejamentoError').textContent='Escolha operações diferentes.';return;}
+    if(!confirm('Confirmar transferência? A saída e a nova participação serão registradas.'))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('remanejamentoError').textContent=e.message||'Falha no remanejamento.';}).remanejarConjuntoOperacaoFullTime(authToken,data);
+  }
+  function submitRetorno(ev){
+    ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
+  }
 
   function renderOperacoes(){
     const ops=dashboard?.operacoes||[];
