@@ -556,10 +556,20 @@ function confirmarEntradaOperacaoIAFullTime(token,entradaId,revisaoFinal){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data))||isNaN(new Date(d.data+'T12:00:00').getTime()))throw new Error('A data informada é inválida.');
     if(d.horario&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.horario))throw new Error('O horário deve estar no formato HH:MM.');
     if(String(d.origem).trim().toLowerCase()===String(d.destino).trim().toLowerCase())throw new Error('Origem e destino não podem ser iguais.');
-    const cargaId=Utilities.getUuid(),now=new Date(),loadSh=getSheet_('CARGAS'),width=loadSh.getLastColumn();
+    const loadSh=getSheet_('CARGAS'),width=loadSh.getLastColumn();
     const headers=loadSh.getRange(1,1,1,width).getDisplayValues()[0].map(String),ix={};headers.forEach((h,i)=>ix[ftNormHeader_(h)]=i);
     const required=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],missing=required.filter(k=>ix[ftNormHeader_(k)]===undefined);
     if(missing.length)throw new Error('Contrato da guia CARGAS divergente: '+missing.join(', '));
+    const obsIndex=ix[ftNormHeader_('OBSERVACOES')];
+    if(obsIndex!==undefined&&loadSh.getLastRow()>1){
+      const existing=loadSh.getRange(2,1,loadSh.getLastRow()-1,width).getDisplayValues();
+      const existingRow=existing.find(r=>String(r[obsIndex]||'').indexOf('Entrada IA: '+entradaId)!==-1);
+      if(existingRow){
+        const existingId=String(existingRow[ix[ftNormHeader_('ID')]]||'');
+        throw new Error('Esta entrada já gerou a carga '+existingId+'. Não foi criada uma segunda viagem. Atualize o histórico para conferir o estado da entrada.');
+      }
+    }
+    const cargaId=Utilities.getUuid(),now=new Date();
     const row=new Array(width).fill(''),put=(k,v)=>row[ix[ftNormHeader_(k)]]=v;
     put('ID',cargaId);put('CRIADO_EM',now);put('STATUS','A_ESCALAR');put('DATA_OPERACAO',d.data);put('HORARIO_PREVISTO',d.horario||'');put('CLIENTE',d.cliente);put('ORIGEM',d.origem);put('DESTINO',d.destino);put('PESO_TONELADAS',Number(String(d.peso).replace(',','.')));put('DESCRICAO',d.descricao);put('OBSERVACOES',String(d.observacoes||'')+' | Entrada IA: '+entradaId+' | confirmação manual por '+session.login);put('CRIADO_POR',session.login);put('TIPO_OPERACAO',String(d.tipoOperacao).toUpperCase());put('VALOR_FRETE',d.valorFrete===''?'':Number(String(d.valorFrete).replace(',','.')));
     loadSh.appendRow(row);
