@@ -1382,7 +1382,8 @@ function ftRowsCadastroUnificados_(entity){
   }catch(e){if(!rows.length)throw e;}
   const byId=new Map();
   rows.forEach(r=>{const id=String(r[0]||'').trim();if(id)byId.set(id,r);});
-  return Array.from(byId.values());
+  const overrides=ftStatusMap_(entity);
+  return Array.from(byId.values()).map(r=>{const copy=r.slice();const id=String(copy[0]||'').trim();if(id&&overrides[id])copy[2]=overrides[id];return copy;});
 }
 function ftGetCadastroById_(entity,id){
   const r=ftRowsCadastroUnificados_(entity).find(x=>String(x[0]||'').trim()===String(id||'').trim());
