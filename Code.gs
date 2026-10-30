@@ -921,7 +921,7 @@ function salvarConjuntoVeicularFullTime(token, data) {
   if(!(capacidadeUtil>0&&isFinite(capacidadeUtil))) throw new Error('Informe a capacidade útil real do conjunto completo, validada para essa combinação.');
   if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
   if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
-  function findById(name,id){const rows=getSheet_(name).getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0])===String(id))return rows[i];return null;}
+  function findById(name,id){return ftGetCadastroById_(name,id);}
   const motorista=findById('MOTORISTAS',motoristaId);
   // Compatibilidade: cavalos já cadastrados em CAMINHOES continuam válidos, sem duplicar placas.
   let cavalo=findById('CAVALOS',cavaloId);
@@ -1246,7 +1246,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
   if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
   if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
   if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
+  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftRowsCadastroUnificados_('MOTORISTAS'));
   const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
@@ -1264,8 +1264,8 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftBrunoRowsAsLegacy_('CONJUNTOS'));
-  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
+  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftRowsCadastroUnificados_('CONJUNTOS'));
+  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftRowsCadastroUnificados_('MOTORISTAS'));
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
@@ -1386,6 +1386,12 @@ function ftRowsCadastroUnificados_(entity){
   const byId=new Map();
   rows.forEach(r=>{const id=String(r[0]||'').trim();if(id)byId.set(id,r);});
   return Array.from(byId.values());
+}
+function ftGetCadastroById_(entity,id){
+  const r=ftRowsCadastroUnificados_(entity).find(x=>String(x[0]||'').trim()===String(id||'').trim());
+  if(!r)return null;
+  const out=r.slice(),status=ftStatusMap_(entity)[String(id)]||String(r[2]||'PENDENTE_REVISAO');
+  out[2]=status;return out;
 }
 function listarRegistros_(name){
   const rows=ftRowsCadastroUnificados_(name);
