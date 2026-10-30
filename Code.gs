@@ -1326,7 +1326,7 @@ function ftReadBrunoRows_(entity) {
   const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const index={}; headers.forEach((h,i)=>{const k=ftNormHeader_(h);if(k && index[k]===undefined)index[k]=i;});
   const aliases={
-    ID:['ID','IDEXTERNO','IDDOCUMENTO','CODIGO','IDENTIFICADOR'],
+    ID:['ID','IDEXTERNO','IDDOCUMENTO','IDMOTORISTA','IDCAVALO','IDCARRETA','IDCONJUNTO','IDREGISTRO','IDCADASTRO','CODIGO','IDENTIFICADOR'],
     CRIADO_EM:['CRIADOEM','DATA_CRIACAO','DATAHORACADASTRO','CADASTRADOEM'],
     STATUS:['STATUS','SITUACAO','SITUACAO_CADASTRAL'],
     NOME_COMPLETO:['NOMECOMPLETO','NOME','MOTORISTA','NOMEMOTORISTA'],
@@ -1373,7 +1373,53 @@ function ftStatusSheet_(){const ss=SpreadsheetApp.openById(PropertiesService.get
 function ftStatusMap_(entity){const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||getDbId_()),sh=ss.getSheetByName('FT_STATUS_CADASTROS'),out={};if(sh&&sh.getLastRow()>1)sh.getRange(2,1,sh.getLastRow()-1,6).getValues().forEach(r=>{if(String(r[0])===String(entity)&&r[1])out[String(r[1])]=String(r[2]||'PENDENTE_REVISAO');});return out;}
 function ftSetStatus_(session,entity,id,status,obs){const sh=ftStatusSheet_(),rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[],idx=rows.findIndex(r=>String(r[0])===entity&&String(r[1])===String(id)),row=[entity,String(id),status,new Date(),session.login||session.nome||'ADMIN',String(obs||'')];if(idx>=0)sh.getRange(idx+2,1,1,6).setValues([row]);else sh.appendRow(row);}
 function validarCadastroAtivacao_(entity,r){const f=r.slice(3).map(v=>String(v==null?'':v).trim()),required=entity==='MOTORISTAS'?[0,2,4,5,6]:entity==='CAMINHOES'?[0,2,3,4,5,6]:entity==='CAVALOS'?[0,1,2,3,4,5]:entity==='CARRETAS'?[0,1,2,3,4]:entity==='CONJUNTOS'?[0,1,7]:[],missing=required.filter(i=>!f[i]);if(missing.length)throw new Error('Cadastro incompleto. Revise os campos obrigatórios antes de aprovar.');if(entity==='MOTORISTAS'&&!['C','D','E'].includes(String(f[5]).toUpperCase()))throw new Error('Categoria da CNH inválida.');if(entity==='CONJUNTOS'&&!(Number(String(f[7]).replace(',','.'))>0))throw new Error('Capacidade útil do conjunto inválida.');}
-function listarRegistros_(name){const b=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name],rows=b?ftBrunoRowsAsLegacy_(b):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();if(!rows.length)return [];const ov=ftStatusMap_(name);return rows.map(r=>({id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status:ov[String(r[0]||'')]||String(r[2]||'PENDENTE_REVISAO'),campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))})).reverse();}
+function ftRowsCadastroUnificados_(entity){
+  const map={MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'};
+  const rows=[];
+  if(map[entity]){
+    try{ftBrunoRowsAsLegacy_(entity).forEach(r=>rows.push(r));}catch(e){console.warn('Leitura sincronizada '+entity+': '+e.message);}
+  }
+  try{
+    const sh=getSheet_(entity),v=sh.getDataRange().getValues();
+    if(v.length>1)v.slice(1).forEach(r=>rows.push(r));
+  }catch(e){if(!rows.length)throw e;}
+  const byId=new Map();
+  rows.forEach(r=>{const id=String(r[0]||'').trim();if(id)byId.set(id,r);});
+  return Array.from(byId.values());
+}
+function listarRegistros_(name){
+  const rows=ftRowsCadastroUnificados_(name);
+  if(!rows.length)return [];
+  const ov=ftStatusMap_(name);
+  return rows.map(r=>({id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status:ov[String(r[0]||'')]||String(r[2]||'PENDENTE_REVISAO'),campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))})).reverse();
+}
+function atualizarStatusFullTime(token,entidade,id,status){
+  const session=obterSessao_(token);exigirAdmin_(session);
+  if(!['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade))throw new Error('Tipo de cadastro inválido.');
+  if(!['PENDENTE_REVISAO','ATIVO','INATIVO'].includes(status))throw new Error('Status inválido.');
+  id=String(id||'').trim();if(!id)throw new Error('Identificador do cadastro vazio. Atualize a tela e tente novamente.');
+  const rows=ftRowsCadastroUnificados_(entidade),r=rows.find(x=>String(x[0]||'').trim()===id);
+  if(!r)throw new Error('Registro '+id+' não encontrado nas bases local e sincronizada de '+entidade+'. Atualize a sincronização dos cadastros.');
+  if(status==='ATIVO')validarCadastroAtivacao_(entidade,r);
+  ftSetStatus_(session,entidade,id,status,'');
+  auditar_(session,'ALTERAR_STATUS',entidade,id,status);
+  return {ok:true,message:status==='ATIVO'?'Cadastro aprovado e ativado.':status==='INATIVO'?'Cadastro inativado.':'Cadastro voltou para revisão.'};
+}
+function aprovarCadastrosEmMassaFullTime(token,entidade,ids){
+  const session=obterSessao_(token);exigirAdmin_(session);
+  if(!['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade))throw new Error('Tipo de cadastro inválido.');
+  ids=Array.isArray(ids)?Array.from(new Set(ids.map(x=>String(x||'').trim()).filter(Boolean))):[];
+  if(!ids.length||ids.length>300)throw new Error('Selecione de 1 a 300 cadastros.');
+  const by={};ftRowsCadastroUnificados_(entidade).forEach(r=>by[String(r[0]||'').trim()]=r);
+  const ov=ftStatusMap_(entidade),out={aprovados:[],rejeitados:[]};
+  ids.forEach(id=>{const r=by[id];if(!r){out.rejeitados.push({id,erro:'Registro não encontrado nas bases local e sincronizada'});return;}
+    if((ov[id]||String(r[2]||'')).toUpperCase()==='ATIVO'){out.rejeitados.push({id,erro:'Já está ativo'});return;}
+    try{validarCadastroAtivacao_(entidade,r);ftSetStatus_(session,entidade,id,'ATIVO','Aprovação em massa');out.aprovados.push(id);}
+    catch(e){out.rejeitados.push({id,erro:e.message});}
+  });
+  auditar_(session,'APROVACAO_EM_MASSA',entidade,'','Aprovados: '+out.aprovados.length+'; rejeitados: '+out.rejeitados.length);
+  return {ok:!out.rejeitados.length,aprovados:out.aprovados.length,rejeitados:out.rejeitados.length,detalhes:out,message:out.aprovados.length+' aprovado(s); '+out.rejeitados.length+' não aprovado(s).'};
+}
 function contarAtivos_(name){return listarRegistros_(name).filter(r=>r.status==='ATIVO').length;}
 function contarStatus_(name,status){return listarRegistros_(name).filter(r=>String(r.status).toUpperCase()===String(status||'').toUpperCase()).length;}
 function atualizarStatusFullTime(token,entidade,id,status){const session=obterSessao_(token);exigirAdmin_(session);if(!['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade))throw new Error('Tipo de cadastro inválido.');if(!['PENDENTE_REVISAO','ATIVO','INATIVO'].includes(status))throw new Error('Status inválido.');const rows=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade)?ftBrunoRowsAsLegacy_(entidade):(function(){const v=getSheet_(entidade).getDataRange().getValues();return v.slice(1);})(),r=rows.find(x=>String(x[0])===String(id));if(!r)throw new Error('Registro não encontrado em '+entidade+'.');if(status==='ATIVO')validarCadastroAtivacao_(entidade,r);ftSetStatus_(session,entidade,id,status,'');auditar_(session,'ALTERAR_STATUS',entidade,id,status);return {ok:true,message:status==='ATIVO'?'Cadastro aprovado e ativado.':status==='INATIVO'?'Cadastro inativado.':'Cadastro voltou para revisão.'};}
