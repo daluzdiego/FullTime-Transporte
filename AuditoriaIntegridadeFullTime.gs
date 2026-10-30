@@ -73,6 +73,10 @@ function auditarIntegridadeMvpFullTime(token) {
   add(fakeActive.length?'CRITICO':'OK','CONJUNTOS_FICTICIOS_ATIVOS',fakeActive.length?'Há conjuntos ativos com identificadores ou dados fictícios.':'Nenhum conjunto ativo foi identificado como fictício.',fakeActive);
   add(duplicateLinks.length?'CRITICO':'OK','VINCULOS_CONJUNTOS',duplicateLinks.length?'Há vínculos de conjuntos inválidos ou incompletos.':'Os vínculos ativos apontam para cadastros ativos e capacidade preenchida.',duplicateLinks);
   add(reused.length?'CRITICO':'OK','EQUIPAMENTOS_REUTILIZADOS',reused.length?'Motoristas ou equipamentos aparecem em mais de um conjunto ativo.':'Não há motorista/equipamento repetido entre conjuntos ativos.',reused);
+  const syntheticCapacitySets=sets.filter(r=>/CAPACIDADE SINTÉTICA CALCULADA PARA TESTE/i.test(String(r[7]||''))).map(r=>String(r[0]||''));
+  add(syntheticCapacitySets.length?'ALERTA':'OK','CAPACIDADE_SINTETICA_CONJUNTOS',
+    syntheticCapacitySets.length?'Há conjuntos cuja capacidade foi calculada com valores fictícios. Esses números servem apenas para testar a lógica e não representam capacidade legal ou operacional.':'Nenhuma capacidade sintética derivada foi encontrada nos conjuntos.',
+    syntheticCapacitySets);
   const participation=sheets.PARTICIPACAO_OPERACOES||[];
   const activeParts=participation.slice(1).filter(r=>String(r[5]).toUpperCase()==='ATIVO');
   const activeSetParts={},activeDriverParts={};
