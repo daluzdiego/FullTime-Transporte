@@ -170,10 +170,10 @@
     if(item.children&&item.children.length){
       const submenuId='nav-submenu-'+item.id;
       return `<div class="nav-group">
-        <button class="nav-group-toggle" type="button" aria-expanded="false" aria-controls="${submenuId}" onclick="toggleNavGroup('${submenuId}',this)">
+        <button class="nav-group-toggle" type="button" aria-expanded="true" aria-controls="${submenuId}" onclick="toggleNavGroup('${submenuId}',this)">
           <span class="nav-ico">${item.icon||'•'}</span><span>${item.label}</span><span class="nav-chevron">⌄</span>
         </button>
-        <div id="${submenuId}" class="nav-submenu collapsed">${item.children.map(renderNavItem).join('')}</div>
+        <div id="${submenuId}" class="nav-submenu">${item.children.map(renderNavItem).join('')}</div>
       </div>`;
     }
     return `<button class="nav-subitem" data-page="${item.id}" onclick="goPage('${item.id}')"><span class="nav-ico">${item.icon||'•'}</span><span>${item.label}</span></button>`;
@@ -184,10 +184,10 @@
       if(item.group){
         const submenuId='nav-submenu-'+item.id;
         return `<section class="nav-section"><div class="nav-group">
-          <button class="nav-group-toggle" type="button" aria-expanded="false" aria-controls="${submenuId}" onclick="toggleNavGroup('${submenuId}',this)">
+          <button class="nav-group-toggle" type="button" aria-expanded="true" aria-controls="${submenuId}" onclick="toggleNavGroup('${submenuId}',this)">
             <span class="nav-ico">${item.icon||'•'}</span><span>${item.group}</span><span class="nav-chevron">⌄</span>
           </button>
-          <div id="${submenuId}" class="nav-submenu collapsed">${item.children.map(renderNavItem).join('')}</div>
+          <div id="${submenuId}" class="nav-submenu">${item.children.map(renderNavItem).join('')}</div>
         </div></section>`;
       }
       return renderNavItem(item);
