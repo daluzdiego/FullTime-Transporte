@@ -282,3 +282,31 @@ function atualizarLinksGuiasFullTime_() {
   protegerGuiaInteiraFT_(links, 'Full Time — links de navegação controlados pelo sistema');
   return dest.getUrl() + '#gid=' + links.getSheetId();
 }
+
+/**
+ * Sincronização recorrente Bruno → Full Time.
+ * Instala um único gatilho de 5 minutos para manter telefones e demais campos
+ * do espelho atualizados sem intervenção manual. Não sincroniza Full Time → Bruno.
+ */
+function instalarSincronizacaoAutomaticaBrunoFullTime() {
+  const handler='sincronizarCadastroBrunoFullTime';
+  const triggers=ScriptApp.getProjectTriggers();
+  triggers.filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(handler).timeBased().everyMinutes(5).create();
+  const result=sincronizarCadastroBrunoFullTime();
+  return {ok:true,frequencia:'A cada 5 minutos',gatilho:handler,primeiraSincronizacao:result};
+}
+
+/** Diagnóstico seguro: compara telefone na origem e no espelho, sem gravar dados. */
+function diagnosticarTelefoneMotoristasBrunoFullTime() {
+  const source=SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest=SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  const src=source.getSheetByName('MOTORISTAS'),dst=dest.getSheetByName('FT_CADASTRO_BRUNO_MOTORISTAS');
+  if(!src||!dst)throw new Error('Guia MOTORISTAS ou espelho não encontrado.');
+  const sh=src.getDataRange().getValues(),dh=dst.getDataRange().getValues();
+  const si={},di={};(sh[0]||[]).forEach((v,i)=>si[String(v).trim().toUpperCase()]=i);(dh[0]||[]).forEach((v,i)=>di[String(v).trim().toUpperCase()]=i);
+  ['ID_EXTERNO','TELEFONE'].forEach(k=>{if(si[k]===undefined||di[k]===undefined)throw new Error('Cabeçalho '+k+' ausente na origem ou espelho.');});
+  const destById={};dh.slice(1).forEach(r=>{const id=String(r[di.ID_EXTERNO]||'').trim();if(id)destById[id]=String(r[di.TELEFONE]||'').trim();});
+  const divergencias=[];sh.slice(1).forEach((r,i)=>{const id=String(r[si.ID_EXTERNO]||'').trim();if(!id)return;const phone=String(r[si.TELEFONE]||'').trim(),mirror=destById[id]||'';if(phone!==mirror)divergencias.push({id,linhaOrigem:i+2,telefoneOrigem:phone,telefoneEspelho:mirror});});
+  return {origem:sh.length-1,espelho:dh.length-1,divergencias:divergencias.length,amostra:divergencias.slice(0,20)};
+}
