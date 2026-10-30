@@ -1338,7 +1338,41 @@ function ftBrunoRowsAsLegacy_(entity) {
 function ftStatusSheet_(){const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||getDbId_());let sh=ss.getSheetByName('FT_STATUS_CADASTROS');if(!sh){sh=ss.insertSheet('FT_STATUS_CADASTROS');sh.getRange(1,1,1,6).setValues([['ENTIDADE','ID_REGISTRO','STATUS','ATUALIZADO_EM','ATUALIZADO_POR','OBSERVACAO']]);sh.setFrozenRows(1);}return sh;}
 function ftStatusMap_(entity){const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||getDbId_()),sh=ss.getSheetByName('FT_STATUS_CADASTROS'),out={};if(sh&&sh.getLastRow()>1)sh.getRange(2,1,sh.getLastRow()-1,6).getValues().forEach(r=>{if(String(r[0])===String(entity)&&r[1])out[String(r[1])]=String(r[2]||'PENDENTE_REVISAO');});return out;}
 function ftSetStatus_(session,entity,id,status,obs){const sh=ftStatusSheet_(),rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[],idx=rows.findIndex(r=>String(r[0])===entity&&String(r[1])===String(id)),row=[entity,String(id),status,new Date(),session.login||session.nome||'ADMIN',String(obs||'')];if(idx>=0)sh.getRange(idx+2,1,1,6).setValues([row]);else sh.appendRow(row);}
-function validarCadastroAtivacao_(entity,r){const f=r.slice(3).map(v=>String(v==null?'':v).trim()),required=entity==='MOTORISTAS'?[0,2,4,5,6]:entity==='CAMINHOES'?[0,2,3,4,5,6]:entity==='CAVALOS'?[0,1,2,3,4,5]:entity==='CARRETAS'?[0,1,2,3,4]:entity==='CONJUNTOS'?[0,1,7]:[],missing=required.filter(i=>!f[i]);if(missing.length)throw new Error('Cadastro incompleto. Revise os campos obrigatórios antes de aprovar.');if(entity==='MOTORISTAS'&&!['C','D','E'].includes(String(f[5]).toUpperCase()))throw new Error('Categoria da CNH inválida.');if(entity==='CONJUNTOS'&&!(Number(String(f[7]).replace(',','.'))>0))throw new Error('Capacidade útil do conjunto inválida.');}
+function validarCadastroAtivacao_(entity,r){
+  if(!Array.isArray(r)||r.length<4)throw new Error('Registro inválido para aprovação.');
+  const id=String(r[0]||'').trim();
+  const f=r.slice(3).map(v=>String(v==null?'':v).trim());
+  const marker=(id+' '+f.join(' ')).toUpperCase();
+  if(/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)){
+    throw new Error('Cadastro de teste/fictício bloqueado: não pode ser ativado para operação real.');
+  }
+  const required=entity==='MOTORISTAS'?[0,2,4,5,6]:entity==='CAMINHOES'?[0,2,3,4,5,6]:entity==='CAVALOS'?[0,1,2,3,4,5]:entity==='CARRETAS'?[0,1,2,3,4]:entity==='CONJUNTOS'?[0,1,7]:[];
+  if(!required.length)throw new Error('Entidade sem regra de aprovação configurada: '+entity);
+  const missing=required.filter(i=>!f[i]);
+  if(missing.length)throw new Error('Cadastro incompleto. Revise os campos obrigatórios antes de aprovar.');
+  if(entity==='MOTORISTAS'){
+    if(!['C','D','E','AC','AD','AE'].includes(String(f[5]).toUpperCase()))throw new Error('Categoria da CNH inválida.');
+    const expiry=new Date(f[6]+'T23:59:59');
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(f[6])||!isFinite(expiry.getTime())||expiry.getTime()<Date.now())throw new Error('CNH vencida ou com validade inválida. Não é possível ativar o motorista.');
+  }
+  if(entity==='CONJUNTOS'){
+    if(!(Number(String(f[7]).replace(',','.'))>0))throw new Error('Capacidade útil do conjunto inválida.');
+    const driverId=f[0],horseId=f[1],middleId=f[2],rearId=f[3];
+    const driver=ftGetCadastroById_('MOTORISTAS',driverId);
+    const horse=ftGetCadastroById_('CAVALOS',horseId)||ftGetCadastroById_('CAMINHOES',horseId);
+    if(!driver||String(driver[2])!=='ATIVO')throw new Error('O motorista associado precisa estar ativo antes do conjunto.');
+    if(!horse||String(horse[2])!=='ATIVO')throw new Error('O cavalo associado precisa estar ativo antes do conjunto.');
+    [middleId,rearId].filter(Boolean).forEach(assetId=>{
+      const trailer=ftGetCadastroById_('CARRETAS',assetId);
+      if(!trailer||String(trailer[2])!=='ATIVO')throw new Error('Todas as carretas associadas precisam estar ativas.');
+    });
+    if(middleId&&middleId===rearId)throw new Error('A mesma carreta não pode ocupar duas posições.');
+    const active=ftRowsCadastroUnificados_('CONJUNTOS').filter(x=>String(x[0])!==id&&String(x[2])==='ATIVO');
+    if(active.some(x=>[String(x[3]),String(x[4]),String(x[5]||''),String(x[6]||'')].some(v=>v&&[driverId,horseId,middleId,rearId].filter(Boolean).includes(v)))){
+      throw new Error('Conflito: motorista, cavalo ou carreta já está em outro conjunto ativo.');
+    }
+  }
+}
 function ftRowsCadastroUnificados_(entity){
   const map={MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'};
   const rows=[];
