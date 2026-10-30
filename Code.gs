@@ -289,7 +289,7 @@ function salvarMotoristaFullTime(token, data) {
   if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) throw new Error('O CPF informado não é válido.');
   if (!telefone || telefone.length < 10) throw new Error('Informe um telefone com DDD.');
   if (!cnh) throw new Error('Informe o número da CNH.');
-  if (!['C','D','E'].includes(categoria)) throw new Error('Selecione a categoria da CNH.');
+  if (!['C','D','E','AC','AD','AE'].includes(categoria)) throw new Error('Selecione uma categoria de CNH válida.');
   if (!data.validade) throw new Error('Informe a validade da CNH.');
   if (cpf && duplicado_('MOTORISTAS', 5, cpf)) throw new Error('Já existe um motorista cadastrado com este CPF.');
 
@@ -347,7 +347,7 @@ function importarMotoristasCsvFullTime(token, csvText) {
     if (!nome) { errors.push('Linha ' + line + ': nome obrigatório.'); return; }
     if (!telefone || telefone.length < 10) { errors.push('Linha ' + line + ': telefone com DDD obrigatório.'); return; }
     if (!cnh) { errors.push('Linha ' + line + ': número da CNH obrigatório.'); return; }
-    if (!['C','D','E'].includes(categoria)) { errors.push('Linha ' + line + ': categoria deve ser C, D ou E.'); return; }
+    if (!['C','D','E','AC','AD','AE'].includes(categoria)) { errors.push('Linha ' + line + ': categoria deve ser C, D, E, AC, AD ou AE.'); return; }
     if (!row.validade || !/^\d{4}-\d{2}-\d{2}$/.test(row.validade)) { errors.push('Linha ' + line + ': validade deve estar no formato AAAA-MM-DD.'); return; }
     if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) { errors.push('Linha ' + line + ': CPF inválido.'); return; }
     if (cpf && (existingCpf.has(cpf) || seenCpf.has(cpf))) { errors.push('Linha ' + line + ': CPF duplicado.'); return; }
@@ -944,20 +944,6 @@ function salvarConjuntoVeicularFullTime(token, data) {
 
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
-function atualizarStatusFullTime(token, entidade, id, status) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
-  if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
-  if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
-  const sh = getSheet_(entidade);
-  const rows = sh.getDataRange().getValues();
-  const idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
-  if (idx < 1) throw new Error('Registro não encontrado.');
-  sh.getRange(idx + 1, mapa[entidade]).setValue(status);
-  auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-  return { ok: true, message: 'Status atualizado.' };
-}
-
 function obterSessao_(token) {
   if (!token) throw new Error('Sua sessão expirou. Entre novamente.');
   const raw = CacheService.getScriptCache().get(FT_CONFIG.SESSION_PREFIX + token);
@@ -984,27 +970,6 @@ function getSheet_(name) {
     return sh;
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
-}
-function listarRegistros_(name) {
-  const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  if (!rows.length) return [];
-  return rows.map(r => ({
-    id: String(r[0] || ''),
-    criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-    status: String(r[2] || ''),
-    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v))
-  })).reverse();
-}
-function contarAtivos_(name) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
-}
-function contarStatus_(name, status) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
 }
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
@@ -1400,33 +1365,6 @@ function listarRegistros_(name){
   if(!rows.length)return [];
   const ov=ftStatusMap_(name);
   return rows.map(r=>({id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status:ov[String(r[0]||'')]||String(r[2]||'PENDENTE_REVISAO'),campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))})).reverse();
-}
-function atualizarStatusFullTime(token,entidade,id,status){
-  const session=obterSessao_(token);exigirAdmin_(session);
-  if(!['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade))throw new Error('Tipo de cadastro inválido.');
-  if(!['PENDENTE_REVISAO','ATIVO','INATIVO'].includes(status))throw new Error('Status inválido.');
-  id=String(id||'').trim();if(!id)throw new Error('Identificador do cadastro vazio. Atualize a tela e tente novamente.');
-  const rows=ftRowsCadastroUnificados_(entidade),r=rows.find(x=>String(x[0]||'').trim()===id);
-  if(!r)throw new Error('Registro '+id+' não encontrado nas bases local e sincronizada de '+entidade+'. Atualize a sincronização dos cadastros.');
-  if(status==='ATIVO')validarCadastroAtivacao_(entidade,r);
-  ftSetStatus_(session,entidade,id,status,'');
-  auditar_(session,'ALTERAR_STATUS',entidade,id,status);
-  return {ok:true,message:status==='ATIVO'?'Cadastro aprovado e ativado.':status==='INATIVO'?'Cadastro inativado.':'Cadastro voltou para revisão.'};
-}
-function aprovarCadastrosEmMassaFullTime(token,entidade,ids){
-  const session=obterSessao_(token);exigirAdmin_(session);
-  if(!['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS'].includes(entidade))throw new Error('Tipo de cadastro inválido.');
-  ids=Array.isArray(ids)?Array.from(new Set(ids.map(x=>String(x||'').trim()).filter(Boolean))):[];
-  if(!ids.length||ids.length>300)throw new Error('Selecione de 1 a 300 cadastros.');
-  const by={};ftRowsCadastroUnificados_(entidade).forEach(r=>by[String(r[0]||'').trim()]=r);
-  const ov=ftStatusMap_(entidade),out={aprovados:[],rejeitados:[]};
-  ids.forEach(id=>{const r=by[id];if(!r){out.rejeitados.push({id,erro:'Registro não encontrado nas bases local e sincronizada'});return;}
-    if((ov[id]||String(r[2]||'')).toUpperCase()==='ATIVO'){out.rejeitados.push({id,erro:'Já está ativo'});return;}
-    try{validarCadastroAtivacao_(entidade,r);ftSetStatus_(session,entidade,id,'ATIVO','Aprovação em massa');out.aprovados.push(id);}
-    catch(e){out.rejeitados.push({id,erro:e.message});}
-  });
-  auditar_(session,'APROVACAO_EM_MASSA',entidade,'','Aprovados: '+out.aprovados.length+'; rejeitados: '+out.rejeitados.length);
-  return {ok:!out.rejeitados.length,aprovados:out.aprovados.length,rejeitados:out.rejeitados.length,detalhes:out,message:out.aprovados.length+' aprovado(s); '+out.rejeitados.length+' não aprovado(s).'};
 }
 function contarAtivos_(name){return listarRegistros_(name).filter(r=>r.status==='ATIVO').length;}
 function contarStatus_(name,status){return listarRegistros_(name).filter(r=>String(r.status).toUpperCase()===String(status||'').toUpperCase()).length;}
