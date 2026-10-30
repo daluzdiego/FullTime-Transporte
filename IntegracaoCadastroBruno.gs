@@ -188,10 +188,9 @@ function importarCavalosECarretasOperacionaisFT_(dest) {
  * Não sobrescreve nenhum valor existente. Executar apenas na base de testes.
  * As linhas recebem observação explícita para impedir uso operacional real.
  */
-function gerarCapacidadesAmostraFrotaFullTime(confirmacao) {
-  if (String(confirmacao || '') !== 'CONFIRMO_CAPACIDADES_FICTICIAS_TESTE') {
-    throw new Error('Confirmação inválida. Informe CONFIRMO_CAPACIDADES_FICTICIAS_TESTE para gerar valores de teste.');
-  }
+function gerarCapacidadesAmostraFrotaFullTime() {
+  // Esta função é explicitamente exclusiva para a base de testes.
+  // Pode ser executada diretamente pelo editor Apps Script, sem parâmetros.
   const ss = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
   const specs = [
     {sheet:'CAVALOS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES'], kind:'CAVALO'},
