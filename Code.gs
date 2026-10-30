@@ -1222,6 +1222,28 @@ function designarConjuntoOperacaoFullTime(token, data) {
   return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
 }
 
+function ftTemMarcadorTeste_(values){
+  const marker=(Array.isArray(values)?values:[values]).map(v=>String(v==null?'':v)).join(' ').toUpperCase();
+  return /TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker);
+}
+function ftDocumentacaoBasicaValida_(cadastroId, documentos){
+  const id=String(cadastroId||'').trim();
+  if(!id)return false;
+  const docs=(documentos||[]).filter(d=>String(d.ID_EXTERNO||'').trim()===id);
+  if(!docs.length)return false;
+  const validStatuses=['VALIDO','APROVADO','ATIVO','REGULAR'];
+  const today=new Date();today.setHours(0,0,0,0);
+  return docs.every(d=>{
+    if(!validStatuses.includes(String(d.STATUS||'').trim().toUpperCase()))return false;
+    const raw=d.DATA_VALIDADE;
+    if(raw){
+      const expiry=raw instanceof Date?new Date(raw):new Date(String(raw).slice(0,10)+'T23:59:59');
+      if(!isFinite(expiry.getTime())||expiry.getTime()<today.getTime())return false;
+    }
+    return true;
+  });
+}
+
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
@@ -1230,7 +1252,12 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(operationDate))throw new Error('A operação não possui uma data válida para conferir disponibilidade.');
   const sets=ftRowsCadastroUnificados_('CONJUNTOS');
   const drivers=ftRowsCadastroUnificados_('MOTORISTAS');
+  const horses=ftRowsCadastroUnificados_('CAVALOS');
+  const trailers=ftRowsCadastroUnificados_('CARRETAS');
+  const documents=ftReadBrunoRows_('DOCUMENTOS');
   const driverById={};drivers.forEach(r=>driverById[String(r[0])]=r);
+  const horseById={};horses.forEach(r=>horseById[String(r[0])]=r);
+  const trailerById={};trailers.forEach(r=>trailerById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeSetIds=new Set(parts.slice(1).filter(r=>String(r[5]).toUpperCase()==='ATIVO').map(r=>String(r[3])));
   const activeDriverIds=new Set(parts.slice(1).filter(r=>String(r[5]).toUpperCase()==='ATIVO').map(r=>String(r[4])));
@@ -1262,7 +1289,19 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
     const queue=queueByDriver[driverId];
     const available=availableDrivers.has(driverId);
-    const eligible=String(r[2]).toUpperCase()==='ATIVO'&&!!driver&&String(driver[2]).toUpperCase()==='ATIVO'&&cond==='APTO'&&cap>0&&available&&!activeSetIds.has(String(r[0]))&&!activeDriverIds.has(driverId);
+    const horse=horseById[String(r[4]||'')];
+    const middleId=String(r[5]||''),rearId=String(r[6]||'');
+    const linkedTrailers=[middleId,rearId].filter(Boolean).map(id=>trailerById[id]);
+    const noTestData=!ftTemMarcadorTeste_([r[0],r[3],r[4],r[5],r[6],r[7]])&&
+      !ftTemMarcadorTeste_(driver||[])&&!ftTemMarcadorTeste_(horse||[])&&
+      linkedTrailers.every(t=>t&&!ftTemMarcadorTeste_(t));
+    const documentsOk=ftDocumentacaoBasicaValida_(driverId,documents)&&
+      ftDocumentacaoBasicaValida_(String(r[4]||''),documents)&&
+      [middleId,rearId].filter(Boolean).every(id=>ftDocumentacaoBasicaValida_(id,documents));
+    const eligible=String(r[2]).toUpperCase()==='ATIVO'&&!!driver&&String(driver[2]).toUpperCase()==='ATIVO'&&
+      !!horse&&String(horse[2]).toUpperCase()==='ATIVO'&&linkedTrailers.every(t=>t&&String(t[2]).toUpperCase()==='ATIVO')&&
+      noTestData&&documentsOk&&cond==='APTO'&&cap>0&&available&&
+      !activeSetIds.has(String(r[0]))&&!activeDriverIds.has(driverId);
     return {id:String(r[0]),driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible,disponivelNaData:available,operacoesNaData:hist.today,operacoesRegistradas:hist.operations.size,diasTrabalhados:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
   }).filter(x=>x.eligible);
   const ordered=ordenarElegiveisEscalaFullTime(candidates.map(x=>({...x,elegivel:true,recusouOperacaoAtual:false})));
