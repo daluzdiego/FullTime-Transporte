@@ -1173,8 +1173,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
     const saldo=Number(op[11]||0);
     if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
-    const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-    const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
+    const setRow=ftGetCadastroById_('CONJUNTOS',conjuntoId);
     if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
     const cond=String(setRow[8]||'APTO').toUpperCase();
     if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
@@ -1241,13 +1240,11 @@ function designarConjuntoOperacaoFullTime(token, data) {
   const op=ops.find((r,i)=>i>0&&String(r[0])===operacaoId);
   if(!op) throw new Error('Operação não encontrada.');
   if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2]))) throw new Error('A operação não está aberta para receber conjuntos.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const set=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
+  const set=ftGetCadastroById_('CONJUNTOS',conjuntoId);
   if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
   if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
   if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftRowsCadastroUnificados_('MOTORISTAS'));
-  const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
+  const driver=ftGetCadastroById_('MOTORISTAS',String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
   if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
