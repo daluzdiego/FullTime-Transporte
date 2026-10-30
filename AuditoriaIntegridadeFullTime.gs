@@ -102,7 +102,11 @@ function auditarIntegridadeMvpFullTime(token) {
     seenAvailability.add(key);
     if(!['DISPONIVEL','INDISPONIVEL'].includes(status))availabilityIssues.push('Linha '+(i+2)+': status de disponibilidade inválido ('+status+').');
   });
-  add(availabilityIssues.length?'ALERTA':'OK','DISPONIBILIDADE',availabilityIssues.length?'Há inconsistências nos registros de disponibilidade.':'Os registros de disponibilidade têm data, motorista e status válidos.',availabilityIssues);
+  if(availability.length<=1){
+    add('ALERTA','DISPONIBILIDADE_AUSENTE','Ainda não há registros de disponibilidade de motoristas. A escala automática não poderá encontrar candidatos até que os motoristas informem seus horários.',[]);
+  } else {
+    add(availabilityIssues.length?'ALERTA':'OK','DISPONIBILIDADE',availabilityIssues.length?'Há inconsistências nos registros de disponibilidade.':'Os registros de disponibilidade têm data, motorista e status válidos.',availabilityIssues);
+  }
   let docs=[], docsRead=true;
   try{docs=ftReadBrunoRows_('DOCUMENTOS');}catch(e){docsRead=false;add('ALERTA','LEITURA_DOCUMENTOS','Não foi possível ler a base sincronizada de documentos.',[e.message]);}
   const unvalidatedDocs=docs.filter(r=>!['VALIDO','APROVADO','ATIVO','REGULAR'].includes(String(r.STATUS||'').trim().toUpperCase()));
