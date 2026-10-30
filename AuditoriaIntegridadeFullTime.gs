@@ -103,10 +103,11 @@ function auditarIntegridadeMvpFullTime(token) {
     if(!['DISPONIVEL','INDISPONIVEL'].includes(status))availabilityIssues.push('Linha '+(i+2)+': status de disponibilidade inválido ('+status+').');
   });
   add(availabilityIssues.length?'ALERTA':'OK','DISPONIBILIDADE',availabilityIssues.length?'Há inconsistências nos registros de disponibilidade.':'Os registros de disponibilidade têm data, motorista e status válidos.',availabilityIssues);
-  let docs=[];
-  try{docs=ftReadBrunoRows_('DOCUMENTOS');}catch(e){add('ALERTA','LEITURA_DOCUMENTOS','Não foi possível ler a base sincronizada de documentos.',[e.message]);}
+  let docs=[], docsRead=true;
+  try{docs=ftReadBrunoRows_('DOCUMENTOS');}catch(e){docsRead=false;add('ALERTA','LEITURA_DOCUMENTOS','Não foi possível ler a base sincronizada de documentos.',[e.message]);}
   const unvalidatedDocs=docs.filter(r=>!['VALIDO','APROVADO','ATIVO','REGULAR'].includes(String(r.STATUS||'').trim().toUpperCase()));
-  add(unvalidatedDocs.length?'ALERTA':'OK','DOCUMENTOS_NAO_VALIDADOS',unvalidatedDocs.length?'Existem documentos sincronizados sem status reconhecido como válido.':'Todos os documentos lidos possuem status reconhecido como válido.',unvalidatedDocs.map(r=>String(r.ID_DOCUMENTO||'')+' — '+String(r.STATUS||'sem status')));
+  if(docsRead&&!docs.length)add('ALERTA','DOCUMENTOS_AUSENTES','Nenhum documento foi encontrado na base sincronizada; não é possível confirmar a regularidade documental.',[]);
+  else if(docsRead)add(unvalidatedDocs.length?'ALERTA':'OK','DOCUMENTOS_NAO_VALIDADOS',unvalidatedDocs.length?'Existem documentos sincronizados sem status reconhecido como válido.':'Todos os documentos lidos possuem status reconhecido como válido.',unvalidatedDocs.map(r=>String(r.ID_DOCUMENTO||'')+' — '+String(r.STATUS||'sem status')));
   const fakeIds=[...drivers,...horses,...trailers].filter(r=>/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID/.test((String(r[0]||'')+' '+r.slice(3).join(' ')).toUpperCase())).map(r=>String(r[0]));
   add(fakeIds.length?'ALERTA':'OK','CADASTROS_DE_TESTE',fakeIds.length?'Há cadastros fictícios/teste na base; eles devem permanecer isolados e nunca ser ativados.':'Nenhum cadastro fictício foi identificado.',fakeIds);
   return report;
