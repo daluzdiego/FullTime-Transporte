@@ -183,6 +183,63 @@ function importarCavalosECarretasOperacionaisFT_(dest) {
   });
 }
 
+/**
+ * Gera capacidades FICTÍCIAS para testes controlados.
+ * Não sobrescreve nenhum valor existente. Executar apenas na base de testes.
+ * As linhas recebem observação explícita para impedir uso operacional real.
+ */
+function gerarCapacidadesAmostraFrotaFullTime(confirmacao) {
+  if (String(confirmacao || '') !== 'CONFIRMO_CAPACIDADES_FICTICIAS_TESTE') {
+    throw new Error('Confirmação inválida. Informe CONFIRMO_CAPACIDADES_FICTICIAS_TESTE para gerar valores de teste.');
+  }
+  const ss = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const specs = [
+    {sheet:'CAVALOS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES'], kind:'CAVALO'},
+    {sheet:'CARRETAS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'], kind:'CARRETA'}
+  ];
+  const summary = {};
+  specs.forEach(spec => {
+    const sh = ss.getSheetByName(spec.sheet);
+    if (!sh || sh.getLastRow() < 2) { summary[spec.sheet] = {linhas:0, preenchidos:0}; return; }
+    const values = sh.getDataRange().getValues();
+    const headers = values[0].map(h => String(h).trim());
+    const col = {};
+    headers.forEach((h,i) => col[h] = i);
+    spec.fields.forEach(f => { if (col[f] === undefined) throw new Error('Coluna obrigatória ausente em '+spec.sheet+': '+f); });
+    let filled = 0;
+    for (let i=1; i<values.length; i++) {
+      const row = values[i];
+      const id = String(row[col.ID_EXTERNO] || '').trim();
+      if (!id) continue;
+      const axles = Math.max(2, Number(row[col.NUMERO_EIXOS]) || (spec.kind === 'CAVALO' ? 6 : 3));
+      const n = i - 1;
+      const note = 'DADO FICTÍCIO DE CAPACIDADE GERADO PARA TESTES — NÃO USAR EM OPERAÇÃO REAL.';
+      if (spec.kind === 'CAVALO') {
+        const lotacao = 28 + (n % 5) * 2;
+        const pbtc = lotacao + 10 + Math.min(axles, 8);
+        const util = Math.min(lotacao, pbtc - 10);
+        [['LOTACAO_TONELADAS',lotacao],['PBTC_MAX_TONELADAS',pbtc],['CAPACIDADE_UTIL_TONELADAS',util]].forEach(pair => {
+          if (row[col[pair[0]]] === '' || row[col[pair[0]]] == null) { row[col[pair[0]]] = pair[1]; filled++; }
+        });
+      } else {
+        const cargo = 25 + (n % 6) * 2;
+        const lotacao = cargo;
+        const pbtc = cargo + 8 + Math.min(axles, 6);
+        [['LOTACAO_TONELADAS',lotacao],['CAPACIDADE_CARGA_TONELADAS',cargo],['PBTC_MAX_TONELADAS',pbtc]].forEach(pair => {
+          if (row[col[pair[0]]] === '' || row[col[pair[0]]] == null) { row[col[pair[0]]] = pair[1]; filled++; }
+        });
+      }
+      const obsCol = col.OBSERVACOES;
+      const oldObs = String(row[obsCol] || '');
+      if (!oldObs.includes('DADO FICTÍCIO DE CAPACIDADE')) row[obsCol] = (oldObs ? oldObs+' | ' : '') + note;
+    }
+    if (values.length > 1) sh.getRange(2,1,values.length-1,headers.length).setValues(values.slice(1));
+    summary[spec.sheet] = {linhas:values.length-1, camposPreenchidos:filled};
+  });
+  const sync = sincronizarCadastroBrunoFullTime();
+  return {ok:true, aviso:'Valores sintéticos exclusivamente para testes. Não usar em operação real.', capacidades:summary, sincronizacao:sync};
+}
+
 function numOrBlankFT_(v) {
   if (v === '' || v === null || typeof v === 'undefined') return '';
   const n = Number(v);
