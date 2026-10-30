@@ -1318,7 +1318,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
  */
 const FT_BRUNO_CADASTROS = Object.freeze({
   MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS', fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
-  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
+  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_UTIL_TONELADAS']},
   CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS', fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
   CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS', fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
   DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS', fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
@@ -1441,7 +1441,42 @@ function ftRowsCadastroUnificados_(entity){
   const byId=new Map();
   rows.forEach(r=>{const id=String(r[0]||'').trim();if(id)byId.set(id,r);});
   const overrides=ftStatusMap_(entity);
-  return Array.from(byId.values()).map(r=>{const copy=r.slice();const id=String(copy[0]||'').trim();if(id&&overrides[id])copy[2]=overrides[id];return copy;});
+  const merged=Array.from(byId.values()).map(r=>{const copy=r.slice();const id=String(copy[0]||'').trim();if(id&&overrides[id])copy[2]=overrides[id];return copy;});
+  // Capacidade sintética é calculada apenas para conjuntos de teste explicitamente marcados.
+  // Nunca estima capacidade de conjunto real nem substitui capacidade manual já informada.
+  if(entity==='CONJUNTOS') return ftAplicarCapacidadeSinteticaConjuntos_(merged);
+  return merged;
+}
+
+/**
+ * Preenche em memória (não grava na planilha) a capacidade útil de conjuntos
+ * de teste quando cavalo e todas as carretas vinculadas têm capacidades
+ * sintéticas explícitas. Usa o menor limite informado, como teto conservador
+ * para o cenário de teste. O resultado continua inelegível para operação real.
+ */
+function ftAplicarCapacidadeSinteticaConjuntos_(sets) {
+  const horses=ftRowsCadastroUnificados_('CAVALOS');
+  const trailers=ftRowsCadastroUnificados_('CARRETAS');
+  const horseById=new Map(horses.map(r=>[String(r[0]||''),r]));
+  const trailerById=new Map(trailers.map(r=>[String(r[0]||''),r]));
+  return sets.map(original=>{
+    const row=original.slice();
+    const existing=Number(String(row[10]||'').replace(',','.'));
+    if(existing>0) return row;
+    const horse=horseById.get(String(row[4]||''));
+    const trailerIds=[row[5],row[6]].map(v=>String(v||'').trim()).filter(Boolean);
+    const linkedTrailers=trailerIds.map(id=>trailerById.get(id));
+    if(!horse||!linkedTrailers.length||linkedTrailers.some(t=>!t)) return row;
+    const allTestAssets=[horse].concat(linkedTrailers);
+    if(!allTestAssets.every(asset=>ftTemMarcadorTeste_(asset))) return row;
+    const horseCapacity=Number(String(horse[10]||'').replace(',','.'));
+    const trailerCapacities=linkedTrailers.map(t=>Number(String(t[6]||'').replace(',','.')));
+    const capacities=[horseCapacity].concat(trailerCapacities);
+    if(capacities.some(n=>!(n>0&&isFinite(n)))) return row;
+    row[10]=Math.min.apply(null,capacities);
+    row[7]=String(row[7]||'')+' | CAPACIDADE SINTÉTICA CALCULADA PARA TESTE — NÃO USAR EM OPERAÇÃO REAL';
+    return row;
+  });
 }
 function ftGetCadastroById_(entity,id){
   const r=ftRowsCadastroUnificados_(entity).find(x=>String(x[0]||'').trim()===String(id||'').trim());
