@@ -123,39 +123,7 @@ function processarEnvioCadastroMotoristaFullTime_(e) {
  * IDs devem vir dos cadastros oficiais; não usa placas como chave primária.
  * Uso futuro pelo painel administrativo; não exposto a motoristas.
  */
-function salvarConjuntoVeicularFullTime(token, data) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  data = data || {};
-  const motoristaId = texto_(data.motoristaId, 100);
-  const cavaloId = texto_(data.cavaloId, 100);
-  const carretaMeioId = texto_(data.carretaMeioId, 100);
-  const carretaFinalId = texto_(data.carretaFinalId, 100);
-  const observacoes = texto_(data.observacoes, 1000);
-  if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista responsável e o cavalo mecânico.');
-  if (carretaMeioId && carretaMeioId === carretaFinalId) throw new Error('A mesma carreta não pode ser selecionada duas vezes.');
-
-  const drivers = listarRegistros_('MOTORISTAS');
-  const horses = listarRegistros_('CAVALOS');
-  const trailers = listarRegistros_('CARRETAS');
-  const driver = drivers.find(x => x.id === motoristaId && x.status === 'ATIVO');
-  const horse = horses.find(x => x.id === cavaloId && x.status === 'ATIVO');
-  if (!driver) throw new Error('Motorista não encontrado ou não está ATIVO.');
-  if (!horse) throw new Error('Cavalo mecânico não encontrado ou não está ATIVO.');
-  [carretaMeioId, carretaFinalId].filter(Boolean).forEach(function(id) {
-    if (!trailers.some(x => x.id === id && x.status === 'ATIVO')) throw new Error('Uma das carretas selecionadas não está ativa.');
-  });
-
-  const sh = getSheet_('CONJUNTOS');
-  const rows = sh.getLastRow() > 1 ? sh.getDataRange().getValues().slice(1) : [];
-  // Encerra a vigência de qualquer conjunto atual que use o mesmo motorista ou cavalo.
-  rows.forEach(function(r, i) {
-    if (String(r[2]) === 'ATIVO' && (String(r[3]) === motoristaId || String(r[4]) === cavaloId)) {
-      sh.getRange(i + 2, 3).setValue('INATIVO');
-    }
-  });
-  const id = Utilities.getUuid();
-  sh.appendRow([id, new Date(), 'ATIVO', motoristaId, cavaloId, carretaMeioId, carretaFinalId, observacoes]);
-  auditar_(session, 'VINCULAR_CONJUNTO', 'CONJUNTO', id, 'Motorista=' + motoristaId + '; cavalo=' + cavaloId + '; carreta1=' + carretaMeioId + '; carreta2=' + carretaFinalId);
-  return { ok: true, id: id, message: 'Conjunto veicular associado ao motorista.' };
-}
+/**
+ * Associação oficial implementada em Code.gs.
+ * Esta cópia foi removida para evitar colisão de nomes no escopo global do Apps Script.
+ */

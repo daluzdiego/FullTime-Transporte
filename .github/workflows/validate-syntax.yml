@@ -1,0 +1,38 @@
+name: Validar sintaxe do Apps Script
+
+on:
+  push:
+    branches:
+      - feat/agente-ia-entrada-operacoes
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validar-sintaxe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verificar sintaxe de Code.gs
+        run: |
+          cp Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
+      - name: Verificar scripts embutidos em Index.html
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("Index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script\b[^>]*>([\s\S]*?)</script\s*>", html, flags=re.IGNORECASE)
+          inline = [s for s in scripts if s.strip()]
+          if not inline:
+              raise SystemExit("Nenhum script inline encontrado para validar.")
+          Path("/tmp/Index-inline.js").write_text("\n;\n".join(inline), encoding="utf-8")
+          print(f"Scripts inline encontrados: {len(inline)}")
+          PY
+          node --check /tmp/Index-inline.js
