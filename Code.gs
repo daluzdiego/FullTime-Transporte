@@ -1439,7 +1439,16 @@ function ftRowsCadastroUnificados_(entity){
     if(v.length>1)v.slice(1).forEach(r=>rows.push(r));
   }catch(e){if(!rows.length)throw e;}
   const byId=new Map();
-  rows.forEach(r=>{const id=String(r[0]||'').trim();if(id)byId.set(id,r);});
+  rows.forEach(r=>{
+    const id=String(r[0]||'').trim();
+    if(!id)return;
+    if(!byId.has(id)){byId.set(id,r.slice());return;}
+    const previous=byId.get(id),merged=previous.slice();
+    for(let i=0;i<r.length;i++){
+      if(r[i]!==''&&r[i]!==null&&typeof r[i]!=='undefined')merged[i]=r[i];
+    }
+    byId.set(id,merged);
+  });
   const overrides=ftStatusMap_(entity);
   const merged=Array.from(byId.values()).map(r=>{const copy=r.slice();const id=String(copy[0]||'').trim();if(id&&overrides[id])copy[2]=overrides[id];return copy;});
   // Capacidade sintética é calculada apenas para conjuntos de teste explicitamente marcados.
