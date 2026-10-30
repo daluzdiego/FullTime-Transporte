@@ -1445,7 +1445,16 @@ function ftRowsCadastroUnificados_(entity){
     if(!byId.has(id)){byId.set(id,r.slice());return;}
     const previous=byId.get(id),merged=previous.slice();
     for(let i=0;i<r.length;i++){
-      if(r[i]!==''&&r[i]!==null&&typeof r[i]!=='undefined')merged[i]=r[i];
+      if(r[i]!==''&&r[i]!==null&&typeof r[i]!=='undefined'){
+        const prior=merged[i];
+        // Preserva marcadores de teste presentes na ficha detalhada mesmo quando
+        // a linha operacional possui uma observação resumida sem esse marcador.
+        if(ftTemMarcadorTeste_(prior)&&!ftTemMarcadorTeste_(r[i])){
+          merged[i]=String(r[i])+' | '+String(prior);
+        } else {
+          merged[i]=r[i];
+        }
+      }
     }
     byId.set(id,merged);
   });
