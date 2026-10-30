@@ -1463,6 +1463,38 @@ function ftRowsCadastroUnificados_(entity){
  * sintéticas explícitas. Usa o menor limite informado, como teto conservador
  * para o cenário de teste. O resultado continua inelegível para operação real.
  */
+/**
+ * Cálculo determinístico de capacidade para fixtures sintéticas.
+ * Retorna null se algum ativo não estiver marcado como teste ou não tiver
+ * capacidade positiva. Não deve ser usado para validar cargas reais.
+ */
+function ftCalcularCapacidadeSinteticaConjunto_(horse, trailers) {
+  if(!horse||!Array.isArray(trailers)||!trailers.length)return null;
+  const assets=[horse].concat(trailers);
+  if(!assets.every(asset=>ftTemMarcadorTeste_(asset)))return null;
+  const horseCapacity=Number(String(horse[10]||'').replace(',','.'));
+  const trailerCapacities=trailers.map(t=>Number(String(t[6]||'').replace(',','.')));
+  const capacities=[horseCapacity].concat(trailerCapacities);
+  if(capacities.some(n=>!(n>0&&isFinite(n))))return null;
+  return Math.min.apply(null,capacities);
+}
+
+/** Testes puros: não acessam planilhas nem gravam dados. */
+function testarCapacidadeSinteticaConjuntoFullTime() {
+  const fakeHorse=['ID','', 'PENDENTE_REVISAO','','','','','', '', 'DADO FICTÍCIO PARA TESTE',34];
+  const fakeTrailerA=['ID','','PENDENTE_REVISAO','','',0,27,40,'DADO FICTÍCIO PARA TESTE'];
+  const fakeTrailerB=['ID','','PENDENTE_REVISAO','','',0,31,45,'DADO FICTÍCIO PARA TESTE'];
+  const realTrailer=['ID','','ATIVO','','',0,31,45,'Cadastro real validado'];
+  const cases=[
+    {nome:'usa menor capacidade entre cavalo e carretas',obtido:ftCalcularCapacidadeSinteticaConjunto_(fakeHorse,[fakeTrailerA,fakeTrailerB]),esperado:27},
+    {nome:'não calcula sem carreta',obtido:ftCalcularCapacidadeSinteticaConjunto_(fakeHorse,[]),esperado:null},
+    {nome:'não mistura ativo real com fixture',obtido:ftCalcularCapacidadeSinteticaConjunto_(fakeHorse,[realTrailer]),esperado:null},
+    {nome:'não calcula sem capacidade positiva',obtido:ftCalcularCapacidadeSinteticaConjunto_(fakeHorse,[fakeTrailerA.slice(0,6).concat(['',40,'DADO FICTÍCIO'])]),esperado:null}
+  ];
+  const resultados=cases.map(c=>({teste:c.nome,aprovado:c.obtido===c.esperado,esperado:c.esperado,obtido:c.obtido}));
+  return {suite:'CAPACIDADE_SINTETICA_CONJUNTO',total:resultados.length,aprovados:resultados.filter(x=>x.aprovado).length,falhas:resultados.filter(x=>!x.aprovado).length,resultados};
+}
+
 function ftAplicarCapacidadeSinteticaConjuntos_(sets) {
   const horses=ftRowsCadastroUnificados_('CAVALOS');
   const trailers=ftRowsCadastroUnificados_('CARRETAS');
@@ -1476,13 +1508,9 @@ function ftAplicarCapacidadeSinteticaConjuntos_(sets) {
     const trailerIds=[row[5],row[6]].map(v=>String(v||'').trim()).filter(Boolean);
     const linkedTrailers=trailerIds.map(id=>trailerById.get(id));
     if(!horse||!linkedTrailers.length||linkedTrailers.some(t=>!t)) return row;
-    const allTestAssets=[horse].concat(linkedTrailers);
-    if(!allTestAssets.every(asset=>ftTemMarcadorTeste_(asset))) return row;
-    const horseCapacity=Number(String(horse[10]||'').replace(',','.'));
-    const trailerCapacities=linkedTrailers.map(t=>Number(String(t[6]||'').replace(',','.')));
-    const capacities=[horseCapacity].concat(trailerCapacities);
-    if(capacities.some(n=>!(n>0&&isFinite(n)))) return row;
-    row[10]=Math.min.apply(null,capacities);
+    const derived=ftCalcularCapacidadeSinteticaConjunto_(horse,linkedTrailers);
+    if(!(derived>0)) return row;
+    row[10]=derived;
     row[7]=String(row[7]||'')+' | CAPACIDADE SINTÉTICA CALCULADA PARA TESTE — NÃO USAR EM OPERAÇÃO REAL';
     return row;
   });
