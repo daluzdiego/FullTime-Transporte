@@ -262,6 +262,7 @@
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='entradaIA') { c.innerHTML=renderEntradaOperacoesIA(); setTimeout(carregarEntradasIA,0); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
+    else if(page==='configuracoes') c.innerHTML=renderConfiguracoes();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -541,6 +542,8 @@ function sincronizarEntradasIA(){
     localStorage.setItem('ft_doc_notice_dismissed_at',String(Date.now()));
     const host=document.getElementById('documentExpiryNotice');if(host)host.innerHTML='';
   }
+  function renderConfiguracoes(){return `<section class="panel"><div class="panel-head"><div><h2>Diagnóstico de integridade</h2><p class="muted">Verificação somente leitura da base operacional. Não cria guias nem altera cadastros.</p></div></div><div class="panel-body"><p>Execute a auditoria depois de entrar com uma conta administradora. O relatório será exibido aqui para você copiar e compartilhar.</p><button id="runIntegrityAudit" class="btn btn-primary" type="button" onclick="executarAuditoriaIntegridade()">Executar auditoria</button><pre id="integrityAuditResult" style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:18px;padding:16px;background:#f5f7fb;border-radius:10px;max-height:65vh;overflow:auto">Aguardando execução.</pre></div></section>`;}
+  function executarAuditoriaIntegridade(){const btn=document.getElementById('runIntegrityAudit'),out=document.getElementById('integrityAuditResult');if(!authToken){toast('Sua sessão expirou. Entre novamente.',true);return;}btn.disabled=true;btn.textContent='Auditando…';out.textContent='Executando verificações de integridade…';google.script.run.withSuccessHandler(report=>{btn.disabled=false;btn.textContent='Executar novamente';out.textContent=JSON.stringify(report,null,2);toast('Auditoria concluída. Nenhum dado foi alterado.');}).withFailureHandler(err=>{btn.disabled=false;btn.textContent='Tentar novamente';out.textContent='Falha na auditoria: '+(err&&err.message||err);toast('Não foi possível concluir a auditoria.',true);}).auditarIntegridadeMvpFullTime(authToken);}
   function renderDevelopment(title){return `<div class="dev-card"><div class="dev-icon">⚙</div><div class="dev-label">EM DESENVOLVIMENTO</div><h1 style="margin-top:18px">${esc(title)}</h1><p>Este módulo faz parte do planejamento da Full Time e será disponibilizado em uma próxima etapa. Por enquanto, estamos preparando os cadastros e a base operacional.</p><button class="btn btn-primary" onclick="goPage('inicio')">Voltar ao início</button></div>`;}
   function logout(){if(!authToken){logoutLocal();return;}google.script.run.withSuccessHandler(logoutLocal).withFailureHandler(logoutLocal).encerrarSessaoFullTime(authToken);}
   function logoutLocal(){authToken='';currentUser=null;dashboard=null;sessionStorage.removeItem('ft_token');document.getElementById('appView').classList.add('hidden');document.getElementById('loginView').classList.remove('hidden');document.getElementById('passwordModal').classList.add('hidden');document.getElementById('password').value='';}
