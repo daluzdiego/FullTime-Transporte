@@ -1400,6 +1400,11 @@ function validarCadastroAtivacao_(entity,r){
   if(!required.length)throw new Error('Entidade sem regra de aprovação configurada: '+entity);
   const missing=required.filter(i=>!f[i]);
   if(missing.length)throw new Error('Cadastro incompleto. Revise os campos obrigatórios antes de aprovar.');
+  if(['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS'].includes(entity)){
+    if(!ftDocumentacaoBasicaValida_(id,ftReadBrunoRows_('DOCUMENTOS'))){
+      throw new Error('Documentação ausente, pendente ou vencida. Não é possível ativar este cadastro.');
+    }
+  }
   if(entity==='MOTORISTAS'){
     if(!['C','D','E','AC','AD','AE'].includes(String(f[5]).toUpperCase()))throw new Error('Categoria da CNH inválida.');
     const expiry=new Date(f[6]+'T23:59:59');
