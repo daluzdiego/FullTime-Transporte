@@ -1388,19 +1388,39 @@ function ftBrunoRowsAsLegacy_(entity) {
 function ftStatusSheet_(){const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||getDbId_());let sh=ss.getSheetByName('FT_STATUS_CADASTROS');if(!sh){sh=ss.insertSheet('FT_STATUS_CADASTROS');sh.getRange(1,1,1,6).setValues([['ENTIDADE','ID_REGISTRO','STATUS','ATUALIZADO_EM','ATUALIZADO_POR','OBSERVACAO']]);sh.setFrozenRows(1);}return sh;}
 function ftStatusMap_(entity){const ss=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||getDbId_()),sh=ss.getSheetByName('FT_STATUS_CADASTROS'),out={};if(sh&&sh.getLastRow()>1)sh.getRange(2,1,sh.getLastRow()-1,6).getValues().forEach(r=>{if(String(r[0])===String(entity)&&r[1])out[String(r[1])]=String(r[2]||'PENDENTE_REVISAO');});return out;}
 function ftSetStatus_(session,entity,id,status,obs){const sh=ftStatusSheet_(),rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[],idx=rows.findIndex(r=>String(r[0])===entity&&String(r[1])===String(id)),row=[entity,String(id),status,new Date(),session.login||session.nome||'ADMIN',String(obs||'')];if(idx>=0)sh.getRange(idx+2,1,1,6).setValues([row]);else sh.appendRow(row);}
+function ftModoTesteCadastrosAtivo_(){
+  return PropertiesService.getScriptProperties().getProperty('FT_MODO_TESTE_CADASTROS')==='ATIVO';
+}
+
+/**
+ * Ativa o modo de testes no projeto Apps Script atual.
+ * Usar somente na cópia/base de homologação; desativar antes de operar com dados reais.
+ */
+function ativarModoTesteCadastrosFullTime(){
+  PropertiesService.getScriptProperties().setProperty('FT_MODO_TESTE_CADASTROS','ATIVO');
+  Logger.log('MODO DE TESTE ATIVO: cadastros fictícios podem ser aprovados nesta base. Não usar em produção.');
+  return {ok:true,modo:'TESTE',mensagem:'Modo de teste ativado neste projeto Apps Script.'};
+}
+function desativarModoTesteCadastrosFullTime(){
+  PropertiesService.getScriptProperties().deleteProperty('FT_MODO_TESTE_CADASTROS');
+  Logger.log('MODO DE TESTE DESATIVADO: validações de produção restauradas.');
+  return {ok:true,modo:'PRODUCAO',mensagem:'Modo de teste desativado. Bloqueios de dados fictícios e documentação restaurados.'};
+}
+
 function validarCadastroAtivacao_(entity,r){
   if(!Array.isArray(r)||r.length<4)throw new Error('Registro inválido para aprovação.');
   const id=String(r[0]||'').trim();
   const f=r.slice(3).map(v=>String(v==null?'':v).trim());
   const marker=(id+' '+f.join(' ')).toUpperCase();
-  if(/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)){
-    throw new Error('Cadastro de teste/fictício bloqueado: não pode ser ativado para operação real.');
+  const modoTeste=ftModoTesteCadastrosAtivo_();
+  if(!modoTeste && /TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)){
+    throw new Error('Cadastro de teste/fictício bloqueado: ative o modo de testes somente na base de homologação.');
   }
   const required=entity==='MOTORISTAS'?[0,2,4,5,6]:entity==='CAMINHOES'?[0,2,3,4,5,6]:entity==='CAVALOS'?[0,1,2,3,4,5]:entity==='CARRETAS'?[0,1,2,3,4]:entity==='CONJUNTOS'?[0,1,7]:[];
   if(!required.length)throw new Error('Entidade sem regra de aprovação configurada: '+entity);
   const missing=required.filter(i=>!f[i]);
   if(missing.length)throw new Error('Cadastro incompleto. Revise os campos obrigatórios antes de aprovar.');
-  if(['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS'].includes(entity)){
+  if(['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS'].includes(entity) && !modoTeste){
     if(!ftDocumentacaoBasicaValida_(id,ftReadBrunoRows_('DOCUMENTOS'))){
       throw new Error('Documentação ausente, pendente ou vencida. Não é possível ativar este cadastro.');
     }
@@ -1411,7 +1431,12 @@ function validarCadastroAtivacao_(entity,r){
     if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(f[6])||!isFinite(expiry.getTime())||expiry.getTime()<Date.now())throw new Error('CNH vencida ou com validade inválida. Não é possível ativar o motorista.');
   }
   if(entity==='CONJUNTOS'){
-    if(!(Number(String(f[7]).replace(',','.'))>0))throw new Error('Capacidade útil do conjunto inválida.');
+    let capacidadeConjunto=Number(String(f[7]).replace(',','.'));
+    if(!(capacidadeConjunto>0) && modoTeste){
+      const conjuntoCalculado=ftRowsCadastroUnificados_('CONJUNTOS').find(x=>String(x[0])===id);
+      capacidadeConjunto=conjuntoCalculado?Number(String(conjuntoCalculado[10]||'').replace(',','.')):0;
+    }
+    if(!(capacidadeConjunto>0))throw new Error('Capacidade útil do conjunto inválida. No modo de teste, confira se cavalo e carretas possuem capacidades sintéticas.');
     const driverId=f[0],horseId=f[1],middleId=f[2],rearId=f[3];
     const driver=ftGetCadastroById_('MOTORISTAS',driverId);
     const horse=ftGetCadastroById_('CAVALOS',horseId)||ftGetCadastroById_('CAMINHOES',horseId);
@@ -1423,9 +1448,9 @@ function validarCadastroAtivacao_(entity,r){
     });
     if(middleId&&middleId===rearId)throw new Error('A mesma carreta não pode ocupar duas posições.');
     const active=ftRowsCadastroUnificados_('CONJUNTOS').filter(x=>String(x[0])!==id&&String(x[2])==='ATIVO');
-    if(active.some(x=>[String(x[3]),String(x[4]),String(x[5]||''),String(x[6]||'')].some(v=>v&&[driverId,horseId,middleId,rearId].filter(Boolean).includes(v)))){
-      throw new Error('Conflito: motorista, cavalo ou carreta já está em outro conjunto ativo.');
-    }
+    const conflito=active.some(x=>[String(x[3]),String(x[4]),String(x[5]||''),String(x[6]||'')].some(v=>v&&[driverId,horseId,middleId,rearId].filter(Boolean).includes(v)));
+    if(conflito && !modoTeste)throw new Error('Conflito: motorista, cavalo ou carreta já está em outro conjunto ativo.');
+    if(conflito && modoTeste)Logger.log('MODO TESTE: conflito de recursos permitido para '+id+'; a auditoria continuará sinalizando a duplicidade.');
   }
 }
 function ftRowsCadastroUnificados_(entity){
