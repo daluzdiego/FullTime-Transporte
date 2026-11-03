@@ -1534,7 +1534,14 @@ function listarRegistros_(name){
   const rows=ftRowsCadastroUnificados_(name);
   if(!rows.length)return [];
   const ov=ftStatusMap_(name);
-  return rows.map(r=>({id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status:ov[String(r[0]||'')]||String(r[2]||'PENDENTE_REVISAO'),campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))})).reverse();
+  return rows.map(r=>{
+    const id=String(r[0]||''),marker=(id+' '+r.slice(3).join(' ')).toUpperCase();
+    let status=ov[id]||String(r[2]||'PENDENTE_REVISAO');
+    // Registros fictícios antigos podem ter sido ativados antes da trava de segurança.
+    // Na interface nunca devem aparecer como aptos/ativos.
+    if(/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)) status='INATIVO';
+    return {id,criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status,campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))};
+  }).reverse();
 }
 function contarAtivos_(name){return listarRegistros_(name).filter(r=>r.status==='ATIVO').length;}
 function contarStatus_(name,status){return listarRegistros_(name).filter(r=>String(r.status).toUpperCase()===String(status||'').toUpperCase()).length;}
