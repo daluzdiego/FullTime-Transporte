@@ -1142,6 +1142,9 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
     const cond=String(setRow[8]||'APTO').toUpperCase();
     if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
+    const capacidadeConjunto=Number(String(setRow[10]||'').replace(',','.'));
+    if(!(capacidadeConjunto>0))throw new Error('O conjunto não possui capacidade cadastrada em toneladas.');
+    if(toneladas>capacidadeConjunto+0.000001)throw new Error('A movimentação de '+toneladas+' t excede a capacidade do conjunto ('+capacidadeConjunto+' t por viagem). Divida a carga em viagens compatíveis.');
     const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
     const part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
     if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
@@ -1208,7 +1211,11 @@ function designarConjuntoOperacaoFullTime(token, data) {
   const set=ftGetCadastroById_('CONJUNTOS',conjuntoId);
   if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
   if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
-  if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
+  const capacidadeConjunto=Number(String(set[10]||'').replace(',','.'));
+  if(!(capacidadeConjunto>0)) throw new Error('O conjunto não possui capacidade cadastrada em toneladas.');
+  const pesoTotalOperacao=Number(op[9]||0);
+  if(!(pesoTotalOperacao>0))throw new Error('A operação não possui peso total válido em toneladas.');
+  const viagensEstimadas=Math.ceil(pesoTotalOperacao/capacidadeConjunto);
   const driver=ftGetCadastroById_('MOTORISTAS',String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
@@ -1218,8 +1225,8 @@ function designarConjuntoOperacaoFullTime(token, data) {
   const eventSheet=getSheet_('EVENTOS_ESCALA');
   eventSheet.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação manual do administrador',session.login]);
   if(String(op[2])==='ABERTA') getSheet_('OPERACOES').getRange(ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId)+1,3).setValue('EM_ANDAMENTO');
-  auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
-  return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
+  auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado; capacidade '+capacidadeConjunto+' t/viagem; peso total '+pesoTotalOperacao+' t; viagens estimadas '+viagensEstimadas+'. '+motivo);
+  return {ok:true,capacidadeConjunto,pesoTotalOperacao,viagensEstimadas,message:'Conjunto designado. Capacidade: '+capacidadeConjunto+' t por viagem; peso total da operação: '+pesoTotalOperacao+' t; estimativa: '+viagensEstimadas+' viagem(ns).'};
 }
 
 function ftTemMarcadorTeste_(values){
@@ -1303,7 +1310,8 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
       !!horse&&String(horse[2]).toUpperCase()==='ATIVO'&&linkedTrailers.every(t=>t&&String(t[2]).toUpperCase()==='ATIVO')&&
       (modoTeste||(noTestData&&documentsOk))&&cond==='APTO'&&cap>0&&available&&
       !activeSetIds.has(String(r[0]))&&!activeDriverIds.has(driverId);
-    return {id:String(r[0]),driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible,disponivelNaData:available,operacoesNaData:hist.today,operacoesRegistradas:hist.operations.size,diasTrabalhados:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
+    const pesoTotalOperacao=Number(op.volumeTotal||0);
+    return {id:String(r[0]),driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,capacityIsSample:ftTemMarcadorTeste_(r),pesoTotalOperacao,viagensEstimadas:cap>0?Math.ceil(pesoTotalOperacao/cap):0,condition:cond,restrictions:String(r[9]||''),eligible,disponivelNaData:available,operacoesNaData:hist.today,operacoesRegistradas:hist.operations.size,diasTrabalhados:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
   }).filter(x=>x.eligible);
   const ordered=ordenarElegiveisEscalaFullTime(candidates.map(x=>({...x,elegivel:true,recusouOperacaoAtual:false})));
   if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
