@@ -341,7 +341,7 @@
 
   function renderConjuntos(){
     const sets=dashboard?.conjuntos||[];
-    const assigned=new Set();sets.filter(x=>x.status==='ATIVO').forEach(x=>(x.campos||[]).slice(0,4).forEach(id=>{if(id)assigned.add(String(id));}));
+    const assigned=new Set();sets.filter(x=>['ATIVO','PENDENTE_REVISAO'].includes(x.status)).forEach(x=>(x.campos||[]).slice(0,4).forEach(id=>{if(id)assigned.add(String(id));}));
     const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO'&&!assigned.has(String(x.id)));
     const horses=[...(dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO'&&!assigned.has(String(x.id))),...(dashboard?.caminhoes||[]).filter(x=>x.status==='ATIVO'&&String(x.campos[5]||'').toLowerCase().includes('cavalo')&&!assigned.has(String(x.id)))];
     const trailers=(dashboard?.carretas||[]).filter(x=>x.status==='ATIVO'&&!assigned.has(String(x.id)));
