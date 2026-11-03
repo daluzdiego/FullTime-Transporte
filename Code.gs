@@ -654,33 +654,77 @@ function salvarCarretaFullTime(token, data) {
 }
 
 /** Associa motorista, cavalo e até duas carretas. Só ativos podem compor conjunto operacional. */
+/** Associa motorista, cavalo e até duas carretas. Capacidade calculada pelos cadastros. */
 function salvarConjuntoVeicularFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
   const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
-  const capacidadeUtil=Number(String(data.capacidadeUtil||'').replace(',','.'));
-  if(!(capacidadeUtil>0&&isFinite(capacidadeUtil))) throw new Error('Informe a capacidade útil real do conjunto completo, validada para essa combinação.');
   if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
   if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
-  function findById(name,id){const rows=getSheet_(name).getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0])===String(id))return rows[i];return null;}
-  const motorista=findById('MOTORISTAS',motoristaId);
-  // Compatibilidade: cavalos já cadastrados em CAMINHOES continuam válidos, sem duplicar placas.
-  let cavalo=findById('CAVALOS',cavaloId);
-  if (!cavalo) {
-    const truck=findById('CAMINHOES',cavaloId);
-    if (truck && String(truck[8]||'').toLowerCase().includes('cavalo')) cavalo=truck;
+
+  function findById(name,id) {
+    if (!id) return null;
+    const rows=getSheet_(name).getDataRange().getValues();
+    for(let i=1;i<rows.length;i++) if(String(rows[i][0])===String(id)) return rows[i];
+    return null;
   }
-  if (!motorista || String(motorista[2])!=='ATIVO') throw new Error('O motorista precisa estar cadastrado e aprovado como ATIVO.');
-  if (!cavalo || String(cavalo[2])!=='ATIVO') throw new Error('O cavalo precisa estar cadastrado e aprovado como ATIVO.');
-  if (carretaMeioId) {const r=findById('CARRETAS',carretaMeioId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta do meio precisa estar aprovada como ATIVO.');}
-  if (carretaFinalId) {const r=findById('CARRETAS',carretaFinalId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta final precisa estar aprovada como ATIVO.');}
+  function statusValid(row, label, allowPending) {
+    if (!row) throw new Error(label+' não encontrado no cadastro.');
+    const status=String(row[2]||'').toUpperCase();
+    if (status!=='ATIVO' && !(allowPending && status==='PENDENTE_REVISAO')) {
+      throw new Error(label+' está '+(status||'sem status')+'. Ative ou revise o cadastro antes de utilizá-lo.');
+    }
+    return status;
+  }
+
+  const motorista=findById('MOTORISTAS',motoristaId);
+  const cavalo=findById('CAVALOS',cavaloId) || findById('CAMINHOES',cavaloId);
+  statusValid(motorista,'O motorista',false);
+  const cavaloStatus=statusValid(cavalo,'O cavalo mecânico',true);
+  if (cavalo===null || (String(cavalo[8]||'').toLowerCase().indexOf('cavalo')===-1 && getSheet_('CAVALOS').getDataRange().getValues().slice(1).every(r=>String(r[0])!==cavaloId))) {
+    throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico.');
+  }
+
+  // CAMINHOES.CAPACIDADE_TONELADAS é a capacidade originalmente informada.
+  // Localiza o registro pela placa, sem copiar PBTC para capacidade útil.
+  const cavaloPlate=normalizarPlaca_(cavalo[3]);
+  const truckSheet=getSheet_('CAMINHOES');
+  const truckRows=truckSheet.getLastRow()>1
+    ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
+    : [];
+  const truck=truckRows.find(r=>normalizarPlaca_(r[3])===cavaloPlate);
+  const cavaloCapacity=Number(truck ? String(truck[9]||'').replace(',','.') : 0);
+  if (!(cavaloCapacity>0)) throw new Error('Não encontrei a capacidade do cavalo '+cavaloPlate+' na guia CAMINHOES. Confira a coluna CAPACIDADE_TONELADAS.');
+
+  let pending=cavaloStatus==='PENDENTE_REVISAO';
+  const selectedTrailers=[];
+  [[carretaMeioId,'Carreta do meio'],[carretaFinalId,'Carreta final']].forEach(pair=>{
+    if (!pair[0]) return;
+    const row=findById('CARRETAS',pair[0]);
+    const st=statusValid(row,pair[1],true);
+    const capacity=Number(String(row[6]||'').replace(',','.'));
+    if (!(capacity>0)) throw new Error(pair[1]+' está sem CAPACIDADE_CARGA_TONELADAS cadastrada.');
+    if (st==='PENDENTE_REVISAO') pending=true;
+    selectedTrailers.push({id:pair[0],capacity:capacity,label:pair[1]});
+  });
+
+  const capacidadeUtil=cavaloCapacity+selectedTrailers.reduce((sum,x)=>sum+x.capacity,0);
+  if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Não foi possível calcular a capacidade do conjunto.');
+
   const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
-  // Impede dois conjuntos ativos para o mesmo motorista ou cavalo. Reativação/alteração fica explícita pelo gestor.
-  for(let i=1;i<values.length;i++) if(String(values[i][2])==='ATIVO' && (String(values[i][3])===motoristaId || String(values[i][4])===cavaloId)) throw new Error('Já existe um conjunto ATIVO com este motorista ou cavalo. Inative o conjunto anterior antes de cadastrar outro.');
+  // Evita reutilizar motorista, cavalo ou carreta em outro conjunto ainda vigente.
+  for(let i=1;i<values.length;i++) {
+    if (['ATIVO','PENDENTE_REVISAO'].indexOf(String(values[i][2]))===-1) continue;
+    const ids=[String(values[i][3]||''),String(values[i][4]||''),String(values[i][5]||''),String(values[i][6]||'')];
+    const requested=[motoristaId,cavaloId,carretaMeioId,carretaFinalId].filter(Boolean);
+    if (requested.some(id=>ids.indexOf(id)!==-1)) throw new Error('Um dos veículos ou o motorista já está vinculado a outro conjunto ativo ou pendente. Revise o conjunto existente antes de continuar.');
+  }
+
   const id=Utilities.getUuid();
-  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
-  auditar_(session,'CRIAR','CONJUNTO',id,'Motorista '+motoristaId+' / cavalo '+cavaloId);
-  return {ok:true,id:id,message:'Conjunto salvo como PENDENTE_REVISAO. Revise e aprove antes de usar na escala.'};
+  const conjuntoStatus=pending?'PENDENTE_REVISAO':'PENDENTE_REVISAO';
+  sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
+  auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
+  return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
 }
 
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
@@ -694,6 +738,17 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   const rows = sh.getDataRange().getValues();
   const idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
   if (idx < 1) throw new Error('Registro não encontrado.');
+  if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
+    const conjunto=rows[idx];
+    const required=[['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
+    if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
+    if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
+    required.forEach(item=>{
+      const assetRows=getSheet_(item[0]).getDataRange().getValues();
+      const asset=assetRows.slice(1).find(r=>String(r[0])===String(item[1]));
+      if (!asset || String(asset[2])!=='ATIVO') throw new Error('Não é possível ativar o conjunto: '+item[2]+' precisa estar ATIVO e aprovado.');
+    });
+  }
   sh.getRange(idx + 1, mapa[entidade]).setValue(status);
   auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
   return { ok: true, message: 'Status atualizado.' };
@@ -730,13 +785,40 @@ function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
   if (!rows.length) return [];
-  return rows.map(r => ({
+
+  const mapped = rows.map(r => ({
     id: String(r[0] || ''),
     criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v))
-  })).reverse();
+  }));
+
+  // A capacidade cadastrada originalmente em CAMINHOES é a fonte para os
+  // cavalos sincronizados em CAVALOS. O vínculo é feito pela placa normalizada.
+  if (name === 'CAVALOS') {
+    const truckSheet = getSheet_('CAMINHOES');
+    const truckRows = truckSheet.getLastRow() > 1
+      ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
+      : [];
+    const capacityByPlate = {};
+    truckRows.forEach(r => {
+      const plate = normalizarPlaca_(r[3]);
+      const capacity = Number(String(r[9] == null ? '' : r[9]).replace(',','.'));
+      if (plate && capacity > 0) capacityByPlate[plate] = capacity;
+    });
+    mapped.forEach(item => {
+      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || 0;
+    });
+  } else if (name === 'CARRETAS') {
+    // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
+    mapped.forEach(item => {
+      const capacity = Number(String(item.campos[3] || '').replace(',','.'));
+      item.capacidadeUtil = capacity > 0 ? capacity : 0;
+    });
+  }
+  return mapped.reverse();
 }
+
 function contarAtivos_(name) {
   const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
