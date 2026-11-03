@@ -735,9 +735,21 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
   const sh = getSheet_(entidade);
-  const rows = sh.getDataRange().getValues();
-  const idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
-  if (idx < 1) throw new Error('Registro não encontrado.');
+  let rows = sh.getDataRange().getValues();
+  let idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
+
+  // Motoristas sincronizados da planilha do Bruno são uma fonte espelhada.
+  // Ao aprovar/inativar, criamos uma cópia local de controle para que a
+  // próxima sincronização não apague a decisão administrativa.
+  if (idx < 1 && entidade === 'MOTORISTAS') {
+    const source = ftReadBrunoRows_('MOTORISTAS').find(r => String(r.ID) === String(id));
+    if (source) {
+      sh.appendRow(FT_BRUNO_CADASTROS.MOTORISTAS.fields.map(f => source[f] == null ? '' : source[f]));
+      rows = sh.getDataRange().getValues();
+      idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
+    }
+  }
+  if (idx < 1) throw new Error('Registro não encontrado na base local nem na sincronização.');
   if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
     const conjunto=rows[idx];
     const required=[['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
@@ -790,6 +802,20 @@ function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
   const localSetIds = new Set();
+
+  // MOTORISTAS: combina o espelho recebido do Bruno com as decisões locais.
+  // O registro local prevalece pelo ID, preservando ATIVO/INATIVO após novas sincronizações.
+  if (name === 'MOTORISTAS') {
+    const byId = new Map();
+    rows.forEach(r => { if (r[0]) byId.set(String(r[0]), r); });
+    const local = getSheet_('MOTORISTAS');
+    if (local.getLastRow() > 1) {
+      local.getRange(2,1,local.getLastRow()-1,Math.max(12,local.getLastColumn())).getValues().forEach(r => {
+        if (r[0]) byId.set(String(r[0]), r.slice(0,12));
+      });
+    }
+    rows = Array.from(byId.values());
+  }
 
   // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
   // conjuntos criados dentro do sistema. Exibe ambos sem duplicar IDs.
