@@ -269,6 +269,12 @@
     }));
     const sets=dashboard?.conjuntos||[];
     const status=(s)=>statusBadge(s);
+    const setAction=(x)=>{
+      if(x.origem==='BRUNO') return '<span class="muted small">Sincronizado — revisar no cadastro de origem</span>';
+      return x.status!=='ATIVO'
+        ? "<button class=\"icon-btn\" onclick=\"setStatus('CONJUNTOS','"+esc(x.id)+"','ATIVO')\">✓</button>"
+        : "<button class=\"icon-btn\" onclick=\"setStatus('CONJUNTOS','"+esc(x.id)+"','INATIVO')\">⊘</button>";
+    };
     const simpleOpt=(arr,placeholder)=>'<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.campos[0]||x.id)+'</option>').join('');
     const assetOpt=(arr,placeholder)=>'<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>{
       const cap=Number(x.capacity||0), capLabel=cap>0?cap.toLocaleString('pt-BR',{maximumFractionDigits:1})+' t':'capacidade não informada';
@@ -306,7 +312,7 @@
           <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.carretas||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+((Number(x.capacidadeUtil||x.campos[3]||0)>0)?Number(x.capacidadeUtil||x.campos[3]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma carreta cadastrada.</td></tr>'}</tbody></table></div>
         </div></div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+(x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CONJUNTOS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CONJUNTOS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
   }
   function calcularCapacidadeConjunto(){
     const form=document.querySelector('form[onsubmit="saveConjunto(event)"]');
