@@ -788,14 +788,32 @@ function getSheet_(name) {
 }
 function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
+  let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
+  const localSetIds = new Set();
+
+  // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
+  // conjuntos criados dentro do sistema. Exibe ambos sem duplicar IDs.
+  if (name === 'CONJUNTOS') {
+    const byId = new Map();
+    rows.forEach(r => { if (r[0]) byId.set(String(r[0]),r); });
+    const localSheet = getSheet_('CONJUNTOS');
+    if (localSheet.getLastRow() > 1) {
+      localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
+        if (!r[0]) return;
+        localSetIds.add(String(r[0]));
+        byId.set(String(r[0]),r.slice(0,12));
+      });
+    }
+    rows = Array.from(byId.values());
+  }
   if (!rows.length) return [];
 
   const mapped = rows.map(r => ({
     id: String(r[0] || ''),
     criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
-    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v))
+    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
+    ...(name === 'CONJUNTOS' ? {origem: localSetIds.has(String(r[0]||'')) ? 'SISTEMA' : 'BRUNO'} : {})
   }));
 
   // A capacidade cadastrada originalmente em CAMINHOES é a fonte para os
