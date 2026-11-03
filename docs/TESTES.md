@@ -54,3 +54,16 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Não cadastrar documentos reais até aprovação dos controles de segurança.
 - [ ] Testar com duas sessões administrativas antes de uso conjunto.
 - [ ] Documentar como restaurar a base e recuperar acesso.
+
+
+## Entrada assistida de viagens (somente mensagens fictícias)
+
+- [ ] Executar `prepararBaseOperacionalFullTime()` e `prepararEntradaOperacoesIAFullTime()` em ambiente de teste.
+- [ ] Colar texto fictício com rota e data explícitas e confirmar que aparece como rascunho.
+- [ ] Colar texto sem cliente, peso, tipo ou descrição; conferir que são mostrados como campos pendentes e nada é gravado em `CARGAS`.
+- [ ] Tentar origem e destino iguais; confirmação deve ser bloqueada.
+- [ ] Confirmar uma entrada completa na guia do Bruno, verificar a cópia de mesmo ID para o espelho Full Time e verificar exatamente uma linha em `CARGAS` com referência ao ID de entrada.
+- [ ] Executar a sincronização várias vezes; deve ser idempotente e não gerar segunda carga.
+- [ ] Verificar que o agente grava rascunhos/confirmados na guia de entrada da planilha do Bruno e que somente o sincronizador copia para o espelho do sistema.
+- [ ] Confirmar que sincronização de cadastro continua limitada ao lote fictício da configuração existente.
+- [ ] Testar com `FT_GEMINI_API_KEY` ausente (deve usar regras locais e avisar o usuário).

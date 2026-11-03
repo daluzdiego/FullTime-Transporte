@@ -183,6 +183,68 @@ function importarCavalosECarretasOperacionaisFT_(dest) {
   });
 }
 
+/**
+ * Gera capacidades FICTÍCIAS para testes controlados.
+ * Não sobrescreve nenhum valor existente. Executar apenas na base de testes.
+ * As linhas recebem observação explícita para impedir uso operacional real.
+ */
+function gerarCapacidadesAmostraFrotaFullTime() {
+  // Exclusivo para testes: só altera registros com marcador explícito de dado fictício.
+  // Registros sem marcador são ignorados, mesmo que tenham campos de capacidade vazios.
+  const ss = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const specs = [
+    {sheet:'CAVALOS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES','STATUS_DOCUMENTACAO','PLACA','MODELO'], kind:'CAVALO'},
+    {sheet:'CARRETAS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','STATUS_DOCUMENTACAO','PLACA','MODELO'], kind:'CARRETA'}
+  ];
+  const summary = {};
+  let totalPreenchidos = 0;
+  specs.forEach(spec => {
+    const sh = ss.getSheetByName(spec.sheet);
+    if (!sh || sh.getLastRow() < 2) { summary[spec.sheet] = {linhas:0, ficticiosIdentificados:0, alterados:0, ignorados:0}; return; }
+    const values = sh.getDataRange().getValues();
+    const headers = values[0].map(h => String(h).trim());
+    const col = {};
+    headers.forEach((h,i) => col[h] = i);
+    spec.fields.forEach(f => { if (col[f] === undefined) throw new Error('Coluna obrigatória ausente em '+spec.sheet+': '+f); });
+    let filled = 0, eligible = 0, skipped = 0;
+    for (let i=1; i<values.length; i++) {
+      const row = values[i];
+      const id = String(row[col.ID_EXTERNO] || '').trim();
+      if (!id) { skipped++; continue; }
+      const markerFields = [id,row[col.OBSERVACOES],row[col.STATUS_DOCUMENTACAO],row[col.PLACA],row[col.MODELO]];
+      const marker = markerFields.map(v=>String(v==null?'':v)).join(' ').toUpperCase();
+      const isExplicitTest = /TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO|DADO FICTÍCIO/.test(marker);
+      if (!isExplicitTest) { skipped++; continue; }
+      eligible++;
+      const axles = Math.max(2, Number(row[col.NUMERO_EIXOS]) || (spec.kind === 'CAVALO' ? 6 : 3));
+      const n = i - 1;
+      if (spec.kind === 'CAVALO') {
+        const lotacao = 28 + (n % 5) * 2;
+        const pbtc = lotacao + 10 + Math.min(axles, 8);
+        const util = Math.min(lotacao, pbtc - 10);
+        [['LOTACAO_TONELADAS',lotacao],['PBTC_MAX_TONELADAS',pbtc],['CAPACIDADE_UTIL_TONELADAS',util]].forEach(pair => {
+          if (row[col[pair[0]]] === '' || row[col[pair[0]]] == null) { row[col[pair[0]]] = pair[1]; filled++; }
+        });
+      } else {
+        const cargo = 25 + (n % 6) * 2;
+        const pbtc = cargo + 8 + Math.min(axles, 6);
+        [['LOTACAO_TONELADAS',cargo],['CAPACIDADE_CARGA_TONELADAS',cargo],['PBTC_MAX_TONELADAS',pbtc]].forEach(pair => {
+          if (row[col[pair[0]]] === '' || row[col[pair[0]]] == null) { row[col[pair[0]]] = pair[1]; filled++; }
+        });
+      }
+      const obsCol = col.OBSERVACOES;
+      const oldObs = String(row[obsCol] || '');
+      if (!oldObs.includes('DADO FICTÍCIO DE CAPACIDADE')) row[obsCol] = (oldObs ? oldObs+' | ' : '') + 'DADO FICTÍCIO DE CAPACIDADE GERADO PARA TESTES — NÃO USAR EM OPERAÇÃO REAL.';
+    }
+    if (filled > 0) sh.getRange(2,1,values.length-1,headers.length).setValues(values.slice(1));
+    totalPreenchidos += filled;
+    summary[spec.sheet] = {linhas:values.length-1, ficticiosIdentificados:eligible, camposPreenchidos:filled, ignorados:skipped};
+  });
+  // Sincroniza somente quando houve alteração real na origem.
+  const sync = totalPreenchidos > 0 ? sincronizarCadastroBrunoFullTime() : null;
+  return {ok:true, aviso:'Somente registros explicitamente identificados como teste foram considerados. Valores sintéticos não podem ser usados em operação real.', capacidades:summary, sincronizacao:sync, sincronizacaoExecutada:!!sync};
+}
+
 function numOrBlankFT_(v) {
   if (v === '' || v === null || typeof v === 'undefined') return '';
   const n = Number(v);
@@ -281,4 +343,32 @@ function atualizarLinksGuiasFullTime_() {
   links.autoResizeColumns(1,4);
   protegerGuiaInteiraFT_(links, 'Full Time — links de navegação controlados pelo sistema');
   return dest.getUrl() + '#gid=' + links.getSheetId();
+}
+
+/**
+ * Sincronização recorrente Bruno → Full Time.
+ * Instala um único gatilho de 5 minutos para manter telefones e demais campos
+ * do espelho atualizados sem intervenção manual. Não sincroniza Full Time → Bruno.
+ */
+function instalarSincronizacaoAutomaticaBrunoFullTime() {
+  const handler='sincronizarCadastroBrunoFullTime';
+  const triggers=ScriptApp.getProjectTriggers();
+  triggers.filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(handler).timeBased().everyMinutes(5).create();
+  const result=sincronizarCadastroBrunoFullTime();
+  return {ok:true,frequencia:'A cada 5 minutos',gatilho:handler,primeiraSincronizacao:result};
+}
+
+/** Diagnóstico seguro: compara telefone na origem e no espelho, sem gravar dados. */
+function diagnosticarTelefoneMotoristasBrunoFullTime() {
+  const source=SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest=SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  const src=source.getSheetByName('MOTORISTAS'),dst=dest.getSheetByName('FT_CADASTRO_BRUNO_MOTORISTAS');
+  if(!src||!dst)throw new Error('Guia MOTORISTAS ou espelho não encontrado.');
+  const sh=src.getDataRange().getValues(),dh=dst.getDataRange().getValues();
+  const si={},di={};(sh[0]||[]).forEach((v,i)=>si[String(v).trim().toUpperCase()]=i);(dh[0]||[]).forEach((v,i)=>di[String(v).trim().toUpperCase()]=i);
+  ['ID_EXTERNO','TELEFONE'].forEach(k=>{if(si[k]===undefined||di[k]===undefined)throw new Error('Cabeçalho '+k+' ausente na origem ou espelho.');});
+  const destById={};dh.slice(1).forEach(r=>{const id=String(r[di.ID_EXTERNO]||'').trim();if(id)destById[id]=String(r[di.TELEFONE]||'').trim();});
+  const divergencias=[];sh.slice(1).forEach((r,i)=>{const id=String(r[si.ID_EXTERNO]||'').trim();if(!id)return;const phone=String(r[si.TELEFONE]||'').trim(),mirror=destById[id]||'';if(phone!==mirror)divergencias.push({id,linhaOrigem:i+2,telefoneOrigem:phone,telefoneEspelho:mirror});});
+  return {origem:sh.length-1,espelho:dh.length-1,divergencias:divergencias.length,amostra:divergencias.slice(0,20)};
 }

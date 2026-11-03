@@ -44,3 +44,8 @@ Data, usuário, login, ação, entidade, identificador e breve descrição da a�
 - Não armazena imagens de documentos.
 - Não realiza validação externa de CNH, CRLV-e, CPF ou situação legal.
 - Google Sheets não deve ser presumido como banco definitivo para uma operação crítica com concorrência sem testes de carga, revisão de arquitetura e plano de recuperação.
+
+
+## Entrada de operações por mensagem colada
+
+`ENTRADA_OPERACOES_IA` existe tanto na planilha do Bruno (fonte oficial) quanto na planilha Full Time (espelho). O agente grava rascunhos e confirmações apenas na planilha do Bruno. O sincronizador faz upsert por ID somente no sentido Bruno → Full Time; o sistema não escreve na guia de origem. Após sincronizar uma entrada com status `CONFIRMADO`, o sistema materializa em `CARGAS` uma linha com ID de carga predefinido, status `A_ESCALAR` e referência da entrada nas observações. A materialização é idempotente por ID de carga e ID de entrada. A captura é manual por copiar/colar; não há integração automática com WhatsApp. Se `FT_GEMINI_API_KEY` existir nas Propriedades do script, o backend envia a mensagem para a API Gemini com esquema JSON e regras explícitas contra invenção; sem chave ou em caso de falha, usa extração determinística e avisa o operador. A chave fica somente nas propriedades do Apps Script, nunca no código ou navegador. O fluxo segue em fase de teste e exige conferência humana.
