@@ -1282,6 +1282,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});
     h.operations.add(String(r[2]||''));h.days.add(day);if(day===operationDate)h.today++;if(!h.last||day>h.last)h.last=day;
   });
+  const modoTeste=ftModoTesteCadastrosAtivo_();
   const candidates=sets.map(r=>{
     const driverId=String(r[3]||''),driver=driverById[driverId];
     const cap=Number(String(r[10]||'').replace(',','.'));
@@ -1300,7 +1301,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
       [middleId,rearId].filter(Boolean).every(id=>ftDocumentacaoBasicaValida_(id,documents));
     const eligible=String(r[2]).toUpperCase()==='ATIVO'&&!!driver&&String(driver[2]).toUpperCase()==='ATIVO'&&
       !!horse&&String(horse[2]).toUpperCase()==='ATIVO'&&linkedTrailers.every(t=>t&&String(t[2]).toUpperCase()==='ATIVO')&&
-      noTestData&&documentsOk&&cond==='APTO'&&cap>0&&available&&
+      (modoTeste||(noTestData&&documentsOk))&&cond==='APTO'&&cap>0&&available&&
       !activeSetIds.has(String(r[0]))&&!activeDriverIds.has(driverId);
     return {id:String(r[0]),driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible,disponivelNaData:available,operacoesNaData:hist.today,operacoesRegistradas:hist.operations.size,diasTrabalhados:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
   }).filter(x=>x.eligible);
