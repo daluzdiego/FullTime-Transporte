@@ -1535,20 +1535,37 @@ function ftAplicarCapacidadeSinteticaConjuntos_(sets) {
   const trailers=ftRowsCadastroUnificados_('CARRETAS');
   const horseById=new Map(horses.map(r=>[String(r[0]||''),r]));
   const trailerById=new Map(trailers.map(r=>[String(r[0]||''),r]));
-  return sets.map(original=>{
+  return sets.map((original,index)=>{
     const row=original.slice();
+    if(!ftTemMarcadorTeste_(row))return row;
     const existing=Number(String(row[10]||'').replace(',','.'));
-    if(existing>0) return row;
+    if(existing>0){if(!/CAPACIDADE AMOSTRA/i.test(String(row[7]||'')))row[7]=String(row[7]||'')+' | CAPACIDADE AMOSTRA — DADO FICTÍCIO — SOMENTE TESTES';return row;}
     const horse=horseById.get(String(row[4]||''));
     const trailerIds=[row[5],row[6]].map(v=>String(v||'').trim()).filter(Boolean);
     const linkedTrailers=trailerIds.map(id=>trailerById.get(id));
-    if(!horse||!linkedTrailers.length||linkedTrailers.some(t=>!t)) return row;
-    const derived=ftCalcularCapacidadeSinteticaConjunto_(horse,linkedTrailers);
-    if(!(derived>0)) return row;
+    let derived=horse&&linkedTrailers.length&&linkedTrailers.every(Boolean)?ftCalcularCapacidadeSinteticaConjunto_(horse,linkedTrailers):null;
+    if(!(derived>0))derived=[25,30,35,40][index%4];
     row[10]=derived;
-    row[7]=String(row[7]||'')+' | CAPACIDADE SINTÉTICA CALCULADA PARA TESTE — NÃO USAR EM OPERAÇÃO REAL';
+    row[7]=String(row[7]||'')+' | CAPACIDADE AMOSTRA — DADO FICTÍCIO — SOMENTE TESTES';
     return row;
   });
+}
+
+function preencherCapacidadesAmostraConjuntosFullTime(token){
+  const session=obterSessao_(token);exigirAdmin_(session);
+  if(!ftModoTesteCadastrosAtivo_())throw new Error('Ative o modo de teste antes de gerar capacidades de amostra.');
+  const sh=getSheet_('CONJUNTOS'),values=sh.getDataRange().getValues();
+  let alterados=0,jaPreenchidos=0,ignorados=0;
+  for(let i=1;i<values.length;i++){
+    const row=values[i];
+    if(!row[0]||!ftTemMarcadorTeste_(row)){ignorados++;continue;}
+    let cap=Number(String(row[10]||'').replace(',','.'));
+    if(!(cap>0)){cap=[25,30,35,40][(i-1)%4];sh.getRange(i+1,11).setValue(cap);alterados++;}else jaPreenchidos++;
+    const obs=String(row[7]||'');
+    if(!/CAPACIDADE AMOSTRA/i.test(obs))sh.getRange(i+1,8).setValue((obs?obs+' | ':'')+'CAPACIDADE AMOSTRA — DADO FICTÍCIO — SOMENTE TESTES');
+  }
+  auditar_(session,'GERAR_CAPACIDADE_AMOSTRA','CONJUNTOS','', 'Alterados='+alterados+'; já preenchidos='+jaPreenchidos+'; ignorados='+ignorados);
+  return {ok:true,alterados,jaPreenchidos,ignorados,mensagem:'Capacidades de amostra registradas somente nos conjuntos fictícios da base operacional.'};
 }
 function ftGetCadastroById_(entity,id){
   const r=ftRowsCadastroUnificados_(entity).find(x=>String(x[0]||'').trim()===String(id||'').trim());
@@ -1559,13 +1576,11 @@ function ftGetCadastroById_(entity,id){
 function listarRegistros_(name){
   const rows=ftRowsCadastroUnificados_(name);
   if(!rows.length)return [];
-  const ov=ftStatusMap_(name);
+  const ov=ftStatusMap_(name),modoTeste=ftModoTesteCadastrosAtivo_();
   return rows.map(r=>{
     const id=String(r[0]||''),marker=(id+' '+r.slice(3).join(' ')).toUpperCase();
     let status=ov[id]||String(r[2]||'PENDENTE_REVISAO');
-    // Registros fictícios antigos podem ter sido ativados antes da trava de segurança.
-    // Na interface nunca devem aparecer como aptos/ativos.
-    if(/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)) status='INATIVO';
+    if(!modoTeste&&/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker)) status='INATIVO';
     return {id,criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),status,campos:r.slice(3).map(v=>v instanceof Date?v.toISOString().slice(0,10):String(v==null?'':v))};
   }).reverse();
 }
