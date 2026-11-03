@@ -189,30 +189,35 @@ function importarCavalosECarretasOperacionaisFT_(dest) {
  * As linhas recebem observação explícita para impedir uso operacional real.
  */
 function gerarCapacidadesAmostraFrotaFullTime() {
-  // Esta função é explicitamente exclusiva para a base de testes.
-  // Pode ser executada diretamente pelo editor Apps Script, sem parâmetros.
+  // Exclusivo para testes: só altera registros com marcador explícito de dado fictício.
+  // Registros sem marcador são ignorados, mesmo que tenham campos de capacidade vazios.
   const ss = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
   const specs = [
-    {sheet:'CAVALOS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES'], kind:'CAVALO'},
-    {sheet:'CARRETAS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'], kind:'CARRETA'}
+    {sheet:'CAVALOS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES','STATUS_DOCUMENTACAO','PLACA','MODELO'], kind:'CAVALO'},
+    {sheet:'CARRETAS', fields:['ID_EXTERNO','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','STATUS_DOCUMENTACAO','PLACA','MODELO'], kind:'CARRETA'}
   ];
   const summary = {};
+  let totalPreenchidos = 0;
   specs.forEach(spec => {
     const sh = ss.getSheetByName(spec.sheet);
-    if (!sh || sh.getLastRow() < 2) { summary[spec.sheet] = {linhas:0, preenchidos:0}; return; }
+    if (!sh || sh.getLastRow() < 2) { summary[spec.sheet] = {linhas:0, ficticiosIdentificados:0, alterados:0, ignorados:0}; return; }
     const values = sh.getDataRange().getValues();
     const headers = values[0].map(h => String(h).trim());
     const col = {};
     headers.forEach((h,i) => col[h] = i);
     spec.fields.forEach(f => { if (col[f] === undefined) throw new Error('Coluna obrigatória ausente em '+spec.sheet+': '+f); });
-    let filled = 0;
+    let filled = 0, eligible = 0, skipped = 0;
     for (let i=1; i<values.length; i++) {
       const row = values[i];
       const id = String(row[col.ID_EXTERNO] || '').trim();
-      if (!id) continue;
+      if (!id) { skipped++; continue; }
+      const markerFields = [id,row[col.OBSERVACOES],row[col.STATUS_DOCUMENTACAO],row[col.PLACA],row[col.MODELO]];
+      const marker = markerFields.map(v=>String(v==null?'':v)).join(' ').toUpperCase();
+      const isExplicitTest = /TESTE|FICTICIO|FICTÍCIO|EXAMPLE\\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO|DADO FICTÍCIO/.test(marker);
+      if (!isExplicitTest) { skipped++; continue; }
+      eligible++;
       const axles = Math.max(2, Number(row[col.NUMERO_EIXOS]) || (spec.kind === 'CAVALO' ? 6 : 3));
       const n = i - 1;
-      const note = 'DADO FICTÍCIO DE CAPACIDADE GERADO PARA TESTES — NÃO USAR EM OPERAÇÃO REAL.';
       if (spec.kind === 'CAVALO') {
         const lotacao = 28 + (n % 5) * 2;
         const pbtc = lotacao + 10 + Math.min(axles, 8);
@@ -222,21 +227,22 @@ function gerarCapacidadesAmostraFrotaFullTime() {
         });
       } else {
         const cargo = 25 + (n % 6) * 2;
-        const lotacao = cargo;
         const pbtc = cargo + 8 + Math.min(axles, 6);
-        [['LOTACAO_TONELADAS',lotacao],['CAPACIDADE_CARGA_TONELADAS',cargo],['PBTC_MAX_TONELADAS',pbtc]].forEach(pair => {
+        [['LOTACAO_TONELADAS',cargo],['CAPACIDADE_CARGA_TONELADAS',cargo],['PBTC_MAX_TONELADAS',pbtc]].forEach(pair => {
           if (row[col[pair[0]]] === '' || row[col[pair[0]]] == null) { row[col[pair[0]]] = pair[1]; filled++; }
         });
       }
       const obsCol = col.OBSERVACOES;
       const oldObs = String(row[obsCol] || '');
-      if (!oldObs.includes('DADO FICTÍCIO DE CAPACIDADE')) row[obsCol] = (oldObs ? oldObs+' | ' : '') + note;
+      if (!oldObs.includes('DADO FICTÍCIO DE CAPACIDADE')) row[obsCol] = (oldObs ? oldObs+' | ' : '') + 'DADO FICTÍCIO DE CAPACIDADE GERADO PARA TESTES — NÃO USAR EM OPERAÇÃO REAL.';
     }
-    if (values.length > 1) sh.getRange(2,1,values.length-1,headers.length).setValues(values.slice(1));
-    summary[spec.sheet] = {linhas:values.length-1, camposPreenchidos:filled};
+    if (filled > 0) sh.getRange(2,1,values.length-1,headers.length).setValues(values.slice(1));
+    totalPreenchidos += filled;
+    summary[spec.sheet] = {linhas:values.length-1, ficticiosIdentificados:eligible, camposPreenchidos:filled, ignorados:skipped};
   });
-  const sync = sincronizarCadastroBrunoFullTime();
-  return {ok:true, aviso:'Valores sintéticos exclusivamente para testes. Não usar em operação real.', capacidades:summary, sincronizacao:sync};
+  // Sincroniza somente quando houve alteração real na origem.
+  const sync = totalPreenchidos > 0 ? sincronizarCadastroBrunoFullTime() : null;
+  return {ok:true, aviso:'Somente registros explicitamente identificados como teste foram considerados. Valores sintéticos não podem ser usados em operação real.', capacidades:summary, sincronizacao:sync, sincronizacaoExecutada:!!sync};
 }
 
 function numOrBlankFT_(v) {
