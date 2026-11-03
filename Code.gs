@@ -729,46 +729,91 @@ function salvarConjuntoVeicularFullTime(token, data) {
 
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
+/**
+ * Guarda decisões administrativas fora das guias espelhadas do Bruno.
+ * Assim, a aprovação não depende de o registro existir fisicamente na guia local.
+ */
+function ftGetStatusControlSheet_() {
+  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
+  const ss = SpreadsheetApp.openById(registryId);
+  let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
+  if (!sh) {
+    sh = ss.insertSheet('FT_STATUS_CADASTROS');
+    sh.getRange(1,1,1,5).setValues([['ENTIDADE','REGISTRO_ID','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function ftSaveStatusOverride_(entity, id, status, session) {
+  const sh = ftGetStatusControlSheet_();
+  const last = sh.getLastRow();
+  const values = last > 1 ? sh.getRange(2,1,last-1,5).getDisplayValues() : [];
+  const keyEntity = String(entity).trim().toUpperCase();
+  const keyId = String(id).trim();
+  const index = values.findIndex(r => String(r[0]).trim().toUpperCase() === keyEntity && String(r[1]).trim() === keyId);
+  const row = [keyEntity,keyId,status,new Date(),session && session.login || 'ADMIN'];
+  if (index >= 0) sh.getRange(index+2,1,1,5).setValues([row]);
+  else sh.appendRow(row);
+}
+
+function ftReadStatusOverrides_(entity) {
+  const sh = ftGetStatusControlSheet_();
+  const last = sh.getLastRow();
+  if (last < 2) return {};
+  const values = sh.getRange(2,1,last-1,5).getDisplayValues();
+  const out = {};
+  values.forEach(r => {
+    if (String(r[0]).trim().toUpperCase() === String(entity).trim().toUpperCase() && r[1]) {
+      out[String(r[1]).trim()] = String(r[2] || '');
+    }
+  });
+  return out;
+}
+
 function atualizarStatusFullTime(token, entidade, id, status) {
-  const session = obterSessao_(token); exigirAdmin_(session);
+  const session = obterSessao_(token);
+  exigirAdmin_(session);
   const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
   if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
+  if (!id) throw new Error('Identificador do cadastro não informado.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
-  const sh = getSheet_(entidade);
-  let rows = sh.getDataRange().getValues();
-  let idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
 
-  // Motoristas sincronizados da planilha do Bruno são uma fonte espelhada.
-  // Ao aprovar/inativar, criamos uma cópia local de controle para que a
-  // próxima sincronização não apague a decisão administrativa.
-  if (idx < 1 && entidade === 'MOTORISTAS') {
-    const source = ftReadBrunoRows_('MOTORISTAS').find(r => String(r.ID) === String(id));
-    if (source) {
-      sh.appendRow(FT_BRUNO_CADASTROS.MOTORISTAS.fields.map(f => source[f] == null ? '' : source[f]));
-      rows = sh.getDataRange().getValues();
-      idx = rows.findIndex((r, i) => i > 0 && String(r[0]) === String(id));
-    }
+  // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
+  // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
+  if (entidade === 'MOTORISTAS') {
+    const local = getSheet_('MOTORISTAS');
+    const localRows = local.getDataRange().getValues();
+    const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
+    if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
+    ftSaveStatusOverride_(entidade, id, status, session);
+    auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
+    return {ok:true, message: status === 'ATIVO' ? 'Motorista aprovado com sucesso.' : status === 'INATIVO' ? 'Motorista inativado.' : 'Motorista voltou para revisão.'};
   }
-  if (idx < 1) throw new Error('Registro não encontrado na base local nem na sincronização.');
+
+  const sh = getSheet_(entidade);
+  const rows = sh.getDataRange().getValues();
+  const idx = rows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
+  if (idx < 1) throw new Error('Registro não encontrado na guia ' + entidade + '.');
   if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
-    const conjunto=rows[idx];
-    const required=[['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
+    const conjunto = rows[idx];
+    const required = [['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
     if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
     if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
-    required.forEach(item=>{
-      let assetRows=getSheet_(item[0]).getDataRange().getValues();
-      let asset=assetRows.slice(1).find(r=>String(r[0])===String(item[1]));
-      // Cavalos legados podem estar somente na guia CAMINHOES.
-      if (!asset && item[0]==='CAVALOS') {
-        assetRows=getSheet_('CAMINHOES').getDataRange().getValues();
-        asset=assetRows.slice(1).find(r=>String(r[0])===String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
+    required.forEach(item => {
+      let assetRows = getSheet_(item[0]).getDataRange().getValues();
+      let asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]));
+      if (!asset && item[0] === 'CAVALOS') {
+        assetRows = getSheet_('CAMINHOES').getDataRange().getValues();
+        asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
       }
-      if (!asset || String(asset[2])!=='ATIVO') throw new Error('Não é possível ativar o conjunto: '+item[2]+' precisa estar ATIVO e aprovado.');
+      if (!asset || String(asset[2]) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
     });
   }
   sh.getRange(idx + 1, mapa[entidade]).setValue(status);
   auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-  return { ok: true, message: 'Status atualizado.' };
+  return {ok:true, message:'Status atualizado.'};
 }
 
 function obterSessao_(token) {
@@ -815,6 +860,15 @@ function listarRegistros_(name) {
       });
     }
     rows = Array.from(byId.values());
+  }
+
+  // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
+  if (name === 'MOTORISTAS') {
+    const overrides = ftReadStatusOverrides_('MOTORISTAS');
+    rows.forEach(r => {
+      const id = String(r[0] || '').trim();
+      if (id && overrides[id]) r[2] = overrides[id];
+    });
   }
 
   // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
