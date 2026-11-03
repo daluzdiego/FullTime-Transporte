@@ -945,7 +945,7 @@ function salvarConjuntoVeicularFullTime(token, data) {
   const capacidadeUtil=horseCapacity+middleCapacity+finalCapacity;
   const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
   const used=new Set();
-  for(let i=1;i<values.length;i++)if(String(values[i][2])==='ATIVO'){
+  for(let i=1;i<values.length;i++)if(['ATIVO','PENDENTE_REVISAO'].includes(String(values[i][2]))){
     [values[i][3],values[i][4],values[i][5],values[i][6]].filter(Boolean).forEach(v=>used.add(String(v)));
   }
   const requested=[motoristaId,cavaloId,carretaMeioId,carretaFinalId].filter(Boolean);
@@ -968,7 +968,7 @@ function desfazerAssociacaoConjuntoFullTime(token, conjuntoId, motivo){
   if(String(row[2])!=='ATIVO'&&String(row[2])!=='PENDENTE_REVISAO')throw new Error('Somente conjuntos ativos ou pendentes podem ter a associação desfeita.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   if(parts.slice(1).some(r=>String(r[3])===conjuntoId&&String(r[5])==='ATIVO'))throw new Error('Este conjunto está em uma operação ativa. Registre primeiro o retorno na tela Escalas.');
-  sh.getRange(index+1,3).setValue('INATIVO');
+  ftSetStatus_(session,'CONJUNTOS',conjuntoId,'INATIVO','Associação desfeita: '+motivo);
   sh.getRange(index+1,8).setValue(String(row[7]||'')+' | ASSOCIAÇÃO DESFEITA em '+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm')+(motivo?' | '+motivo:''));
   auditar_(session,'DESFAZER_ASSOCIACAO','CONJUNTO',conjuntoId,'Motorista='+row[3]+'; cavalo='+row[4]+'; carretas='+row[5]+'/'+row[6]+'; '+motivo);
   return {ok:true,message:'Associação desfeita. Motorista, cavalo e carretas estão liberados para novo vínculo.'};
