@@ -880,14 +880,16 @@ function salvarCavaloFullTime(token, data) {
   const ano = texto_(data.ano, 4);
   const tara = Number(String(data.tara || '').replace(',', '.'));
   const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
+  const capacidade = Number(String(data.capacidadeCarga || '').replace(',', '.'));
   if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
   if (duplicado_('CAVALOS', 4, placa) || duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já existe em CAVALOS ou CAMINHOES. Não duplique o veículo.');
   if (!marca || !modelo) throw new Error('Informe marca e modelo.');
   if (!/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
   if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
+  if (!(capacidade > 0 && capacidade <= 100)) throw new Error('Informe a capacidade de carga do cavalo em toneladas.');
   if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
   const id = Utilities.getUuid();
-  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
+  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000),capacidade]);
   auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
   return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
 }
@@ -917,8 +919,6 @@ function salvarConjuntoVeicularFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
   const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
-  const capacidadeUtil=Number(String(data.capacidadeUtil||'').replace(',','.'));
-  if(!(capacidadeUtil>0&&isFinite(capacidadeUtil))) throw new Error('Informe a capacidade útil real do conjunto completo, validada para essa combinação.');
   if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
   if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
   function findById(name,id){return ftGetCadastroById_(name,id);}
@@ -932,14 +932,46 @@ function salvarConjuntoVeicularFullTime(token, data) {
   if (!motorista || String(motorista[2])!=='ATIVO') throw new Error('O motorista precisa estar cadastrado e aprovado como ATIVO.');
   if (!cavalo || String(cavalo[2])!=='ATIVO') throw new Error('O cavalo precisa estar cadastrado e aprovado como ATIVO.');
   if (carretaMeioId) {const r=findById('CARRETAS',carretaMeioId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta do meio precisa estar aprovada como ATIVO.');}
-  if (carretaFinalId) {const r=findById('CARRETAS',carretaFinalId);if(!r||String(r[2])!=='ATIVO')throw new Error('A carreta final precisa estar aprovada como ATIVO.');}
+  const carretaMeio=carretaMeioId?findById('CARRETAS',carretaMeioId):null;
+  const carretaFinal=carretaFinalId?findById('CARRETAS',carretaFinalId):null;
+  if (carretaMeioId && (!carretaMeio||String(carretaMeio[2])!=='ATIVO')) throw new Error('A carreta do meio precisa estar aprovada como ATIVO.');
+  if (carretaFinalId && (!carretaFinal||String(carretaFinal[2])!=='ATIVO')) throw new Error('A carreta final precisa estar aprovada como ATIVO.');
+  const horseCapacity=Number(String(cavalo[10]||'').replace(',','.'));
+  const middleCapacity=carretaMeio?Number(String(carretaMeio[6]||'').replace(',','.')):0;
+  const finalCapacity=carretaFinal?Number(String(carretaFinal[6]||'').replace(',','.')):0;
+  if(!(horseCapacity>0))throw new Error('O cavalo não possui capacidade de carga cadastrada em toneladas.');
+  if(carretaMeioId&&!(middleCapacity>0))throw new Error('A carreta do meio não possui capacidade de carga cadastrada em toneladas.');
+  if(carretaFinalId&&!(finalCapacity>0))throw new Error('A carreta final não possui capacidade de carga cadastrada em toneladas.');
+  const capacidadeUtil=horseCapacity+middleCapacity+finalCapacity;
   const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
-  // Impede dois conjuntos ativos para o mesmo motorista ou cavalo. Reativação/alteração fica explícita pelo gestor.
-  for(let i=1;i<values.length;i++) if(String(values[i][2])==='ATIVO' && (String(values[i][3])===motoristaId || String(values[i][4])===cavaloId)) throw new Error('Já existe um conjunto ATIVO com este motorista ou cavalo. Inative o conjunto anterior antes de cadastrar outro.');
+  const used=new Set();
+  for(let i=1;i<values.length;i++)if(String(values[i][2])==='ATIVO'){
+    [values[i][3],values[i][4],values[i][5],values[i][6]].filter(Boolean).forEach(v=>used.add(String(v)));
+  }
+  const requested=[motoristaId,cavaloId,carretaMeioId,carretaFinalId].filter(Boolean);
+  if(requested.some(id=>used.has(String(id))))throw new Error('Um ou mais itens selecionados já estão vinculados a outro conjunto ativo. Desfaça a associação anterior antes de reutilizar.');
   const id=Utilities.getUuid();
-  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
+  const obs=texto_(data.observacoes,1000)+' | CAPACIDADE DO CONJUNTO = SOMA DOS COMPONENTES ('+horseCapacity+' + '+middleCapacity+' + '+finalCapacity+' t)'+(ftModoTesteCadastrosAtivo_()?' | AMOSTRA — DADO FICTÍCIO — SOMENTE TESTES':'');
+  sh.appendRow([id,new Date(),'PENDENTE_REVISAO',motoristaId,cavaloId,carretaMeioId,carretaFinalId,obs,'APTO','',capacidadeUtil,session.login]);
   auditar_(session,'CRIAR','CONJUNTO',id,'Motorista '+motoristaId+' / cavalo '+cavaloId);
   return {ok:true,id:id,message:'Conjunto salvo como PENDENTE_REVISAO. Revise e aprove antes de usar na escala.'};
+}
+
+function desfazerAssociacaoConjuntoFullTime(token, conjuntoId, motivo){
+  const session=obterSessao_(token);exigirAdmin_(session);
+  conjuntoId=texto_(conjuntoId,100);motivo=texto_(motivo,500);
+  if(!conjuntoId)throw new Error('Selecione o conjunto.');
+  const sh=getSheet_('CONJUNTOS'),rows=sh.getDataRange().getValues();
+  const index=rows.findIndex((r,i)=>i>0&&String(r[0])===conjuntoId);
+  if(index<1)throw new Error('Conjunto não encontrado.');
+  const row=rows[index];
+  if(String(row[2])!=='ATIVO'&&String(row[2])!=='PENDENTE_REVISAO')throw new Error('Somente conjuntos ativos ou pendentes podem ter a associação desfeita.');
+  const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
+  if(parts.slice(1).some(r=>String(r[3])===conjuntoId&&String(r[5])==='ATIVO'))throw new Error('Este conjunto está em uma operação ativa. Registre primeiro o retorno na tela Escalas.');
+  sh.getRange(index+1,3).setValue('INATIVO');
+  sh.getRange(index+1,8).setValue(String(row[7]||'')+' | ASSOCIAÇÃO DESFEITA em '+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm')+(motivo?' | '+motivo:''));
+  auditar_(session,'DESFAZER_ASSOCIACAO','CONJUNTO',conjuntoId,'Motorista='+row[3]+'; cavalo='+row[4]+'; carretas='+row[5]+'/'+row[6]+'; '+motivo);
+  return {ok:true,message:'Associação desfeita. Motorista, cavalo e carretas estão liberados para novo vínculo.'};
 }
 
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
