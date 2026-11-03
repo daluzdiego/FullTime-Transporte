@@ -251,14 +251,15 @@
   function renderConjuntos(){
     const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO');
     const horseMap=new Map();
-    (dashboard?.cavalos||[]).filter(x=>x.status!=='INATIVO').forEach(x=>{
+    // CAMINHOES é a fonte primária: contém status aprovado e CAPACIDADE_TONELADAS.
+    (dashboard?.caminhoes||[]).filter(x=>(x.status==='ATIVO'||x.status==='PENDENTE_REVISAO') && String(x.campos[5]||'').toLowerCase().includes('cavalo')).forEach(x=>{
       const plate=String(x.campos[0]||'').toUpperCase();
-      horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),capacity:Number(x.capacidadeUtil||0),status:x.status});
+      horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[2],x.campos[3]].filter(Boolean).join(' '),capacity:Number(x.campos[6]||0),status:x.status});
     });
-    // Usa CAMINHOES como fallback apenas quando a placa ainda não estiver em CAVALOS.
-    (dashboard?.caminhoes||[]).filter(x=>x.status!=='INATIVO' && String(x.campos[5]||'').toLowerCase().includes('cavalo')).forEach(x=>{
+    // CAVALOS é usado apenas para placas que ainda não existem em CAMINHOES.
+    (dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').forEach(x=>{
       const plate=String(x.campos[0]||'').toUpperCase();
-      if(!horseMap.has(plate)) horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[2],x.campos[3]].filter(Boolean).join(' '),capacity:Number(x.campos[6]||0),status:x.status});
+      if(!horseMap.has(plate)) horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),capacity:Number(x.capacidadeUtil||0),status:x.status});
     });
     const horses=Array.from(horseMap.values());
     // Cadastros pendentes podem ser selecionados para montar um conjunto em revisão.
