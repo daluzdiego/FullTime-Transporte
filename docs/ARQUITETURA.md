@@ -1,46 +1,48 @@
-# Arquitetura — Full Time MVP
+# Arquitetura — Full Time Transporte
 
-## Visão geral
-
-A primeira versão utiliza Google Apps Script para a camada de aplicação, Google Sheets como persistência e uma interface HTML/CSS/JavaScript entregue por `doGet()`.
+## Objetivo
+O sistema recebe operações e cargas, mantém cadastros e vínculos veiculares, coleta disponibilidade diária dos motoristas (em etapa futura) e gera a escala automaticamente. O administrador acompanha e trata exceções; não distribui manualmente motoristas como fluxo normal.
 
 ## Componentes
+- `Code.gs`: autenticação, autorização, validação, persistência, adaptador da planilha de origem, operações e regras de escala.
+- `Index.html`: interface administrativa.
+- Planilha operacional: cadastros e dados da operação.
+- Planilha de origem do Bruno: fonte dos cadastros sincronizados, sem duplicar guias desnecessariamente.
 
-- `Code.gs`: autenticação, sessão, autorização de administrador, validação de dados, CRUD de motoristas e caminhões, métricas e auditoria.
-- `Index.html`: login e experiência administrativa responsiva.
-- Google Sheets: tabelas `USUARIOS`, `MOTORISTAS`, `CAMINHOES`, `AUDITORIA` e `CONFIGURACOES`.
+## Modelo conceitual
+### Motorista
+Cadastro, status, habilitação documental e identificador externo estável.
 
-## Modelo de dados
+### Veículos
+Cavalo mecânico e carretas com placa, situação, capacidade e documentação. Capacidade útil não deve ser calculada por soma nominal sem validar limites legais do conjunto.
 
-### USUARIOS
-Identificador, login, nome, salt/hash da senha, papel, estado ativo, flag de troca obrigatória, data de criação e último login.
+### Vínculo veicular
+Associação vigente entre motorista e cavalo mecânico, com carretas opcionais. O vínculo é configurado no cadastro, não na tela de escala. Toda troca deve registrar início/fim de vigência e preservar um retrato dos veículos utilizados em cada escala histórica.
 
-### MOTORISTAS
-Identificador UUID, criação/atualização, status, nome, CPF, telefone, e-mail, dados de CNH, cidade/UF, contato de emergência, observações e usuário que cadastrou.
+### Operação e carga
+Operação contém cliente, origem, destino, data, categoria, volume e quantidade prevista. Cargas representam unidades concretas a distribuir e executar. É necessário manter clara a diferença entre operação, carga e viagem realizada.
 
-Status inicial: `PENDENTE_REVISAO`. Estados operacionais: `ATIVO`, `INATIVO`.
+### Disponibilidade diária
+Confirmação do motorista para uma data específica. A data de referência será o próximo dia; horário de abertura/fechamento permanece pendente de decisão operacional.
 
-### CAMINHOES
-Identificador UUID, criação/atualização, status, placa, RENAVAM, marca, modelo, ano, tipo, capacidade em toneladas, situação documental, observações e usuário que cadastrou.
+### Escala automática
+O motor deve:
+1. selecionar somente motoristas ativos e habilitados para a data;
+2. resolver o vínculo vigente do motorista;
+3. validar cavalo, carretas, capacidade, documentos, restrições e conflitos;
+4. aplicar regras aprovadas de prioridade, equilíbrio e sequência;
+5. impedir dupla alocação incompatível de motorista ou veículo;
+6. gravar escala e retrato dos veículos utilizados;
+7. registrar motivo da seleção e motivos de inelegibilidade;
+8. manter auditoria e permitir tratamento administrativo de exceções sem apagar histórico.
 
-Status inicial: `PENDENTE_REVISAO`. Estados operacionais: `ATIVO`, `INATIVO`.
+Nenhum peso ou critério de prioridade deve ser inventado. As regras precisam ser confirmadas com a Full Time antes da ativação.
 
-### AUDITORIA
-Data, usuário, login, ação, entidade, identificador e breve descrição da ação administrativa.
+## Integração Bruno → sistema
+O adaptador lê por cabeçalho normalizado. IDs externos de motorista, cavalo e carretas devem mapear para os campos internos equivalentes. Placas e CPF/nome podem ajudar no diagnóstico, nunca substituir silenciosamente um ID ambíguo. Registros sem correspondência devem ficar pendentes de revisão.
 
-## Fluxos previstos
+## Estado de implementação
+Há estruturas e funções de operações, candidatos, participações e histórico, mas isso não equivale a um motor automático completo. A interface administrativa não deve oferecer designação manual como fluxo padrão. A disponibilidade do motorista e a execução automática precisam ser implementadas e testadas de ponta a ponta.
 
-1. O administrador autentica-se.
-2. Na primeira autenticação, deve trocar a senha temporária.
-3. A aplicação obtém os indicadores e listas por funções de backend.
-4. O formulário envia os dados à função de servidor apropriada.
-5. O backend valida autorização, campos e duplicidades antes de gravar.
-6. O registro novo é criado como pendente.
-7. O administrador revisa e ativa/inativa manualmente.
-
-## Limites deste MVP
-
-- Não implementa ainda cargas, escalas, viagens, notificações, WhatsApp, relatórios exportáveis ou área de motorista.
-- Não armazena imagens de documentos.
-- Não realiza validação externa de CNH, CRLV-e, CPF ou situação legal.
-- Google Sheets não deve ser presumido como banco definitivo para uma operação crítica com concorrência sem testes de carga, revisão de arquitetura e plano de recuperação.
+## Limitações
+Google Sheets e Apps Script têm cotas e limites de concorrência. Antes de operação crítica, realizar testes simultâneos, revisar locks, autenticação, backup, restauração, LGPD e observabilidade.
