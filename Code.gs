@@ -12,7 +12,8 @@ const FT_CONFIG = {
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
 function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
-  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty('FT_TARGET_SPREADSHEET_ID');
+  if (!spreadsheetId) throw new Error('Operação bloqueada: configure FT_TARGET_SPREADSHEET_ID explicitamente. A homologação não pode apontar para uma planilha antiga por padrão.');
   const ss = SpreadsheetApp.openById(spreadsheetId);
   const schemas = {
     MOTORISTAS: [
