@@ -343,16 +343,24 @@
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.campos[2]||o.id):id;};
-    const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
+    const setName=id=>{
+      const s=sets.find(x=>x.id===id);if(!s)return id;
+      const horses=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])];
+      const horse=horses.find(x=>x.id===String(s.campos[1]||''));
+      const middle=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[2]||''));
+      const rear=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[3]||''));
+      const plates=[horse?.campos?.[0],middle?.campos?.[0],rear?.campos?.[0]].filter(Boolean);
+      return plates.length?plates.join(' / '):'Veículos pendentes de vínculo';
+    };
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
     const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
-      <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
+      <div class="page-head"><div><h1>Escalas por operação</h1><p>Acompanhe motoristas alocados pelo sistema, veículos vinculados e exceções operacionais.</p></div></div>
       <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
         <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
           <div class="field"><label>Operação de origem *</label><select name="operacaoAtualId" required>${opOptions}</select></div>
