@@ -70,6 +70,9 @@ function configurarIntegracaoCadastroBrunoFullTime() {
   protegerCabecalhoFT_(origem.getSheetByName('CARRETAS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CONJUNTOS'), 'Full Time — cabeçalho do cadastro');
   configurarEdicaoMotoristaConjuntoBrunoFullTime_(origem);
+  const handlerEdicao = 'onEditConjuntosBrunoFullTime';
+  ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()===handlerEdicao;}).forEach(function(t){ScriptApp.deleteTrigger(t);});
+  ScriptApp.newTrigger(handlerEdicao).forSpreadsheet(origem).onEdit().create();
   protegerCabecalhoFT_(origem.getSheetByName('CONTROLE_DOCUMENTAL'), 'Full Time — cabeçalho do cadastro');
   atualizarLinksGuiasFullTime_();
   PropertiesService.getScriptProperties().setProperty('FT_BRUNO_SOURCE_ID', FT_BRUNO_CONFIG.SOURCE_ID);
@@ -212,9 +215,8 @@ function configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss) {
   const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(x=>String(x).trim()), ix={};
   h.forEach((x,i)=>ix[x]=i+1);
   ['ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CAPACIDADE_UTIL_TONELADAS'].forEach(k=>{if(!ix[k])throw new Error('Falta coluna '+k+' em CONJUNTOS.');});
-  if(mot.getLastRow()<2) throw new Error('Cadastre os motoristas antes de configurar a seleção.');
   const edit=sh.getRange(2,ix.MOTORISTA_ID_EXTERNO,sh.getMaxRows()-1,1);
-  edit.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(mot.getRange(2,1,mot.getLastRow()-1,1),true).setAllowInvalid(false).setHelpText('Selecione o motorista deste conjunto.').build());
+  if(mot.getLastRow()>=2) edit.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(mot.getRange(2,1,mot.getLastRow()-1,1),true).setAllowInvalid(false).setHelpText('Selecione o motorista deste conjunto.').build());
   const desc='Full Time — CONJUNTOS: edição exclusiva do motorista';
   let p=sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).find(x=>x.getDescription()===desc);
   if(!p)p=sh.protect().setDescription(desc);
