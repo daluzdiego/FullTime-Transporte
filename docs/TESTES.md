@@ -46,3 +46,18 @@ Executar em ambiente de teste, somente com dados fictícios. Não ativar escalas
 - [ ] Testar duas execuções concorrentes do gerador.
 - [ ] Confirmar auditoria e recuperação de dados.
 - [ ] Não cadastrar dados reais antes da revisão de segurança e LGPD.
+
+## Suíte automatizada de fluxo integral (somente leitura)
+
+Arquivo: `TESTE_FLUXO_INTEGRAL.gs`
+
+1. Copie o conteúdo do arquivo para o projeto Apps Script vinculado ao sistema (ou mantenha o arquivo no projeto, se já estiver sincronizado).
+2. Confirme que `FT_REGISTRY_DATABASE_ID` aponta para a planilha de homologação, nunca para a planilha de produção durante os testes.
+3. No editor do Apps Script, selecione e execute `executarTesteFluxoIntegralFullTime`.
+4. Autorize as permissões solicitadas e consulte **Execuções > Registros**.
+5. O retorno contém `total`, `aprovados`, `falhas`, `bloqueios` e o detalhamento de cada etapa.
+
+A suíte é não destrutiva: não cria, altera nem apaga linhas. Verifica conexão, estrutura das guias, leitura dos espelhos do Bruno, integridade dos vínculos, listagens operacionais, IDs duplicados, participações simultâneas e ordenação determinística.
+
+**Critério de aprovação:** `prontoParaProducao` só será verdadeiro quando não houver falhas nem bloqueios. No estado atual, espera-se bloqueio explícito porque a função de geração automática de escalas ainda não foi implementada. A suíte não simula uma escala que o sistema ainda não gera e não substitui testes transacionais em uma cópia isolada da planilha.
+
