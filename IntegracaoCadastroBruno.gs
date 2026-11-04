@@ -34,11 +34,13 @@ function configurarIntegracaoCadastroBrunoFullTime() {
   required.forEach(function(name) {
     const sh = origem.getSheetByName(name);
     if (!sh) throw new Error('Guia obrigatória não encontrada na planilha do Bruno: ' + name);
-    const got = sh.getRange(1, 1, 1, FT_BRUNO_HEADERS[name].length).getDisplayValues()[0];
     const expected = FT_BRUNO_HEADERS[name];
-    if (expected.some(function(h, i) { return String(got[i] || '').trim() !== h; })) {
+    const got = sh.getRange(1, 1, 1, expected.length).getDisplayValues()[0];
+    const mismatch = expected.some(function(h, i) { return String(got[i] || '').trim() !== '' && String(got[i] || '').trim() !== h; });
+    if (mismatch) {
       throw new Error('Cabeçalhos divergentes em ' + name + '. Nenhuma sincronização foi executada.');
     }
+    expected.forEach(function(h,i){ if (!String(got[i] || '').trim()) sh.getRange(1,i+1).setValue(h); });
   });
   const mirrorHeaders = {
     FT_CADASTRO_BRUNO_MOTORISTAS: FT_BRUNO_HEADERS.MOTORISTAS,
@@ -54,9 +56,10 @@ function configurarIntegracaoCadastroBrunoFullTime() {
     const row = sh.getRange(1,1,1,headers.length).getDisplayValues()[0];
     if (row.every(function(v){return !String(v || '').trim();})) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
-    } else if (headers.some(function(h,i){return String(row[i] || '').trim() !== h;})) {
+    } else if (headers.some(function(h,i){return String(row[i] || '').trim() !== '' && String(row[i] || '').trim() !== h;})) {
       throw new Error('A guia de espelho ' + name + ' já existe com cabeçalhos diferentes. Nenhuma informação foi sobrescrita.');
     }
+    headers.forEach(function(h,i){ if (!String(row[i] || '').trim()) sh.getRange(1,i+1).setValue(h); });
     sh.setFrozenRows(1);
     sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
     protegerCabecalhoFT_(sh, 'Full Time — cabeçalho controlado pelo sistema');
@@ -250,7 +253,12 @@ function onEditConjuntosBrunoFullTime(e) {
 /** Execute uma vez na planilha de cadastro do Bruno para aplicar a proteção. */
 function configurarConjuntosBrunoFullTime(){
   const ss=SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
-  return configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss);
+  const result=configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss);
+  const handler='onEditConjuntosBrunoFullTime';
+  ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(handler).forSpreadsheet(ss).onEdit().create();
+  result.gatilhoEdicao='instalado';
+  return result;
 }
 
 function criarFormularioMotoristasFullTime() {
