@@ -23,7 +23,7 @@ const FT_BRUNO_HEADERS = Object.freeze({
   MOTORISTAS: ['ID_EXTERNO','NOME_COMPLETO','CPF','RG','DATA_NASCIMENTO','TELEFONE','WHATSAPP','EMAIL','ENDERECO','CIDADE','UF','CEP','CNH_NUMERO','CNH_CATEGORIA','CNH_PRIMEIRA_HABILITACAO','CNH_VALIDADE','CNH_EAR','EXAME_TOXICOLOGICO_VALIDADE','STATUS_DOCUMENTACAO','LINK_CNH','LINK_EXAME_TOXICOLOGICO','OBSERVACOES'],
   CAVALOS: ['ID_EXTERNO','PLACA','RENAVAM','CHASSI','NUMERO_MOTOR','MARCA','MODELO','VERSAO','ANO_FABRICACAO','ANO_MODELO','TIPO_VEICULO','ESPECIE','CARROCERIA','COR','COMBUSTIVEL','NUMERO_EIXOS','TARA_TONELADAS','LOTACAO_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','ANTT_RNTRC','ANTT_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','OBSERVACOES'],
   CARRETAS: ['ID_EXTERNO','PLACA','RENAVAM','CHASSI','MARCA','MODELO','ANO_FABRICACAO','ANO_MODELO','TIPO_CARRETA','ESPECIE','CARROCERIA','COR','NUMERO_EIXOS','TARA_TONELADAS','LOTACAO_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','OBSERVACOES'],
-  CONJUNTOS: ['ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO','DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO','OBSERVACOES'],
+  CONJUNTOS: ['ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO','DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO','OBSERVACOES','STATUS','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
   CONTROLE_DOCUMENTAL: ['ID_DOCUMENTO','TIPO_REGISTRO','ID_EXTERNO_REGISTRO','PLACA_OU_CPF','TIPO_DOCUMENTO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','STATUS_DOCUMENTO','LINK_ARQUIVO','DATA_CONFERENCIA','CONFERIDO_POR','PENDENCIA','OBSERVACOES']
 });
 
@@ -66,6 +66,7 @@ function configurarIntegracaoCadastroBrunoFullTime() {
   protegerCabecalhoFT_(origem.getSheetByName('CAVALOS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CARRETAS'), 'Full Time — cabeçalho do cadastro');
   protegerCabecalhoFT_(origem.getSheetByName('CONJUNTOS'), 'Full Time — cabeçalho do cadastro');
+  configurarEdicaoMotoristaConjuntoBrunoFullTime_(origem);
   protegerCabecalhoFT_(origem.getSheetByName('CONTROLE_DOCUMENTAL'), 'Full Time — cabeçalho do cadastro');
   atualizarLinksGuiasFullTime_();
   PropertiesService.getScriptProperties().setProperty('FT_BRUNO_SOURCE_ID', FT_BRUNO_CONFIG.SOURCE_ID);
@@ -198,6 +199,58 @@ function protegerCabecalhoFT_(sheet, description) {
   const editors = p.getEditors();
   if (editors.length) p.removeEditors(editors);
   if (p.canDomainEdit()) p.setDomainEdit(false);
+}
+
+
+/** Configura CONJUNTOS como painel central. Somente a seleção do motorista fica editável. */
+function configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss) {
+  const sh=ss.getSheetByName('CONJUNTOS'), mot=ss.getSheetByName('MOTORISTAS');
+  if(!sh||!mot) throw new Error('Guia MOTORISTAS ou CONJUNTOS ausente.');
+  const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(x=>String(x).trim()), ix={};
+  h.forEach((x,i)=>ix[x]=i+1);
+  ['ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CAPACIDADE_UTIL_TONELADAS'].forEach(k=>{if(!ix[k])throw new Error('Falta coluna '+k+' em CONJUNTOS.');});
+  if(mot.getLastRow()<2) throw new Error('Cadastre os motoristas antes de configurar a seleção.');
+  const edit=sh.getRange(2,ix.MOTORISTA_ID_EXTERNO,sh.getMaxRows()-1,1);
+  edit.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInRange(mot.getRange(2,1,mot.getLastRow()-1,1),true).setAllowInvalid(false).setHelpText('Selecione o motorista deste conjunto.').build());
+  const desc='Full Time — CONJUNTOS: edição exclusiva do motorista';
+  let p=sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).find(x=>x.getDescription()===desc);
+  if(!p)p=sh.protect().setDescription(desc);
+  p.setWarningOnly(false); p.setUnprotectedRanges([edit]);
+  const editors=p.getEditors(); if(editors.length)p.removeEditors(editors);
+  if(p.canDomainEdit())p.setDomainEdit(false);
+  sh.setFrozenRows(1);
+  ['MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CAPACIDADE_UTIL_TONELADAS'].forEach(k=>sh.getRange(1,ix[k]).setNote('Campo automático/controlado pela administração. Não editar.'));
+  sh.getRange(1,ix.MOTORISTA_ID_EXTERNO).setNote('ÚNICA COLUNA EDITÁVEL PELO BRUNO: selecione o motorista do conjunto.');
+  return {guia:'CONJUNTOS',campoEditavel:'MOTORISTA_ID_EXTERNO',protecao:'demais células bloqueadas'};
+}
+
+/** Atualiza nome/CPF e impede que um motorista fique em dois conjuntos ativos. */
+function onEditConjuntosBrunoFullTime(e) {
+  if(!e||!e.range)return;
+  const sh=e.range.getSheet(), row=e.range.getRow();
+  if(sh.getName()!=='CONJUNTOS'||row<2)return;
+  const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(x=>String(x).trim()), ix={};
+  h.forEach((x,i)=>ix[x]=i+1);
+  if(e.range.getColumn()!==ix.MOTORISTA_ID_EXTERNO)return;
+  const id=String(e.value||'').trim(), ss=sh.getParent(), mot=ss.getSheetByName('MOTORISTAS');
+  if(!id){sh.getRange(row,ix.MOTORISTA_CPF).clearContent();sh.getRange(row,ix.MOTORISTA_NOME).clearContent();return;}
+  const mh=mot.getRange(1,1,1,mot.getLastColumn()).getDisplayValues()[0].map(x=>String(x).trim()), mi={};
+  mh.forEach((x,i)=>mi[x]=i);
+  const mr=mot.getLastRow()>1?mot.getRange(2,1,mot.getLastRow()-1,mot.getLastColumn()).getValues():[];
+  const driver=mr.find(x=>String(x[mi.ID_EXTERNO]||'').trim()===id);
+  if(!driver){e.range.clearContent();throw new Error('Motorista não encontrado.');}
+  const all=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues():[];
+  const duplicate=all.some((x,i)=>i+2!==row&&String(x[ix.MOTORISTA_ID_EXTERNO-1]||'').trim()===id&&!['ENCERRADO','CANCELADO','INATIVO'].includes(String(x[ix.STATUS_VINCULO-1]||'').trim().toUpperCase()));
+  if(duplicate){e.range.clearContent();sh.getRange(row,ix.MOTORISTA_CPF).clearContent();sh.getRange(row,ix.MOTORISTA_NOME).clearContent();throw new Error('Motorista já vinculado a outro conjunto ativo.');}
+  sh.getRange(row,ix.MOTORISTA_CPF).setValue(driver[mi.CPF]||'');
+  sh.getRange(row,ix.MOTORISTA_NOME).setValue(driver[mi.NOME_COMPLETO]||'');
+  if(ix.ATUALIZADO_POR)sh.getRange(row,ix.ATUALIZADO_POR).setValue(Session.getActiveUser().getEmail()||'BRUNO');
+}
+
+/** Execute uma vez na planilha de cadastro do Bruno para aplicar a proteção. */
+function configurarConjuntosBrunoFullTime(){
+  const ss=SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  return configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss);
 }
 
 function criarFormularioMotoristasFullTime() {
