@@ -120,6 +120,7 @@ function ftHomologacaoPopular_(ss) {
 
   const motoristas = [];
   const cavalos = [];
+  const caminhoes = [];
   const carretas = [];
   const docsMotoristas = [];
   const docsFrota = [];
@@ -159,6 +160,11 @@ function ftHomologacaoPopular_(ss) {
     cavalos.push([
       horseId, now, 'ATIVO', plateH, 'Marca Fictícia', 'Cavalo ' + n, 2022 + (i % 4),
       9.2, 45 + (i % 3), 'PBTC informado como dado fictício para teste; validar regra legal em produção'
+    ]);
+    caminhoes.push([
+      horseId, now, 'ATIVO', plateH, 'RENAVAM-TESTE-' + n, 'Marca Fictícia', 'Cavalo ' + n,
+      2022 + (i % 4), 'CAVALO MECANICO', 28 + (i % 3) * 2, 'VALIDO',
+      'Espelho de compatibilidade do cadastro CAVALOS; dado fictício'
     ]);
     carretas.push(
       [trailerA, now, 'ATIVO', plateA, 'GRANELEIRA', 7.0, 28 + (i % 3), 35 + (i % 3), 'Fictícia — homologação'],
@@ -221,6 +227,7 @@ function ftHomologacaoPopular_(ss) {
 
   add('MOTORISTAS', motoristas);
   add('CAVALOS', cavalos);
+  add('CAMINHOES', caminhoes);
   add('CARRETAS', carretas);
   add('CONJUNTOS', conjuntos);
   add('DOCUMENTOS_MOTORISTAS', docsMotoristas);
