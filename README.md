@@ -41,3 +41,7 @@ O adaptador lê dados por nome de cabeçalho e converte identificadores externos
 - `docs/SEGURANCA.md`
 - `docs/TESTES.md`
 - `docs/ROADMAP.md`
+
+## Homologação isolada
+
+O branch `homologacao/mvp-isolado` contém o bootstrap `HOMOLOGACAO_SETUP.gs` para criar uma base independente com dados fictícios. Leia [`docs/HOMOLOGACAO.md`](docs/HOMOLOGACAO.md) antes de executar: o bootstrap deve rodar somente em um projeto Apps Script novo, nunca no projeto publicado atual.
