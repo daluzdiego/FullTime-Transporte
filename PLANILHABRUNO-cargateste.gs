@@ -1,6 +1,6 @@
 
 /**
- * FULL TIME — GERADOR DE CARGA FICTÍCIA V1
+ * FULL TIME — GERADOR DE CARGA FICTÍCIA V1.2
  *
  * Executar manualmente:
  * gerarCargaFicticiaFullTime_V1
@@ -8,13 +8,17 @@
  * - Acrescenta 20 registros por categoria.
  * - Não apaga nem modifica linhas existentes.
  * - Não acessa CAVALOS-BRUNO.
- * - Não sincroniza nem escreve na planilha principal.
+ * - Grava exclusivamente na planilha de origem do Bruno.
+ * - A replicação para a planilha principal é feita depois por sincronizarCadastroBrunoFullTime().
  * - Pode ser executado novamente sem duplicar IDs do lote.
  * - Todos os registros são fictícios e identificados como TESTE.
  * - CORREÇÃO V1.1: CONTROLE_DOCUMENTAL usa ID_DOCUMENTO como chave.
  */
 function gerarCargaFicticiaFullTime_V1() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (typeof FT_BRUNO_CONFIG === 'undefined' || !FT_BRUNO_CONFIG.SOURCE_ID) {
+    throw new Error('Configuração FT_BRUNO_CONFIG.SOURCE_ID não encontrada. Atualize IntegracaoCadastroBruno.gs antes de executar.');
+  }
+  const ss = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
   const LOTE = 'FT-TESTE-20261029-';
   const TOTAL = 20;
   const agora = new Date();
