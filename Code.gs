@@ -1235,7 +1235,7 @@ function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
     offers.getRange(item.i+1,9).setValue(now);
     ftRegistrarEventoEscala_('OFERTA_EXPIRADA',operacaoId,item.r[2],item.r[3],item.r[4],item.r[5],'Prazo de aceite expirado',session.login);
   }
-  const candidatos=ordenarCandidatosOperacaoFullTime(token,operacaoId);
+  const candidatos=ftOrdenarCandidatosOperacao_(operacaoId);
   if(!candidatos.length)return {ok:false,status:'SEM_CANDIDATO',operacaoId:String(operacaoId),message:'Não há motorista elegível e disponível para esta operação neste momento.'};
   const escolhido=candidatos[0],loads=getSheet_('CARGAS'),loadRows=loads.getDataRange().getValues();
   const loadHeaders=loadRows[0].map(v=>String(v||'').trim()),opCol=loadHeaders.indexOf('OPERACAO_ID'),idCol=loadHeaders.indexOf('ID');
@@ -1285,7 +1285,7 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
       const next=ftGerarProximaOfertaOperacao_(token,operationId,session);
       return {ok:true,status:newStatus,proximaOferta:next,message:'Resposta registrada. '+(next.message||'')};
     }
-    const candidates=ordenarCandidatosOperacaoFullTime(token,operationId),candidate=candidates.find(x=>String(x.id)===String(offer[4])&&String(x.driverId)===String(offer[3]));
+    const candidates=ftOrdenarCandidatosOperacao_(operationId),candidate=candidates.find(x=>String(x.id)===String(offer[4])&&String(x.driverId)===String(offer[3]));
     if(!candidate)throw new Error('O motorista/conjunto deixou de atender aos critérios de elegibilidade ou disponibilidade. Gere a próxima oferta.');
     const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operationId);
     if(opIndex<1||!['ABERTA','EM_ANDAMENTO'].includes(String(opRows[opIndex][2])))throw new Error('A operação não está mais aberta.');
@@ -1325,6 +1325,31 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
   }finally{lock.releaseLock();}
 }
 
+function processarOfertasExpiradasSistema_() {
+  const lock=LockService.getScriptLock();if(!lock.tryLock(10000))return {ok:false,ignorado:true,reason:'LOCK_OCUPADO'};
+  try{
+    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),now=new Date(),operations=new Set();
+    let totalExpiradas=0;
+    rows.slice(1).forEach((r,i)=>{
+      const expires=r[7] instanceof Date?r[7]:new Date(r[7]);
+      if(String(r[6]||'').toUpperCase()==='PENDENTE'&&isFinite(expires.getTime())&&expires<=now){
+        sh.getRange(i+2,7).setValue('EXPIRADA');sh.getRange(i+2,9).setValue(now);
+        operations.add(String(r[11]||''));totalExpiradas++;
+        ftRegistrarEventoEscala_('OFERTA_EXPIRADA',String(r[11]||''),r[2],r[3],r[4],r[5],'Prazo de aceite expirado','SISTEMA');
+      }
+    });
+    const novas=[];operations.forEach(id=>{if(id)novas.push(ftGerarProximaOfertaOperacao_('',id,{login:'SISTEMA'}));});
+    return {ok:true,expiradas:totalExpiradas,operacoesAfetadas:operations.size,novasOfertas:novas};
+  }finally{lock.releaseLock();}
+}
+
+function instalarGatilhoExpiracaoOfertasFullTime() {
+  const handler='processarOfertasExpiradasSistema_';
+  ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(handler).timeBased().everyMinutes(5).create();
+  return {ok:true,handler:handler,frequencia:'A cada 5 minutos',observacao:'Instala apenas o processamento de expiração e próxima oferta; não envia WhatsApp.'};
+}
+
 function processarOfertasExpiradasFullTime(token) {
   const session=obterSessao_(token);exigirAdmin_(session);
   const lock=LockService.getScriptLock();lock.waitLock(15000);
@@ -1343,8 +1368,7 @@ function processarOfertasExpiradasFullTime(token) {
   }finally{lock.releaseLock();}
 }
 
-function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
-  const session=obterSessao_(token); exigirAdmin_(session);
+function ftOrdenarCandidatosOperacao_(operacaoId) {
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
   const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftCadastroRowsAsLegacy_('CONJUNTOS'));
@@ -1392,6 +1416,12 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   }).filter(c=>c.eligible);
   const ordered=ordenarElegiveisEscalaFullTime(candidates.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
   return ordered.map((c,i)=>({posicao:i+1,...c}));
+}
+
+
+function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  return ftOrdenarCandidatosOperacao_(operacaoId);
 }
 
 function ftNormHeader_(v) {
