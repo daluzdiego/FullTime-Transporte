@@ -1,47 +1,43 @@
 # Full Time — Transporte e Consultoria
 
-Sistema web responsivo para apoio à operação de transporte, iniciado pelo MVP administrativo.
+Sistema administrativo e operacional em evolução para gestão de transporte, cadastros de frota, operações, cargas, disponibilidade e geração automática de escalas.
 
-## Escopo do MVP
+## Arquitetura atual
+- Google Apps Script: backend e aplicação web.
+- Google Sheets: persistência operacional e sincronização dos cadastros recebidos da planilha do Bruno.
+- `Code.gs`: autenticação, autorização, cadastros, integração, operações e regras de escala em evolução.
+- `Index.html`: interface administrativa responsiva.
 
-- Login administrativo com troca obrigatória da senha temporária no primeiro acesso.
-- Painel administrativo responsivo.
-- Cadastro, consulta, edição e inativação de motoristas.
-- Cadastro, consulta, edição e inativação de caminhões.
-- Validações de placa e CPF para minimizar duplicidades.
-- Os demais módulos aparecem como **EM DESENVOLVIMENTO**.
-- Interface otimizada para desktop e celular, com estética corporativa inspirada no Microsoft Fluent Design.
+## Regra central do produto
+**A escala será gerada pelo próprio sistema.** O administrador mantém operações, cadastros, vínculos e regras; não escolhe manualmente o motorista para cada operação. Em etapa posterior, o motorista acessará uma área própria apenas para informar sua disponibilidade para o próximo dia. O horário limite para essa confirmação depende de validação com Bruno e permanece pendente.
 
-## Tecnologia
+O vínculo veicular é feito no cadastro: motorista → cavalo mecânico → zero, uma ou mais carretas conforme a configuração operacional suportada. Na escala, o sistema recupera automaticamente as placas e os dados desse vínculo. Alterações precisam preservar o histórico das escalas anteriores.
 
-- Google Apps Script como backend e aplicação web.
-- Google Sheets como persistência inicial.
-- HTML, CSS e JavaScript no frontend.
+## Módulos presentes no código
+- Login administrativo e troca obrigatória da senha inicial.
+- Painel e cadastros administrativos.
+- Leitura/sincronização de motoristas, cavalos, carretas e conjuntos da planilha de origem.
+- Cadastro de operações e cargas.
+- Cadastro de vínculos veiculares.
+- Estruturas de disponibilidade, fila, ofertas, eventos e participações operacionais.
 
-## Estrutura do repositório
+A presença de uma função ou guia não significa que o fluxo esteja pronto para produção. A geração automática completa, as regras de distribuição e a área do motorista ainda exigem implementação integrada e testes.
 
-- `Code.gs`: backend, autenticação, permissões, validações e operações de dados.
-- `Index.html`: interface responsiva de login e painel.
-- `appsscript.json`: manifesto sugerido do Apps Script.
-- `docs/ARQUITETURA.md`: visão técnica e modelo de dados.
-- `docs/INSTALACAO.md`: configuração, implantação e primeiros testes.
-- `docs/SEGURANCA.md`: premissas de segurança e proteção de dados.
-- `docs/TESTES.md`: roteiro de validação manual.
-- `docs/ROADMAP.md`: próximos módulos.
+## Integração da planilha do Bruno
+O adaptador lê dados por nome de cabeçalho e converte identificadores externos para o modelo interno. Os campos `MOTORISTA_ID_EXTERNO`, `CAVALO_ID_EXTERNO`, `CARRETA_MEIO_ID_EXTERNO` e `CARRETA_FINAL_ID_EXTERNO` devem ser preservados e resolvidos sem criar cópias desnecessárias de guias.
 
-## Instalação resumida
+## Segurança e implantação
+- Use somente dados fictícios durante a validação.
+- Restrinja o acesso ao aplicativo e às planilhas.
+- Não considere o sistema pronto para operação crítica sem testes, revisão de segurança, concorrência, recuperação e proteção de dados.
+- Atualizar o GitHub não atualiza automaticamente a implantação publicada do Apps Script.
 
-1. Crie um projeto em [Google Apps Script](https://script.google.com/).
-2. Copie `Code.gs` para o editor de script.
-3. Crie um arquivo HTML chamado `Index` e copie `Index.html`.
-4. Ajuste o manifesto conforme `appsscript.json`, se necessário.
-5. Execute `configurarSistemaFullTime()` uma única vez e autorize as permissões solicitadas.
-6. Consulte os logs para recuperar a planilha criada e as informações de bootstrap.
-7. Implante como Aplicativo da web, restringindo o acesso à organização/usuários autorizados conforme as opções disponíveis na conta.
-8. No primeiro acesso, defina uma senha individual e forte para cada administrador.
-
-> **Importante:** credenciais temporárias servem apenas para bootstrap e não devem ser mantidas. Antes de usar dados reais de CNH, CPF ou documentos, restrinja o acesso à planilha e teste a autenticação e as permissões. Esta versão é um MVP em validação; não a considere pronta para operação crítica sem testes e revisão de segurança.
-
-## Estado atual
-
-MVP inicial: login, painel, cadastros administrativos de motoristas e caminhões. Cargas, escalas, viagens, relatórios e configurações operacionais completas permanecem em desenvolvimento.
+## Estrutura principal
+- `Code.gs`
+- `Index.html`
+- `appsscript.json`
+- `docs/ARQUITETURA.md`
+- `docs/INSTALACAO.md`
+- `docs/SEGURANCA.md`
+- `docs/TESTES.md`
+- `docs/ROADMAP.md`

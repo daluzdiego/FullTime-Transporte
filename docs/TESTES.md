@@ -1,56 +1,63 @@
-# Checklist de testes — MVP
+# Plano de testes — Full Time Transporte
 
-Executar com dados fictícios, em implantação de teste, antes de cadastrar dados reais.
+Executar em ambiente de teste, somente com dados fictícios. Não ativar escalas reais enquanto houver falhas.
 
-## Bootstrap e login
+## Integração dos cadastros Bruno → sistema
+- [ ] Conferir cabeçalhos de todas as guias de origem.
+- [ ] Validar leitura de `ID_EXTERNO` como identificador estável.
+- [ ] Validar `MOTORISTA_ID_EXTERNO` → `MOTORISTA_ID`.
+- [ ] Validar `CAVALO_ID_EXTERNO` → `CAVALO_ID`.
+- [ ] Validar `CARRETA_MEIO_ID_EXTERNO` → `CARRETA_MEIO_ID`.
+- [ ] Validar `CARRETA_FINAL_ID_EXTERNO` → `CARRETA_FINAL_ID`.
+- [ ] Confirmar que placas e nomes correspondem aos IDs vinculados.
+- [ ] Testar IDs ausentes, duplicados e não encontrados; vínculo ambíguo não pode ser ativado.
+- [ ] Confirmar que sincronização não cria guias duplicadas nem sobrescreve cadastros locais.
 
-- [ ] Executar `configurarSistemaFullTime()` uma única vez.
-- [ ] Confirmar URL da planilha e criação das cinco abas.
-- [ ] Confirmar que Diego e Bruno constam em `USUARIOS` com papel `ADMIN`.
-- [ ] Entrar com cada senha temporária e trocar por uma senha pessoal.
-- [ ] Confirmar que a senha anterior não funciona após a troca.
-- [ ] Testar senha errada e usuário desconhecido.
-- [ ] Encerrar sessão e confirmar retorno ao login.
-- [ ] Confirmar que recarregar a página exige login novamente.
+## Vínculo motorista–veículos
+- [ ] Associar motorista a cavalo sem carreta.
+- [ ] Associar motorista a cavalo e uma carreta.
+- [ ] Associar motorista a cavalo e duas carretas.
+- [ ] Impedir reutilização simultânea indevida do mesmo motorista ou veículo.
+- [ ] Impedir ativação se motorista ou veículo estiver pendente/inativo.
+- [ ] Trocar veículo e confirmar vigência/histórico sem alterar escalas passadas.
+- [ ] Confirmar que a tela de escala não exige escolher cavalo ou carreta.
 
-## Motoristas
+## Operações e cargas
+- [ ] Validar datas, origem, destino, cliente, volume e quantidade.
+- [ ] Confirmar relação entre volume total, cargas previstas e cargas individuais.
+- [ ] Impedir alocação acima do saldo.
+- [ ] Validar estados de operação e transições válidas.
 
-- [ ] Criar um motorista com dados fictícios válidos.
-- [ ] Confirmar status `PENDENTE_REVISAO`.
-- [ ] Pesquisar por nome e telefone.
-- [ ] Filtrar por status.
-- [ ] Confirmar que CPF está mascarado na listagem.
-- [ ] Tentar inserir o mesmo CPF novamente; o sistema deve bloquear.
-- [ ] Tentar CPF inválido, CNH sem validade ou categoria inválida.
-- [ ] Editar um cadastro e confirmar os valores atualizados.
-- [ ] Aprovar, inativar e reativar.
-- [ ] Confirmar entradas de auditoria para ações administrativas.
+## Motor de escala automática — pendente de implementação integrada
+- [ ] Considerar somente motoristas que confirmaram disponibilidade para a data-alvo.
+- [ ] Excluir motoristas indisponíveis, inativos ou sem vínculo válido.
+- [ ] Validar documentos, restrições, capacidade e conflitos.
+- [ ] Aplicar regras de prioridade aprovadas pelo cliente.
+- [ ] Distribuir cargas sem duplicar motorista ou veículo em conflitos.
+- [ ] Gravar placas do cavalo e carretas como retrato histórico.
+- [ ] Registrar justificativa da seleção e inelegibilidade.
+- [ ] Reexecutar sem duplicar escalas já geradas.
+- [ ] Tratar falta de elegíveis sem criar designações artificiais.
 
-## Caminhões
+## Interface e segurança
+- [ ] Confirmar que interface administrativa não oferece designação manual como fluxo normal.
+- [ ] Testar desktop, celular, teclado e mensagens de erro.
+- [ ] Testar autorização das funções de backend.
+- [ ] Testar duas execuções concorrentes do gerador.
+- [ ] Confirmar auditoria e recuperação de dados.
+- [ ] Não cadastrar dados reais antes da revisão de segurança e LGPD.
 
-- [ ] Criar caminhão de teste com placa válida.
-- [ ] Confirmar status `PENDENTE_REVISAO`.
-- [ ] Tentar cadastrar a mesma placa novamente; o sistema deve bloquear.
-- [ ] Testar placa inválida, ano inválido e capacidade zero/negativa.
-- [ ] Testar RENAVAM vazio e com 11 dígitos; valor incorreto deve ser recusado.
-- [ ] Pesquisar por placa/modelo e filtrar por status.
-- [ ] Editar, aprovar, inativar e reativar.
-- [ ] Confirmar auditoria.
+## Suíte automatizada de fluxo integral (somente leitura)
 
-## Interface e responsividade
+Arquivo: `TESTE_FLUXO_INTEGRAL.gs`
 
-- [ ] Testar em navegador de computador.
-- [ ] Testar layout em viewport estreita / celular.
-- [ ] Testar navegação lateral no celular.
-- [ ] Confirmar que os botões têm área de toque clara e espaçamento.
-- [ ] Testar foco por teclado e mensagens de erro.
-- [ ] Verificar que os demais módulos exibem **EM DESENVOLVIMENTO**.
+1. Copie o conteúdo do arquivo para o projeto Apps Script vinculado ao sistema (ou mantenha o arquivo no projeto, se já estiver sincronizado).
+2. Confirme que `FT_REGISTRY_DATABASE_ID` aponta para a planilha de homologação, nunca para a planilha de produção durante os testes.
+3. No editor do Apps Script, selecione e execute `executarTesteFluxoIntegralFullTime`.
+4. Autorize as permissões solicitadas e consulte **Execuções > Registros**.
+5. O retorno contém `total`, `aprovados`, `falhas`, `bloqueios` e o detalhamento de cada etapa.
 
-## Segurança e operação
+A suíte é não destrutiva: não cria, altera nem apaga linhas. Verifica conexão, estrutura das guias, leitura dos espelhos do Bruno, integridade dos vínculos, listagens operacionais, IDs duplicados, participações simultâneas e ordenação determinística.
 
-- [ ] Confirmar que não há senhas reais no código nem no Git.
-- [ ] Restringir compartilhamento da planilha.
-- [ ] Restringir acesso da implantação.
-- [ ] Não cadastrar documentos reais até aprovação dos controles de segurança.
-- [ ] Testar com duas sessões administrativas antes de uso conjunto.
-- [ ] Documentar como restaurar a base e recuperar acesso.
+**Critério de aprovação:** `prontoParaProducao` só será verdadeiro quando não houver falhas nem bloqueios. No estado atual, espera-se bloqueio explícito porque a função de geração automática de escalas ainda não foi implementada. A suíte não simula uma escala que o sistema ainda não gera e não substitui testes transacionais em uma cópia isolada da planilha.
+
