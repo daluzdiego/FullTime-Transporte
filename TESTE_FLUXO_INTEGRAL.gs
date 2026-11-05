@@ -33,7 +33,7 @@ function executarTesteFluxoIntegralFullTime() {
   const esperado = {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','VINCULO_FIXO'],
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','CARGA_ID'],
@@ -154,7 +154,7 @@ function executarTesteFluxoIntegralFullTime() {
     exigir(FT_BRUNO_CADASTROS.MOTORISTAS.sheet === 'FT_CADASTRO_BRUNO_MOTORISTAS', 'Espelho de motoristas não configurado.');
     exigir(FT_BRUNO_CADASTROS.CAVALOS.fields.includes('CAPACIDADE_UTIL_TONELADAS'), 'Capacidade útil do cavalo não está mapeada.');
     exigir(FT_BRUNO_CADASTROS.CARRETAS.fields.includes('CAPACIDADE_CARGA_TONELADAS'), 'Capacidade de carga das carretas não está mapeada.');
-    exigir(FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_MEIO_ID') && FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_FINAL_ID'), 'Vínculos de carretas do conjunto não estão mapeados.');
+    exigir(FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_MEIO_ID') && FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_FINAL_ID') && FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('VINCULO_FIXO'), 'Vínculos de carretas do conjunto não estão mapeados.');
     exigir(FT_BRUNO_CADASTROS.DOCUMENTOS.sheet === 'FT_CADASTRO_BRUNO_DOCUMENTOS', 'Espelho de documentos não configurado.');
     return 'Mapeamentos de motoristas, cavalos, carretas, conjuntos e documentos presentes.';
   });
@@ -169,9 +169,9 @@ function executarTesteFluxoIntegralFullTime() {
   });
 
   executar('06 — CONDIÇÃO DO CONJUNTO', 'Escala automática exige inspeção APTO explícita', () => {
-    const apto=['','','','','','','','','APTO','',20];
-    const restrito=['','','','','','','','','APTO_COM_RESTRICAO','Uso restrito',20];
-    const semInspecao=['','','','','','','','','','',20];
+    const apto=['','','','','','','','','APTO','',20,'','SIM'];
+    const restrito=['','','','','','','','','APTO_COM_RESTRICAO','Uso restrito',20,'','SIM'];
+    const semInspecao=['','','','','','','','','','',20,'','SIM'];
     exigir(ftConjuntoAptoParaEscalaAutomatica_(apto), 'Conjunto APTO explícito deveria ser elegível.');
     exigir(!ftConjuntoAptoParaEscalaAutomatica_(restrito), 'Conjunto com restrição não deve entrar automaticamente na fila.');
     exigir(!ftConjuntoAptoParaEscalaAutomatica_(semInspecao), 'Conjunto sem inspeção explícita não deve entrar na fila.');
