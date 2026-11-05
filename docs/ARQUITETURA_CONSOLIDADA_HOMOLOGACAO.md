@@ -213,3 +213,12 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 **Teste de simulação realizado fora do runtime Google:** uma operação fictícia com cinco viagens de 20 t criou uma operação-pai e cinco cargas-filhas; a segunda execução criou zero registros adicionais. Isso valida a lógica idempotente em simulação, mas não substitui o teste no Apps Script/Sheets.
 
 **Regra de assiduidade provisória:** a ordenação usa a proporção de dias trabalhados sobre dias com disponibilidade confirmada nos últimos 30 dias. Esta fórmula foi escolhida para a primeira homologação, está coberta por teste determinístico e deve ser confirmada pela gestão antes da liberação real (bloqueio B03).
+
+## 15. Capacidade do conjunto
+
+- A capacidade útil do cavalo vem de `CAPACIDADE_UTIL_TONELADAS` no cadastro do Bruno, com fallback para `CAMINHOES.CAPACIDADE_TONELADAS` quando a placa corresponder.
+- A capacidade de cada carreta vem de `CAPACIDADE_CARGA_TONELADAS`.
+- Se não existir override administrativo, a capacidade do conjunto é derivada pela soma da capacidade útil do cavalo e das carretas vinculadas, seguindo a regra já usada no cadastro de conjuntos.
+- A derivação só ocorre quando o cavalo e todas as carretas selecionadas possuem capacidade válida. Se faltar capacidade de qualquer componente, o conjunto permanece sem capacidade e não é elegível para escala.
+- Um valor em `CONJUNTO_OVERRIDES` prevalece sobre a derivação, inclusive zero (zero mantém o conjunto sem capacidade elegível).
+- A capacidade do conjunto é comparada com o peso previsto por viagem, quando conhecido, e com o peso real acumulado de cada viagem durante as movimentações.
