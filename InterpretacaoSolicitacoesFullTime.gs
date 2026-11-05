@@ -152,3 +152,101 @@ function diagnosticarConfiguracaoIAFullTime(token) {
   var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
   return {ok:true, provedor:'Google Gemini', modelo:FT_SOL_AI.MODEL, chaveConfigurada:!!key};
 }
+
+
+/**
+ * TESTE CONTROLADO DE CONEXÃO GEMINI.
+ * Executar manualmente pelo editor do Apps Script, como proprietário.
+ * Não lê solicitações, não grava planilhas e nunca registra a chave nos logs.
+ */
+function testarConexaoGeminiFullTime() {
+  var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
+  if (!key || !String(key).trim()) {
+    var semChave = { ok:false, etapa:'CONFIGURACAO', mensagem:'Propriedade FT_GEMINI_API_KEY ausente ou vazia.' };
+    console.log(JSON.stringify(semChave));
+    return semChave;
+  }
+
+  var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  var headers = { 'x-goog-api-key': String(key).trim() };
+  var resultado = {
+    ok:false,
+    chaveConfigurada:true,
+    modelo:FT_SOL_AI.MODEL,
+    etapas:{},
+    observacao:'Teste isolado; nenhuma solicitação operacional foi lida ou alterada.'
+  };
+
+  // Etapa 1: confirma autenticação e acesso aos metadados do modelo.
+  var meta;
+  try {
+    meta = UrlFetchApp.fetch(base + encodeURIComponent(FT_SOL_AI.MODEL), {
+      method:'get', headers:headers, muteHttpExceptions:true
+    });
+    var metaCode = meta.getResponseCode();
+    resultado.etapas.autenticacaoModelo = {
+      http:metaCode,
+      ok:metaCode >= 200 && metaCode < 300
+    };
+    if (metaCode < 200 || metaCode >= 300) {
+      resultado.etapas.autenticacaoModelo.detalhe = ftGeminiErroSeguro_(meta.getContentText());
+      resultado.mensagem = 'Falha ao autenticar ou consultar o modelo. Veja etapas.autenticacaoModelo.detalhe.';
+      console.log(JSON.stringify(resultado));
+      return resultado;
+    }
+  } catch (e) {
+    resultado.etapas.autenticacaoModelo = {ok:false, mensagem:String(e.message || e)};
+    resultado.mensagem = 'Falha de rede na consulta do modelo.';
+    console.log(JSON.stringify(resultado));
+    return resultado;
+  }
+
+  // Etapa 2: geração mínima, sem dados de clientes ou operações.
+  try {
+    var geracao = UrlFetchApp.fetch(base + encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent', {
+      method:'post',
+      contentType:'application/json',
+      headers:headers,
+      muteHttpExceptions:true,
+      payload:JSON.stringify({
+        contents:[{role:'user',parts:[{text:'Responda somente: TESTE_OK'}]}],
+        generationConfig:{temperature:0,maxOutputTokens:20}
+      })
+    });
+    var code = geracao.getResponseCode();
+    var body = geracao.getContentText();
+    resultado.etapas.geracao = {http:code,ok:code >= 200 && code < 300};
+    if (code >= 200 && code < 300) {
+      var parsed = JSON.parse(body);
+      var txt = parsed && parsed.candidates && parsed.candidates[0] &&
+        parsed.candidates[0].content && parsed.candidates[0].content.parts ?
+        parsed.candidates[0].content.parts.map(function(p){return p.text || '';}).join('') : '';
+      resultado.etapas.geracao.respostaRecebida = !!txt;
+      resultado.etapas.geracao.resposta = String(txt).slice(0,100);
+      resultado.ok = !!txt;
+      resultado.mensagem = resultado.ok ?
+        'Conexão, autenticação e geração de texto funcionando.' :
+        'O modelo respondeu HTTP 2xx, mas não retornou texto. Verifique o corpo da resposta no log de execução.';
+    } else {
+      resultado.etapas.geracao.detalhe = ftGeminiErroSeguro_(body);
+      resultado.mensagem = 'A chave conseguiu consultar o modelo, mas a geração falhou. Isso separa autenticação de cota/disponibilidade.';
+    }
+  } catch (e) {
+    resultado.etapas.geracao = {ok:false,mensagem:String(e.message || e)};
+    resultado.mensagem = 'Falha de rede ou leitura na etapa de geração.';
+  }
+
+  console.log(JSON.stringify(resultado));
+  return resultado;
+}
+
+/** Extrai mensagem de erro da API sem registrar cabeçalhos ou credenciais. */
+function ftGeminiErroSeguro_(body) {
+  try {
+    var obj = JSON.parse(String(body || ''));
+    return obj && obj.error && obj.error.message ?
+      String(obj.error.message).slice(0,1000) : String(body || '').slice(0,1000);
+  } catch (e) {
+    return String(body || '').slice(0,1000);
+  }
+}
