@@ -560,3 +560,128 @@ function atualizarLinksGuiasFullTime_() {
   protegerGuiaInteiraFT_(links, 'Full Time — links de navegação controlados pelo sistema');
   return dest.getUrl() + '#gid=' + links.getSheetId();
 }
+
+
+/**
+ * Auditoria pós-sincronização — somente leitura.
+ * Consulta apenas guias explicitamente permitidas. NUNCA enumera guias da origem.
+ * Não grava, não corrige, não cria guias e não altera status.
+ */
+function auditarSincronizacaoCadastroBrunoFullTime() {
+  const source = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest = SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  const specs = [
+    {source:'MOTORISTAS',mirror:'FT_CADASTRO_BRUNO_MOTORISTAS',target:'MOTORISTAS',key:'ID_EXTERNO'},
+    {source:'CAVALOS',mirror:'FT_CADASTRO_BRUNO_CAVALOS',target:'CAVALOS',key:'ID_EXTERNO'},
+    {source:'CARRETAS',mirror:'FT_CADASTRO_BRUNO_CARRETAS',target:'CARRETAS',key:'ID_EXTERNO'},
+    {source:'CONJUNTOS',mirror:'FT_CADASTRO_BRUNO_CONJUNTOS',target:'CONJUNTOS',key:'ID_EXTERNO'},
+    {source:'CONTROLE_DOCUMENTAL',mirror:'FT_CADASTRO_BRUNO_DOCUMENTOS',target:'',key:'ID_DOCUMENTO'}
+  ];
+  const report = {
+    auditoria:'FULLTIME_2_0_POS_SINCRONIZACAO',
+    somenteLeitura:true,
+    guiasOrigemPermitidas:specs.map(x=>x.source),
+    guiaProibida:'CAVALOS-BRUNO — NÃO CONSULTADA',
+    resultados:[],
+    problemas:[]
+  };
+  const readRows = (sh, headers) => {
+    const last = sh.getLastRow();
+    return last > 1 ? sh.getRange(2,1,last-1,headers.length).getValues()
+      .filter(row=>row.some(v=>v!==''&&v!==null)) : [];
+  };
+  const indexHeaders = sh => {
+    const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const ix={}; h.forEach((v,i)=>{if(v)ix[v]=i;});
+    return {headers:h,index:ix};
+  };
+  const keySet = (rows, idx) => {
+    const set={}, duplicates=[];
+    rows.forEach(r=>{
+      const k=String(r[idx]||'').trim();
+      if(!k)return;
+      if(set[k])duplicates.push(k);
+      set[k]=true;
+    });
+    return {set,duplicates};
+  };
+  const targetMaps = {};
+  specs.forEach(p=>{
+    const src=source.getSheetByName(p.source);
+    const mirror=dest.getSheetByName(p.mirror);
+    const target=p.target?dest.getSheetByName(p.target):null;
+    if(!src||!mirror||(p.target&&!target)){
+      report.problemas.push('Guia ausente na verificação de '+p.source);
+      return;
+    }
+    const expected=FT_BRUNO_HEADERS[p.source];
+    const srcHeaders=src.getRange(1,1,1,expected.length).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const mirHeaders=mirror.getRange(1,1,1,expected.length).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const srcRows=readRows(src,expected), mirRows=readRows(mirror,expected);
+    const srcKeys=keySet(srcRows,expected.indexOf(p.key));
+    const mirKeys=keySet(mirRows,expected.indexOf(p.key));
+    const missingMirror=Object.keys(srcKeys.set).filter(k=>!mirKeys.set[k]);
+    const missingSource=Object.keys(mirKeys.set).filter(k=>!srcKeys.set[k]);
+    const item={
+      guia:p.source,espelho:p.mirror,operacional:p.target||'somente espelho',
+      origem:srcRows.length,espelhoRegistros:mirRows.length,
+      chavesOrigemDuplicadas:srcKeys.duplicates,
+      chavesEspelhoDuplicadas:mirKeys.duplicates,
+      ausentesNoEspelho:missingMirror,
+      extrasNoEspelho:missingSource,
+      cabecalhosOrigemOK:expected.every((h,i)=>srcHeaders[i]===h),
+      cabecalhosEspelhoOK:expected.every((h,i)=>mirHeaders[i]===h)
+    };
+    if(p.target){
+      const ti=indexHeaders(target), tr=readRows(target,ti.headers);
+      const targetKeys=keySet(tr,ti.index.ID_EXTERNO);
+      const missingOperational=Object.keys(srcKeys.set).filter(k=>!targetKeys.set[k]);
+      const extraOperational=Object.keys(targetKeys.set).filter(k=>!srcKeys.set[k]);
+      const pending=ti.index.STATUS===undefined?0:tr.filter(r=>String(r[ti.index.STATUS]||'').toUpperCase()==='PENDENTE_REVISAO').length;
+      item.operacionalRegistros=tr.length;
+      item.operacionalComIDExterno=Object.keys(targetKeys.set).length;
+      item.ausentesNoOperacional=missingOperational;
+      item.extrasNoOperacional=extraOperational;
+      item.statusPendenteRevisao=pending;
+      item.chavesOperacionaisDuplicadas=targetKeys.duplicates;
+      targetMaps[p.target]={sheet:target,index:ti.index,rows:tr};
+    }
+    report.resultados.push(item);
+    if(!item.cabecalhosOrigemOK||!item.cabecalhosEspelhoOK)report.problemas.push(p.source+': cabeçalho divergente.');
+    if(srcKeys.duplicates.length||mirKeys.duplicates.length)report.problemas.push(p.source+': chave duplicada na origem ou espelho.');
+    if(missingMirror.length||missingSource.length)report.problemas.push(p.source+': divergência entre origem e espelho.');
+    if(p.target&&(missingOperational.length||extraOperational.length||targetKeys.duplicates.length))report.problemas.push(p.target+': divergência de ID_EXTERNO na base operacional.');
+  });
+
+  // Confere se os IDs internos gravados em CONJUNTOS apontam para registros existentes.
+  const setInfo=targetMaps.CONJUNTOS;
+  if(setInfo){
+    const relations=[
+      ['MOTORISTA_ID','MOTORISTAS'],['CAVALO_ID','CAVALOS'],
+      ['CARRETA_MEIO_ID','CARRETAS'],['CARRETA_FINAL_ID','CARRETAS']
+    ];
+    const lookup={};
+    Object.keys(targetMaps).forEach(name=>{
+      const t=targetMaps[name], idCol=t.index.ID;
+      lookup[name]={};
+      if(idCol!==undefined)t.rows.forEach(r=>{
+        const id=String(r[idCol]||'').trim(); if(id)lookup[name][id]=true;
+      });
+    });
+    report.vinculos={};
+    relations.forEach(([field,entity])=>{
+      const col=setInfo.index[field];
+      if(col===undefined){report.problemas.push('CONJUNTOS: coluna ausente '+field);return;}
+      const missing=[];
+      setInfo.rows.forEach((r,i)=>{
+        const id=String(r[col]||'').trim();
+        if(id&&!lookup[entity][id])missing.push({linha:i+2,id:id});
+      });
+      report.vinculos[field]={preenchidos:setInfo.rows.filter(r=>String(r[col]||'').trim()).length,semCorrespondencia:missing};
+      if(missing.length)report.problemas.push('Vínculos inválidos em CONJUNTOS.'+field+': '+missing.length);
+    });
+  }
+  report.sucesso=report.problemas.length===0;
+  Logger.log('FULLTIME 2.0 — AUDITORIA PÓS-SINCRONIZAÇÃO: '+JSON.stringify(report));
+  return report;
+}
