@@ -594,7 +594,7 @@ function salvarCargaFullTime(token, data) {
     const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
     if(opIndex<1)throw new Error('Operação vinculada não encontrada.');
     const op=opRows[opIndex];if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber novas viagens.');
-    const sh=getSheet_('CARGAS'),values=[Utilities.getUuid(),new Date(),'A_ESCALAR',dataOperacao,horario,cliente,origem,destino,peso,descricao,'','','','',observacoes,session.login||session.nome||'ADMIN',tipoOperacao,'','','',(data.valorFrete==null||String(data.valorFrete).trim()===''?'':valorFrete),operacaoId,''];
+    const sh=getSheet_('CARGAS'),values=[Utilities.getUuid(),new Date(),'A_ESCALAR',dataOperacao,horario,cliente,origem,destino,peso,descricao,'','','','',observacoes,session.login||session.nome||'ADMIN',tipoOperacao,'','',(data.valorFrete==null||String(data.valorFrete).trim()===''?'':valorFrete),operacaoId,''];
     if(sh.getLastColumn()<values.length)throw new Error('A guia CARGAS ainda não tem as colunas necessárias. Execute prepararBaseOperacionalFullTime().');
     sh.appendRow(values);
     const novoVolume=Number(op[9]||0)+peso,novoCount=Number(op[10]||0)+1,novoSaldo=Number(op[11]||0)+peso;
