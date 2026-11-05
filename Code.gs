@@ -837,6 +837,7 @@ function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
   const localSetIds = new Set();
+  const capacityOverrideIds = new Set();
 
   // MOTORISTAS: combina o espelho recebido do Bruno com as decisões locais.
   // O registro local prevalece pelo ID, preservando ATIVO/INATIVO após novas sincronizações.
@@ -886,7 +887,7 @@ function listarRegistros_(name) {
     if (ov && ov.getLastRow()>1) {
       const map={};
       ov.getRange(2,1,ov.getLastRow()-1,6).getValues().forEach(r=>{if(r[0])map[String(r[0])]=r;});
-      rows.forEach(r=>{const x=map[String(r[0]||'')];if(x){r[8]=x[1]||r[8];r[9]=x[2]||'';if(x[3]!==''&&x[3]!=null)r[10]=x[3];r[11]=x[4]||r[11];}});
+      rows.forEach(r=>{const x=map[String(r[0]||'')];if(x){r[8]=x[1]||r[8];r[9]=x[2]||'';if(x[3]!==''&&x[3]!=null){r[10]=x[3];capacityOverrideIds.add(String(r[0]||''));}r[11]=x[4]||r[11];}});
     }
   }
   // Para conjuntos originados no Bruno, a capacidade útil é derivada dos componentes
@@ -896,6 +897,7 @@ function listarRegistros_(name) {
     const horseCapacity=new Map(horseRows.map(r=>[String(r[0]),Number(String(r[9]||'').replace(',','.'))||0]));
     const trailerCapacity=new Map(trailerRows.map(r=>[String(r[0]),Number(String(r[6]||'').replace(',','.'))||0]));
     rows.forEach(r=>{
+      if(capacityOverrideIds.has(String(r[0]||'')))return;
       if(Number(String(r[10]||'').replace(',','.'))>0)return;
       const horse=horseCapacity.get(String(r[4]||''))||0;
       const middle=trailerCapacity.get(String(r[5]||''))||0;
