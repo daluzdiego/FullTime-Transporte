@@ -14,7 +14,7 @@ function verificarAmbienteHomologacaoFullTime() {
   report.propriedades.registryConfigurado=!!registryId;
   report.propriedades.registryCorrespondeAoDestino=!!(registryId&&configuredDestinationId&&registryId===configuredDestinationId);
   report.propriedades.databaseLoginConfigurado=!!props.getProperty('FT_DATABASE_ID');
-  report.propriedades.geminiConfigurado=!!props.getProperty('FT_GEMINI_API_KEY');
+  report.propriedades.geminiConfigurado=!!(props.getProperty('FT_GEMINI_API_KEY')||props.getProperty('GEMINI_API_KEY'));
   if(!sourceId||!configuredDestinationId){report.erros.push('FT_BRUNO_CONFIG precisa conter SOURCE_ID e OPERATIONAL_ID.');report.status='ERRO';return report;}
   if(sourceId===configuredDestinationId){report.erros.push('A planilha de origem e a operacional apontam para o mesmo arquivo.');report.status='ERRO';return report;}
   if(!registryId)report.avisos.push('FT_REGISTRY_DATABASE_ID está ausente. A rotina prepararBaseOperacionalFullTime exige executar conectarPlanilhaOperacionalFullTime após confirmar a planilha operacional.');
@@ -68,6 +68,7 @@ function verificarAmbienteHomologacaoFullTime() {
     report.gatilhos.handlers=handlers;
     if(!report.gatilhos.expiracaoOfertasInstalado)report.avisos.push('Gatilho de expiração de ofertas ainda não está instalado.');
   }catch(e){report.avisos.push('Não foi possível consultar os gatilhos: '+e.message);}
+  if(!report.propriedades.databaseLoginConfigurado)report.avisos.push('FT_DATABASE_ID não está configurado; o login/base de usuários pode não estar disponível.');
   if(!report.propriedades.geminiConfigurado)report.avisos.push('Chave Gemini não configurada; a entrada assistida pode usar regras locais e revisão manual.');
   if(report.erros.length)report.status='ERRO';else if(report.avisos.length)report.status='ATENCAO';
   Logger.log('FULL TIME — DIAGNÓSTICO DO AMBIENTE: '+JSON.stringify(report));
