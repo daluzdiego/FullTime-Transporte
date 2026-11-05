@@ -119,7 +119,11 @@ function listarSolicitacoesFullTime(token,limite) {
   var c=ftSolCols_(sh), count=Math.min(Math.max(Number(limite)||50,1),200);
   var start=Math.max(2,last-count+1);
   return sh.getRange(start,1,last-start+1,sh.getLastColumn()).getValues().reverse().map(function(r){
-    function v(k){return r[c[k]-1]==null?'':r[c[k]-1];}
+    function v(k){
+      var value=r[c[k]-1];
+      if(value instanceof Date) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss');
+      return value==null?'':value;
+    }
     return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),atualizadoEm:v('ATUALIZADO_EM')};
   });
 }
