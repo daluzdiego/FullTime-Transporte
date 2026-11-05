@@ -99,6 +99,7 @@
   const NAV_ITEMS = [
     {id:'inicio',label:'Operação',icon:'⌂',title:'Painel da operação'},
     {id:'operacoes',label:'Operações',icon:'⇄',title:'Operações'},
+    {id:'solicitacoes',label:'Solicitações',icon:'✉',title:'Entrada e triagem de solicitações'},
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'frota',label:'Frota',icon:'▰',title:'Frota',group:true,children:[
@@ -115,6 +116,7 @@
   let authToken = sessionStorage.getItem('ft_token') || '';
   let currentUser = null;
   let dashboard = null;
+  let solicitacoesFullTime = [];
   let currentPage = 'inicio';
   let toastTimer;
   let operacoesRefreshTimer=null;
@@ -198,9 +200,9 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',solicitacoes:'Solicitações',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
+    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='inicio') c.innerHTML=renderDashboard();
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
@@ -208,6 +210,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
+    else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
@@ -224,6 +227,114 @@
       panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Cavalos mecânicos'||h==='Carretas')p.classList.add('hidden');});
     }
   }
+
+  function renderSolicitacoes(){
+    return `
+      <div class="page-head">
+        <div><h1>Entrada de solicitações</h1><p>Registre mensagens recebidas por WhatsApp, telefone, e-mail ou diretamente pelo painel. Todas ficam centralizadas no mesmo histórico.</p></div>
+        <div class="head-actions"><button class="btn btn-secondary" onclick="carregarSolicitacoesFullTime()">↻ Atualizar lista</button></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>＋ Nova solicitação</h2><span class="muted small">Registro inicial · sem criar operação ou carga</span></div>
+        <div class="panel-body">
+          <form id="formSolicitacaoFullTime" onsubmit="salvarSolicitacaoFullTime(event)">
+            <div class="form-grid">
+              <div class="field">
+                <label for="solCanal">Como a solicitação foi recebida?</label>
+                <select id="solCanal" required>
+                  <option value="WHATSAPP_PESSOAL_ENCAMINHADO">WhatsApp pessoal do Bruno (mensagem copiada/encaminhada)</option>
+                  <option value="WHATSAPP_OFICIAL">WhatsApp oficial da FullTime</option>
+                  <option value="PAINEL">Entrada manual pelo painel</option>
+                  <option value="TELEFONE">Ligação telefônica</option>
+                  <option value="EMAIL">E-mail</option>
+                  <option value="OUTRO">Outro canal</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="solOrigem">Cliente / contato (opcional)</label>
+                <input id="solOrigem" maxlength="180" placeholder="Nome do cliente ou contato de origem">
+              </div>
+            </div>
+            <div class="field" style="margin-top:14px">
+              <label for="solTexto">Mensagem original</label>
+              <textarea id="solTexto" rows="6" maxlength="12000" required placeholder="Cole aqui a mensagem recebida. Preserve as informações como foram enviadas, inclusive abreviações e horários."></textarea>
+              <div class="muted small">A mensagem original será preservada para análise posterior. Não é necessário organizar os dados antes de enviar.</div>
+            </div>
+            <div class="form-actions">
+              <button id="solSubmitButton" class="btn btn-primary" type="submit">Registrar solicitação</button>
+              <button class="btn btn-secondary" type="reset">Limpar</button>
+            </div>
+            <div id="solFormFeedback" class="muted small" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:18px">
+        <div class="panel-head"><h2>Solicitações recebidas</h2><span class="muted small" id="solCount">${solicitacoesFullTime.length} registro(s)</span></div>
+        <div class="panel-body">
+          <div id="solListContainer">${renderListaSolicitacoesFullTime()}</div>
+        </div>
+      </div>`;
+  }
+  function renderListaSolicitacoesFullTime(){
+    if(!solicitacoesFullTime.length) return '<div class="empty"><strong>Nenhuma solicitação registrada</strong>As mensagens recebidas aparecerão aqui depois do primeiro registro.</div>';
+    return '<div class="table-wrap"><table><thead><tr><th>Recebida em</th><th>Origem</th><th>Mensagem</th><th>Status</th><th>Identificador</th></tr></thead><tbody>'+
+      solicitacoesFullTime.map(x=>{
+        const rawDate=x.criadoEm?new Date(x.criadoEm):null;
+        const dateLabel=rawDate&&isFinite(rawDate.getTime())?rawDate.toLocaleString('pt-BR'):'—';
+        const status=String(x.status||'RECEBIDA');
+        const statusMap={RECEBIDA:['badge-pending','Recebida'],EM_COLETA:['badge-pending','Em coleta'],AGUARDANDO_APROVACAO:['badge-pending','Aguardando aprovação'],APROVADA:['badge-active','Aprovada'],RECUSADA:['badge-inactive','Recusada'],AJUSTE_SOLICITADO:['badge-pending','Ajuste solicitado']};
+        const b=statusMap[status]||['badge-pending',status];
+        const msg=String(x.textoOriginal||'');
+        const preview=msg.length>180?msg.slice(0,180)+'…':msg;
+        return '<tr><td class="date-cell">'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:240px;white-space:normal;max-width:460px">'+esc(preview)+'</td><td><span class="badge '+b[0]+'">'+esc(b[1])+'</span></td><td>'+esc(x.identificadorOrigem||'—')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  function carregarSolicitacoesFullTime(){
+    const host=document.getElementById('solListContainer');
+    if(host)host.innerHTML='<div class="empty">Carregando solicitações…</div>';
+    google.script.run.withSuccessHandler(data=>{
+      solicitacoesFullTime=Array.isArray(data)?data:[];
+      if(currentPage==='solicitacoes'){
+        const list=document.getElementById('solListContainer');
+        const count=document.getElementById('solCount');
+        if(list)list.innerHTML=renderListaSolicitacoesFullTime();
+        if(count)count.textContent=solicitacoesFullTime.length+' registro(s)';
+      }
+    }).withFailureHandler(err=>{
+      if(host)host.innerHTML='<div class="empty"><strong>Não foi possível carregar a lista.</strong>'+esc(err&&err.message||'Verifique sua sessão e tente novamente.')+'</div>';
+      toast(err&&err.message||'Falha ao carregar solicitações.',true);
+    }).listarSolicitacoesFullTime(authToken,100);
+  }
+  function salvarSolicitacaoFullTime(ev){
+    ev.preventDefault();
+    const text=document.getElementById('solTexto').value.trim();
+    const button=document.getElementById('solSubmitButton');
+    const feedback=document.getElementById('solFormFeedback');
+    if(!text){feedback.textContent='Cole a mensagem original antes de registrar.';return;}
+    const payload={
+      texto:text,
+      canal:document.getElementById('solCanal').value,
+      identificadorOrigem:document.getElementById('solOrigem').value.trim()
+    };
+    button.disabled=true;button.textContent='Registrando…';feedback.textContent='';
+    google.script.run.withSuccessHandler(res=>{
+      button.disabled=false;button.textContent='Registrar solicitação';
+      if(res&&res.ok){
+        document.getElementById('formSolicitacaoFullTime').reset();
+        feedback.textContent=res.duplicada?'Esta mensagem já estava registrada. O sistema reutilizou a solicitação existente.':'Solicitação registrada com sucesso. ID: '+res.id;
+        carregarSolicitacoesFullTime();
+        toast(res.duplicada?'Solicitação já existente.':'Solicitação registrada.');
+      }else{
+        feedback.textContent='Não foi possível confirmar o registro.';
+        toast('Não foi possível registrar a solicitação.',true);
+      }
+    }).withFailureHandler(err=>{
+      button.disabled=false;button.textContent='Registrar solicitação';
+      feedback.textContent=err&&err.message||'Erro ao registrar solicitação.';
+      toast(feedback.textContent,true);
+    }).registrarSolicitacaoPainelFullTime(authToken,payload);
+  }
+
   function renderDashboard(){const counts=dashboard?.counts||{motoristas:0,caminhoes:0,pendentes:0,cargasFuturas:0,aCarregar:0,emAndamento:0,semEscala:0};const loads=(dashboard?.cargas||[]).slice(0,10);return `
     <div class="page-head"><div><h1>Operação da Full Time</h1><p>Visão geral da programação, das cargas e das escalas da empresa.</p></div><div class="head-actions"><button id="operationFullscreenButton" class="btn btn-secondary" onclick="toggleOperationFullscreen()">Exibir operação em tela cheia ⛶</button><button class="btn btn-secondary" onclick="goPage('motoristas')">Ver motoristas</button><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Nova carga</button></div></div>
     <div class="stats"><div class="stat-card"><div class="stat-icon">▤</div><div><div class="stat-label">Cargas futuras</div><div class="stat-value">${counts.cargasFuturas||0}</div></div></div><div class="stat-card"><div class="stat-icon" style="background:#fff4df;color:#a96300">◷</div><div><div class="stat-label">A escalar</div><div class="stat-value">${counts.semEscala||0}</div></div></div><div class="stat-card"><div class="stat-icon">⇢</div><div><div class="stat-label">Em andamento</div><div class="stat-value">${counts.emAndamento||0}</div></div></div><div class="stat-card"><div class="stat-icon">♙</div><div><div class="stat-label">Motoristas ativos</div><div class="stat-value">${counts.motoristas||0}</div></div></div></div>
