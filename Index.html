@@ -271,13 +271,13 @@
       <div class="panel" style="margin-top:18px">
         <div class="panel-head"><h2>Solicitações recebidas</h2><span class="muted small" id="solCount">${solicitacoesFullTime.length} registro(s)</span></div>
         <div class="panel-body">
-          <div id="solListContainer">${renderListaSolicitacoesFullTime()}</div>
+          <div id="solListContainer">${renderListaSolicitacoesFullTime()}</div><div id="solAnaliseResultado" style="margin-top:18px"></div>
         </div>
       </div>`;
   }
   function renderListaSolicitacoesFullTime(){
     if(!solicitacoesFullTime.length) return '<div class="empty"><strong>Nenhuma solicitação registrada</strong>As mensagens recebidas aparecerão aqui depois do primeiro registro.</div>';
-    return '<div class="table-wrap"><table><thead><tr><th>Recebida em</th><th>Origem</th><th>Mensagem</th><th>Status</th><th>Identificador</th></tr></thead><tbody>'+
+    return '<div class="table-wrap"><table><thead><tr><th>Recebida em</th><th>Origem</th><th>Mensagem</th><th>Status</th><th>Identificador</th><th>Análise</th></tr></thead><tbody>'+
       solicitacoesFullTime.map(x=>{
         const rawDate=x.criadoEm?new Date(x.criadoEm):null;
         const dateLabel=rawDate&&isFinite(rawDate.getTime())?rawDate.toLocaleString('pt-BR'):'—';
@@ -286,7 +286,7 @@
         const b=statusMap[status]||['badge-pending',status];
         const msg=String(x.textoOriginal||'');
         const preview=msg.length>180?msg.slice(0,180)+'…':msg;
-        return '<tr><td class="date-cell">'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:240px;white-space:normal;max-width:460px">'+esc(preview)+'</td><td><span class="badge '+b[0]+'">'+esc(b[1])+'</span></td><td>'+esc(x.identificadorOrigem||'—')+'</td></tr>';
+        return '<tr><td class="date-cell">'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:240px;white-space:normal;max-width:460px">'+esc(preview)+'</td><td><span class="badge '+b[0]+'">'+esc(b[1])+'</span></td><td>'+esc(x.identificadorOrigem||'—')+'</td><td><button class="btn btn-secondary" type="button" onclick="analisarSolicitacaoIAFullTime(\''+esc(x.id)+'\')">✦ Analisar com IA</button></td></tr>';
       }).join('')+'</tbody></table></div>';
   }
   function carregarSolicitacoesFullTime(){
@@ -305,6 +305,26 @@
       toast(err&&err.message||'Falha ao carregar solicitações.',true);
     }).listarSolicitacoesFullTime(authToken,100);
   }
+
+  function analisarSolicitacaoIAFullTime(id){
+    const host=document.getElementById('solAnaliseResultado');
+    if(host)host.innerHTML='<div class="notice">A IA está analisando a mensagem e verificando informações faltantes. Aguarde…</div>';
+    google.script.run.withSuccessHandler(res=>{
+      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice">A análise não foi concluída.</div>';return;}
+      const a=res.analise||{}, d=a.dados||{};
+      const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+      const fields=Object.keys(labels).filter(k=>String(d[k]||'').trim()).map(k=>'<div style="padding:9px 10px;border-bottom:1px solid #edf0f5"><div class="muted small">'+esc(labels[k])+'</div><strong>'+esc(d[k])+'</strong></div>').join('');
+      const pending=(res.camposPendentes||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+      const questions=(res.perguntas||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+      const ambiguities=(a.ambiguidades||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
+      host.innerHTML='<div class="panel"><div class="panel-head"><h2>✦ Resultado da análise de IA</h2><span class="badge '+(res.camposPendentes&&res.camposPendentes.length?'badge-pending':'badge-active')+'">'+(res.camposPendentes&&res.camposPendentes.length?'Informações pendentes':'Pronto para revisão')+'</span></div><div class="panel-body"><p>'+esc(a.resumo||'Análise concluída.')+'</p><h3>Dados identificados</h3><div class="form-grid">'+(fields||'<div class="muted">Nenhum campo foi identificado com segurança.</div>')+'</div>'+(pending?'<h3 style="margin-top:18px">Campos que faltam ou precisam de confirmação</h3><ul>'+pending+'</ul>':'')+(questions?'<h3 style="margin-top:18px">Perguntas sugeridas ao cliente</h3><ol>'+questions+'</ol>':'')+(ambiguities?'<h3 style="margin-top:18px">Ambiguidades detectadas</h3><ul>'+ambiguities+'</ul>':'')+'<p class="muted small">A análise não aprova o transporte nem cria operação ou carga. Revise os dados antes de prosseguir.</p></div></div>';
+      carregarSolicitacoesFullTime();
+    }).withFailureHandler(err=>{
+      if(host)host.innerHTML='<div class="notice"><strong>Não foi possível analisar.</strong><br>'+esc(err&&err.message||'Erro no serviço de IA.')+'</div>';
+      toast(err&&err.message||'Falha na análise por IA.',true);
+    }).analisarSolicitacaoIAFullTime(authToken,id);
+  }
+
   function salvarSolicitacaoFullTime(ev){
     ev.preventDefault();
     const text=document.getElementById('solTexto').value.trim();
