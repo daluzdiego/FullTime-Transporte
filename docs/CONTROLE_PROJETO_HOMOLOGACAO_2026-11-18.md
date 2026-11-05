@@ -182,3 +182,5 @@ A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada p
 Foi adicionado `DiagnosticoAmbienteHomologacao.gs` com a função `verificarAmbienteHomologacaoFullTime()`. Ela é **somente leitura**: abre as planilhas configuradas, compara guias/cabeçalhos, verifica propriedades e consulta gatilhos. Não cria guias, não altera propriedades, não instala gatilhos e não escreve dados.
 
 O próximo passo é executar apenas essa função no editor Apps Script e revisar o relatório. Não executar ainda `prepararBaseOperacionalFullTime()`, `conectarPlanilhaOperacionalFullTime()`, limpeza de dados ou sincronização até confirmar que os IDs e as planilhas abertas correspondem ao ambiente de homologação/cópias.
+
+- Foi criado `GatilhosFullTime.gs` com instalação/removal explícitas do gatilho de expiração a cada 5 minutos. O gatilho **não foi instalado**; a instalação exige confirmação literal e deve ocorrer somente após homologação.
