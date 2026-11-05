@@ -1408,13 +1408,6 @@ function processarOfertasExpiradasSistema_() {
   }finally{lock.releaseLock();}
 }
 
-function instalarGatilhoExpiracaoOfertasFullTime() {
-  const handler='processarOfertasExpiradasSistema_';
-  ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger(handler).timeBased().everyMinutes(5).create();
-  return {ok:true,handler:handler,frequencia:'A cada 5 minutos',observacao:'Instala apenas o processamento de expiração e próxima oferta; não envia WhatsApp.'};
-}
-
 function processarOfertasExpiradasFullTime(token) {
   const session=obterSessao_(token);exigirAdmin_(session);
   const lock=LockService.getScriptLock();lock.waitLock(15000);
