@@ -1752,7 +1752,7 @@ function extrairQuantidadeCargasIA_(text){
   return '';
 }
 function extrairVolumeTotalOperacaoIA_(text){
-  const s=String(text||''),patterns=[/\bvolume\s+total\s*[:=\-]?\s*(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\btotal\s+de\s+(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\b(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\s+(?:no\s+total|totais?)\b/i];
+  const s=String(text||''),patterns=[/\bvolume\s+total\s*[:=\-]?\s*(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\btotal\s+de\s+(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\b(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\s+(?:no\s+total|total|totais?)\b/i];
   for(const re of patterns){const m=s.match(re);if(m){const n=Number(m[1].replace(',','.'));if(n>0&&isFinite(n))return n;}}
   return '';
 }
