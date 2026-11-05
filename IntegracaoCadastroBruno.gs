@@ -687,3 +687,88 @@ function auditarSincronizacaoCadastroBrunoFullTime() {
   Logger.log('FULLTIME 2.0 — AUDITORIA PÓS-SINCRONIZAÇÃO: '+JSON.stringify(report));
   return report;
 }
+
+
+/**
+ * Auditoria de conteúdo dos cadastros — somente leitura.
+ * Compara todos os campos do cadastro de origem com seus espelhos e os campos
+ * efetivamente mapeados para as bases operacionais. Não grava nem corrige dados.
+ * Consulta somente as guias de origem explicitamente permitidas.
+ */
+function auditarConteudoCadastroBrunoFullTime() {
+  const source = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest = SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  const specs = [
+    {source:'MOTORISTAS',mirror:'FT_CADASTRO_BRUNO_MOTORISTAS',target:'MOTORISTAS',
+      fields:['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','RG','DATA_NASCIMENTO','WHATSAPP','ENDERECO','CIDADE','UF','CEP','CNH_PRIMEIRA_HABILITACAO','CNH_EAR','EXAME_TOXICOLOGICO_VALIDADE','STATUS_DOCUMENTACAO','LINK_CNH','LINK_EXAME_TOXICOLOGICO']},
+    {source:'CAVALOS',mirror:'FT_CADASTRO_BRUNO_CAVALOS',target:'CAVALOS',
+      fields:['PLACA','MARCA','MODELO','TARA_TONELADAS','PBTC_MAX_TONELADAS','RENAVAM','CHASSI','NUMERO_MOTOR','VERSAO','ANO_FABRICACAO','ANO_MODELO','TIPO_VEICULO','ESPECIE','CARROCERIA','COR','COMBUSTIVEL','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_UTIL_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','ANTT_RNTRC','ANTT_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA']},
+    {source:'CARRETAS',mirror:'FT_CADASTRO_BRUNO_CARRETAS',target:'CARRETAS',
+      fields:['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','RENAVAM','CHASSI','MARCA','MODELO','ANO_FABRICACAO','ANO_MODELO','ESPECIE','CARROCERIA','COR','NUMERO_EIXOS','LOTACAO_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA']},
+    {source:'CONJUNTOS',mirror:'FT_CADASTRO_BRUNO_CONJUNTOS',target:'CONJUNTOS',
+      fields:['MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO','DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
+    {source:'CONTROLE_DOCUMENTAL',mirror:'FT_CADASTRO_BRUNO_DOCUMENTOS',target:'',
+      fields:[]}
+  ];
+  const report={auditoria:'FULLTIME_2_0_CONTEUDO_CADASTROS',somenteLeitura:true,
+    guiasOrigemPermitidas:specs.map(x=>x.source),guiaProibida:'CAVALOS-BRUNO — NÃO CONSULTADA',
+    resultados:[],divergencias:[],camposSemMapeamento:[],problemas:[]};
+  const norm=v=>{
+    if(v instanceof Date)return 'DATE:'+Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');
+    if(v===null||typeof v==='undefined')return '';
+    if(typeof v==='number')return 'NUM:'+String(v);
+    return String(v).trim().replace(/\\s+/g,' ');
+  };
+  const read=sh=>{
+    const width=sh.getLastColumn(), last=sh.getLastRow();
+    const headers=sh.getRange(1,1,1,width).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const ix={};headers.forEach((h,i)=>{if(h)ix[h]=i;});
+    const rows=last>1?sh.getRange(2,1,last-1,width).getValues().filter(r=>r.some(v=>v!==''&&v!==null)):[];
+    return {headers,ix,rows};
+  };
+  specs.forEach(p=>{
+    const srcSh=source.getSheetByName(p.source), mirSh=dest.getSheetByName(p.mirror);
+    const targetSh=p.target?dest.getSheetByName(p.target):null;
+    if(!srcSh||!mirSh||(p.target&&!targetSh)){report.problemas.push('Guia ausente: '+p.source);return;}
+    const s=read(srcSh),m=read(mirSh),t=targetSh?read(targetSh):null;
+    const key=p.source==='CONTROLE_DOCUMENTAL'?'ID_DOCUMENTO':'ID_EXTERNO';
+    const mapRows=(data)=>{
+      const out={};
+      data.rows.forEach((r,i)=>{const k=String(r[data.ix[key]]||'').trim();if(k)out[k]={row:r,line:i+2};});
+      return out;
+    };
+    const sm=mapRows(s), mm=mapRows(m), tm=t?mapRows(t):null;
+    const item={guia:p.source,registrosOrigem:s.rows.length,camposComparadosNoEspelho:0,
+      divergenciasEspelho:0,camposComparadosNoOperacional:0,divergenciasOperacionais:0};
+    const fields=FT_BRUNO_HEADERS[p.source];
+    fields.forEach(field=>{
+      if(s.ix[field]===undefined||m.ix[field]===undefined){report.problemas.push(p.source+': coluna ausente no espelho '+field);return;}
+      Object.keys(sm).forEach(id=>{
+        if(!mm[id])return;
+        item.camposComparadosNoEspelho++;
+        if(norm(sm[id].row[s.ix[field]])!==norm(mm[id].row[m.ix[field]])){
+          item.divergenciasEspelho++;
+          if(report.divergencias.length<300)report.divergencias.push({guia:p.source,idExterno:id,campo:field,comparacao:'ORIGEM_X_ESPELHO'});
+        }
+      });
+    });
+    if(t){
+      p.fields.forEach(field=>{
+        if(s.ix[field]===undefined||t.ix[field]===undefined){report.camposSemMapeamento.push({guia:p.source,campo:field,origemExiste:s.ix[field]!==undefined,destinoExiste:t.ix[field]!==undefined});return;}
+        Object.keys(sm).forEach(id=>{
+          if(!tm[id])return;
+          item.camposComparadosNoOperacional++;
+          if(norm(sm[id].row[s.ix[field]])!==norm(tm[id].row[t.ix[field]])){
+            item.divergenciasOperacionais++;
+            if(report.divergencias.length<300)report.divergencias.push({guia:p.source,idExterno:id,campo:field,comparacao:'ORIGEM_X_OPERACIONAL'});
+          }
+        });
+      });
+    }
+    report.resultados.push(item);
+  });
+  report.totalDivergencias=report.divergencias.length;
+  report.sucesso=report.problemas.length===0&&report.totalDivergencias===0;
+  Logger.log('FULLTIME 2.0 — AUDITORIA DE CONTEÚDO DOS CADASTROS: '+JSON.stringify(report));
+  return report;
+}
