@@ -362,7 +362,7 @@
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Acompanhe motoristas alocados pelo sistema, veículos vinculados e exceções operacionais.</p></div></div>
       <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
-      <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e gere uma oferta automática para o próximo motorista elegível.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
         <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
           <div class="field"><label>Operação de origem *</label><select name="operacaoAtualId" required>${opOptions}</select></div>
@@ -466,7 +466,7 @@ function sincronizarEntradasIA(){
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
       ${ops.length?ops.map(o=>{
-        const offer=latestOfferByOperation[o.id],isOpen=['ABERTA','EM_ANDAMENTO'].includes(o.status);
+        const offer=latestOfferByOperation[o.id],isOpen=o.status==='ABERTA';
         let action='';
         if(offer&&offer.status==='PENDENTE')action='<button class="btn btn-primary" onclick="registrarRespostaOfertaOperacao(\''+esc(offer.id)+'\')">Registrar resposta</button><div class="secondary-cell">Oferta expira: '+esc(String(offer.expiraEm||'').replace('T',' ').slice(0,16))+'</div>';
         else if(offer&&offer.status==='ACEITA')action='<span class="badge badge-success">Motorista aceitou</span>';
