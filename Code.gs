@@ -467,7 +467,7 @@ function prepararBaseOperacionalFullTime() {
     ENTRADA_OPERACOES_IA: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','ID_OPERACAO_GERADA','IDS_CARGAS_GERADAS_JSON'],
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','VINCULO_FIXO'],
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','CARGA_ID'],
@@ -712,7 +712,7 @@ function salvarConjuntoVeicularFullTime(token, data) {
 
   const id=Utilities.getUuid();
   const conjuntoStatus=pending?'PENDENTE_REVISAO':'PENDENTE_REVISAO';
-  sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
+  sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login,'SIM']);
   auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
   return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
 }
@@ -833,12 +833,17 @@ function getSheet_(name) {
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
+function ftConjuntoTemVinculoFixo_(conjunto) {
+  if(!conjunto)return false;
+  const value=conjunto[12];
+  return value===true||['SIM','S','TRUE','1','ATIVO','FIXO','VINCULO_FIXO'].includes(String(value||'').trim().toUpperCase());
+}
 function ftConjuntoAptoParaEscalaAutomatica_(conjunto) {
-  return !!conjunto&&String(conjunto[8]||'').trim().toUpperCase()==='APTO'&&!String(conjunto[9]||'').trim()&&Number(String(conjunto[10]||'').replace(',','.'))>0;
+  return ftConjuntoTemVinculoFixo_(conjunto)&&String(conjunto[8]||'').trim().toUpperCase()==='APTO'&&!String(conjunto[9]||'').trim()&&Number(String(conjunto[10]||'').replace(',','.'))>0;
 }
 
 function ftConjuntoAptoParaMovimentacao_(conjunto) {
-  if(!conjunto||!(Number(String(conjunto[10]||'').replace(',','.'))>0))return false;
+  if(!ftConjuntoTemVinculoFixo_(conjunto)||!(Number(String(conjunto[10]||'').replace(',','.'))>0))return false;
   const state=String(conjunto[8]||'').trim().toUpperCase(),restrictions=String(conjunto[9]||'').trim();
   return (state==='APTO'&&!restrictions)||(state==='APTO_COM_RESTRICAO'&&!!restrictions);
 }
@@ -1501,7 +1506,7 @@ const FT_BRUNO_CADASTROS = Object.freeze({
   MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS',fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
   CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS',fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES']},
   CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS',fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
-  CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS',fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
+  CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS',fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','VINCULO_FIXO']},
   DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS',fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
 });
 
