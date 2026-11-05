@@ -889,6 +889,22 @@ function listarRegistros_(name) {
       rows.forEach(r=>{const x=map[String(r[0]||'')];if(x){r[8]=x[1]||r[8];r[9]=x[2]||'';if(x[3]!==''&&x[3]!=null)r[10]=x[3];r[11]=x[4]||r[11];}});
     }
   }
+  // Para conjuntos originados no Bruno, a capacidade útil é derivada dos componentes
+  // quando não houver override explícito: capacidade do cavalo + capacidade das carretas.
+  if (name === 'CONJUNTOS' && rows.length) {
+    const horseRows=ftBrunoRowsAsLegacy_('CAVALOS'),trailerRows=ftBrunoRowsAsLegacy_('CARRETAS');
+    const horseCapacity=new Map(horseRows.map(r=>[String(r[0]),Number(String(r[9]||'').replace(',','.'))||0]));
+    const trailerCapacity=new Map(trailerRows.map(r=>[String(r[0]),Number(String(r[6]||'').replace(',','.'))||0]));
+    rows.forEach(r=>{
+      if(Number(String(r[10]||'').replace(',','.'))>0)return;
+      const horse=horseCapacity.get(String(r[4]||''))||0;
+      const middle=trailerCapacity.get(String(r[5]||''))||0;
+      const rear=trailerCapacity.get(String(r[6]||''))||0;
+      const derived=horse+middle+rear;
+      if(derived>0&&isFinite(derived))r[10]=derived;
+    });
+  }
+
   if (!rows.length) return [];
 
   const mapped = rows.map(r => ({
@@ -913,7 +929,7 @@ function listarRegistros_(name) {
       if (plate && capacity > 0) capacityByPlate[plate] = capacity;
     });
     mapped.forEach(item => {
-      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || 0;
+      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || Number(String(item.campos[6]||'').replace(',','.')) || 0;
     });
   } else if (name === 'CARRETAS') {
     // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
@@ -1460,7 +1476,7 @@ function ftNormHeader_(v) {
 }
 const FT_BRUNO_CADASTROS = Object.freeze({
   MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS',fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
-  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS',fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
+  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS',fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_UTIL_TONELADAS','OBSERVACOES']},
   CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS',fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
   CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS',fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
   DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS',fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
