@@ -173,6 +173,6 @@ A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada p
 
 - [PR #5 — consolidação da arquitetura, IA e escala (rascunho)](https://github.com/daluzdiego/FullTime-Transporte/pull/5)
 - O PR está aberto como **Draft** e não deve ser mesclado antes dos testes no runtime Google.
-- O workflow de CI foi ampliado para verificar a sintaxe de todos os arquivos `.gs` em conjunto e os scripts do `Index.html`.
+- O workflow de CI foi ampliado para verificar a sintaxe de todos os arquivos `.gs` em conjunto e os scripts do `Index.html`; os dois checks do PR #5 concluíram com sucesso em 05/11.
 - `AuditoriaIntegridadeFullTime.gs` é somente leitura e agora verifica vínculos de operação/viagem, peso real, ofertas, escalas, eventos, overrides, disponibilidade, conjuntos e cadastros fictícios.
 - O README foi atualizado para refletir a arquitetura atual e advertir contra executar o bootstrap de base nova sobre as planilhas existentes.
