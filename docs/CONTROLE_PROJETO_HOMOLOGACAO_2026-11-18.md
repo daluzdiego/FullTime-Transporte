@@ -184,3 +184,5 @@ Foi adicionado `DiagnosticoAmbienteHomologacao.gs` com a função `verificarAmbi
 O próximo passo é executar apenas essa função no editor Apps Script e revisar o relatório. Não executar ainda `prepararBaseOperacionalFullTime()`, `conectarPlanilhaOperacionalFullTime()`, limpeza de dados ou sincronização até confirmar que os IDs e as planilhas abertas correspondem ao ambiente de homologação/cópias.
 
 - Foi criado `GatilhosFullTime.gs` com instalação/removal explícitas do gatilho de expiração a cada 5 minutos. O gatilho **não foi instalado**; a instalação exige confirmação literal e deve ocorrer somente após homologação.
+
+- A elegibilidade agora também exige `VINCULO_FIXO = SIM` e status ativo de motorista/equipamentos; conjuntos sem vínculo fixo explícito não entram na escala.
