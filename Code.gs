@@ -264,6 +264,7 @@ function obterPainelFullTime(token) {
     operacoes: listarRegistros_('OPERACOES'),
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
     cargas: cargas,
+    ofertas: (function(){const sh=getSheet_('OFERTAS_CARGAS'),v=sh.getDataRange().getValues();return v.slice(1).filter(r=>r[0]).map(r=>({id:String(r[0]),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),cargaId:String(r[2]||''),motoristaId:String(r[3]||''),conjuntoId:String(r[4]||''),posicao:Number(r[5]||0),status:String(r[6]||''),expiraEm:r[7] instanceof Date?r[7].toISOString():String(r[7]||''),operacaoId:String(r[11]||'')})).reverse();})(),
     locais: listarRegistros_('LOCAIS'),
     counts: {
       motoristas: contarAtivos_('MOTORISTAS'),
