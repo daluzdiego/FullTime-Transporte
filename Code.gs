@@ -428,8 +428,7 @@ function prepararGuiasEscalaFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
-    CONJUNTO_OVERRIDES: ['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -444,6 +443,8 @@ function prepararGuiasEscalaFullTime() {
     const row = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(function(v) { return String(v || '').trim(); }) : [];
     if (row.every(function(v) { return !v; })) {
       sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    } else if (row.length < headers.length && row.every(function(v, i) { return headers[i] === v; })) {
+      sh.getRange(1, row.length + 1, 1, headers.length - row.length).setValues([headers.slice(row.length)]);
     } else if (row.length !== headers.length || headers.some(function(h, i) { return row[i] !== h; })) {
       throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Não alterei os dados dessa guia.');
     }
@@ -478,7 +479,8 @@ function prepararBaseOperacionalFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
+    CONJUNTO_OVERRIDES: ['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']
   };
   Object.keys(schemas).forEach(function(name) {
     let sh = ss.getSheetByName(name);
