@@ -21,7 +21,7 @@ A consolidação e as alterações recentes estão na branch `planejamento/contr
 - Foram feitas simulações com dados fictícios para entrada multi-viagem, idempotência e movimentações.
 - **Ainda não está homologado no runtime Google Apps Script.**
 - A resposta do motorista ainda é registrada pelo administrador no painel; a integração automática de mensagens e respostas via WhatsApp não está ativa.
-- O gatilho de expiração existe no código, mas ainda não foi instalado.
+- O instalador do gatilho de expiração existe, mas ainda não foi executado. Só instalar após testes em cópia de homologação com `instalarGatilhoExpiracaoOfertasFullTime('ATIVAR_GATILHO_FULLTIME')`.
 
 ## Documentos de referência
 
