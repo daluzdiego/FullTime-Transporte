@@ -575,52 +575,35 @@ function listarCargasFullTime_() {
     .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
 }
 function salvarCargaFullTime(token, data) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  data = data || {};
-  const dataOperacao = texto_(data.data, 10);
-  const horario = texto_(data.horario, 10);
-  const cliente = texto_(data.cliente, 120);
-  const origem = texto_(data.origem, 160);
-  const destino = texto_(data.destino, 160);
-  const peso = Number(String(data.peso == null ? '' : data.peso).replace(',', '.'));
-  const valorFrete = Number(String(data.valorFrete == null ? '' : data.valorFrete).replace(/\s/g, '').replace(',', '.'));
-  const descricao = texto_(data.descricao, 300);
-  const observacoes = texto_(data.observacoes, 1000);
-  const tiposPermitidos = ['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
-  const tipoOperacao = texto_(data.tipoOperacao || 'OUTRA', 40).toUpperCase();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao) || isNaN(new Date(dataOperacao + 'T12:00:00').getTime())) throw new Error('Informe uma data válida para a operação.');
-  if (horario && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horario)) throw new Error('Informe o horário no formato HH:MM.');
-  if (!cliente) throw new Error('Informe o cliente contratante.');
-  if (!origem) throw new Error('Informe a origem da carga.');
-  if (!destino) throw new Error('Informe o destino da carga.');
-  if (!(peso > 0 && isFinite(peso))) throw new Error('Informe um peso total maior que zero, em toneladas. Não há limite fixo de 100 toneladas para a carga total.');
-  if (!tiposPermitidos.includes(tipoOperacao)) throw new Error('Selecione um tipo de operação válido.');
-  if (data.valorFrete != null && String(data.valorFrete).trim() !== '' && !(valorFrete >= 0 && isFinite(valorFrete))) throw new Error('Informe um valor de frete válido.');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const id = Utilities.getUuid();
-    const sh = getSheet_('CARGAS');
-    // O layout oficial tem 20 colunas; colunas novas são adicionadas ao final pela preparação da base.
-    const values = [
-      id, new Date(), 'A_ESCALAR', dataOperacao, horario, cliente, origem, destino,
-      peso, descricao, '', '', '', '', observacoes,
-      session.login || session.nome || 'ADMIN', tipoOperacao, '', '', 
-      (data.valorFrete == null || String(data.valorFrete).trim() === '') ? '' : valorFrete
-    ];
-    if (sh.getLastColumn() < values.length) {
-      throw new Error('A guia CARGAS ainda não tem todas as colunas. Execute prepararBaseOperacionalFullTime() e tente novamente.');
-    }
+  const session=obterSessao_(token);exigirAdmin_(session);data=data||{};
+  const operacaoId=texto_(data.operacaoId,100),dataOperacao=texto_(data.data,10),horario=texto_(data.horario,10);
+  const cliente=texto_(data.cliente,120),origem=texto_(data.origem,160),destino=texto_(data.destino,160);
+  const peso=Number(String(data.peso==null?'':data.peso).replace(',','.'));
+  const valorFrete=Number(String(data.valorFrete==null?'':data.valorFrete).replace(/\s/g,'').replace(',','.'));
+  const descricao=texto_(data.descricao,300),observacoes=texto_(data.observacoes,1000);
+  const tiposPermitidos=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'],tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
+  if(!operacaoId)throw new Error('Toda viagem deve pertencer a uma operação. Selecione uma operação antes de cadastrar a viagem.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao)||isNaN(new Date(dataOperacao+'T12:00:00').getTime()))throw new Error('Informe uma data válida para a operação.');
+  if(horario&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(horario))throw new Error('Informe o horário no formato HH:MM.');
+  if(!cliente||!origem||!destino)throw new Error('Informe cliente, origem e destino.');
+  if(!(peso>0&&isFinite(peso)))throw new Error('Informe o peso previsto desta viagem em toneladas.');
+  if(!tiposPermitidos.includes(tipoOperacao))throw new Error('Selecione um tipo de operação válido.');
+  if(data.valorFrete!=null&&String(data.valorFrete).trim()!==''&&!(valorFrete>=0&&isFinite(valorFrete)))throw new Error('Informe um valor de frete válido.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
+    if(opIndex<1)throw new Error('Operação vinculada não encontrada.');
+    const op=opRows[opIndex];if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber novas viagens.');
+    const sh=getSheet_('CARGAS'),values=[Utilities.getUuid(),new Date(),'A_ESCALAR',dataOperacao,horario,cliente,origem,destino,peso,descricao,'','','','',observacoes,session.login||session.nome||'ADMIN',tipoOperacao,'','','',(data.valorFrete==null||String(data.valorFrete).trim()===''?'':valorFrete),operacaoId,''];
+    if(sh.getLastColumn()<values.length)throw new Error('A guia CARGAS ainda não tem as colunas necessárias. Execute prepararBaseOperacionalFullTime().');
     sh.appendRow(values);
-    auditar_(session, 'CRIAR', 'CARGA', id, cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t; frete ' + (values[19] === '' ? 'não informado' : valorFrete) + ')');
-    return {ok:true,id:id,message:'Carga registrada. O valor do frete foi salvo e a escala será feita em etapa própria.'};
-  } finally {
-    lock.releaseLock();
-  }
+    const novoVolume=Number(op[9]||0)+peso,novoCount=Number(op[10]||0)+1,novoSaldo=Number(op[11]||0)+peso;
+    ops.getRange(opIndex+1,10,1,3).setValues([[novoVolume,novoCount,novoSaldo]]);
+    auditar_(session,'CRIAR_VIAGEM','OPERACAO',operacaoId,'Viagem '+values[0]+' adicionada; '+peso+' t.');
+    return {ok:true,id:values[0],operacaoId:operacaoId,message:'Viagem adicionada à operação. O total e o saldo foram atualizados.'};
+  }finally{lock.releaseLock();}
 }
 
-/** Cadastro administrativo de cavalos mecânicos. Registros começam pendentes. */
 function salvarCavaloFullTime(token, data) {
   const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
   const placa = normalizarPlaca_(data.placa);
