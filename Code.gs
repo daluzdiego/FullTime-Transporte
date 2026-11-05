@@ -1073,8 +1073,9 @@ function salvarOperacaoFullTime(token, data) {
     for(let i=0;i<cargas;i++)childRows.push([Utilities.getUuid(),now,'A_ESCALAR',dataOp,'',cliente,origem,destino,'',nome+' — Viagem '+(i+1)+' de '+cargas,'','','','',observacoes,session.login,'','','','',id,'']);
     // Grava o pai e as viagens-filhas em lote sob o mesmo lock.
     opSheet.appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,cargas,volume,observacoes,session.login,'']);
-    const startRow=loadSheet.getLastRow()+1;
-    loadSheet.getRange(startRow,1,childRows.length,22).setValues(childRows);
+    const operationRow=opSheet.getLastRow(),startRow=loadSheet.getLastRow()+1;
+    try{loadSheet.getRange(startRow,1,childRows.length,22).setValues(childRows);}
+    catch(writeError){opSheet.deleteRow(operationRow);throw new Error('Não foi possível gravar as viagens-filhas; a operação-pai foi revertida: '+writeError.message);}
     auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens='+cargas);
     return {ok:true,id:id,viagensCriadas:childRows.length,message:'Operação criada com '+childRows.length+' viagem(ns) prevista(s). Saldo inicial: '+volume+' t.'};
   }finally{lock.releaseLock();}
