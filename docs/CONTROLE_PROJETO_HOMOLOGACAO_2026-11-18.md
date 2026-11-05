@@ -176,3 +176,9 @@ A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada p
 - O workflow de CI foi ampliado para verificar a sintaxe de todos os arquivos `.gs` em conjunto e os scripts do `Index.html`; os dois checks do PR #5 concluíram com sucesso em 05/11.
 - `AuditoriaIntegridadeFullTime.gs` é somente leitura e agora verifica vínculos de operação/viagem, peso real, ofertas, escalas, eventos, overrides, disponibilidade, conjuntos e cadastros fictícios.
 - O README foi atualizado para refletir a arquitetura atual e advertir contra executar o bootstrap de base nova sobre as planilhas existentes.
+
+## 13. Próxima ação segura no ambiente Google
+
+Foi adicionado `DiagnosticoAmbienteHomologacao.gs` com a função `verificarAmbienteHomologacaoFullTime()`. Ela é **somente leitura**: abre as planilhas configuradas, compara guias/cabeçalhos, verifica propriedades e consulta gatilhos. Não cria guias, não altera propriedades, não instala gatilhos e não escreve dados.
+
+O próximo passo é executar apenas essa função no editor Apps Script e revisar o relatório. Não executar ainda `prepararBaseOperacionalFullTime()`, `conectarPlanilhaOperacionalFullTime()`, limpeza de dados ou sincronização até confirmar que os IDs e as planilhas abertas correspondem ao ambiente de homologação/cópias.
