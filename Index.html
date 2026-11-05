@@ -99,6 +99,7 @@
   const NAV_ITEMS = [
     {id:'inicio',label:'Operação',icon:'⌂',title:'Painel da operação'},
     {id:'operacoes',label:'Operações',icon:'⇄',title:'Operações'},
+    {id:'entradaIA',label:'Entrada de viagens (IA)',icon:'✦',title:'Entrada de viagens com IA'},
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'frota',label:'Frota',icon:'▰',title:'Frota',group:true,children:[
@@ -198,7 +199,7 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',entradaIA:'Entrada de viagens (IA)',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
@@ -208,6 +209,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
+    else if(page==='entradaIA') { c.innerHTML=renderEntradaOperacoesIA(); setTimeout(carregarEntradasIA,0); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
@@ -343,16 +345,24 @@
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.campos[2]||o.id):id;};
-    const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
+    const setName=id=>{
+      const s=sets.find(x=>x.id===id);if(!s)return id;
+      const horses=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])];
+      const horse=horses.find(x=>x.id===String(s.campos[1]||''));
+      const middle=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[2]||''));
+      const rear=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[3]||''));
+      const plates=[horse?.campos?.[0],middle?.campos?.[0],rear?.campos?.[0]].filter(Boolean);
+      return plates.length?plates.join(' / '):'Veículos pendentes de vínculo';
+    };
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
     const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
-      <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
+      <div class="page-head"><div><h1>Escalas por operação</h1><p>Acompanhe motoristas alocados pelo sistema, veículos vinculados e exceções operacionais.</p></div></div>
       <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
         <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
           <div class="field"><label>Operação de origem *</label><select name="operacaoAtualId" required>${opOptions}</select></div>
@@ -379,13 +389,69 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
   }
 
+  function renderEntradaOperacoesIA(){
+    return `<div class="page-head"><div><h1>Entrada de viagens com IA</h1><p>Cole a mensagem do WhatsApp. A interpretação fica em rascunho e só vira carga após conferência e confirmação.</p></div></div><div class="notice"><strong>Ambiente de testes:</strong> use mensagens fictícias. Quando a propriedade FT_GEMINI_API_KEY estiver configurada, o texto será interpretado pelo Gemini; sem chave, entram em ação regras locais conservadoras. A ferramenta não acessa o WhatsApp automaticamente. Durante os testes, use somente mensagens fictícias; com a chave configurada, o texto é enviado à API do Gemini.</div><div class="panel form-panel"><div class="panel-head"><h2>Interpretar mensagem</h2><span class="badge badge-pending">Confirmação obrigatória</span></div><div class="panel-body"><form onsubmit="interpretarEntradaIA(event)"><div class="field"><label for="entradaIATexto">Mensagem copiada do WhatsApp *</label><textarea id="entradaIATexto" name="texto" rows="6" maxlength="12000" required placeholder="Cole aqui o texto da solicitação de transporte..."></textarea></div><div id="entradaIAError" class="error"></div><div class="form-actions"><button id="entradaIABtn" class="btn btn-primary" type="submit">Interpretar mensagem</button></div></form></div></div><div id="entradaIARascunho"></div><div class="panel"><div class="panel-head"><h2>Histórico das entradas</h2><button class="btn btn-secondary" type="button" onclick="carregarEntradasIA()">Atualizar</button><button class="btn btn-secondary" type="button" onclick="sincronizarEntradasIA()">Sincronizar para Full Time</button></div><div class="panel-body"><div id="entradaIAHistorico" class="empty">Carregando entradas...</div></div></div>`;
+  }
+  function interpretarEntradaIA(ev){ev.preventDefault();const text=document.getElementById('entradaIATexto').value.trim(),btn=document.getElementById('entradaIABtn'),err=document.getElementById('entradaIAError');if(!text){err.textContent='Cole uma mensagem antes de continuar.';return;}btn.disabled=true;btn.textContent='Interpretando...';err.textContent='';google.script.run.withSuccessHandler(r=>{btn.disabled=false;btn.textContent='Interpretar mensagem';toast(r.message||'Rascunho criado.');renderRascunhoEntradaIA(r);carregarEntradasIA();}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Interpretar mensagem';err.textContent=e.message||'Não foi possível interpretar a mensagem.';}).interpretarTextoOperacaoIAFullTime(authToken,text);}
+  function renderRascunhoEntradaIA(r){const d=r.dados||{},pending=r.camposPendentes||[],labels={data:'Data da viagem',horario:'Horário',cliente:'Cliente/contratante',origem:'Origem',destino:'Destino',peso:'Peso (toneladas)',descricao:'Descrição da carga',tipoOperacao:'Tipo de operação',valorFrete:'Valor do frete',observacoes:'Observações'},types=[['','Selecione'],['DESCARGA_NAVIO','Descarga de navio'],['TRANSFERENCIA_FABRICAS','Transferência entre fábricas/unidades'],['REMOCAO_INTERNA','Remoção interna'],['OUTRA','Outra']];
+    const field=(k,v)=>`<div class="field"><label>${labels[k]}${pending.includes(k)?' *':''}</label>${k==='tipoOperacao'?`<select name="${k}" required>${types.map(t=>`<option value="${t[0]}" ${String(v||'')===t[0]?'selected':''}>${t[1]}</option>`).join('')}</select>`:k==='observacoes'?`<textarea name="${k}" maxlength="1000">${esc(v||'')}</textarea>`:`<input name="${k}" ${k==='data'?'type="date"':k==='horario'?'type="time"':k==='peso'||k==='valorFrete'?'type="number" step="0.01" min="0"':'type="text"'} value="${esc(v||'')}" ${pending.includes(k)?'required':''}>`}</div>`;
+    document.getElementById('entradaIARascunho').innerHTML=`<div class="panel form-panel"><div class="panel-head"><h2>Conferir dados extraídos</h2><span class="badge badge-pending">${pending.length} campo(s) pendente(s)</span></div><div class="panel-body"><div class="notice"><strong>Texto original preservado</strong><br>${esc(r.textoOriginal||'')}</div>${r.perguntas?`<div class="notice">${esc(r.perguntas).replace(/\n/g,'<br>')}</div>`:''}<form id="entradaIAForm" onsubmit="salvarRevisaoEntradaIA(event,'${esc(r.id)}')"><div class="form-grid">${['data','horario','cliente','origem','destino','peso','descricao','tipoOperacao','valorFrete','observacoes'].map(k=>field(k,d[k])).join('')}</div><div id="entradaIARevisaoError" class="error"></div><div class="form-actions"><button class="btn btn-secondary" type="button" onclick="cancelarRascunhoEntradaIA()">Fechar</button><button class="btn btn-secondary" type="submit">Salvar revisão</button><button class="btn btn-primary" type="button" onclick="confirmarRascunhoEntradaIA('${esc(r.id)}')">Confirmar e criar carga</button></div></form></div></div>`;
+  }
+  function salvarRevisaoEntradaIA(ev,id){ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());google.script.run.withSuccessHandler(r=>{toast((r.message||'Revisão salva.')+' Campos pendentes: '+(r.camposPendentes||[]).length);renderRascunhoEntradaIA(r);carregarEntradasIA();}).withFailureHandler(e=>{document.getElementById('entradaIARevisaoError').textContent=e.message||'Falha ao salvar revisão.';}).atualizarRascunhoOperacaoIAFullTime(authToken,id,data);}
+  function confirmarRascunhoEntradaIA(id){
+  const form=document.getElementById('entradaIAForm');
+  if(!form){toast('Abra o rascunho para revisar.',true);return;}
+  const data=Object.fromEntries(new FormData(form).entries());
+  if(!confirm('Confirmar os dados revisados e criar a operação e sua primeira carga?'))return;
+  google.script.run.withSuccessHandler(r=>{
+    toast(r.message,!r.sincronizado);
+    document.getElementById('entradaIARascunho').innerHTML='';
+    carregarEntradasIA();
+    google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);
+  }).withFailureHandler(e=>{
+    const el=document.getElementById('entradaIARevisaoError');
+    if(el)el.textContent=e.message||'Não foi possível confirmar.';
+  }).confirmarEntradaOperacaoIAFullTime(authToken,id,data);
+}
+function cancelarRascunhoEntradaIA(){document.getElementById('entradaIARascunho').innerHTML='';}
+  function carregarEntradasIA(){
+  const host=document.getElementById('entradaIAHistorico');if(!host)return;
+  google.script.run.withSuccessHandler(rows=>{
+    if(!rows.length){host.className='empty';host.innerHTML='<strong>Nenhuma mensagem processada</strong>Use mensagens fictícias durante a fase de testes.';return;}
+    host.className='table-wrap';
+    host.innerHTML='<table><thead><tr><th>Recebido</th><th>Status</th><th>Rota</th><th>Pendências</th><th>Ação</th></tr></thead><tbody>'+
+      rows.map(r=>{const d=r.dados||{},action=r.status==='AGUARDANDO_REVISAO'?'Revisar':'Visualizar';return '<tr><td>'+esc(String(r.criado||'').slice(0,16).replace('T',' '))+'</td><td>'+esc(r.status)+'</td><td>'+esc(d.origem||'—')+' → '+esc(d.destino||'—')+'</td><td>'+esc((r.camposPendentes||[]).length)+'</td><td><button class="btn btn-secondary" onclick="abrirRascunhoEntradaIA(\''+esc(r.id)+'\')">'+action+'</button></td></tr>';}).join('')+
+      '</tbody></table>';
+  }).withFailureHandler(e=>{host.className='error';host.textContent=e.message||'Falha ao carregar histórico.';}).listarEntradasOperacoesIAFullTime(authToken);
+}
+function abrirRascunhoEntradaIA(id){
+  google.script.run.withSuccessHandler(rows=>{
+    const r=rows.find(x=>x.id===id);if(!r){toast('Entrada não encontrada.',true);return;}renderRascunhoEntradaIA(r);
+    if(r.status==='CONFIRMADO'){
+      const form=document.getElementById('entradaIAForm');
+      if(form){form.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);const actions=form.querySelector('.form-actions');
+        if(actions)actions.innerHTML='<button class="btn btn-secondary" type="button" onclick="cancelarRascunhoEntradaIA()">Fechar</button><span class="muted small">Entrada confirmada. ID da carga: '+esc(r.cargaId||'')+'</span>';
+      }
+    }
+  }).withFailureHandler(e=>toast(e.message||'Falha ao abrir entrada.',true)).listarEntradasOperacoesIAFullTime(authToken);
+}
+function sincronizarEntradasIA(){
+  const host=document.getElementById('entradaIAHistorico');if(host)host.textContent='Sincronizando a planilha do Bruno para Full Time...';
+  google.script.run.withSuccessHandler(r=>{
+    const msg='Sincronização concluída. Novas linhas: '+r.inseridos+'; atualizadas: '+r.atualizados+'; cargas criadas: '+r.cargasCriadas+'.'+(r.erros&&r.erros.length?' Erros: '+r.erros.join(' | '):'');
+    toast(msg,!!(r.erros&&r.erros.length));carregarEntradasIA();
+    google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);
+  }).withFailureHandler(e=>{toast(e.message||'Falha na sincronização.',true);carregarEntradasIA();}).sincronizarEntradasOperacoesIAFullTime(authToken);
+}
+
+
   function renderOperacoes(){
     const ops=dashboard?.operacoes||[];
     const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
     const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
     return `
       <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div></div>
-      <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
+      <div class="notice"><strong>Escala automática:</strong> o sistema será responsável por distribuir as cargas entre motoristas habilitados. Esta tela não permite designação manual. O motor só poderá gerar escalas quando os vínculos, a disponibilidade diária e as regras operacionais estiverem validados.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
           <div class="field"><label>Data *</label><input name="data" type="date" required></div>
@@ -400,7 +466,7 @@
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><span class="muted small">Aguardando escala automática</span> <button class="icon-btn" title="Registrar movimentação da operação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
