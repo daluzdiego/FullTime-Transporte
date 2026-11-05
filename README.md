@@ -38,6 +38,10 @@ A consolidação e as alterações recentes estão na branch `planejamento/contr
 - Google Sheets como persistência inicial.
 - HTML, CSS e JavaScript no frontend.
 
+## Primeiro passo seguro de homologação
+
+No editor do Apps Script, execute `verificarAmbienteHomologacaoFullTime()`. Essa função é somente leitura: confere IDs configurados sem exibi-los, guias, cabeçalhos, propriedades e gatilho de expiração. Envie o objeto/log retornado para análise antes de executar qualquer migração.
+
 ## Atenção antes de executar no ambiente real
 
 1. Não execute rotinas de limpeza nem apague dados reais.
