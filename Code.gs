@@ -1184,28 +1184,52 @@ function retornarConjuntoOperacaoFullTime(token, data) {
   return {ok:true,message:'Retorno registrado no histórico.'};
 }
 function designarConjuntoOperacaoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const session=obterSessao_(token);exigirAdmin_(session);data=data||{};
   const operacaoId=texto_(data.operacaoId,100),conjuntoId=texto_(data.conjuntoId,100),motivo=texto_(data.motivo,500);
   if(!operacaoId||!conjuntoId)throw new Error('Selecione operação e conjunto.');
-  const ops=getSheet_('OPERACOES').getDataRange().getValues(),opIndex=ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
-  if(opIndex<1)throw new Error('Operação não encontrada.');
-  const op=ops[opIndex];if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber conjuntos.');
-  const sets=ftCadastroRowsAsLegacy_('CONJUNTOS'),set=sets.find(r=>String(r[0])===conjuntoId);
-  if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo ou não foi sincronizado.');
-  if(String(set[8]||'APTO').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO; revise sua condição antes da designação.');
-  if(!(Number(set[10])>0))throw new Error('O conjunto não tem capacidade útil cadastrada.');
-  const drivers=ftCadastroRowsAsLegacy_('MOTORISTAS'),driver=drivers.find(r=>String(r[0])===String(set[3]));
-  if(!driver||String(driver[2])!=='ATIVO')throw new Error('Motorista associado não está ativo.');
-  const expiry=driver[9],expiryDate=expiry?new Date(expiry):null;
-  if(expiryDate&&(!isFinite(expiryDate.getTime())||expiryDate.getTime()<new Date(op[3]).getTime()))throw new Error('CNH vencida ou com validade inválida para a data da operação.');
-  const parts=getSheet_('PARTICIPACAO_OPERACOES'),rows=parts.getDataRange().getValues();
-  if(rows.some((r,i)=>i>0&&String(r[4])===String(set[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já participa de outra operação em andamento.');
-  const id=Utilities.getUuid(),now=new Date();
-  parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login]);
-  getSheet_('EVENTOS_ESCALA').appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação administrativa',session.login]);
-  if(String(op[2])==='ABERTA')getSheet_('OPERACOES').getRange(opIndex+1,3).setValue('EM_ANDAMENTO');
-  auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
-  return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
+  if(!motivo)throw new Error('Justificativa obrigatória para designação administrativa excepcional.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
+    if(opIndex<1)throw new Error('Operação não encontrada.');
+    const op=opRows[opIndex];if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber conjuntos.');
+    const sets=ftCadastroRowsAsLegacy_('CONJUNTOS'),set=sets.find(r=>String(r[0])===conjuntoId);
+    if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo ou não foi sincronizado.');
+    if(String(set[8]||'APTO').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO; revise sua condição antes da designação.');
+    if(!(Number(set[10])>0))throw new Error('O conjunto não tem capacidade útil cadastrada.');
+    const drivers=ftCadastroRowsAsLegacy_('MOTORISTAS'),driver=drivers.find(r=>String(r[0])===String(set[3]));
+    if(!driver||String(driver[2])!=='ATIVO')throw new Error('Motorista associado não está ativo.');
+    const dateKey=v=>{if(!v)return '';if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.trim()))return v.trim();const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
+    const expiry=driver[9]?dateKey(driver[9]):'',operationDate=dateKey(op[3]);
+    if(driver[9]&&(!expiry||!operationDate||expiry<operationDate))throw new Error('CNH vencida ou com validade inválida para a data da operação.');
+    const parts=getSheet_('PARTICIPACAO_OPERACOES'),partRows=parts.getDataRange().getValues();
+    if(partRows.some((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[5])==='ATIVO'))throw new Error('A operação já possui motorista/conjunto ativo.');
+    if(partRows.some((r,i)=>i>0&&String(r[4])===String(set[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já participa de outra operação em andamento.');
+    const loads=getSheet_('CARGAS'),loadRows=loads.getDataRange().getValues(),headers=loadRows[0].map(v=>String(v||'').trim()),ix={};
+    headers.forEach((h,i)=>ix[h]=i);
+    const required=['ID','OPERACAO_ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
+    const missing=required.filter(k=>ix[k]===undefined);if(missing.length)throw new Error('A guia CARGAS precisa destas colunas: '+missing.join(', ')+'.');
+    const escalas=getSheet_('ESCALAS'),eh=escalas.getRange(1,1,1,escalas.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const requiredEscala=['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES','OPERACAO_ID'];
+    const missingEscala=requiredEscala.filter(k=>eh.indexOf(k)<0);if(missingEscala.length)throw new Error('A guia ESCALAS precisa destas colunas: '+missingEscala.join(', ')+'.');
+    const loadMatches=[];for(let i=1;i<loadRows.length;i++)if(String(loadRows[i][ix.OPERACAO_ID]||'')===operacaoId)loadMatches.push(i+1);
+    const now=new Date(),partId=Utilities.getUuid(),escalaId=Utilities.getUuid();
+    const firstLoadId=loadMatches.length?String(loadRows[loadMatches[0]-1][ix.ID]||''):'';
+    // A designação excepcional também grava o mesmo snapshot e os vínculos das cargas-filhas.
+    parts.appendRow([partId,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,'Override administrativo: '+motivo,session.login]);
+    loadMatches.forEach(rowNo=>{
+      loads.getRange(rowNo,ix.STATUS+1).setValue('PROGRAMADA');
+      loads.getRange(rowNo,ix.MOTORISTA_ID+1).setValue(String(set[3]));
+      loads.getRange(rowNo,ix.CAVALO_ID+1).setValue(String(set[4]||''));
+      loads.getRange(rowNo,ix.CARRETA_MEIO_ID+1).setValue(String(set[5]||''));
+      loads.getRange(rowNo,ix.CARRETA_FINAL_ID+1).setValue(String(set[6]||''));
+    });
+    escalas.appendRow([escalaId,now,'ATIVA',firstLoadId,String(set[3]),String(set[4]||''),String(set[5]||''),String(set[6]||''),'OVERRIDE ADMINISTRATIVO: '+motivo,op[3]||'','', 'Designação excepcional autorizada e auditada.',operacaoId]);
+    if(String(op[2])==='ABERTA')ops.getRange(opIndex+1,3).setValue('EM_ANDAMENTO');
+    ftRegistrarEventoEscala_('OVERRIDE_ADMINISTRATIVO',operacaoId,firstLoadId,String(set[3]),conjuntoId,'',motivo,session.login);
+    auditar_(session,'DESIGNAR_CONJUNTO_OVERRIDE','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. Justificativa: '+motivo);
+    return {ok:true,message:'Designação excepcional registrada, com justificativa e snapshot da operação.'};
+  }finally{lock.releaseLock();}
 }
 
 function ftCadastroRowsAsLegacy_(entity) {
