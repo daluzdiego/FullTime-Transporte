@@ -107,7 +107,7 @@ O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `
 ## 6. Regras de escala a implementar
 
 1. Filtrar motorista ativo/aprovado, habilitação válida e compatível, disponibilidade confirmada, sem bloqueio e sem conflito.
-2. Usar o conjunto fixo vinculado ao motorista. Substituição exige autorização explícita do gestor e auditoria.
+2. Usar o conjunto fixo vinculado ao motorista. A escala automática exige condição `APTO` explicitamente registrada; conjunto `APTO_COM_RESTRICAO` só pode ser atribuído por decisão administrativa justificada. Substituição exige autorização explícita do gestor e auditoria.
 3. Priorizar motoristas com zero operações atribuídas no dia.
 4. Dentro do grupo, considerar assiduidade em componentes identificáveis, menor número de operações distintas nos últimos 30 dias e maior tempo de fila.
 5. Não usar valor do frete como critério.
@@ -222,3 +222,5 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 - A derivação só ocorre quando o cavalo e todas as carretas selecionadas possuem capacidade válida. Se faltar capacidade de qualquer componente, o conjunto permanece sem capacidade e não é elegível para escala.
 - Um valor em `CONJUNTO_OVERRIDES` prevalece sobre a derivação, inclusive zero (zero mantém o conjunto sem capacidade elegível).
 - A capacidade do conjunto é comparada com o peso previsto por viagem, quando conhecido, e com o peso real acumulado de cada viagem durante as movimentações.
+
+**Inspeção obrigatória:** conjunto sem estado de conservação explicitamente registrado não participa da escala automática, mesmo que motorista, cavalo e carretas estejam ativos. Isso evita tratar ausência de inspeção como aprovação implícita.
