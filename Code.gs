@@ -1595,20 +1595,23 @@ function prepararEntradaOperacoesIAFullTime() {
     origem:c.source.getUrl()+'#gid='+origem.getSheetId(),destino:c.dest.getUrl()+'#gid='+destino.getSheetId(),
     direcao:'BRUNO_PARA_FULL_TIME',observacao:'Cria/verifica a guia nos dois arquivos; não cria viagens nem preenche dados fictícios.'};
 }
-function listarEntradasOperacoesIAFullTime(token) {
-  const session=obterSessao_(token); exigirAdmin_(session);
+function listarEntradasOperacoesIAFullTime(token){
+  const session=obterSessao_(token);exigirAdmin_(session);
   const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
-  if(!sh)throw new Error('Execute prepararEntradaOperacoesIAFullTime() para criar a guia nas duas planilhas.');
-  validarCabecalhosEntradaOperacoesIA_(sh); if(sh.getLastRow()<2)return [];
-  return sh.getRange(2,1,sh.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues().map(r=>({
-    id:String(r[0]||''),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),
-    criadoPor:String(r[2]||''),status:String(r[3]||''),textoOriginal:String(r[4]||''),
-    dados:(()=>{try{return JSON.parse(String(r[5]||'{}'));}catch(e){return {};}})(),
-    camposPendentes:(()=>{try{return JSON.parse(String(r[6]||'[]'));}catch(e){return [];}})(),
-    perguntas:String(r[7]||''),cargaId:String(r[8]||''),
-    confirmadoEm:r[9] instanceof Date?r[9].toISOString():String(r[9]||''),confirmadoPor:String(r[10]||''),erro:String(r[11]||'')
-  })).reverse();
+  if(!sh)return [];
+  const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,FT_IA_ENTRADA_HEADERS.length).getValues():[];
+  return rows.filter(r=>r[0]).map(r=>{
+    let dados={},pend=[],cargaIds=[];
+    try{dados=JSON.parse(String(r[5]||'{}'));}catch(e){}
+    try{pend=JSON.parse(String(r[6]||'[]'));}catch(e){}
+    try{cargaIds=JSON.parse(String(r[13]||'[]'));if(!Array.isArray(cargaIds))cargaIds=[];}catch(e){}
+    return {id:String(r[0]),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),criadoPor:String(r[2]||''),
+      status:String(r[3]||''),textoOriginal:String(r[4]||''),dados:dados,camposPendentes:pend,perguntas:String(r[7]||''),
+      cargaId:String(r[8]||''),cargaIds:cargaIds,operacaoId:String(r[12]||''),
+      confirmadoEm:r[9] instanceof Date?r[9].toISOString():String(r[9]||''),confirmadoPor:String(r[10]||''),erro:String(r[11]||'')};
+  }).reverse();
 }
+
 function obterConfiguracaoGeminiEntradaIA_(){
   const p=PropertiesService.getScriptProperties(),apiKey=p.getProperty('FT_GEMINI_API_KEY')||p.getProperty('GEMINI_API_KEY')||'';
   const model=(p.getProperty('FT_GEMINI_MODEL')||'gemini-3.8-flash').trim();
