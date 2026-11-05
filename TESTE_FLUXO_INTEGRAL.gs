@@ -6,8 +6,8 @@
  * sincronizados do Bruno, valida contratos de dados e funções determinísticas.
  *
  * Importante: "APROVADO" significa que a verificação executada passou.
- * O fluxo de escala automática só será considerado completo quando existir
- * um motor que grave ESCALAS de forma automática; esta suíte detecta essa lacuna.
+ * A suíte valida contratos, regras determinísticas e funções auxiliares sem gravar
+ * dados. Ela não substitui os testes de integração no runtime Google.
  */
 
 function executarTesteFluxoIntegralFullTime() {
@@ -148,6 +148,24 @@ function executarTesteFluxoIntegralFullTime() {
     });
     exigir(!duplicados.length, 'Conjuntos com mais de uma participação ATIVA: ' + [...new Set(duplicados)].join(', '));
     return ativos.length + ' participação(ões) ativa(s), sem conjunto duplicado.';
+  });
+
+  executar('06 — CADASTROS BRUNO', 'Mapeamento dos espelhos Bruno e campo de capacidade do cavalo', () => {
+    exigir(FT_BRUNO_CADASTROS.MOTORISTAS.sheet === 'FT_CADASTRO_BRUNO_MOTORISTAS', 'Espelho de motoristas não configurado.');
+    exigir(FT_BRUNO_CADASTROS.CAVALOS.fields.includes('CAPACIDADE_UTIL_TONELADAS'), 'Capacidade útil do cavalo não está mapeada.');
+    exigir(FT_BRUNO_CADASTROS.CARRETAS.fields.includes('CAPACIDADE_CARGA_TONELADAS'), 'Capacidade de carga das carretas não está mapeada.');
+    exigir(FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_MEIO_ID') && FT_BRUNO_CADASTROS.CONJUNTOS.fields.includes('CARRETA_FINAL_ID'), 'Vínculos de carretas do conjunto não estão mapeados.');
+    exigir(FT_BRUNO_CADASTROS.DOCUMENTOS.sheet === 'FT_CADASTRO_BRUNO_DOCUMENTOS', 'Espelho de documentos não configurado.');
+    return 'Mapeamentos de motoristas, cavalos, carretas, conjuntos e documentos presentes.';
+  });
+
+  executar('06 — CAPACIDADE', 'Derivação exige capacidade de todos os componentes e respeita carretas', () => {
+    const caps={cavalos:{H1:20,H2:0},carretas:{T1:10,T2:12}};
+    exigir(ftCalcularCapacidadeConjunto_('H1','T1','T2',caps)===42, 'Soma de cavalo e duas carretas deveria ser 42 t.');
+    exigir(ftCalcularCapacidadeConjunto_('H1','T1','',caps)===30, 'Soma de cavalo e carreta deveria ser 30 t.');
+    exigir(ftCalcularCapacidadeConjunto_('H2','T1','',caps)===0, 'Cavalo sem capacidade não pode gerar capacidade de conjunto.');
+    exigir(ftCalcularCapacidadeConjunto_('H1','T1','T3',caps)===0, 'Carreta selecionada sem capacidade não pode ser ignorada.');
+    return 'Capacidade derivada apenas com componentes completos; 4 cenários aprovados.';
   });
 
   executar('07 — REGRAS DETERMINÍSTICAS', 'Ordenação exclui inelegíveis, respeita operação no dia, assiduidade e operações distintas', () => {
