@@ -8,7 +8,7 @@
 
 Entregar até 18/11/2026 um fluxo homologado em que a planilha do Bruno seja a origem dos cadastros e da entrada assistida de operações, a planilha principal Full Time seja a base operacional do sistema, e o próprio sistema faça a distribuição de operações conforme as regras de escala confirmadas.
 
-A unidade de distribuição é a **OPERAÇÃO**. Uma operação pode conter várias cargas/voltas. Atribuir uma operação a um motorista significa que as cargas/voltas filhas herdam o mesmo motorista e conjunto, salvo substituição autorizada e auditada.
+A unidade de distribuição é a **OPERAÇÃO**. Uma operação pode conter de 1 a 30 viagens/cargas-filhas. Atribuir uma operação a um motorista significa que todas as viagens-filhas herdam o mesmo motorista e conjunto, salvo substituição autorizada e auditada. O peso total da operação e o peso previsto/real de cada viagem são informações distintas.
 
 ## 2. Arquitetura lógica
 
@@ -59,7 +59,7 @@ PLANILHA PRINCIPAL FULL TIME
 | `WhatsAppTickets.gs` | Webhook Meta para recebimento de tickets/imagens | Não é, por si só, o canal de entrada de operações |
 | `ENTRADA_OPERACOES_IA` | Registro original, interpretação, revisão e confirmação da solicitação | Deve existir nas duas planilhas, com o mesmo ID da solicitação |
 | `OPERACOES` | Entidade-pai que representa o trabalho contratado/atendimento | Unidade de distribuição da escala |
-| `CARGAS` | Cargas/voltas individuais pertencentes a uma operação | Deve referenciar a operação-pai |
+| `CARGAS` | Viagens individuais pertencentes a uma operação | Deve referenciar a operação-pai por `OPERACAO_ID`; `PESO_TONELADAS` é previsto e `PESO_REAL_TONELADAS` é apurado nas movimentações |
 | `DISPONIBILIDADE_DIARIA` | Confirmação de disponibilidade por motorista/data | Lembretes não equivalem a confirmação |
 | `FILA_MOTORISTAS` | Posição/tempo de fila e estado de participação | Contagem deve ser por operação distinta |
 | `OFERTAS_CARGAS` | Persistência do ciclo de oferta e resposta | Necessita vínculo inequívoco com a operação |
@@ -80,7 +80,7 @@ PLANILHA PRINCIPAL FULL TIME
 ### Entrada de operações
 - A mensagem original colada pelo Bruno é preservada.
 - O parser produz um rascunho; dados inferidos ou incertos devem ser identificados e revisados.
-- A confirmação gera um ID único de solicitação na planilha do Bruno.
+- A confirmação gera um ID único de solicitação, um ID de operação e IDs estáveis para cada uma das 1–30 viagens na planilha do Bruno.
 - A replicação para a planilha principal usa esse mesmo ID.
 - O sistema deve verificar esse ID antes de criar operação/carga. Reenvio, repetição ou nova sincronização não pode duplicar.
 - Na primeira liberação, a entrada será assistida por copiar/colar. Integração automática com a conta pessoal do WhatsApp não está assumida.
@@ -90,15 +90,18 @@ PLANILHA PRINCIPAL FULL TIME
 ### Regra confirmada
 A escala é distribuída por operação distinta. Uma operação pode conter de 1 a 30 voltas. As voltas não são oportunidades independentes e não podem alterar a posição global do motorista na fila.
 
-### Ajuste necessário no modelo atual
-O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `CARGAS` e `ESCALAS` usam identificadores de carga. O esquema atual de `CARGAS` não apresenta um campo explícito `OPERACAO_ID`, e `ESCALAS`/`OFERTAS_CARGAS` estão centradas em `CARGA_ID`. Isso cria risco de distribuir cada volta como se fosse uma operação diferente.
+### Modelo de operação-pai e viagens-filhas implementado na branch de trabalho
+O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `CARGAS` e `ESCALAS` usam identificadores de carga. O esquema original de `CARGAS`, `ESCALAS`, `OFERTAS_CARGAS` e `EVENTOS_ESCALA` não identificava uniformemente a operação-pai. A branch de trabalho acrescenta `OPERACAO_ID` a essas guias e `CARGA_ID` a `MOVIMENTACOES_OPERACAO`, com migração aditiva.
 
 ### Modelo proposto
 - `OPERACOES.ID` é a chave da unidade de escala.
-- Adicionar/revisar `CARGAS.OPERACAO_ID` como chave estrangeira para a operação-pai.
+- `CARGAS.OPERACAO_ID` é a chave estrangeira para a operação-pai; `CARGAS.PESO_REAL_TONELADAS` guarda o peso somado nas movimentações.
 - `OFERTAS_CARGAS` deve referenciar `OPERACAO_ID`; pode manter `CARGA_ID` quando houver necessidade de rastrear uma carga específica, mas não usar a volta como unidade de prioridade.
-- `ESCALAS` deve registrar `OPERACAO_ID` como chave da atribuição. Pode manter referência às cargas filhas para rastreabilidade, sem gerar uma nova decisão de escala por volta.
-- Uma única atribuição confirmada associa motorista e conjunto fixo à operação. As cargas filhas herdam essa associação.
+- `ESCALAS` deve registrar `OPERACAO_ID` como chave da atribuição. Pode manter referência à primeira carga para rastreabilidade, sem gerar uma nova decisão de escala por volta.
+- `MOVIMENTACOES_OPERACAO.CARGA_ID` aponta para a viagem em execução; o peso real é somado por viagem.
+- Uma única atribuição confirmada associa motorista e conjunto fixo à operação. Todas as cargas-filhas herdam essa associação.
+- A confirmação da entrada IA gera 1–30 registros em `CARGAS`. Se o peso por viagem não estiver explícito, ele permanece vazio; o sistema nunca divide o volume total por suposição.
+- Cada movimentação aponta para a próxima viagem pendente por `CARGA_ID`, soma `PESO_REAL_TONELADAS` e marca a viagem como concluída quando confirmado pelo responsável.
 - Migração de cabeçalhos/colunas deve ser aditiva e validada em cópia de teste. Não renomear nem apagar colunas existentes durante a homologação.
 
 ## 6. Regras de escala a implementar
@@ -195,3 +198,16 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 - A implantação Web App e as permissões do projeto Apps Script ainda precisam ser verificadas.
 
 **Estado atual:** código consolidado na branch de trabalho e aprovado em verificação estática de sintaxe/nomes globais; ainda não homologado no runtime Google.
+
+
+## 14. Acompanhamento das viagens
+
+- Cada operação confirmada pela IA possui de 1 a 30 linhas-filhas em `CARGAS`.
+- `PESO_TONELADAS` registra peso previsto por viagem quando conhecido; pode ficar vazio se a mensagem só informar o total da operação.
+- `PESO_REAL_TONELADAS` é a soma das movimentações vinculadas à viagem.
+- `MOVIMENTACOES_OPERACAO.CARGA_ID` vincula cada registro à viagem em execução.
+- Uma viagem é marcada `CONCLUIDA` somente quando o responsável confirma a conclusão. Movimentações parciais ficam `EM_ANDAMENTO`.
+- O saldo da operação diminui pelas toneladas efetivamente movimentadas; o sistema impede que o conjunto exceda a capacidade útil numa mesma viagem.
+- Se o saldo total for zerado, as viagens ainda não utilizadas são canceladas com observação de encerramento.
+
+**Teste de simulação realizado fora do runtime Google:** uma operação fictícia com cinco viagens de 20 t criou uma operação-pai e cinco cargas-filhas; a segunda execução criou zero registros adicionais. Isso valida a lógica idempotente em simulação, mas não substitui o teste no Apps Script/Sheets.
