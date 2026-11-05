@@ -6,7 +6,9 @@
 var FT_SOL_AI = {
   MODEL: 'gemini-3.8-flash',
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
-  MAX_TEXT: 30000
+  MAX_TEXT: 30000,
+  OPENAI_KEY_PROPERTY: 'FT_OPENAI_API_KEY',
+  OPENAI_MODEL: 'gpt-6-luna'
 };
 
 function analisarSolicitacaoIAFullTime(token, id) {
@@ -60,45 +62,10 @@ function analisarSolicitacaoIAFullTime(token, id) {
     original
   ].join('\n');
 
-  var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-    encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent';
-  var requestOptions = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': apiKey },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
-    })
-  };
-
-  // 503 (sobrecarga) e 429 (limite temporário): repetir com espera exponencial.
-  var response, http, body;
-  var maxTentativas = 4;
-  for (var tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    response = UrlFetchApp.fetch(endpoint, requestOptions);
-    http = response.getResponseCode();
-    body = response.getContentText();
-    if ((http !== 503 && http !== 429 && http !== 500 && http !== 502) || tentativa === maxTentativas) break;
-    var esperaMs = Math.pow(2, tentativa) * 1000;
-    console.warn('Gemini HTTP ' + http + '. Nova tentativa ' + (tentativa + 1) +
-      '/' + maxTentativas + ' em ' + esperaMs + ' ms.');
-    Utilities.sleep(esperaMs);
-  }
-  if (http < 200 || http >= 300) {
-    console.error('Gemini HTTP ' + http + ': ' + body.slice(0, 1500));
-    var detalhe = '';
-    try { var erroApi = JSON.parse(body); detalhe = erroApi.error && erroApi.error.message ? String(erroApi.error.message) : ''; } catch (e) {}
-    throw new Error('Gemini HTTP ' + http + (detalhe ? ': ' + detalhe : '. Verifique a chave, a cota e o modelo configurado.'));
-  }
-
-  var envelope;
-  try { envelope = JSON.parse(body); } catch (e) { throw new Error('Resposta inválida recebida do serviço de IA.'); }
-  var raw = envelope && envelope.candidates && envelope.candidates[0] &&
-    envelope.candidates[0].content && envelope.candidates[0].content.parts &&
-    envelope.candidates[0].content.parts.map(function(p){ return p.text || ''; }).join('');
+  var generated = ftSolGenerateAIText_(prompt);
+  var raw = generated.text;
   if (!raw) throw new Error('A IA não retornou conteúdo analisável.');
+
   var result;
   try { result = JSON.parse(raw.replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'')); }
   catch (e) { console.error('JSON IA inválido: ' + raw.slice(0,2000)); throw new Error('A IA respondeu em formato inesperado. Tente novamente.'); }
@@ -117,7 +84,8 @@ function analisarSolicitacaoIAFullTime(token, id) {
     ambiguidades: result.ambiguidades.map(function(x){return ftSolText_(x,500);}).filter(Boolean),
     prontoParaRevisao: result.prontoParaRevisao === true,
     analisadoEm: new Date().toISOString(),
-    modelo: FT_SOL_AI.MODEL
+    modelo: generated.model,
+    provedor: generated.provider
   };
 
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
@@ -136,7 +104,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     var history = [];
     try { history = JSON.parse(sh.getRange(target,c.HISTORICO_JSON).getValue() || '[]'); } catch(e) {}
     history.push(ftSolEvent_('ANALISE_IA_CONCLUIDA',session.login,
-      'Modelo '+FT_SOL_AI.MODEL+'; '+pending.length+' campo(s) pendente(s); '+questions.length+' pergunta(s).'));
+      'Provedor '+generated.provider+' / modelo '+generated.model+'; '+pending.length+' campo(s) pendente(s); '+questions.length+' pergunta(s).'));
     sh.getRange(target,c.HISTORICO_JSON).setValue(JSON.stringify(history));
   } finally { lock.releaseLock(); }
 
@@ -150,7 +118,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
 function diagnosticarConfiguracaoIAFullTime(token) {
   var session = obterSessao_(token); exigirAdmin_(session);
   var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  return {ok:true, provedor:'Google Gemini', modelo:FT_SOL_AI.MODEL, chaveConfigurada:!!key};
+  return {ok:true, provedorPrincipal:'Google Gemini', modeloPrincipal:FT_SOL_AI.MODEL, chaveGeminiConfigurada:!!key, provedorAlternativo:'OpenAI', modeloAlternativo:FT_SOL_AI.OPENAI_MODEL, chaveAlternativaConfigurada:!!PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.OPENAI_KEY_PROPERTY)};
 }
 
 
@@ -248,5 +216,109 @@ function ftGeminiErroSeguro_(body) {
       String(obj.error.message).slice(0,1000) : String(body || '').slice(0,1000);
   } catch (e) {
     return String(body || '').slice(0,1000);
+  }
+}
+
+
+/**
+ * Roteador de IA: Gemini primário e OpenAI opcional como contingência.
+ * A chave OpenAI só é usada se o proprietário cadastrar FT_OPENAI_API_KEY.
+ * Não envia dados a um segundo fornecedor sem essa configuração explícita.
+ */
+function ftSolGenerateAIText_(prompt) {
+  var props = PropertiesService.getScriptProperties();
+  var geminiKey = props.getProperty(FT_SOL_AI.KEY_PROPERTY);
+  if (!geminiKey) throw new Error('FT_GEMINI_API_KEY não está configurada.');
+
+  var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
+    encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent';
+  var options = {
+    method:'post',
+    contentType:'application/json',
+    headers:{'x-goog-api-key':String(geminiKey).trim()},
+    muteHttpExceptions:true,
+    payload:JSON.stringify({
+      contents:[{role:'user',parts:[{text:prompt}]}],
+      generationConfig:{temperature:0.1,responseMimeType:'application/json'}
+    })
+  };
+
+  var response, code, body, max=4;
+  for (var i=1;i<=max;i++) {
+    response=UrlFetchApp.fetch(endpoint,options);
+    code=response.getResponseCode();
+    body=response.getContentText();
+    if ([429,500,502,503,504].indexOf(code)<0 || i===max) break;
+    var wait=Math.pow(2,i)*1000;
+    console.warn('Gemini HTTP '+code+'; tentativa '+(i+1)+'/'+max+' após '+wait+'ms.');
+    Utilities.sleep(wait);
+  }
+
+  if (code>=200 && code<300) {
+    var env=JSON.parse(body);
+    var textOut=env && env.candidates && env.candidates[0] && env.candidates[0].content &&
+      env.candidates[0].content.parts ? env.candidates[0].content.parts.map(function(p){return p.text||'';}).join('') : '';
+    if (!textOut) throw new Error('Gemini respondeu HTTP '+code+', mas não retornou texto.');
+    return {text:textOut,provider:'Google Gemini',model:FT_SOL_AI.MODEL};
+  }
+
+  var transient=[429,500,502,503,504].indexOf(code)>=0;
+  var openaiKey=props.getProperty(FT_SOL_AI.OPENAI_KEY_PROPERTY);
+  if (transient && openaiKey) {
+    console.warn('Gemini indisponível após retentativas (HTTP '+code+'). Acionando provedor alternativo configurado.');
+    return ftSolGenerateOpenAIText_(prompt,openaiKey);
+  }
+
+  var detail=ftGeminiErroSeguro_(body);
+  if (transient && !openaiKey) {
+    throw new Error('Gemini indisponível (HTTP '+code+'). O pedido foi preservado. Para ativar contingência, configure FT_OPENAI_API_KEY. Detalhe: '+detail);
+  }
+  throw new Error('Gemini HTTP '+code+': '+detail);
+}
+
+/** Chamada de contingência OpenAI pela Responses API, com saída JSON. */
+function ftSolGenerateOpenAIText_(prompt,key) {
+  var response=UrlFetchApp.fetch('https://api.openai.com/v1/responses',{
+    method:'post',
+    contentType:'application/json',
+    headers:{Authorization:'Bearer '+String(key).trim()},
+    muteHttpExceptions:true,
+    payload:JSON.stringify({
+      model:FT_SOL_AI.OPENAI_MODEL,
+      input:prompt,
+      text:{format:{type:'json_object'}},
+      max_output_tokens:5000
+    })
+  });
+  var code=response.getResponseCode(), body=response.getContentText();
+  if (code<200 || code>=300) {
+    throw new Error('Gemini falhou e a contingência OpenAI também retornou HTTP '+code+': '+ftGeminiErroSeguro_(body));
+  }
+  var env=JSON.parse(body), pieces=[];
+  (env.output||[]).forEach(function(item){
+    if(item.type==='message' && item.content) item.content.forEach(function(part){
+      if(part.type==='output_text' && part.text) pieces.push(part.text);
+    });
+  });
+  var out=pieces.join('');
+  if(!out) throw new Error('OpenAI respondeu HTTP '+code+', mas não retornou texto JSON.');
+  return {text:out,provider:'OpenAI',model:FT_SOL_AI.OPENAI_MODEL};
+}
+
+/** Teste isolado da contingência OpenAI. Não lê solicitações nem planilhas. */
+function testarContingenciaOpenAIFullTime() {
+  var key=PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.OPENAI_KEY_PROPERTY);
+  if(!key) {
+    var missing={ok:false,mensagem:'Cadastre FT_OPENAI_API_KEY nas Propriedades do script antes do teste.'};
+    console.log(JSON.stringify(missing)); return missing;
+  }
+  try {
+    var out=ftSolGenerateOpenAIText_('Responda somente com JSON válido: {"teste":"OK"}');
+    var parsed=JSON.parse(out.text);
+    var result={ok:true,provedor:out.provider,modelo:out.model,respostaValida:!!parsed.teste};
+    console.log(JSON.stringify(result)); return result;
+  } catch(e) {
+    var error={ok:false,provedor:'OpenAI',mensagem:String(e.message||e)};
+    console.log(JSON.stringify(error)); return error;
   }
 }
