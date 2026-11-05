@@ -1221,7 +1221,10 @@ function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
   if(opIndex<1)throw new Error('Operação não encontrada.');
   const op=ops[opIndex];
   if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber uma oferta.');
+  const activeParts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues().slice(1);
+  if(activeParts.some(r=>String(r[2]||'')===String(operacaoId)&&String(r[5]||'')==='ATIVO'))return {ok:false,status:'JA_ATRIBUIDA',operacaoId:String(operacaoId),message:'Esta operação já possui motorista e conjunto ativos.'};
   const offers=getSheet_('OFERTAS_CARGAS'),rows=offers.getDataRange().getValues(),now=new Date();
+  if(rows.slice(1).some(r=>String(r[11]||'')===String(operacaoId)&&String(r[6]||'').toUpperCase()==='ACEITA'))return {ok:false,status:'JA_ACEITA',operacaoId:String(operacaoId),message:'Esta operação já teve uma oferta aceita.'};
   const pending=rows.map((r,i)=>({r,i})).filter(x=>String(x.r[11]||'')===String(operacaoId)&&String(x.r[6]||'').toUpperCase()==='PENDENTE');
   for(const item of pending){
     const expires=item.r[7] instanceof Date?item.r[7]:new Date(item.r[7]);
@@ -1264,20 +1267,20 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
   if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(answer)&&!reason)throw new Error('Informe o motivo da recusa/indisponibilidade.');
   const lock=LockService.getScriptLock();lock.waitLock(15000);
   try{
-    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
+    const offerSheet=getSheet_('OFERTAS_CARGAS'),offerRows=offerSheet.getDataRange().getValues(),idx=offerRows.findIndex((r,i)=>i>0&&String(r[0])===id);
     if(idx<1)throw new Error('Oferta não encontrada.');
-    const offer=rows[idx],status=String(offer[6]||'').toUpperCase(),operationId=String(offer[11]||'');
+    const offer=offerRows[idx],status=String(offer[6]||'').toUpperCase(),operationId=String(offer[11]||'');
     if(status!=='PENDENTE')throw new Error('Esta oferta não está mais pendente.');
     const expires=offer[7] instanceof Date?offer[7]:new Date(offer[7]),now=new Date();
     if(!isFinite(expires.getTime())||expires<=now){
-      sh.getRange(idx+1,7).setValue('EXPIRADA');sh.getRange(idx+1,9).setValue(now);
+      offerSheet.getRange(idx+1,7).setValue('EXPIRADA');offerSheet.getRange(idx+1,9).setValue(now);
       ftRegistrarEventoEscala_('OFERTA_EXPIRADA',operationId,offer[2],offer[3],offer[4],offer[5],'Prazo de aceite expirado',session.login);
       const next=ftGerarProximaOfertaOperacao_(token,operationId,session);
       return {ok:false,status:'EXPIRADA',proximaOferta:next,message:'O prazo desta oferta expirou. '+(next.message||'')};
     }
     if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(answer)){
       const newStatus=answer==='INDISPONIVEL'?'INDISPONIVEL':'RECUSOU';
-      sh.getRange(idx+1,7).setValue(newStatus);sh.getRange(idx+1,9).setValue(now);sh.getRange(idx+1,10).setValue(reason);
+      offerSheet.getRange(idx+1,7).setValue(newStatus);offerSheet.getRange(idx+1,9).setValue(now);offerSheet.getRange(idx+1,10).setValue(reason);
       ftRegistrarEventoEscala_('OFERTA_'+newStatus,operationId,offer[2],offer[3],offer[4],offer[5],reason,session.login);
       const next=ftGerarProximaOfertaOperacao_(token,operationId,session);
       return {ok:true,status:newStatus,proximaOferta:next,message:'Resposta registrada. '+(next.message||'')};
@@ -1286,17 +1289,25 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
     if(!candidate)throw new Error('O motorista/conjunto deixou de atender aos critérios de elegibilidade ou disponibilidade. Gere a próxima oferta.');
     const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operationId);
     if(opIndex<1||!['ABERTA','EM_ANDAMENTO'].includes(String(opRows[opIndex][2])))throw new Error('A operação não está mais aberta.');
+    const activeParts=getSheet_('PARTICIPACAO_OPERACOES'),partRows=activeParts.getDataRange().getValues();
+    if(partRows.some((r,i)=>i>0&&String(r[2])===operationId&&String(r[5])==='ATIVO'))throw new Error('A operação já possui um motorista/conjunto ativo.');
+    if(partRows.some((r,i)=>i>0&&String(r[4])===String(offer[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já está em outra operação ativa.');
     const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===String(offer[4]));
     if(!set)throw new Error('Conjunto não encontrado no cadastro.');
-    const parts=getSheet_('PARTICIPACAO_OPERACOES'),partRows=parts.getDataRange().getValues();
-    if(partRows.some((r,i)=>i>0&&String(r[4])===String(offer[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já está em outra operação ativa.');
-    const now2=new Date(),partId=Utilities.getUuid();
-    parts.appendRow([partId,now2,operationId,String(offer[4]),String(offer[3]),'ATIVO',now2,'','','0',0,'Oferta aceita',session.login]);
     const loads=getSheet_('CARGAS'),loadValues=loads.getDataRange().getValues(),headers=loadValues[0].map(v=>String(v||'').trim()),ix={};
     headers.forEach((h,i)=>ix[h]=i);
-    if(ix.OPERACAO_ID===undefined)throw new Error('A guia CARGAS precisa da coluna OPERACAO_ID. Execute prepararBaseOperacionalFullTime().');
+    const requiredLoad=['OPERACAO_ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
+    const missingLoad=requiredLoad.filter(h=>ix[h]===undefined);
+    if(missingLoad.length)throw new Error('A guia CARGAS precisa destas colunas: '+missingLoad.join(', ')+'. Execute prepararBaseOperacionalFullTime().');
+    const escalas=getSheet_('ESCALAS'),escHeaders=escalas.getRange(1,1,1,escalas.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const requiredEscala=['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES','OPERACAO_ID'];
+    const missingEscala=requiredEscala.filter(h=>escHeaders.indexOf(h)<0);
+    if(missingEscala.length)throw new Error('A guia ESCALAS precisa destas colunas: '+missingEscala.join(', ')+'. Execute prepararBaseOperacionalFullTime().');
     const loadMatches=[];
     for(let i=1;i<loadValues.length;i++)if(String(loadValues[i][ix.OPERACAO_ID]||'')===operationId)loadMatches.push(i+1);
+    const now2=new Date(),partId=Utilities.getUuid(),firstLoadId=loadMatches.length?String(loadValues[loadMatches[0]-1][ix.ID]||''):'';
+    // Todas as validações ocorrem antes da primeira escrita.
+    activeParts.appendRow([partId,now2,operationId,String(offer[4]),String(offer[3]),'ATIVO',now2,'','','0',0,'Oferta aceita',session.login]);
     loadMatches.forEach(rowNo=>{
       loads.getRange(rowNo,ix.STATUS+1).setValue('PROGRAMADA');
       loads.getRange(rowNo,ix.MOTORISTA_ID+1).setValue(String(offer[3]));
@@ -1304,10 +1315,10 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
       loads.getRange(rowNo,ix.CARRETA_MEIO_ID+1).setValue(String(set[5]||''));
       loads.getRange(rowNo,ix.CARRETA_FINAL_ID+1).setValue(String(set[6]||''));
     });
-    const escalas=getSheet_('ESCALAS'),escalaId=Utilities.getUuid(),firstLoadId=String(offer[2]||'');
+    const escalaId=Utilities.getUuid();
     escalas.appendRow([escalaId,now2,'ATIVA',firstLoadId,String(offer[3]),String(set[4]||''),String(set[5]||''),String(set[6]||''),'Aceite de oferta',opRows[opIndex][3]||'','', 'Atribuição por operação; cargas filhas herdam o conjunto.',operationId]);
     ops.getRange(opIndex+1,3).setValue('EM_ANDAMENTO');
-    sh.getRange(idx+1,7).setValue('ACEITA');sh.getRange(idx+1,9).setValue(now2);
+    offerSheet.getRange(idx+1,7).setValue('ACEITA');offerSheet.getRange(idx+1,9).setValue(now2);
     ftRegistrarEventoEscala_('OFERTA_ACEITA',operationId,firstLoadId,offer[3],offer[4],offer[5],'Motorista aceitou a oferta',session.login);
     auditar_(session,'ACEITAR_OFERTA','OPERACAO',operationId,'Motorista '+offer[3]+'; conjunto '+offer[4]);
     return {ok:true,status:'ACEITA',operacaoId:operationId,motoristaId:String(offer[3]),conjuntoId:String(offer[4]),cargasAtualizadas:loadMatches.length,message:'Aceite registrado. A operação e suas cargas foram atribuídas ao motorista e ao conjunto.'};
