@@ -179,6 +179,15 @@ function executarTesteFluxoIntegralFullTime() {
     return 'APTO explícito exigido para escala automática; restrição exige tratamento administrativo.';
   });
 
+  executar('06 — COMPONENTES ATIVOS', 'Motorista, cavalo e todas as carretas precisam estar ativos', () => {
+    const set=['SET1',new Date(),'ATIVO','DRV1','H1','T1','T2','','APTO','',42,'admin','SIM'];
+    const horses=[['H1',new Date(),'ATIVO']],trailers=[['T1',new Date(),'ATIVO'],['T2',new Date(),'ATIVO']];
+    exigir(ftConjuntoComponentesAtivos_(set,horses,trailers), 'Conjunto com todos os componentes ativos deveria passar.');
+    exigir(!ftConjuntoComponentesAtivos_(set,horses,[['T1',new Date(),'ATIVO'],['T2',new Date(),'INATIVO']]), 'Carreta inativa não pode ser aceita.');
+    exigir(!ftConjuntoComponentesAtivos_(set,[],trailers), 'Cavalo ausente não pode ser aceito.');
+    return 'Componentes obrigatórios ativos; 3 cenários aprovados.';
+  });
+
   executar('07 — REGRAS DETERMINÍSTICAS', 'Ordenação exclui inelegíveis, respeita operação no dia, assiduidade e operações distintas', () => {
     const amostra = [
       {motoristaId:'A',nome:'A',elegivel:true,operacoesHoje:1,diasDisponivel30Dias:20,diasTrabalhados30Dias:18,operacoes30Dias:8},
