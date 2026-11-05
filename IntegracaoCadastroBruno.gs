@@ -319,14 +319,24 @@ function importarConjuntosOperacionaisBrunoFT_(dest) {
       ['CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_ID','CARRETAS']
     ];
     links.forEach(pair => {
-      const ext = si.index[pair[0]] === undefined ? '' : String(r[si.index[pair[0]]] || '').trim();
-      if (!ext || ti.index[pair[1]] === undefined) return;
+      if (si.index[pair[0]] === undefined || ti.index[pair[1]] === undefined) return;
+      const ext = String(r[si.index[pair[0]]] || '').trim();
+      // Campo vazio na origem significa vínculo removido; limpa os dois lados no destino.
+      if (!ext) {
+        if (ti.index[pair[0]] !== undefined) out[ti.index[pair[0]]] = '';
+        out[ti.index[pair[1]]] = '';
+        return;
+      }
       const lookup = dest.getSheetByName(pair[2]);
       if (!lookup) throw new Error('Guia operacional ausente para vínculo: ' + pair[2]);
       const li = ftHeadersIndexBruno_(lookup).index;
       const found = ftFindOperationalRowBruno_(lookup, li, ext, '', '');
-      if (found) out[ti.index[pair[1]]] = lookup.getRange(found, li.ID + 1).getValue();
-      else out[ti.index[pair[1]]] = '';
+      if (found) {
+        out[ti.index[pair[1]]] = lookup.getRange(found, li.ID + 1).getValue();
+        if (ti.index[pair[0]] !== undefined) out[ti.index[pair[0]]] = ext;
+      } else {
+        out[ti.index[pair[1]]] = '';
+      }
     });
     if (isNew) target.appendRow(out);
     else target.getRange(rowNo, 1, 1, out.length).setValues([out]);
