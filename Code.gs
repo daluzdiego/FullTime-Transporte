@@ -567,7 +567,9 @@ function listarCargasFullTime_() {
       tipoOperacao: String(r[16] || 'OUTRA'),
       ticketCarregamentoUrl: String(r[17] || ''),
       ticketDescargaUrl: String(r[18] || ''),
-      valorFrete: Number(r[19] || 0)
+      valorFrete: Number(r[19] || 0),
+      operacaoId: String(r[20] || ''),
+      pesoReal: Number(r[21] || 0)
     };
   }).filter(function(c) { return c.id; })
     .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
