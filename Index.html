@@ -282,7 +282,7 @@
         const rawDate=x.criadoEm?new Date(x.criadoEm):null;
         const dateLabel=rawDate&&isFinite(rawDate.getTime())?rawDate.toLocaleString('pt-BR'):'—';
         const status=String(x.status||'RECEBIDA');
-        const statusMap={RECEBIDA:['badge-pending','Recebida'],EM_COLETA:['badge-pending','Em coleta'],AGUARDANDO_APROVACAO:['badge-pending','Aguardando aprovação'],APROVADA:['badge-active','Aprovada'],RECUSADA:['badge-inactive','Recusada'],AJUSTE_SOLICITADO:['badge-pending','Ajuste solicitado']};
+        const statusMap={RECEBIDA:['badge-pending','Recebida'],AGUARDANDO_IA:['badge-pending','Aguardando IA'],EM_COLETA:['badge-pending','Em coleta'],AGUARDANDO_APROVACAO:['badge-pending','Aguardando aprovação'],APROVADA:['badge-active','Aprovada'],RECUSADA:['badge-inactive','Recusada'],AJUSTE_SOLICITADO:['badge-pending','Ajuste solicitado']};
         const b=statusMap[status]||['badge-pending',status];
         const msg=String(x.textoOriginal||'');
         const preview=msg.length>180?msg.slice(0,180)+'…':msg;
@@ -310,7 +310,7 @@
     const host=document.getElementById('solAnaliseResultado');
     if(host)host.innerHTML='<div class="notice">A IA está analisando a mensagem e verificando informações faltantes. Aguarde…</div>';
     google.script.run.withSuccessHandler(res=>{
-      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice">A análise não foi concluída.</div>';return;}
+      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>'+(res&&res.aguardandoIA?'Análise adiada — solicitação preservada.':'A análise não foi concluída.')+'</strong><br>'+esc(res&&res.mensagem||'Tente novamente mais tarde.')+'</div>';carregarSolicitacoesFullTime();return;}
       const a=res.analise||{}, d=a.dados||{};
       const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
       const fields=Object.keys(labels).filter(k=>String(d[k]||'').trim()).map(k=>'<div style="padding:9px 10px;border-bottom:1px solid #edf0f5"><div class="muted small">'+esc(labels[k])+'</div><strong>'+esc(d[k])+'</strong></div>').join('');
