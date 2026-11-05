@@ -1345,7 +1345,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
   const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const dateKey=v=>{if(!v)return '';const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
+  const dateKey=v=>{if(!v)return '';if(typeof v==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(v.trim()))return v.trim();const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
   const operationDay=dateKey(op.data)||today;
   const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
   const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
@@ -1375,7 +1375,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
     const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
       !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
+    return {id:String(r[0]),driverId:driverId,motoristaId:driverId,nome:driver?String(driver[3]):'',driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
       diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperacaoEm:hist.last};
   }).filter(c=>c.eligible);
