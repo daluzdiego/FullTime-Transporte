@@ -622,6 +622,7 @@ function auditarSincronizacaoCadastroBrunoFullTime() {
     const mirKeys=keySet(mirRows,expected.indexOf(p.key));
     const missingMirror=Object.keys(srcKeys.set).filter(k=>!mirKeys.set[k]);
     const missingSource=Object.keys(mirKeys.set).filter(k=>!srcKeys.set[k]);
+    let missingOperational=[], extraOperational=[], operationalDuplicates=[];
     const item={
       guia:p.source,espelho:p.mirror,operacional:p.target||'somente espelho',
       origem:srcRows.length,espelhoRegistros:mirRows.length,
@@ -635,8 +636,9 @@ function auditarSincronizacaoCadastroBrunoFullTime() {
     if(p.target){
       const ti=indexHeaders(target), tr=readRows(target,ti.headers);
       const targetKeys=keySet(tr,ti.index.ID_EXTERNO);
-      const missingOperational=Object.keys(srcKeys.set).filter(k=>!targetKeys.set[k]);
-      const extraOperational=Object.keys(targetKeys.set).filter(k=>!srcKeys.set[k]);
+      missingOperational=Object.keys(srcKeys.set).filter(k=>!targetKeys.set[k]);
+      extraOperational=Object.keys(targetKeys.set).filter(k=>!srcKeys.set[k]);
+      operationalDuplicates=targetKeys.duplicates;
       const pending=ti.index.STATUS===undefined?0:tr.filter(r=>String(r[ti.index.STATUS]||'').toUpperCase()==='PENDENTE_REVISAO').length;
       item.operacionalRegistros=tr.length;
       item.operacionalComIDExterno=Object.keys(targetKeys.set).length;
@@ -650,7 +652,7 @@ function auditarSincronizacaoCadastroBrunoFullTime() {
     if(!item.cabecalhosOrigemOK||!item.cabecalhosEspelhoOK)report.problemas.push(p.source+': cabeçalho divergente.');
     if(srcKeys.duplicates.length||mirKeys.duplicates.length)report.problemas.push(p.source+': chave duplicada na origem ou espelho.');
     if(missingMirror.length||missingSource.length)report.problemas.push(p.source+': divergência entre origem e espelho.');
-    if(p.target&&(missingOperational.length||extraOperational.length||targetKeys.duplicates.length))report.problemas.push(p.target+': divergência de ID_EXTERNO na base operacional.');
+    if(p.target&&(missingOperational.length||extraOperational.length||operationalDuplicates.length))report.problemas.push(p.target+': divergência de ID_EXTERNO na base operacional.');
   });
 
   // Confere se os IDs internos gravados em CONJUNTOS apontam para registros existentes.
