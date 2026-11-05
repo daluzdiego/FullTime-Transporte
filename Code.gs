@@ -839,7 +839,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','CONJUNTO_OVERRIDES'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
@@ -894,7 +894,9 @@ function listarRegistros_(name) {
   }
   // Condição, restrições e capacidade operacional são overrides locais auditáveis.
   if (name === 'CONJUNTOS') {
-    const db=SpreadsheetApp.openById(getDbId_()), ov=db.getSheetByName('CONJUNTO_OVERRIDES');
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    if(!registryId)throw new Error('Planilha operacional não conectada.');
+    const db=SpreadsheetApp.openById(registryId), ov=db.getSheetByName('CONJUNTO_OVERRIDES');
     if (ov && ov.getLastRow()>1) {
       const map={};
       ov.getRange(2,1,ov.getLastRow()-1,6).getValues().forEach(r=>{if(r[0])map[String(r[0])]=r;});
@@ -1139,7 +1141,9 @@ function alterarEstadoConjuntoFullTime(token, data) {
   if(estado==='APTO_COM_RESTRICAO'&&!restricoes)throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
   const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===id);
   if(!set)throw new Error('Conjunto não encontrado no cadastro sincronizado.');
-  const db=SpreadsheetApp.openById(getDbId_());let sh=db.getSheetByName('CONJUNTO_OVERRIDES');
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!registryId)throw new Error('Planilha operacional não conectada.');
+  const db=SpreadsheetApp.openById(registryId);let sh=db.getSheetByName('CONJUNTO_OVERRIDES');
   if(!sh){sh=db.insertSheet('CONJUNTO_OVERRIDES');sh.getRange(1,1,1,6).setValues([['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']]);sh.setFrozenRows(1);}
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[];
   const idx=rows.findIndex(r=>String(r[0])===id),cap=Object.prototype.hasOwnProperty.call(data,'capacidadeUtil')?Number(data.capacidadeUtil):Number(set[10]||0);
