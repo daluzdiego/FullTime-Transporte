@@ -899,11 +899,13 @@ function listarRegistros_(name) {
     rows.forEach(r=>{
       if(capacityOverrideIds.has(String(r[0]||'')))return;
       if(Number(String(r[10]||'').replace(',','.'))>0)return;
-      const horse=horseCapacity.get(String(r[4]||''))||0;
-      const middle=trailerCapacity.get(String(r[5]||''))||0;
-      const rear=trailerCapacity.get(String(r[6]||''))||0;
+      const horseId=String(r[4]||''),middleId=String(r[5]||''),rearId=String(r[6]||'');
+      const horse=horseCapacity.get(horseId)||0;
+      const middle=middleId?(trailerCapacity.get(middleId)||0):0;
+      const rear=rearId?(trailerCapacity.get(rearId)||0):0;
+      const componentsComplete=horse>0&&(!middleId||middle>0)&&(!rearId||rear>0);
       const derived=horse+middle+rear;
-      if(derived>0&&isFinite(derived))r[10]=derived;
+      if(componentsComplete&&derived>0&&isFinite(derived))r[10]=derived;
     });
   }
 
