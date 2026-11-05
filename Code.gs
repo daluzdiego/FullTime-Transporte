@@ -846,7 +846,7 @@ function ftConjuntoComponentesAtivos_(conjunto,cavalos,carretas) {
 function ftConjuntoTemVinculoFixo_(conjunto) {
   if(!conjunto)return false;
   const value=conjunto[12];
-  return value===true||['SIM','S','TRUE','1','ATIVO','FIXO','VINCULO_FIXO'].includes(String(value||'').trim().toUpperCase());
+  return value===true||['SIM','S','TRUE','1','FIXO','VINCULO_FIXO'].includes(String(value||'').trim().toUpperCase());
 }
 function ftConjuntoAptoParaEscalaAutomatica_(conjunto) {
   return ftConjuntoTemVinculoFixo_(conjunto)&&String(conjunto[8]||'').trim().toUpperCase()==='APTO'&&!String(conjunto[9]||'').trim()&&Number(String(conjunto[10]||'').replace(',','.'))>0;
