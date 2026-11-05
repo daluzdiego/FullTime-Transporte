@@ -153,3 +153,45 @@ O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `
 - [ ] Atualizar README, arquitetura e testes para refletir o que está efetivamente implementado.
 
 **Limite desta revisão:** documento baseado em leitura estática do GitHub. Não foram executados Apps Script, chamadas Gemini, webhooks, gatilhos ou operações nas planilhas reais. Nenhum dado real foi alterado.
+
+
+## 11. Implementações incorporadas na branch de trabalho
+
+Em 05/11/2026 foram incorporadas, na branch `planejamento/controle-18-11-2026`, partes verificadas dos PRs #1 e #4 e correções adicionais:
+
+- Tela de entrada assistida por IA incorporada ao painel de operações.
+- A confirmação da entrada gera um registro-pai em `OPERACOES` e de 1 a 30 registros-filhos em `CARGAS`, todos com o mesmo `OPERACAO_ID`.
+- A quantidade de viagens e o volume total são campos distintos. Peso por viagem só é preenchido quando informado explicitamente; não dividir o total por suposição.
+- A guia de entrada mantém IDs estáveis da operação e de todas as cargas geradas, permitindo sincronização repetida sem duplicação.
+- Cabeçalhos novos são acrescentados de forma aditiva, preservando as colunas e os dados anteriores.
+- A escala cria uma oferta pendente por operação, com expiração em 120 minutos. A recusa/indisponibilidade/expiração exclui o motorista apenas daquela operação; não altera sua fila global.
+- O aceite registrado confirma a participação, cria o snapshot em `ESCALAS` e vincula as cargas-filhas ao mesmo motorista e conjunto.
+- Existe processador de expiração e função para instalar gatilho a cada 5 minutos. **O gatilho ainda não foi instalado.**
+- Nesta fase, o administrador registra no painel a resposta recebida do motorista. Envio/retorno automático por WhatsApp ainda não está ativo.
+- Listas e contadores usam a mesma camada normalizada; registros legados locais não sobrescrevem registros originados na planilha do Bruno.
+- Condição, restrições e capacidade operacional do conjunto podem ser mantidas em `CONJUNTO_OVERRIDES`, sem sobrescrever o cadastro de origem.
+
+## 12. Critério de distribuição implementado
+
+A ordenação atual:
+1. Exige disponibilidade confirmada para a data da operação.
+2. Exige motorista e conjunto ativos, conjunto `APTO`, capacidade útil positiva e CNH válida para a data.
+3. Exclui conjunto/motorista já alocado em outra operação ativa.
+4. Prioriza quem ainda não recebeu operação na data de destino.
+5. Compara dias disponíveis e proporção de dias trabalhados na janela de 30 dias.
+6. Compara quantidade de operações distintas nos últimos 30 dias.
+7. Usa tempo de entrada na fila e última operação como desempate.
+8. Exclui recusas, indisponibilidades e ofertas expiradas somente para a operação atual.
+
+O valor do frete não participa da ordenação. A implementação deve ser validada com dados fictícios e com a gestão antes de uso real.
+
+## 13. Limitações que ainda impedem declarar o sistema pronto
+
+- O canal de resposta do motorista ainda é manual pelo administrador; integração automática com WhatsApp/portal não está homologada.
+- A rotina de expiração existe, mas o gatilho não foi instalado.
+- Lembretes diários de disponibilidade às 06h, 12h e 18h ainda precisam ser implementados/configurados.
+- Não foram executadas funções Apps Script contra planilhas reais nem testes transacionais no runtime Google.
+- O sincronizador de cadastros e o fluxo de entrada ainda precisam ser executados com massa fictícia em cópias/ambiente autorizado.
+- A implantação Web App e as permissões do projeto Apps Script ainda precisam ser verificadas.
+
+**Estado atual:** código consolidado na branch de trabalho e aprovado em verificação estática de sintaxe/nomes globais; ainda não homologado no runtime Google.
