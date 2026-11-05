@@ -1139,10 +1139,13 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const currentLoad=pendingLoads[0]||null,cargaId=currentLoad?String(currentLoad.values[li.ID]||''):'';
     const movementSheet=getSheet_('MOVIMENTACOES_OPERACAO'),movementHeaders=movementSheet.getRange(1,1,1,movementSheet.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
     if(movementHeaders.indexOf('CARGA_ID')<0)throw new Error('A guia MOVIMENTACOES_OPERACAO precisa da coluna CARGA_ID. Execute prepararBaseOperacionalFullTime().');
+    const movementRows=movementSheet.getDataRange().getValues();
+    const totalAnterior=cargaId?movementRows.slice(1).filter(r=>String(r[9]||'')===cargaId).reduce((sum,r)=>sum+Number(r[5]||0),0):0;
+    if(cargaId&&capacidade>0&&totalAnterior+toneladas>capacidade+0.000001)throw new Error('A soma das movimentações desta viagem excederia a capacidade útil do conjunto ('+capacidade+' t).');
     const now=new Date(),moveId=Utilities.getUuid(),partId=String(part[0]);
     movementSheet.appendRow([moveId,now,operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login,cargaId]);
     if(currentLoad){
-      const totalReal=movementSheet.getDataRange().getValues().slice(1).filter(r=>String(r[9]||'')===cargaId).reduce((sum,r)=>sum+Number(r[5]||0),0);
+      const totalReal=totalAnterior+toneladas;
       loads.getRange(currentLoad.row,li.PESO_REAL_TONELADAS+1).setValue(totalReal);
       loads.getRange(currentLoad.row,li.STATUS+1).setValue(viagemConcluida?'CONCLUIDA':'EM_ANDAMENTO');
     }
@@ -1439,6 +1442,9 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     if(day>=sinceKey&&day<=today)(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);
     if(day===operationDay)availableForOperation.add(driverId);
   });
+  const loadRows=getSheet_('CARGAS').getDataRange().getValues(),loadHeaders=loadRows[0].map(v=>String(v||'').trim());
+  const loadOpCol=loadHeaders.indexOf('OPERACAO_ID'),loadWeightCol=loadHeaders.indexOf('PESO_TONELADAS');
+  const maxLoadWeight=loadOpCol>=0&&loadWeightCol>=0?loadRows.slice(1).filter(r=>String(r[loadOpCol]||'')===String(operacaoId)).reduce((max,r)=>Math.max(max,Number(String(r[loadWeightCol]||'').replace(',','.'))||0),0):0;
   const offerRows=getSheet_('OFERTAS_CARGAS').getDataRange().getValues();
   const skippedForOperation=new Set(offerRows.slice(1).filter(r=>String(r[11]||'')===String(operacaoId)&&['RECUSOU','INDISPONIVEL','EXPIRADA','ACEITA'].includes(String(r[6]||'').toUpperCase())).map(r=>String(r[3]||'')));
   const historyByDriver={};
@@ -1456,7 +1462,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     const rawExpiry=driver&&driver[9],cnhExpiry=rawExpiry?dateKey(rawExpiry):'';
     const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
     const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
-      !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
+      !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0&&(maxLoadWeight<=0||cap+0.000001>=maxLoadWeight);
     return {id:String(r[0]),driverId:driverId,motoristaId:driverId,nome:driver?String(driver[3]):'',driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
       diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperacaoEm:hist.last};
@@ -1580,7 +1586,7 @@ function materializarCargasConfirmadasEntradaIA_(destSs,entrySheet){
   const mapHeaders=sh=>{const w=sh.getLastColumn(),h=sh.getRange(1,1,1,w).getDisplayValues()[0].map(String),ix={};h.forEach((v,i)=>ix[ftNormHeader_(v)]=i);return {width:w,ix};};
   const opMap=mapHeaders(ops),loadMap=mapHeaders(loads);
   const requiredOp=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO'];
-  const requiredLoad=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE','OPERACAO_ID'];
+  const requiredLoad=['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE','OPERACAO_ID','PESO_REAL_TONELADAS'];
   const missingOp=requiredOp.filter(k=>opMap.ix[ftNormHeader_(k)]===undefined),missingLoad=requiredLoad.filter(k=>loadMap.ix[ftNormHeader_(k)]===undefined);
   if(missingOp.length||missingLoad.length){result.erros.push('Contrato incompleto. OPERACOES: '+missingOp.join(', ')+'; CARGAS: '+missingLoad.join(', '));return result;}
   const existingOpIds=new Set(),existingLoadIds=new Set();
