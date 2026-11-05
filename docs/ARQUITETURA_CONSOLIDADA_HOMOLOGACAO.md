@@ -226,3 +226,11 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 **Inspeção obrigatória:** conjunto sem estado de conservação explicitamente registrado não participa da escala automática, mesmo que motorista, cavalo e carretas estejam ativos. Isso evita tratar ausência de inspeção como aprovação implícita.
 
 - Estado `APTO` exige campo de restrições vazio. Se houver qualquer restrição, o estado correto é `APTO_COM_RESTRICAO`; esse estado fica fora da distribuição automática e exige decisão administrativa justificada.
+
+## 16. Vínculo fixo do conjunto
+
+- A escala automática exige `VINCULO_FIXO = SIM` no conjunto, além de motorista, cavalo e carretas ativos.
+- O conjunto deve apontar para o motorista e os equipamentos que realmente operam juntos; não basta que os IDs existam.
+- O sistema não troca motorista ou equipamento automaticamente.
+- Conjunto sem vínculo fixo confirmado fica inelegível. Exceção administrativa continua exigindo justificativa e registro.
+- O campo `VINCULO_FIXO` foi acrescentado ao schema operacional por migração aditiva e também é lido do cadastro do Bruno.
