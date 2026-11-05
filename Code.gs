@@ -833,6 +833,16 @@ function getSheet_(name) {
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
+function ftConjuntoComponentesAtivos_(conjunto,cavalos,carretas) {
+  if(!conjunto)return false;
+  const horseId=String(conjunto[4]||''),middleId=String(conjunto[5]||''),rearId=String(conjunto[6]||'');
+  const horse=(cavalos||[]).find(r=>String(r[0])===horseId);
+  const middle=middleId?(carretas||[]).find(r=>String(r[0])===middleId):null;
+  const rear=rearId?(carretas||[]).find(r=>String(r[0])===rearId):null;
+  return !!horse&&String(horse[2]||'').toUpperCase()==='ATIVO'&&
+    (!middleId||!!middle&&String(middle[2]||'').toUpperCase()==='ATIVO')&&
+    (!rearId||!!rear&&String(rear[2]||'').toUpperCase()==='ATIVO');
+}
 function ftConjuntoTemVinculoFixo_(conjunto) {
   if(!conjunto)return false;
   const value=conjunto[12];
@@ -1141,6 +1151,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const saldo=Number(op[11]||0);if(toneladas>saldo+0.000001)throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
     const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===conjuntoId);
     if(!set||String(set[2])!=='ATIVO')throw new Error('O conjunto não está ativo ou não foi sincronizado.');
+    if(!ftConjuntoComponentesAtivos_(set,ftCadastroRowsAsLegacy_('CAVALOS'),ftCadastroRowsAsLegacy_('CARRETAS')))throw new Error('Cavalo e todas as carretas do conjunto precisam estar ativos.');
     if(!ftConjuntoAptoParaMovimentacao_(set))throw new Error('O conjunto não possui condição operacional aprovada para movimentação.');
     const capacidade=Number(set[10]||0);if(capacidade>0&&toneladas>capacidade+0.000001)throw new Error('A movimentação excede a capacidade útil do conjunto ('+capacidade+' t).');
     const parts=getSheet_('PARTICIPACAO_OPERACOES'),pRows=parts.getDataRange().getValues();
@@ -1245,6 +1256,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
     if(!(Number(set[10])>0))throw new Error('O conjunto não tem capacidade útil cadastrada.');
     const drivers=ftCadastroRowsAsLegacy_('MOTORISTAS'),driver=drivers.find(r=>String(r[0])===String(set[3]));
     if(!driver||String(driver[2])!=='ATIVO')throw new Error('Motorista associado não está ativo.');
+    if(!ftConjuntoComponentesAtivos_(set,ftCadastroRowsAsLegacy_('CAVALOS'),ftCadastroRowsAsLegacy_('CARRETAS')))throw new Error('Cavalo e todas as carretas do conjunto precisam estar ativos.');
     const dateKey=v=>{if(!v)return '';if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.trim()))return v.trim();const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
     const expiry=driver[9]?dateKey(driver[9]):'',operationDate=dateKey(op[3]);
     if(driver[9]&&(!expiry||!operationDate||expiry<operationDate))throw new Error('CNH vencida ou com validade inválida para a data da operação.');
@@ -1445,6 +1457,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
   const op={id:String(opRow[0]),data:opRow[3],categoria:String(opRow[8]||'')};
   const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftCadastroRowsAsLegacy_('CONJUNTOS'));
   const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftCadastroRowsAsLegacy_('MOTORISTAS'));
+  const horses=ftCadastroRowsAsLegacy_('CAVALOS'),trailers=ftCadastroRowsAsLegacy_('CARRETAS');
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
@@ -1483,7 +1496,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     const queue=queueByDriver[driverId],avail=availabilityByDriver[driverId]||new Set();
     const rawExpiry=driver&&driver[9],cnhExpiry=rawExpiry?dateKey(rawExpiry):'';
     const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&ftConjuntoAptoParaEscalaAutomatica_(r)&&
+    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&ftConjuntoAptoParaEscalaAutomatica_(r)&&ftConjuntoComponentesAtivos_(r,horses,trailers)&&
       !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0&&(maxLoadWeight<=0||cap+0.000001>=maxLoadWeight);
     return {id:String(r[0]),driverId:driverId,motoristaId:driverId,nome:driver?String(driver[3]):'',driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
