@@ -224,3 +224,5 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 - A capacidade do conjunto é comparada com o peso previsto por viagem, quando conhecido, e com o peso real acumulado de cada viagem durante as movimentações.
 
 **Inspeção obrigatória:** conjunto sem estado de conservação explicitamente registrado não participa da escala automática, mesmo que motorista, cavalo e carretas estejam ativos. Isso evita tratar ausência de inspeção como aprovação implícita.
+
+- Estado `APTO` exige campo de restrições vazio. Se houver qualquer restrição, o estado correto é `APTO_COM_RESTRICAO`; esse estado fica fora da distribuição automática e exige decisão administrativa justificada.
