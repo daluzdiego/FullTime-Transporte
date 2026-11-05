@@ -443,15 +443,14 @@ function sincronizarEntradasIA(){
     google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);
   }).withFailureHandler(e=>{toast(e.message||'Falha na sincronização.',true);carregarEntradasIA();}).sincronizarEntradasOperacoesIAFullTime(authToken);
 }
-
-
   function renderOperacoes(){
-    const ops=dashboard?.operacoes||[];
-    const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
-    const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
+    const ops=dashboard?.operacoes||[],ofertas=dashboard?.ofertas||[];
+    const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio',PADRAO:'Padrão'};
+    const latestOfferByOperation={};
+    ofertas.forEach(o=>{const current=latestOfferByOperation[o.operacaoId];if(!current||String(o.criado)>String(current.criado))latestOfferByOperation[o.operacaoId]=o;});
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div></div>
-      <div class="notice"><strong>Escala automática:</strong> o sistema será responsável por distribuir as cargas entre motoristas habilitados. Esta tela não permite designação manual. O motor só poderá gerar escalas quando os vínculos, a disponibilidade diária e as regras operacionais estiverem validados.</div>
+      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. A escala é feita uma vez por operação; as cargas/voltas herdam o motorista e o conjunto confirmados.</p></div></div>
+      <div class="notice"><strong>Fluxo da escala:</strong> o sistema seleciona o próximo motorista elegível e cria uma oferta com prazo de 2 horas. A atribuição só é confirmada após o aceite. Nesta fase de homologação, o administrador registra no painel a resposta recebida do motorista; o envio automático pelo WhatsApp ainda não está ativado.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
           <div class="field"><label>Data *</label><input name="data" type="date" required></div>
@@ -466,15 +465,50 @@ function sincronizarEntradasIA(){
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><span class="muted small">Aguardando escala automática</span> <button class="icon-btn" title="Registrar movimentação da operação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>{
+        const offer=latestOfferByOperation[o.id],isOpen=['ABERTA','EM_ANDAMENTO'].includes(o.status);
+        let action='';
+        if(offer&&offer.status==='PENDENTE')action='<button class="btn btn-primary" onclick="registrarRespostaOfertaOperacao(\''+esc(offer.id)+'\')">Registrar resposta</button><div class="secondary-cell">Oferta expira: '+esc(String(offer.expiraEm||'').replace('T',' ').slice(0,16))+'</div>';
+        else if(offer&&offer.status==='ACEITA')action='<span class="badge badge-success">Motorista aceitou</span>';
+        else if(isOpen)action='<button class="btn btn-primary" onclick="gerarOfertaOperacao(\''+esc(o.id)+'\')">'+(offer?'Ofertar próximo motorista':'Gerar oferta automática')+'</button>';
+        else action='<span class="muted small">Operação encerrada</span>';
+        const movement=o.status==='EM_ANDAMENTO'?'<button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao(\''+esc(o.id)+'\')">＋</button>':'';
+        return '<tr><td><strong>'+esc(o.campos[2]||'')+'</strong><div class="secondary-cell">'+esc(o.campos[1]||'')+' · '+esc(o.campos[3]||'')+' → '+esc(o.campos[4]||'')+'</div></td><td>'+esc(formatDate(o.campos[0]))+'</td><td>'+esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')+'</td><td>'+esc(o.campos[6]||'0')+' t</td><td><strong>'+esc(o.campos[8]||'0')+' t</strong></td><td>'+statusBadge(o.status)+'</td><td>'+action+' '+movement+'</td></tr>';
+      }).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
+
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
     const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
+    function atualizarPainelOperacoes(){
+    google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message||'Falha ao atualizar o painel.',true)).obterPainelFullTime(authToken);
+  }
+  function gerarOfertaOperacao(operacaoId){
+    const panel=document.getElementById('operacaoActionPanel');if(panel)panel.innerHTML='<div class="panel"><div class="panel-body">Calculando prioridade e gerando oferta…</div></div>';
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Processamento concluído.',!r.ok);
+      atualizarPainelOperacoes();
+    }).withFailureHandler(e=>{toast(e.message||'Não foi possível gerar a oferta.',true);if(panel)panel.innerHTML='';}).gerarEscalasAutomaticasFullTime(authToken,operacaoId);
+  }
+  function registrarRespostaOfertaOperacao(ofertaId){
+    const resposta=prompt('Resposta recebida do motorista: digite ACEITAR, RECUSAR ou INDISPONIVEL.');
+    if(!resposta)return;
+    const normalized=resposta.trim().toUpperCase();
+    let motivo='';
+    if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(normalized)){
+      motivo=prompt('Informe o motivo da recusa/indisponibilidade:')||'';
+      if(!motivo.trim()){toast('O motivo é obrigatório para recusa ou indisponibilidade.',true);return;}
+    }else if(!['ACEITAR','ACEITA'].includes(normalized)){toast('Resposta inválida.',true);return;}
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Resposta registrada.',!r.ok);
+      atualizarPainelOperacoes();
+    }).withFailureHandler(e=>toast(e.message||'Não foi possível registrar a resposta.',true)).registrarRespostaOfertaEscalaFullTime(authToken,ofertaId,normalized,motivo);
+  }
+
   function showCandidatosOperacao(id){
     const panel=document.getElementById('operacaoActionPanel');panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
     google.script.run.withSuccessHandler(rows=>{
