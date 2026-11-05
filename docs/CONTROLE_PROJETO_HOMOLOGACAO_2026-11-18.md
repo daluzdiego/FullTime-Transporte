@@ -168,3 +168,11 @@ A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada p
 - As viagens-filhas possuem `PESO_REAL_TONELADAS`; `MOVIMENTACOES_OPERACAO.CARGA_ID` registra qual viagem recebeu cada movimentação.
 - A capacidade útil é verificada na elegibilidade quando o peso previsto da viagem é conhecido e novamente nas movimentações reais.
 - O painel Cargas mostra peso previsto e peso real; a criação de uma viagem deve ocorrer dentro de uma operação, evitando cargas órfãs.
+
+## 12. Revisão e integração no GitHub
+
+- [PR #5 — consolidação da arquitetura, IA e escala (rascunho)](https://github.com/daluzdiego/FullTime-Transporte/pull/5)
+- O PR está aberto como **Draft** e não deve ser mesclado antes dos testes no runtime Google.
+- O workflow de CI foi ampliado para verificar a sintaxe de todos os arquivos `.gs` em conjunto e os scripts do `Index.html`.
+- `AuditoriaIntegridadeFullTime.gs` é somente leitura e agora verifica vínculos de operação/viagem, peso real, ofertas, escalas, eventos, overrides, disponibilidade, conjuntos e cadastros fictícios.
+- O README foi atualizado para refletir a arquitetura atual e advertir contra executar o bootstrap de base nova sobre as planilhas existentes.
