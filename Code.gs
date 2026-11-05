@@ -1438,7 +1438,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
   const opRow=opRows.find((r,i)=>i>0&&String(r[0])===String(operacaoId));
   if(!opRow)throw new Error('Operação não encontrada.');
   const op={id:String(opRow[0]),data:opRow[3],categoria:String(opRow[8]||'')};
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftCadastroRowsAsLegacy_('CONJUNTOS'));
+  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','VINCULO_FIXO']].concat(ftCadastroRowsAsLegacy_('CONJUNTOS'));
   const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftCadastroRowsAsLegacy_('MOTORISTAS'));
   const horses=ftCadastroRowsAsLegacy_('CAVALOS'),trailers=ftCadastroRowsAsLegacy_('CARRETAS');
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
