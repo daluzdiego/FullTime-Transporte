@@ -165,7 +165,7 @@ function atualizarStatusSolicitacaoFullTime(token,id,status,observacao) {
     if(status==='APROVADA') ftSolValidateForApproval_(sh,c,n);
     if(status==='APROVADA' && previous==='APROVADA') throw new Error('Esta solicitação já está aprovada.');
     sh.getRange(n,c.STATUS_ENTRADA).setValue(status); sh.getRange(n,c.ATUALIZADO_EM).setValue(now);
-    if(status==='APROVADA' || status==='RECUSADA') {
+    if(status==='APROVADA') {
       sh.getRange(n,c.CONFIRMADO_EM).setValue(now);
       sh.getRange(n,c.CONFIRMADO_POR).setValue(session.login || 'ADMIN');
     }
@@ -223,7 +223,7 @@ function ftSolValidateForApproval_(sh,c,row){
   if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
   if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
   if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total em toneladas');
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(ftSolText_(d.dataColeta,10)))missing.push('data absoluta da coleta');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(ftSolText_(d.dataColeta,10)))missing.push('data absoluta da coleta');
   var pending=[];try{pending=JSON.parse(sh.getRange(row,c.CAMPOS_PENDENTES_JSON).getValue()||'[]');}catch(e){}
   if(pending.length)missing.push('resolver campos pendentes: '+pending.join(', '));
   if(missing.length)throw new Error('Não é possível aprovar. Complete/valide: '+missing.join('; ')+'.');
@@ -242,14 +242,22 @@ function converterSolicitacaoEmCargaFullTime(token,id){
     if(existing)return {ok:true,duplicada:true,idCarga:existing,message:'Esta solicitação já gerou a carga '+existing+'. Nenhuma duplicata foi criada.'};
     var d=ftSolValidateForApproval_(sh,c,row);
     var date=ftSolText_(d.dataColeta,10),time=ftSolText_(d.horarioColeta,5),weight=Number(String(d.volume).replace(',','.'));
-    if(time&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time))throw new Error('Horário de coleta inválido. Use HH:MM.');
+    if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw new Error('Horário de coleta inválido. Use HH:MM.');
     var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
     var type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
-    var cargoId=Utilities.getUuid(),cargo=getSheet_('CARGAS');
+    var cargoId='',cargo=getSheet_('CARGAS');
     if(cargo.getLastColumn()<20)throw new Error('A guia CARGAS não possui as 20 colunas esperadas. Execute prepararBaseOperacionalFullTime().');
-    var description=[d.produto,d.tipoCarga,d.volumePorViagem].filter(Boolean).join(' | ').slice(0,300);
-    var observations=('[SOLICITACAO_ORIGEM:'+id+'] '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
-    cargo.appendRow([cargoId,new Date(),'A_ESCALAR',date,time,d.cliente,String(d.origemDetalhada||d.origem),String(d.destinoDetalhado||d.destino),weight,description,'','','','',observations,session.login||session.nome||'ADMIN',type,'','','']);
+    var marker='[SOLICITACAO_ORIGEM:'+id+']';
+    if(cargo.getLastRow()>1){
+      var notes=cargo.getRange(2,15,cargo.getLastRow()-1,1).getDisplayValues();
+      for(var z=0;z<notes.length;z++)if(String(notes[z][0]||'').indexOf(marker)>=0){cargoId=String(cargo.getRange(z+2,1).getDisplayValue()||'');break;}
+    }
+    if(!cargoId){
+      cargoId=Utilities.getUuid();
+      var description=[d.produto,d.tipoCarga,d.volumePorViagem].filter(Boolean).join(' | ').slice(0,300);
+      var observations=(marker+' '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
+      cargo.appendRow([cargoId,new Date(),'A_ESCALAR',date,time,d.cliente,String(d.origemDetalhada||d.origem),String(d.destinoDetalhado||d.destino),weight,description,'','','','',observations,session.login||session.nome||'ADMIN',type,'','','']);
+    }
     sh.getRange(row,c.ID_CARGA_GERADA).setValue(cargoId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
     hist.push(ftSolEvent_('CARGA_GERADA',session.login,'Carga '+cargoId+' criada a partir da solicitação aprovada.'));
