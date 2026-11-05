@@ -894,7 +894,7 @@ function listarRegistros_(name) {
       localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
         if (!r[0]) return;
         const id=String(r[0]);
-        if (!byId.has(id)) { localSetIds.add(id); byId.set(id,r.slice(0,12)); }
+        if (!byId.has(id)) { localSetIds.add(id); byId.set(id,r.slice(0,13)); }
       });
     }
     rows = Array.from(byId.values());
