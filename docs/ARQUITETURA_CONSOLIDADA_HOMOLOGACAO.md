@@ -106,7 +106,7 @@ O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `
 
 ## 6. Regras de escala a implementar
 
-1. Filtrar motorista ativo/aprovado, habilitação válida e compatível, disponibilidade confirmada, sem bloqueio e sem conflito.
+1. Filtrar motorista ativo/aprovado, habilitação válida e compatível, cavalo e todas as carretas ativos, vínculo fixo confirmado, condição APTO explícita, disponibilidade confirmada, sem bloqueio e sem conflito.
 2. Usar o conjunto fixo vinculado ao motorista. A escala automática exige condição `APTO` explicitamente registrada; conjunto `APTO_COM_RESTRICAO` só pode ser atribuído por decisão administrativa justificada. Substituição exige autorização explícita do gestor e auditoria.
 3. Priorizar motoristas com zero operações atribuídas no dia.
 4. Dentro do grupo, considerar assiduidade em componentes identificáveis, menor número de operações distintas nos últimos 30 dias e maior tempo de fila.
@@ -234,3 +234,5 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 - O sistema não troca motorista ou equipamento automaticamente.
 - Conjunto sem vínculo fixo confirmado fica inelegível. Exceção administrativa continua exigindo justificativa e registro.
 - O campo `VINCULO_FIXO` foi acrescentado ao schema operacional por migração aditiva e também é lido do cadastro do Bruno.
+
+- O motor verifica o status ativo do cavalo e de cada carreta vinculada; não basta que o conjunto e o motorista estejam ativos.
