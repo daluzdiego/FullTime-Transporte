@@ -763,47 +763,26 @@ function ftReadStatusOverrides_(entity) {
 }
 
 function atualizarStatusFullTime(token, entidade, id, status) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
-  if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
-  if (!id) throw new Error('Identificador do cadastro não informado.');
-  if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
-
-  // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
-  // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
-  if (entidade === 'MOTORISTAS') {
-    const local = getSheet_('MOTORISTAS');
-    const localRows = local.getDataRange().getValues();
-    const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-    if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
-    ftSaveStatusOverride_(entidade, id, status, session);
-    auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-    return {ok:true, message: status === 'ATIVO' ? 'Motorista aprovado com sucesso.' : status === 'INATIVO' ? 'Motorista inativado.' : 'Motorista voltou para revisão.'};
+  const session=obterSessao_(token);exigirAdmin_(session);
+  entidade=String(entidade||'').trim().toUpperCase();id=String(id||'').trim();status=String(status||'').trim().toUpperCase();
+  const allowedEntities=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'];
+  if(!allowedEntities.includes(entidade))throw new Error('Tipo de cadastro inválido.');
+  if(!id)throw new Error('Identificador do cadastro não informado.');
+  if(!['PENDENTE_REVISAO','ATIVO','INATIVO'].includes(status))throw new Error('Status inválido.');
+  const records=ftCadastroRowsAsLegacy_(entidade),record=records.find(r=>String(r[0]).trim()===id);
+  if(!record)throw new Error('Registro não encontrado no cadastro sincronizado do Bruno.');
+  if(entidade==='CONJUNTOS'&&status==='ATIVO'){
+    if(!ftConjuntoTemVinculoFixo_(record))throw new Error('Não é possível ativar o conjunto: VINCULO_FIXO precisa estar confirmado como SIM.');
+    if(!ftConjuntoComponentesAtivos_(record,ftCadastroRowsAsLegacy_('CAVALOS'),ftCadastroRowsAsLegacy_('CARRETAS')))throw new Error('Não é possível ativar o conjunto: motorista, cavalo e todas as carretas precisam estar ATIVOS.');
   }
-
-  const sh = getSheet_(entidade);
-  const rows = sh.getDataRange().getValues();
-  const idx = rows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-  if (idx < 1) throw new Error('Registro não encontrado na guia ' + entidade + '.');
-  if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
-    const conjunto = rows[idx];
-    const required = [['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
-    if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
-    if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
-    required.forEach(item => {
-      let assetRows = getSheet_(item[0]).getDataRange().getValues();
-      let asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]));
-      if (!asset && item[0] === 'CAVALOS') {
-        assetRows = getSheet_('CAMINHOES').getDataRange().getValues();
-        asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
-      }
-      if (!asset || String(asset[2]) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
-    });
-  }
-  sh.getRange(idx + 1, mapa[entidade]).setValue(status);
-  auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-  return {ok:true, message:'Status atualizado.'};
+  // Atualiza a cópia local quando existir e grava sempre o override canônico.
+  try{
+    const local=getSheet_(entidade),rows=local.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0]).trim()===id);
+    if(idx>0)local.getRange(idx+1,3).setValue(status);
+  }catch(e){/* A origem espelhada e o override continuam sendo a fonte para a listagem. */}
+  ftSaveStatusOverride_(entidade,id,status,session);
+  auditar_(session,'ALTERAR_STATUS',entidade,id,status);
+  return {ok:true,message:status==='ATIVO'?'Cadastro aprovado com sucesso.':status==='INATIVO'?'Cadastro inativado.':'Cadastro voltou para revisão.'};
 }
 
 function obterSessao_(token) {
