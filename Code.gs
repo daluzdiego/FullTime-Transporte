@@ -1474,7 +1474,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     const queue=queueByDriver[driverId],avail=availabilityByDriver[driverId]||new Set();
     const rawExpiry=driver&&driver[9],cnhExpiry=rawExpiry?dateKey(rawExpiry):'';
     const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
+    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&ftConjuntoAptoParaEscalaAutomatica_(r)&&
       !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0&&(maxLoadWeight<=0||cap+0.000001>=maxLoadWeight);
     return {id:String(r[0]),driverId:driverId,motoristaId:driverId,nome:driver?String(driver[3]):'',driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
