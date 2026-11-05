@@ -81,6 +81,59 @@ function configurarIntegracaoCadastroBrunoFullTime() {
   return {origem: origem.getUrl(), destino: destino.getUrl(), guiasEspelho: Object.keys(mirrorHeaders)};
 }
 
+
+/**
+ * Pré-voo somente leitura da integração. Não grava, não protege, não cria guias
+ * e consulta exclusivamente as guias explicitamente permitidas.
+ */
+function validarIntegracaoCadastroBrunoFullTime() {
+  const source = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
+  const dest = SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
+  const pairs = [
+    {source:'MOTORISTAS', mirror:'FT_CADASTRO_BRUNO_MOTORISTAS', operational:'MOTORISTAS', key:'ID_EXTERNO'},
+    {source:'CAVALOS', mirror:'FT_CADASTRO_BRUNO_CAVALOS', operational:'CAVALOS', key:'ID_EXTERNO'},
+    {source:'CARRETAS', mirror:'FT_CADASTRO_BRUNO_CARRETAS', operational:'CARRETAS', key:'ID_EXTERNO'},
+    {source:'CONJUNTOS', mirror:'FT_CADASTRO_BRUNO_CONJUNTOS', operational:'CONJUNTOS', key:'ID_EXTERNO'},
+    {source:'CONTROLE_DOCUMENTAL', mirror:'FT_CADASTRO_BRUNO_DOCUMENTOS', operational:'', key:'ID_DOCUMENTO'}
+  ];
+  const result = {auditoria:'FULLTIME_2_0_PRE_VOO_INTEGRACAO',somenteLeitura:true,protegida:'CAVALOS-BRUNO',guias:[],erros:[]};
+  pairs.forEach(p => {
+    const src = source.getSheetByName(p.source);
+    const mirror = dest.getSheetByName(p.mirror);
+    const operational = p.operational ? dest.getSheetByName(p.operational) : null;
+    if (!src) { result.erros.push('Guia de origem ausente: '+p.source); return; }
+    if (!mirror) { result.erros.push('Espelho ausente: '+p.mirror); return; }
+    const expected = FT_BRUNO_HEADERS[p.source];
+    const sh = src.getRange(1,1,1,expected.length).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const mh = mirror.getRange(1,1,1,expected.length).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const sourceMismatch = expected.filter((h,i)=>sh[i]!==h);
+    const mirrorMismatch = expected.filter((h,i)=>mh[i]!==h);
+    if (sourceMismatch.length) result.erros.push(p.source+': cabeçalhos divergentes ('+sourceMismatch.join(', ')+')');
+    if (mirrorMismatch.length) result.erros.push(p.mirror+': cabeçalhos divergentes ('+mirrorMismatch.join(', ')+')');
+    if (p.operational && !operational) result.erros.push('Guia operacional ausente: '+p.operational);
+    const last = src.getLastRow();
+    let populated = 0, blankKeys = 0, duplicateKeys = 0;
+    const seen = {};
+    if (last > 1) {
+      const values = src.getRange(2,1,last-1,expected.length).getValues();
+      values.forEach(row => {
+        if (!row.some(v=>v!==''&&v!==null)) return;
+        populated++;
+        const key = String(row[expected.indexOf(p.key)]||'').trim();
+        if (!key) blankKeys++;
+        else if (seen[key]) duplicateKeys++;
+        else seen[key]=true;
+      });
+    }
+    if (blankKeys) result.erros.push(p.source+': '+blankKeys+' registro(s) sem '+p.key);
+    if (duplicateKeys) result.erros.push(p.source+': '+duplicateKeys+' chave(s) duplicada(s) em '+p.key);
+    result.guias.push({origem:p.source,espelho:p.mirror,destinoOperacional:p.operational||'somente espelho',registrosOrigem:populated,chavesVazias:blankKeys,chavesDuplicadas:duplicateKeys,cabecalhosOrigemOK:!sourceMismatch.length,cabecalhosEspelhoOK:!mirrorMismatch.length});
+  });
+  result.sucesso = result.erros.length===0;
+  Logger.log('FULLTIME 2.0 — PRÉ-VOO INTEGRAÇÃO: '+JSON.stringify(result));
+  return result;
+}
+
 function sincronizarCadastroBrunoFullTime() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
