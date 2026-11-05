@@ -987,46 +987,24 @@ const FT_ESCALA_REGRAS = Object.freeze({
  * Assiduidade é retornada como componentes, sem peso numérico inventado.
  * Quem ainda não recebeu operação hoje sempre fica no grupo prioritário.
  */
-function ordenarElegiveisEscalaFullTime(lista) {
-  const itens = Array.isArray(lista) ? lista.slice() : [];
-  const dataHora = function(v) {
-    if (!v) return 0;
-    const n = v instanceof Date ? v.getTime() : new Date(v).getTime();
-    return isFinite(n) ? n : 0;
-  };
-  return itens.filter(function(m) {
-    return m && m.elegivel !== false && m.recusouOperacaoAtual !== true && m.recusouCargaAtual !== true;
-  }).sort(function(a, b) {
-    const operacoesA = Math.max(0, Number(a.operacoesHoje) || 0);
-    const operacoesB = Math.max(0, Number(b.operacoesHoje) || 0);
-    if ((operacoesA === 0) !== (operacoesB === 0)) return operacoesA === 0 ? -1 : 1;
-
-    // Critério de assiduidade combinado, sem pesos arbitrários:
-    // compara primeiro a proporção de dias disponíveis e, em seguida,
-    // a proporção de dias trabalhados entre os dias disponíveis.
-    const dispA = Math.max(0, Number(a.diasDisponivel30Dias) || 0);
-    const dispB = Math.max(0, Number(b.diasDisponivel30Dias) || 0);
-    const assidA = dispA / FT_ESCALA_REGRAS.JANELA_VIAGENS_DIAS;
-    const assidB = dispB / FT_ESCALA_REGRAS.JANELA_VIAGENS_DIAS;
-    if (assidA !== assidB) return assidB - assidA;
-    const trabA = dispA ? Math.max(0, Number(a.diasTrabalhados30Dias) || 0) / dispA : 0;
-    const trabB = dispB ? Math.max(0, Number(b.diasTrabalhados30Dias) || 0) / dispB : 0;
-    if (trabA !== trabB) return trabB - trabA;
-
-    const operacoes30A = Math.max(0, Number(a.operacoes30Dias) || 0);
-    const operacoes30B = Math.max(0, Number(b.operacoes30Dias) || 0);
-    if (operacoes30A !== operacoes30B) return operacoes30A - operacoes30B;
-    const filaA = dataHora(a.dataEntradaFila);
-    const filaB = dataHora(b.dataEntradaFila);
-    if (filaA !== filaB) return filaA - filaB;
-    const ultimaA = dataHora(a.ultimaOperacaoEm || a.ultimaCargaEm) || 0;
-    const ultimaB = dataHora(b.ultimaOperacaoEm || b.ultimaCargaEm) || 0;
-    if (ultimaA !== ultimaB) return ultimaA - ultimaB;
-    return String(a.nome || a.motoristaId || '').localeCompare(String(b.nome || b.motoristaId || ''), 'pt-BR');
+function ordenarElegiveisEscalaFullTime(candidatos) {
+  return (candidatos||[]).filter(r=>r.elegivel!==false&&!r.recusouOperacaoAtual).slice().sort((a,b)=>{
+    const hojeA=Number(a.operacoesHoje||0),hojeB=Number(b.operacoesHoje||0);
+    if((hojeA===0)!==(hojeB===0))return hojeA===0?-1:1;
+    const taxaA=Number(a.diasDisponivel30Dias||0)>0?Math.min(1,Number(a.diasTrabalhados30Dias||0)/Number(a.diasDisponivel30Dias)):0;
+    const taxaB=Number(b.diasDisponivel30Dias||0)>0?Math.min(1,Number(b.diasTrabalhados30Dias||0)/Number(b.diasDisponivel30Dias)):0;
+    if(Math.abs(taxaA-taxaB)>0.000001)return taxaB-taxaA;
+    if(Number(a.diasDisponivel30Dias||0)!==Number(b.diasDisponivel30Dias||0))return Number(b.diasDisponivel30Dias||0)-Number(a.diasDisponivel30Dias||0);
+    if(Number(a.diasTrabalhados30Dias||0)!==Number(b.diasTrabalhados30Dias||0))return Number(b.diasTrabalhados30Dias||0)-Number(a.diasTrabalhados30Dias||0);
+    if(Number(a.operacoes30Dias||0)!==Number(b.operacoes30Dias||0))return Number(a.operacoes30Dias||0)-Number(b.operacoes30Dias||0);
+    const filaA=Number(a.tempoFilaDias||0),filaB=Number(b.tempoFilaDias||0);
+    if(filaA!==filaB)return filaB-filaA;
+    const ultimaA=Number(a.ultimaOperacaoEm||0),ultimaB=Number(b.ultimaOperacaoEm||0);
+    if(ultimaA!==ultimaB)return ultimaA-ultimaB;
+    return String(a.nome||a.motoristaId||'').localeCompare(String(b.nome||b.motoristaId||''));
   });
 }
 
-/** Retorna true quando a recusa deve retirar o motorista só desta operação. */
 function recusaAplicaSomenteOperacaoAtualFullTime(status) {
   return String(status || '').toUpperCase() === 'RECUSOU' ||
          String(status || '').toUpperCase() === 'INDISPONIVEL';
