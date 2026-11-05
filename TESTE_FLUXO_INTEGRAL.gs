@@ -169,14 +169,22 @@ function executarTesteFluxoIntegralFullTime() {
     return 'Função de geração automática encontrada.';
   }, 'BLOQUEIO');
 
-  executar('08 — PRÉ-REQUISITO DO MOTOR', 'Snapshot histórico dos veículos é persistido na escala', () => {
+  executar('08 — PRÉ-REQUISITO DO MOTOR', 'Snapshot da atribuição por operação existe na escala', () => {
     const sh = getSheet_('ESCALAS');
     const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
-    const exigidos = ['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
+    const exigidos = ['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OPERACAO_ID'];
     const faltam = exigidos.filter(h => headers.indexOf(h) < 0);
     exigir(!faltam.length, 'A guia ESCALAS não possui os campos de snapshot: ' + faltam.join(', '));
-    return 'Campos de identificação dos veículos existem; validar cópia imutável na implementação do motor.';
-  }, 'BLOQUEIO');
+    return 'Motorista, cavalo, carretas e operação podem ser registrados no snapshot da escala.';
+  });
+
+  executar('08 — FLUXO DE OFERTAS', 'Oferta, aceite e expiração estão implementados com prazo de 2 horas', () => {
+    exigir(typeof gerarEscalasAutomaticasFullTime === 'function', 'Função de geração de oferta não encontrada.');
+    exigir(typeof registrarRespostaOfertaEscalaFullTime === 'function', 'Função de registro de resposta não encontrada.');
+    exigir(typeof processarOfertasExpiradasSistema_ === 'function', 'Processador de expiração automática não encontrado.');
+    exigir(Number(FT_ESCALA_REGRAS.EXPIRACAO_OFERTA_MINUTOS) === 120, 'Prazo de oferta diferente de 120 minutos.');
+    return 'Oferta sequencial, resposta administrativa e expiração automática estão disponíveis no backend.';
+  });
 
   const aprovados = testes.filter(t => t.status === 'APROVADO').length;
   const falhas = testes.filter(t => t.status === 'FALHA').length;
@@ -189,8 +197,9 @@ function executarTesteFluxoIntegralFullTime() {
     aprovados: aprovados,
     falhas: falhas,
     bloqueios: bloqueios,
-    prontoParaProducao: falhas === 0 && bloqueios === 0,
-    observacao: 'Nenhum dado foi criado, alterado ou excluído. Testes de gravação/transação exigem ambiente de homologação isolado.',
+    prontoParaHomologacao: falhas === 0 && bloqueios === 0,
+    prontoParaProducao: false,
+    observacao: 'Suite somente de leitura. Não declara produção pronta; gravações/transações, WhatsApp e implantação ainda exigem homologação controlada.',
     resultados: testes
   };
   console.log('FULL TIME — TESTE DE FLUXO INTEGRAL: ' + JSON.stringify(resultado));
