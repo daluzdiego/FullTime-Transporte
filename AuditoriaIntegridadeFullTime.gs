@@ -27,7 +27,7 @@ function auditarIntegridadeMvpFullTime(token) {
   const byId=rows=>new Map(rows.filter(r=>String(r[0]||'')).map(r=>[String(r[0]),r]));
   const driverById=byId(drivers),horseById=byId(horses),trailerById=byId(trailers),setById=byId(sets);
   const activeSets=sets.filter(r=>String(r[2]||'').toUpperCase()==='ATIVO');
-  const used={MOTORISTA:{},CAVALO:{},CARRETA:{}},duplicateLinks=[],fakeActive=[];
+  const used={MOTORISTA:{},CAVALO:{},CARRETA:{}},duplicateLinks=[],fakeActive=[],conditionIssues=[];
   activeSets.forEach(r=>{
     const id=String(r[0]||''),driver=String(r[3]||''),horse=String(r[4]||''),middle=String(r[5]||''),rear=String(r[6]||'');
     const marker=(id+' '+r.slice(3).join(' ')).toUpperCase();
@@ -37,11 +37,16 @@ function auditarIntegridadeMvpFullTime(token) {
     if(!horseById.has(horse))duplicateLinks.push(id+': cavalo não encontrado ('+horse+')');else if(String(horseById.get(horse)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': cavalo não ativo ('+horse+')');
     [middle,rear].filter(Boolean).forEach(key=>{if(!trailerById.has(key))duplicateLinks.push(id+': carreta não encontrada ('+key+')');else if(String(trailerById.get(key)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': carreta não ativa ('+key+')');});
     if(!(Number(String(r[10]||'').replace(',','.'))>0))duplicateLinks.push(id+': capacidade útil inválida');
+    const condition=String(r[8]||'').trim().toUpperCase();
+    if(!condition)conditionIssues.push(id+': condição não inspecionada; não entra na escala automática.');
+    else if(condition==='APTO_COM_RESTRICAO')conditionIssues.push(id+': conjunto com restrição; exige avaliação/atribuição administrativa específica.');
+    else if(!['APTO','INDISPONIVEL'].includes(condition))conditionIssues.push(id+': condição operacional desconhecida ('+condition+').');
   });
   const reused=[];Object.keys(used).forEach(kind=>Object.keys(used[kind]).forEach(key=>{if(used[kind][key].length>1)reused.push(kind+' '+key+' usado nos conjuntos '+used[kind][key].join(', '));}));
   add(fakeActive.length?'CRITICO':'OK','CONJUNTOS_FICTICIOS_ATIVOS',fakeActive.length?'Há conjuntos ativos com identificadores ou dados fictícios.':'Nenhum conjunto ativo foi identificado como fictício.',fakeActive);
   add(duplicateLinks.length?'CRITICO':'OK','VINCULOS_CONJUNTOS',duplicateLinks.length?'Há vínculos de conjuntos inválidos ou incompletos.':'Os vínculos ativos apontam para cadastros ativos e capacidade preenchida.',duplicateLinks);
   add(reused.length?'CRITICO':'OK','EQUIPAMENTOS_REUTILIZADOS',reused.length?'Motoristas ou equipamentos aparecem em mais de um conjunto ativo.':'Não há motorista/equipamento repetido entre conjuntos ativos.',reused);
+  add(conditionIssues.length?'ALERTA':'OK','CONDICAO_CONJUNTOS',conditionIssues.length?'Há conjuntos sem inspeção APTO ou com restrições que exigem avaliação.':'Condições dos conjuntos ativos estão registradas.',conditionIssues);
   const syntheticCapacitySets=sets.filter(r=>/CAPACIDADE SINTÉTICA CALCULADA PARA TESTE/i.test(String(r[7]||''))).map(r=>String(r[0]||''));
   add(syntheticCapacitySets.length?'ALERTA':'OK','CAPACIDADE_SINTETICA_CONJUNTOS',syntheticCapacitySets.length?'Há conjuntos cuja capacidade foi calculada com valores fictícios. Esses números não representam capacidade legal ou operacional.':'Nenhuma capacidade sintética derivada foi encontrada.',syntheticCapacitySets);
   const participation=sheets.PARTICIPACAO_OPERACOES||[],activeParts=participation.slice(1).filter(r=>String(r[5]||'').toUpperCase()==='ATIVO');
