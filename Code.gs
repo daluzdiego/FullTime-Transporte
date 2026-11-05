@@ -1871,15 +1871,28 @@ function testarExtracaoEntradaOperacoesIAFullTime() {
     {name:'data numerica',text:'Viagem em 03/11/2026',expect:{data:'2026-11-03'}},
     {name:'horario simples',text:'Saída às 06h',expect:{horario:'06:00'}},
     {name:'tipo transferencia',text:'Transferência entre unidades',expect:{tipoOperacao:'TRANSFERENCIA_FABRICAS'}},
-    {name:'tipo nao inferido sem evidência',text:'Carga em rota',expect:{tipoOperacao:''}}
+    {name:'tipo nao inferido sem evidência',text:'Carga em rota',expect:{tipoOperacao:''}},
+    {name:'volume total e quantidade de viagens',text:'Volume total 300 toneladas para 5 viagens',expect:{volumeTotal:300,cargasPrevistas:5}},
+    {name:'peso por viagem multiplicado explicitamente',text:'5 viagens de 20 toneladas cada',expect:{cargasPrevistas:5,pesoPorCarga:20,volumeCalculado:'100'}},
+    {name:'quantidade não presumida',text:'Carga de 30 toneladas',expect:{cargasPrevistas:'',volumeTotal:''}},
+    {name:'carga singular',text:'Uma carga de 12,5 toneladas',expect:{cargasPrevistas:1,volumeCalculado:'12.5'}}
   ];
   const results=cases.map(function(c){
     const norm=c.text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const route=extrairRotaDiretaOperacaoIA_(c.text);
-    const got={origem:route.origem,destino:route.destino,peso:extrairPesoOperacaoIA_(c.text),data:extrairDataOperacaoIA_(c.text),horario:extrairHorarioOperacaoIA_(c.text),tipoOperacao:extrairTipoOperacaoIA_(norm)};
+    const regras={origem:route.origem,destino:route.destino,peso:extrairPesoOperacaoIA_(c.text),volumeTotal:extrairVolumeTotalOperacaoIA_(c.text),
+      cargasPrevistas:extrairQuantidadeCargasIA_(c.text),pesoPorCarga:extrairPesoPorCargaIA_(c.text),data:extrairDataOperacaoIA_(c.text),
+      horario:extrairHorarioOperacaoIA_(c.text),tipoOperacao:extrairTipoOperacaoIA_(norm)};
+    const combined=combinarExtracaoOperacaoIA_({},regras);
+    const got={origem:regras.origem,destino:regras.destino,peso:regras.peso,data:regras.data,horario:regras.horario,tipoOperacao:regras.tipoOperacao,
+      volumeTotal:regras.volumeTotal,cargasPrevistas:regras.cargasPrevistas,pesoPorCarga:regras.pesoPorCarga,volumeCalculado:combined.volumeTotal};
     const keys=Object.keys(c.expect),pass=keys.every(function(k){return got[k]===c.expect[k];});
     return {teste:c.name,aprovado:pass,esperado:c.expect,obtido:got};
   });
+  const valid=validarRascunhoOperacaoIA_({data:'2026-11-06',cliente:'Cliente',origem:'Origem',destino:'Destino',volumeTotal:'100',cargasPrevistas:'5',pesoPorCarga:'20',descricao:'Carga geral',tipoOperacao:'OUTRA'});
+  const ambiguous=validarRascunhoOperacaoIA_({data:'2026-11-06',cliente:'Cliente',origem:'Origem',destino:'Destino',volumeTotal:'',cargasPrevistas:'',descricao:'Carga geral',tipoOperacao:'OUTRA'});
+  results.push({teste:'validação de operação com cinco viagens',aprovado:valid.length===0,esperado:'sem pendências',obtido:valid});
+  results.push({teste:'validação exige quantidade e volume quando não informados',aprovado:ambiguous.includes('cargasPrevistas')&&ambiguous.includes('volumeTotal'),esperado:['cargasPrevistas','volumeTotal'],obtido:ambiguous});
   const result={suite:'ENTRADA_OPERACOES_IA',total:results.length,aprovados:results.filter(r=>r.aprovado).length,falhas:results.filter(r=>!r.aprovado).length,resultados:results};
   Logger.log('FULL TIME — TESTE ENTRADA IA: '+JSON.stringify(result));
   return result;
