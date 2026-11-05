@@ -474,7 +474,7 @@ function sincronizarEntradasIA(){
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
           <div class="field"><label>Categoria *</label><select name="categoria" required><option value="">Selecione</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" max="30" step="1" required></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
