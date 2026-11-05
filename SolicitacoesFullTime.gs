@@ -222,8 +222,11 @@ function ftSolValidateForApproval_(sh,c,row){
   if(!ftSolText_(d.cliente,120))missing.push('cliente');
   if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
   if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
-  if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total em toneladas');
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(ftSolText_(d.dataColeta,10)))missing.push('data absoluta da coleta');
+  if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total numérico');
+  var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
+  if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('unidade do peso confirmada em toneladas (t)');
+  var date=ftSolText_(d.dataColeta,10), parsedDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00'):null;
+  if(!parsedDate || isNaN(parsedDate.getTime()) || Utilities.formatDate(parsedDate,Session.getScriptTimeZone(),'yyyy-MM-dd')!==date)missing.push('data absoluta válida da coleta');
   var pending=[];try{pending=JSON.parse(sh.getRange(row,c.CAMPOS_PENDENTES_JSON).getValue()||'[]');}catch(e){}
   if(pending.length)missing.push('resolver campos pendentes: '+pending.join(', '));
   if(missing.length)throw new Error('Não é possível aprovar. Complete/valide: '+missing.join('; ')+'.');
