@@ -40,6 +40,7 @@ function auditarIntegridadeMvpFullTime(token) {
     const condition=String(r[8]||'').trim().toUpperCase();
     if(!condition)conditionIssues.push(id+': condição não inspecionada; não entra na escala automática.');
     else if(condition==='APTO_COM_RESTRICAO')conditionIssues.push(id+': conjunto com restrição; exige avaliação/atribuição administrativa específica.');
+    else if(condition==='APTO'&&String(r[9]||'').trim())conditionIssues.push(id+': marcado APTO, mas ainda possui restrições cadastradas.');
     else if(!['APTO','INDISPONIVEL'].includes(condition))conditionIssues.push(id+': condição operacional desconhecida ('+condition+').');
   });
   const reused=[];Object.keys(used).forEach(kind=>Object.keys(used[kind]).forEach(key=>{if(used[kind][key].length>1)reused.push(kind+' '+key+' usado nos conjuntos '+used[kind][key].join(', '));}));
