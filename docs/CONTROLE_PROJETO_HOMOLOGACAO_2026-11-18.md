@@ -3,7 +3,7 @@
 **Data de abertura:** 05/11/2026  
 **Meta:** 18/11/2026 — sistema homologado e pronto para liberação controlada  
 **Capacidade planejada:** 8 horas por dia, inclusive finais de semana  
-**Janela estimada:** aproximadamente 105 horas úteis de trabalho, considerando início parcial em 05/11 e 8 horas/dia de 06 a 18/11.
+**Janela estimada:** 112 horas (14 dias × 8 horas), com prioridade de liberar antes de 18/11 se os testes passarem.
 
 > Este documento é o controle de execução. Atualizar status, evidências, horas consumidas e bloqueios ao final de cada sessão. “Concluído” exige evidência/teste; código existente ou guia criada não contam, isoladamente, como funcionalidade concluída.
 
@@ -13,10 +13,10 @@
 |---|---|
 | Meta de entrega | 18/11/2026 |
 | Resultado esperado | Homologado e pronto para liberação controlada |
-| Horas planejadas | 105 h |
-| Horas registradas | 0 h registradas neste controle |
+| Horas planejadas | 112 h |
+| Horas registradas | Não cronometradas nesta sessão |
 | Etapa atual | 1 — Consolidação da arquitetura |
-| Estado geral | Em diagnóstico; não liberar para produção |
+| Estado geral | Código consolidado na branch; aguarda homologação no runtime Google |
 | Dados reais | Preservar; usar massa fictícia até aprovação dos testes |
 | Planilhas | Bruno = origem dos cadastros/entrada; sistema Full Time = base operacional e destino da replicação |
 
@@ -24,15 +24,15 @@
 
 | Etapa | Janela | Horas | Entrega verificável | Status |
 |---|---:|---:|---|---|
-| 1. Consolidar arquitetura e versão-base | 05–07/11 | 10 h | Fluxos, fontes oficiais, contratos de dados, conflitos e estratégia de integração documentados | EM ANDAMENTO |
-| 2. Cadastros, vínculos e sincronização | 07–08/11 | 12 h | Sincronização unidirecional idempotente Bruno → sistema, vínculos e capacidades conferidos | NÃO INICIADA |
-| 3. Entrada assistida por IA | 08–10/11 | 14 h | Mensagem fictícia → interpretação → revisão → confirmação → replicação sem duplicidade | NÃO INICIADA |
-| 4. Motor de escala automática | 10–13/11 | 22 h | Elegibilidade, prioridade, fila, operação distinta, associação do conjunto e auditoria | NÃO INICIADA |
-| 5. Ofertas, painel e notificações | 13–14/11 | 12 h | Ciclo de oferta/aceite/recusa/expiração, visão administrativa e avisos essenciais | NÃO INICIADA |
-| 6. Testes integrados e segurança | 14–16/11 | 16 h | Testes ponta a ponta, permissões, idempotência, concorrência, recuperação e evidências | NÃO INICIADA |
-| 7. Reserva para correções | 16–17/11 | 11 h | Correções de bloqueios encontrados na homologação | RESERVA |
+| 1. Consolidar arquitetura e versão-base | 05–06/11 | 12 h | Fluxos, fontes oficiais, contratos de dados, conflitos e estratégia de integração documentados | EM ANDAMENTO |
+| 2. Cadastros, vínculos e sincronização | 06–07/11 | 13 h | Sincronização unidirecional idempotente Bruno → sistema, vínculos e capacidades conferidos | NÃO INICIADA |
+| 3. Entrada assistida por IA | 07–09/11 | 16 h | Mensagem fictícia → interpretação → revisão → confirmação → replicação sem duplicidade | NÃO INICIADA |
+| 4. Motor de escala automática | 09–12/11 | 24 h | Elegibilidade, prioridade, fila, operação distinta, associação do conjunto e auditoria | NÃO INICIADA |
+| 5. Ofertas, painel e notificações | 12–13/11 | 12 h | Ciclo de oferta/aceite/recusa/expiração, visão administrativa e avisos essenciais | NÃO INICIADA |
+| 6. Testes integrados e segurança | 13–15/11 | 18 h | Testes ponta a ponta, permissões, idempotência, concorrência, recuperação e evidências | NÃO INICIADA |
+| 7. Reserva para correções | 15–17/11 | 9 h | Correções de bloqueios encontrados na homologação | RESERVA |
 | 8. Liberação controlada | 18/11 | 8 h | Checklist aprovado, backup, versão identificada e liberação com acompanhamento | NÃO INICIADA |
-| **Total** | **05–18/11** | **105 h** | | |
+| **Total** | **05–18/11** | **112 h** | | |
 
 ## 3. Arquitetura-alvo acordada
 
@@ -127,3 +127,40 @@
 
 - [Arquitetura consolidada — homologação](ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md): mapa dos componentes, fontes de verdade, fluxo de entrada IA, regra operação-pai/cargas-filhas e pendências de integração.
 - Este controle deve ser atualizado junto com a arquitetura ao fechar cada marco.
+
+
+## 10. Repriorização — operar o quanto antes
+
+A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada para começar a operar. A meta é antecipar a primeira liberação controlada assim que os critérios de aceite do fluxo ponta a ponta forem demonstrados com dados fictícios.
+
+**Capacidade:** 8 h/dia, inclusive finais de semana.  
+**Orçamento revisado:** 112 h (14 dias × 8 h).  
+**Horas efetivamente registradas:** ainda não cronometradas nesta sessão; não estimar retroativamente.
+
+| Etapa | Horas revisadas | Marco de saída |
+|---|---:|---|
+| 1. Arquitetura e versão-base | 12 h | Branch única, contratos e conflitos resolvidos |
+| 2. Cadastros e sincronização | 13 h | Bruno → sistema, idempotente e conferido |
+| 3. Entrada IA e viagens | 16 h | Uma operação-pai e 1–30 viagens-filhas sem duplicidade |
+| 4. Motor de elegibilidade/ofertas | 24 h | Oferta sequencial, aceite/recusa/expiração e atribuição por operação |
+| 5. Painel e notificações | 12 h | Acompanhamento administrativo e canal de resposta definido |
+| 6. Testes integrados e segurança | 18 h | Evidências de ponta a ponta em ambiente fictício |
+| 7. Reserva de correções | 9 h | Bloqueios corrigidos |
+| 8. Liberação controlada | 8 h | Checklist, backup, versão e acompanhamento |
+| **Total** | **112 h** | |
+
+## 11. Registro técnico de 05/11 — branch de trabalho
+
+- PR #4 (operações, vínculos e regras de escala) combinado com o backend do PR #1 (entrada assistida por IA) na branch `planejamento/controle-18-11-2026`.
+- Removida a função global duplicada `salvarConjuntoVeicularFullTime` do arquivo de cadastro.
+- Corrigida a divergência entre listas e contadores, e aplicada precedência da origem Bruno sobre registros locais legados.
+- Criado controle local `CONJUNTO_OVERRIDES` para condição/restrições/capacidade sem sobrescrever a planilha do Bruno.
+- Entrada IA agora gera uma operação-pai e 1–30 viagens-filhas, com IDs persistidos e sincronização idempotente.
+- Incluídos `OPERACAO_ID` em cargas, ofertas, escalas e eventos; schema migration aditiva.
+- Criado fluxo de oferta com prazo de 120 minutos, resposta administrativa, recusa/indisponibilidade por operação e processador de expiração.
+- Painel de operações atualizado para gerar oferta e registrar a resposta recebida.
+- Atualizado teste read-only para verificar os novos contratos e não declarar produção pronta.
+- Verificação estática: todos os arquivos `.gs` compilam em conjunto sem nomes globais duplicados; scripts JavaScript do `Index.html` compilam. Testes puros de ordenação e extração multi-viagem passaram.
+- **Ainda não executado:** testes no runtime Apps Script, execução de sincronização em planilhas, criação de gatilho, envio WhatsApp e implantação Web App.
+
+**Próximo marco imediato:** preparar/validar as guias em cópias de teste, sincronizar cadastros fictícios e executar um fluxo completo de entrada → operação → oferta → resposta → atribuição → movimentações.
