@@ -833,6 +833,18 @@ function getSheet_(name) {
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
+function ftCalcularCapacidadeConjunto_(cavaloId,carretaMeioId,carretaFinalId,capacidades) {
+  capacidades=capacidades||{};
+  const cavalos=capacidades.cavalos||{},carretas=capacidades.carretas||{};
+  const horseId=String(cavaloId||''),middleId=String(carretaMeioId||''),rearId=String(carretaFinalId||'');
+  const horse=Number(String(cavalos[horseId]||'').replace(',','.'))||0;
+  const middle=middleId?(Number(String(carretas[middleId]||'').replace(',','.'))||0):0;
+  const rear=rearId?(Number(String(carretas[rearId]||'').replace(',','.'))||0):0;
+  const complete=!!horseId&&horse>0&&(!middleId||middle>0)&&(!rearId||rear>0);
+  const total=horse+middle+rear;
+  return complete&&isFinite(total)?total:0;
+}
+
 function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
@@ -894,18 +906,14 @@ function listarRegistros_(name) {
   // quando não houver override explícito: capacidade do cavalo + capacidade das carretas.
   if (name === 'CONJUNTOS' && rows.length) {
     const horseRows=ftBrunoRowsAsLegacy_('CAVALOS'),trailerRows=ftBrunoRowsAsLegacy_('CARRETAS');
-    const horseCapacity=new Map(horseRows.map(r=>[String(r[0]),Number(String(r[9]||'').replace(',','.'))||0]));
-    const trailerCapacity=new Map(trailerRows.map(r=>[String(r[0]),Number(String(r[6]||'').replace(',','.'))||0]));
+    const capacities={cavalos:{},carretas:{}};
+    horseRows.forEach(r=>{capacities.cavalos[String(r[0])]=r[9];});
+    trailerRows.forEach(r=>{capacities.carretas[String(r[0])]=r[6];});
     rows.forEach(r=>{
       if(capacityOverrideIds.has(String(r[0]||'')))return;
       if(Number(String(r[10]||'').replace(',','.'))>0)return;
-      const horseId=String(r[4]||''),middleId=String(r[5]||''),rearId=String(r[6]||'');
-      const horse=horseCapacity.get(horseId)||0;
-      const middle=middleId?(trailerCapacity.get(middleId)||0):0;
-      const rear=rearId?(trailerCapacity.get(rearId)||0):0;
-      const componentsComplete=horse>0&&(!middleId||middle>0)&&(!rearId||rear>0);
-      const derived=horse+middle+rear;
-      if(componentsComplete&&derived>0&&isFinite(derived))r[10]=derived;
+      const derived=ftCalcularCapacidadeConjunto_(r[4],r[5],r[6],capacities);
+      if(derived>0)r[10]=derived;
     });
   }
 
