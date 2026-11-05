@@ -1127,6 +1127,8 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const movementRows=movementSheet.getDataRange().getValues();
     const totalAnterior=cargaId?movementRows.slice(1).filter(r=>String(r[9]||'')===cargaId).reduce((sum,r)=>sum+Number(r[5]||0),0):0;
     if(cargaId&&capacidade>0&&totalAnterior+toneladas>capacidade+0.000001)throw new Error('A soma das movimentações desta viagem excederia a capacidade útil do conjunto ('+capacidade+' t).');
+    const novoSaldo=Math.max(0,saldo-toneladas);
+    if(novoSaldo<=0.000001&&!viagemConcluida)throw new Error('A movimentação zera o saldo da operação; confirme que esta viagem foi concluída.');
     const now=new Date(),moveId=Utilities.getUuid(),partId=String(part[0]);
     movementSheet.appendRow([moveId,now,operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login,cargaId]);
     if(currentLoad){
@@ -1134,7 +1136,6 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
       loads.getRange(currentLoad.row,li.PESO_REAL_TONELADAS+1).setValue(totalReal);
       loads.getRange(currentLoad.row,li.STATUS+1).setValue(viagemConcluida?'CONCLUIDA':'EM_ANDAMENTO');
     }
-    const novoSaldo=Math.max(0,saldo-toneladas);
     ops.getRange(opIndex+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');ops.getRange(opIndex+1,12).setValue(novoSaldo);
     if(partIndex>0){parts.getRange(partIndex+1,10).setValue(Number(pRows[partIndex][9]||0)+toneladas);parts.getRange(partIndex+1,11).setValue(Number(pRows[partIndex][10]||0)+(viagemConcluida?1:0));}
     if(novoSaldo<=0.000001&&pendingLoads.length>1){
