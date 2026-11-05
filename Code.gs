@@ -834,10 +834,13 @@ function getSheet_(name) {
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
 function ftConjuntoAptoParaEscalaAutomatica_(conjunto) {
-  return !!conjunto&&String(conjunto[8]||'').trim().toUpperCase()==='APTO'&&Number(String(conjunto[10]||'').replace(',','.'))>0;
+  return !!conjunto&&String(conjunto[8]||'').trim().toUpperCase()==='APTO'&&!String(conjunto[9]||'').trim()&&Number(String(conjunto[10]||'').replace(',','.'))>0;
 }
+
 function ftConjuntoAptoParaMovimentacao_(conjunto) {
-  return !!conjunto&&['APTO','APTO_COM_RESTRICAO'].includes(String(conjunto[8]||'').trim().toUpperCase())&&Number(String(conjunto[10]||'').replace(',','.'))>0;
+  if(!conjunto||!(Number(String(conjunto[10]||'').replace(',','.'))>0))return false;
+  const state=String(conjunto[8]||'').trim().toUpperCase(),restrictions=String(conjunto[9]||'').trim();
+  return (state==='APTO'&&!restrictions)||(state==='APTO_COM_RESTRICAO'&&!!restrictions);
 }
 
 function ftCalcularCapacidadeConjunto_(cavaloId,carretaMeioId,carretaFinalId,capacidades) {
@@ -1178,6 +1181,7 @@ function alterarEstadoConjuntoFullTime(token, data) {
   const id=texto_(data.conjuntoId,100),estado=texto_(data.estado,40).toUpperCase(),restricoes=texto_(data.restricoes,1000);
   if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado))throw new Error('Selecione um conjunto e um estado válido.');
   if(estado==='APTO_COM_RESTRICAO'&&!restricoes)throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
+  if(estado==='APTO'&&restricoes)throw new Error('Um conjunto APTO não pode manter restrições; use APTO_COM_RESTRICAO.');
   const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===id);
   if(!set)throw new Error('Conjunto não encontrado no cadastro sincronizado.');
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
