@@ -160,10 +160,11 @@ function executarTesteFluxoIntegralFullTime() {
       {motoristaId:'F',nome:'F',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:3,operacoes30Dias:2}
     ];
     const ordenados = ordenarElegiveisEscalaFullTime(amostra);
-    exigir(ordenados.length === 3, 'Esperados 3 elegíveis; retornados ' + ordenados.length);
+    exigir(ordenados.length === 4, 'Esperados 4 elegíveis; retornados ' + ordenados.length);
     exigir(ordenados[0].motoristaId === 'E', 'Maior taxa de assiduidade não recebeu prioridade.');
     exigir(ordenados[1].motoristaId === 'F' && ordenados[2].motoristaId === 'B', 'Menor número de operações distintas não foi usado como desempate.');
-    return 'Prioridade diária, assiduidade e operações distintas aprovadas; 3 elegíveis e 3 excluídos.';
+    exigir(ordenados[3].motoristaId === 'A', 'O motorista com operação no dia deveria ficar depois dos demais elegíveis.');
+    return 'Prioridade diária, assiduidade e operações distintas aprovadas; 4 elegíveis e 2 excluídos.';
   });
 
   executar('08 — PRÉ-REQUISITO DO MOTOR', 'Motor de geração automática de escalas está implementado', () => {
