@@ -701,7 +701,9 @@ function salvarConjuntoVeicularFullTime(token, data) {
   const capacidadeUtil=cavaloCapacity+selectedTrailers.reduce((sum,x)=>sum+x.capacity,0);
   if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Não foi possível calcular a capacidade do conjunto.');
 
-  const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
+  const sh=getSheet_('CONJUNTOS');
+  if(sh.getLastColumn()<13)throw new Error('Execute prepararBaseOperacionalFullTime() para adicionar a coluna VINCULO_FIXO antes de criar conjuntos.');
+  const values=sh.getDataRange().getValues();
   // Evita reutilizar motorista, cavalo ou carreta em outro conjunto ainda vigente.
   for(let i=1;i<values.length;i++) {
     if (['ATIVO','PENDENTE_REVISAO'].indexOf(String(values[i][2]))===-1) continue;
