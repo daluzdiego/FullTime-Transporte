@@ -863,9 +863,10 @@ function listarRegistros_(name) {
     rows = Array.from(byId.values());
   }
 
-  // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
-  if (name === 'MOTORISTAS') {
-    const overrides = ftReadStatusOverrides_('MOTORISTAS');
+  // Decisões administrativas locais prevalecem sobre o espelho do Bruno.
+  // Aplica-se a todas as entidades cadastrais, evitando listas e contadores divergentes.
+  if (['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name)) {
+    const overrides = ftReadStatusOverrides_(name);
     rows.forEach(r => {
       const id = String(r[0] || '').trim();
       if (id && overrides[id]) r[2] = overrides[id];
@@ -924,14 +925,17 @@ function listarRegistros_(name) {
 }
 
 function contarAtivos_(name) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
+  const cadastro=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name);
+  if(cadastro)return listarRegistros_(name).filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length;
+  const values=getSheet_(name).getDataRange().getValues();
+  return values.slice(1).filter(r=>String(r[2]||'').toUpperCase()==='ATIVO').length;
 }
-function contarStatus_(name, status) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
+function contarStatus_(name,status) {
+  const esperado=String(status||'').toUpperCase();
+  const cadastro=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name);
+  if(cadastro)return listarRegistros_(name).filter(r=>String(r.status||'').toUpperCase()===esperado).length;
+  const values=getSheet_(name).getDataRange().getValues();
+  return values.slice(1).filter(r=>String(r[2]||'').toUpperCase()===esperado).length;
 }
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
@@ -1196,23 +1200,41 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
+  const activeDrivers=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[4])));
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
   const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
   const dateKey=v=>{if(!v)return '';const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
+  const operationDay=dateKey(op.data)||today;
   const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
   const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
   const availabilityRows=getSheet_('DISPONIBILIDADE_DIARIA').getDataRange().getValues();
-  const availabilityByDriver={};
-  availabilityRows.slice(1).forEach(r=>{const day=dateKey(r[2]),driverId=String(r[3]||'');if(!driverId||day<sinceKey||day>today||String(r[4]||'').toUpperCase()!=='DISPONIVEL')return;(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);});
+  const availabilityByDriver={},availableForOperation=new Set();
+  availabilityRows.slice(1).forEach(r=>{
+    const day=dateKey(r[2]),driverId=String(r[3]||''),status=String(r[4]||'').toUpperCase();
+    if(!driverId||status!=='DISPONIVEL')return;
+    if(day>=sinceKey&&day<=today)(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);
+    if(day===operationDay)availableForOperation.add(driverId);
+  });
   const historyByDriver={};
-  parts.slice(1).forEach(r=>{const driverId=String(r[4]||''),day=dateKey(r[6]),opId=String(r[2]||'');if(!driverId||!day||day<sinceKey||day>today)return;const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});h.operations.add(opId);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;});
+  parts.slice(1).forEach(r=>{
+    const driverId=String(r[4]||''),day=dateKey(r[8]||r[6]),opId=String(r[2]||'');
+    if(!driverId||!opId||!day||day<sinceKey||day>today)return;
+    const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),todayOperations:new Set(),last:''});
+    h.operations.add(opId);h.days.add(day);if(day===today)h.todayOperations.add(opId);
+    if(!h.last||day>h.last)h.last=day;
+  });
   const candidates=sets.slice(1).map(r=>{
-    const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
-    const cap=Number(r[10]||0), driverId=String(r[3]||''), hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
-    const queue=queueByDriver[driverId], avail=availabilityByDriver[driverId]||new Set();
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
+    const cond=String(r[8]||'APTO').toUpperCase(),driver=driverById[String(r[3])];
+    const cap=Number(r[10]||0),driverId=String(r[3]||''),hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),todayOperations:new Set(),last:''};
+    const queue=queueByDriver[driverId],avail=availabilityByDriver[driverId]||new Set();
+    const cnhExpiry=driver&&driver[9]?dateKey(driver[9]):'';
+    const cnhValid=!cnhExpiry||cnhExpiry>=today;
+    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
+      !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
+    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
+      restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
+      diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperacaoEm:hist.last};
   }).filter(c=>c.eligible);
   const byCategory=candidates.filter(c=>{
     if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
