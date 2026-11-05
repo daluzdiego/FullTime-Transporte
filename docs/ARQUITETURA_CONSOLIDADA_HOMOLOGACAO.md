@@ -181,7 +181,7 @@ A ordenação atual:
 2. Exige motorista e conjunto ativos, conjunto `APTO`, capacidade útil positiva e CNH válida para a data.
 3. Exclui conjunto/motorista já alocado em outra operação ativa.
 4. Prioriza quem ainda não recebeu operação na data de destino.
-5. Compara dias disponíveis e proporção de dias trabalhados na janela de 30 dias.
+5. Calcula assiduidade provisória como dias trabalhados ÷ dias disponíveis na janela de 30 dias (limitada a 100%); em empate, compara dias disponíveis e dias trabalhados.
 6. Compara quantidade de operações distintas nos últimos 30 dias.
 7. Usa tempo de entrada na fila e última operação como desempate.
 8. Exclui recusas, indisponibilidades e ofertas expiradas somente para a operação atual.
@@ -211,3 +211,5 @@ O valor do frete não participa da ordenação. A implementação deve ser valid
 - Se o saldo total for zerado, as viagens ainda não utilizadas são canceladas com observação de encerramento.
 
 **Teste de simulação realizado fora do runtime Google:** uma operação fictícia com cinco viagens de 20 t criou uma operação-pai e cinco cargas-filhas; a segunda execução criou zero registros adicionais. Isso valida a lógica idempotente em simulação, mas não substitui o teste no Apps Script/Sheets.
+
+**Regra de assiduidade provisória:** a ordenação usa a proporção de dias trabalhados sobre dias com disponibilidade confirmada nos últimos 30 dias. Esta fórmula foi escolhida para a primeira homologação, está coberta por teste determinístico e deve ser confirmada pela gestão antes da liberação real (bloqueio B03).
