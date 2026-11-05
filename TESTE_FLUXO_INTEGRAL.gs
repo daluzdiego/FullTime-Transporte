@@ -150,17 +150,20 @@ function executarTesteFluxoIntegralFullTime() {
     return ativos.length + ' participação(ões) ativa(s), sem conjunto duplicado.';
   });
 
-  executar('07 — REGRAS DETERMINÍSTICAS', 'Ordenação exclui inelegíveis e respeita prioridade sem operação hoje', () => {
+  executar('07 — REGRAS DETERMINÍSTICAS', 'Ordenação exclui inelegíveis, respeita operação no dia, assiduidade e operações distintas', () => {
     const amostra = [
-      {motoristaId:'A',nome:'A',elegivel:true,operacoesHoje:1,diasDisponivel30Dias:20,diasTrabalhados30Dias:5,operacoes30Dias:8},
+      {motoristaId:'A',nome:'A',elegivel:true,operacoesHoje:1,diasDisponivel30Dias:20,diasTrabalhados30Dias:18,operacoes30Dias:8},
       {motoristaId:'B',nome:'B',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:3,operacoes30Dias:4},
       {motoristaId:'C',nome:'C',elegivel:false,operacoesHoje:0,diasDisponivel30Dias:30,diasTrabalhados30Dias:0,operacoes30Dias:0},
-      {motoristaId:'D',nome:'D',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:3,operacoes30Dias:4,recusouOperacaoAtual:true}
+      {motoristaId:'D',nome:'D',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:3,operacoes30Dias:4,recusouOperacaoAtual:true},
+      {motoristaId:'E',nome:'E',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:20,diasTrabalhados30Dias:10,operacoes30Dias:6},
+      {motoristaId:'F',nome:'F',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:3,operacoes30Dias:2}
     ];
     const ordenados = ordenarElegiveisEscalaFullTime(amostra);
-    exigir(ordenados.length === 2, 'Esperados 2 elegíveis; retornados ' + ordenados.length);
-    exigir(ordenados[0].motoristaId === 'B', 'Motorista sem operação hoje não recebeu prioridade.');
-    return 'Elegibilidade e prioridade básica aprovadas (2 elegíveis, 2 excluídos).';
+    exigir(ordenados.length === 3, 'Esperados 3 elegíveis; retornados ' + ordenados.length);
+    exigir(ordenados[0].motoristaId === 'E', 'Maior taxa de assiduidade não recebeu prioridade.');
+    exigir(ordenados[1].motoristaId === 'F' && ordenados[2].motoristaId === 'B', 'Menor número de operações distintas não foi usado como desempate.');
+    return 'Prioridade diária, assiduidade e operações distintas aprovadas; 3 elegíveis e 3 excluídos.';
   });
 
   executar('08 — PRÉ-REQUISITO DO MOTOR', 'Motor de geração automática de escalas está implementado', () => {
