@@ -1717,6 +1717,7 @@ function combinarExtracaoOperacaoIA_(ia,regras){
   if(ia.peso!==''&&ia.peso!==null&&ia.peso!==undefined)d.peso=ia.peso;
   const n=Number(d.cargasPrevistas||0),per=Number(String(d.pesoPorCarga||'').replace(',','.'));
   if(!d.volumeTotal&&n>1&&per>0)d.volumeTotal=String(per*n);
+  if(!d.volumeTotal&&n===1&&per>0)d.volumeTotal=String(per);
   if(!d.volumeTotal&&n===1&&d.peso)d.volumeTotal=d.peso;
   return d;
 }
