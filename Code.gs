@@ -428,7 +428,8 @@ function prepararGuiasEscalaFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
+    CONJUNTO_OVERRIDES: ['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -476,7 +477,7 @@ function prepararBaseOperacionalFullTime() {
     TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','CARGA_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
+    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
     EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   Object.keys(schemas).forEach(function(name) {
@@ -857,7 +858,8 @@ function listarRegistros_(name) {
     const local = getSheet_('MOTORISTAS');
     if (local.getLastRow() > 1) {
       local.getRange(2,1,local.getLastRow()-1,Math.max(12,local.getLastColumn())).getValues().forEach(r => {
-        if (r[0]) byId.set(String(r[0]), r.slice(0,12));
+        // Registros legados locais complementam a origem Bruno, mas nunca a sobrescrevem.
+        if (r[0] && !byId.has(String(r[0]))) byId.set(String(r[0]), r.slice(0,12));
       });
     }
     rows = Array.from(byId.values());
@@ -882,11 +884,20 @@ function listarRegistros_(name) {
     if (localSheet.getLastRow() > 1) {
       localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
         if (!r[0]) return;
-        localSetIds.add(String(r[0]));
-        byId.set(String(r[0]),r.slice(0,12));
+        const id=String(r[0]);
+        if (!byId.has(id)) { localSetIds.add(id); byId.set(id,r.slice(0,12)); }
       });
     }
     rows = Array.from(byId.values());
+  }
+  // Condição, restrições e capacidade operacional são overrides locais auditáveis.
+  if (name === 'CONJUNTOS') {
+    const db=SpreadsheetApp.openById(getDbId_()), ov=db.getSheetByName('CONJUNTO_OVERRIDES');
+    if (ov && ov.getLastRow()>1) {
+      const map={};
+      ov.getRange(2,1,ov.getLastRow()-1,6).getValues().forEach(r=>{if(r[0])map[String(r[0])]=r;});
+      rows.forEach(r=>{const x=map[String(r[0]||'')];if(x){r[8]=x[1]||r[8];r[9]=x[2]||'';if(x[3]!==''&&x[3]!=null)r[10]=x[3];r[11]=x[4]||r[11];}});
+    }
   }
   if (!rows.length) return [];
 
@@ -1090,53 +1101,53 @@ function salvarOperacaoFullTime(token, data) {
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
-  const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
+  const operacaoId=texto_(data.operacaoId,100),conjuntoId=texto_(data.conjuntoId,100);
+  const toneladas=Number(String(data.toneladas||'').replace(',','.'));
   const viagemConcluida=data.viagemConcluida===true||String(data.viagemConcluida)==='true';
   const observacoes=texto_(data.observacoes,1000);
-  if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
-  if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
-  const lock=LockService.getScriptLock(); lock.waitLock(10000);
-  try {
-    const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
-    if(idx<1) throw new Error('Operação não encontrada.');
-    const op=rows[idx], status=String(op[2]||'');
-    if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
-    const saldo=Number(op[11]||0);
-    if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
-    const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-    const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
-    if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
-    const cond=String(setRow[8]||'APTO').toUpperCase();
-    if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
-    const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
-    const part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
-    if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
-    const partId=String(part[0]);
-    const moveId=Utilities.getUuid();
-    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
+  if(!operacaoId||!conjuntoId)throw new Error('Selecione a operação e o conjunto.');
+  if(!(toneladas>0&&isFinite(toneladas)))throw new Error('Informe as toneladas efetivamente movimentadas.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const ops=getSheet_('OPERACOES'),rows=ops.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
+    if(idx<1)throw new Error('Operação não encontrada.');
+    const op=rows[idx],status=String(op[2]||'');if(!['ABERTA','EM_ANDAMENTO'].includes(status))throw new Error('A operação não está aberta para movimentação.');
+    const saldo=Number(op[11]||0);if(toneladas>saldo+0.000001)throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
+    const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===conjuntoId);
+    if(!set||String(set[2])!=='ATIVO')throw new Error('O conjunto não está ativo ou não foi sincronizado.');
+    if(String(set[8]||'APTO').toUpperCase()!=='APTO')throw new Error('O conjunto não está marcado como APTO.');
+    const parts=getSheet_('PARTICIPACAO_OPERACOES'),pRows=parts.getDataRange().getValues();
+    const part=pRows.find(r=>String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
+    if(!part)throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação.');
+    const partIndex=pRows.findIndex(r=>String(r[0])===String(part[0]));
+    const now=new Date(),partId=String(part[0]),moveId=Utilities.getUuid();
+    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,now,operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
     const novoSaldo=Math.max(0,saldo-toneladas);
-    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
-    ops.getRange(idx+1,12).setValue(novoSaldo);
-    const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
-    const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
-    parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
-    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+(viagemConcluida?1:0));
+    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');ops.getRange(idx+1,12).setValue(novoSaldo);
+    if(partIndex>0){parts.getRange(partIndex+1,10).setValue(Number(pRows[partIndex][9]||0)+toneladas);parts.getRange(partIndex+1,11).setValue(Number(pRows[partIndex][10]||0)+(viagemConcluida?1:0));}
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
     return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
-  } finally { lock.releaseLock(); }
+  }finally{lock.releaseLock();}
 }
+
 function alterarEstadoConjuntoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const id=texto_(data.conjuntoId,100), estado=texto_(data.estado,40).toUpperCase(), restricoes=texto_(data.restricoes,1000);
-  if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado)) throw new Error('Selecione um conjunto e um estado válido.');
-  if(estado==='APTO_COM_RESTRICAO'&&!restricoes) throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
-  const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
-  if(idx<1) throw new Error('Conjunto não encontrado.');
-  sh.getRange(idx+1,9).setValue(estado); sh.getRange(idx+1,10).setValue(restricoes); sh.getRange(idx+1,11).setValue(Number(data.capacidadeUtil||0)); sh.getRange(idx+1,12).setValue(session.login);
-  auditar_(session,'ALTERAR_CONSERVACAO','CONJUNTO',id,estado+'; '+restricoes);
-  return {ok:true,message:'Estado de conservação atualizado.'};
+  const id=texto_(data.conjuntoId,100),estado=texto_(data.estado,40).toUpperCase(),restricoes=texto_(data.restricoes,1000);
+  if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado))throw new Error('Selecione um conjunto e um estado válido.');
+  if(estado==='APTO_COM_RESTRICAO'&&!restricoes)throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
+  const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===id);
+  if(!set)throw new Error('Conjunto não encontrado no cadastro sincronizado.');
+  const db=SpreadsheetApp.openById(getDbId_());let sh=db.getSheetByName('CONJUNTO_OVERRIDES');
+  if(!sh){sh=db.insertSheet('CONJUNTO_OVERRIDES');sh.getRange(1,1,1,6).setValues([['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']]);sh.setFrozenRows(1);}
+  const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[];
+  const idx=rows.findIndex(r=>String(r[0])===id),cap=Object.prototype.hasOwnProperty.call(data,'capacidadeUtil')?Number(data.capacidadeUtil):Number(set[10]||0);
+  if(!(cap>=0&&cap<=200))throw new Error('Capacidade útil inválida.');
+  const row=[id,estado,restricoes,cap,session.login,new Date()];
+  if(idx>=0)sh.getRange(idx+2,1,1,6).setValues([row]);else sh.appendRow(row);
+  auditar_(session,'ALTERAR_CONSERVACAO','CONJUNTO',id,estado+'; '+restricoes+'; capacidade útil='+cap);
+  return {ok:true,message:'Estado de conservação atualizado no controle local do sistema, sem sobrescrever o cadastro de origem do Bruno.'};
 }
+
 function remanejarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoAtual=texto_(data.operacaoAtualId,100), operacaoDestino=texto_(data.operacaoDestinoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
@@ -1166,37 +1177,38 @@ function retornarConjuntoOperacaoFullTime(token, data) {
 }
 function designarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
-  if(!operacaoId||!conjuntoId) throw new Error('Selecione operação e conjunto.');
-  const ops=getSheet_('OPERACOES').getDataRange().getValues();
-  const op=ops.find((r,i)=>i>0&&String(r[0])===operacaoId);
-  if(!op) throw new Error('Operação não encontrada.');
-  if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2]))) throw new Error('A operação não está aberta para receber conjuntos.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const set=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
-  if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
-  if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
-  if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
-  const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
-  if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
-  const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
-  const id=Utilities.getUuid(), now=new Date();
+  const operacaoId=texto_(data.operacaoId,100),conjuntoId=texto_(data.conjuntoId,100),motivo=texto_(data.motivo,500);
+  if(!operacaoId||!conjuntoId)throw new Error('Selecione operação e conjunto.');
+  const ops=getSheet_('OPERACOES').getDataRange().getValues(),opIndex=ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
+  if(opIndex<1)throw new Error('Operação não encontrada.');
+  const op=ops[opIndex];if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber conjuntos.');
+  const sets=ftCadastroRowsAsLegacy_('CONJUNTOS'),set=sets.find(r=>String(r[0])===conjuntoId);
+  if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo ou não foi sincronizado.');
+  if(String(set[8]||'APTO').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO; revise sua condição antes da designação.');
+  if(!(Number(set[10])>0))throw new Error('O conjunto não tem capacidade útil cadastrada.');
+  const drivers=ftCadastroRowsAsLegacy_('MOTORISTAS'),driver=drivers.find(r=>String(r[0])===String(set[3]));
+  if(!driver||String(driver[2])!=='ATIVO')throw new Error('Motorista associado não está ativo.');
+  const expiry=driver[9],expiryDate=expiry?new Date(expiry):null;
+  if(expiryDate&&(!isFinite(expiryDate.getTime())||expiryDate.getTime()<new Date(op[3]).getTime()))throw new Error('CNH vencida ou com validade inválida para a data da operação.');
+  const parts=getSheet_('PARTICIPACAO_OPERACOES'),rows=parts.getDataRange().getValues();
+  if(rows.some((r,i)=>i>0&&String(r[4])===String(set[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já participa de outra operação em andamento.');
+  const id=Utilities.getUuid(),now=new Date();
   parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login]);
-  const eventSheet=getSheet_('EVENTOS_ESCALA');
-  eventSheet.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação manual do administrador',session.login]);
-  if(String(op[2])==='ABERTA') getSheet_('OPERACOES').getRange(ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId)+1,3).setValue('EM_ANDAMENTO');
+  getSheet_('EVENTOS_ESCALA').appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação administrativa',session.login]);
+  if(String(op[2])==='ABERTA')getSheet_('OPERACOES').getRange(opIndex+1,3).setValue('EM_ANDAMENTO');
   auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
   return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
 }
 
+function ftCadastroRowsAsLegacy_(entity) {
+  return listarRegistros_(entity).map(r => [r.id,r.criado,r.status].concat(Array.isArray(r.campos)?r.campos:[]));
+}
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftBrunoRowsAsLegacy_('CONJUNTOS'));
-  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
+  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftCadastroRowsAsLegacy_('CONJUNTOS'));
+  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftCadastroRowsAsLegacy_('MOTORISTAS'));
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
@@ -1228,39 +1240,18 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const cond=String(r[8]||'APTO').toUpperCase(),driver=driverById[String(r[3])];
     const cap=Number(r[10]||0),driverId=String(r[3]||''),hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),todayOperations:new Set(),last:''};
     const queue=queueByDriver[driverId],avail=availabilityByDriver[driverId]||new Set();
-    const cnhExpiry=driver&&driver[9]?dateKey(driver[9]):'';
-    const cnhValid=!cnhExpiry||cnhExpiry>=today;
+    const rawExpiry=driver&&driver[9],cnhExpiry=rawExpiry?dateKey(rawExpiry):'';
+    const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
     const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
       !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
     return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
       diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperacaoEm:hist.last};
   }).filter(c=>c.eligible);
-  const byCategory=candidates.filter(c=>{
-    if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
-    if(op.categoria==='MANOBRA_DIFICIL')return c.capacity>0;
-    return true;
-  });
-  const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
-  if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
-  if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
+  const ordered=ordenarElegiveisEscalaFullTime(candidates.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
   return ordered.map((c,i)=>({posicao:i+1,...c}));
 }
 
-
-
-/**
- * Adaptador de leitura dos cadastros sincronizados da planilha do Bruno.
- * A leitura é por nome de cabeçalho, nunca por posição da coluna de origem.
- * Escritas de sincronização continuam sendo responsabilidade do arquivo PLANILHABRUNO.
- */
-const FT_BRUNO_CADASTROS = Object.freeze({
-  MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS', fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
-  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
-  CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS', fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
-  CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS', fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
-  DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS', fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
-});
 function ftNormHeader_(v) {
   return String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
 }
