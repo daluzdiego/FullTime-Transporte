@@ -221,7 +221,9 @@ function importarMotoristasOperacionaisBrunoFT_(dest) {
       'CNH_PRIMEIRA_HABILITACAO','CNH_EAR','EXAME_TOXICOLOGICO_VALIDADE','STATUS_DOCUMENTACAO',
       'LINK_CNH','LINK_EXAME_TOXICOLOGICO'];
     fields.forEach(k => {
-      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+      if (si.index[k] === undefined || ti.index[k] === undefined) return;
+      const value = r[si.index[k]];
+      if (value !== '' && value !== null && typeof value !== 'undefined') out[ti.index[k]] = value;
     });
     if (isNew) target.appendRow(out);
     else target.getRange(rowNo, 1, 1, out.length).setValues([out]);
@@ -260,13 +262,16 @@ function importarVeiculosOperacionaisBrunoFT_(dest, sourceName, targetName, type
          'CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE',
          'STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','OBSERVACOES'];
     fields.forEach(k => {
-      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+      if (k === 'OBSERVACOES' && !isNew) return; // preserva anotações administrativas da base operacional
+      if (si.index[k] === undefined || ti.index[k] === undefined) return;
+      const value = r[si.index[k]];
+      if (value !== '' && value !== null && typeof value !== 'undefined') out[ti.index[k]] = value;
     });
     if (ti.index.ANO !== undefined && !out[ti.index.ANO]) {
       const yearKey = si.index.ANO_MODELO !== undefined ? 'ANO_MODELO' : 'ANO_FABRICACAO';
       if (si.index[yearKey] !== undefined) out[ti.index.ANO] = r[si.index[yearKey]];
     }
-    if (ti.index.OBSERVACOES !== undefined) {
+    if (isNew && ti.index.OBSERVACOES !== undefined) {
       const sourceObs = si.index.OBSERVACOES === undefined ? '' : String(r[si.index.OBSERVACOES] || '');
       const doc = si.index.STATUS_DOCUMENTACAO === undefined ? '' : String(r[si.index.STATUS_DOCUMENTACAO] || '');
       out[ti.index.OBSERVACOES] = [sourceObs, 'Cadastro Bruno; ID externo: ' + externalId,
@@ -303,7 +308,9 @@ function importarConjuntosOperacionaisBrunoFT_(dest) {
       'DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO',
       'OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'];
     directFields.forEach(k => {
-      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+      if (si.index[k] === undefined || ti.index[k] === undefined) return;
+      const value = r[si.index[k]];
+      if (value !== '' && value !== null && typeof value !== 'undefined') out[ti.index[k]] = value;
     });
     const links = [
       ['MOTORISTA_ID_EXTERNO','MOTORISTA_ID','MOTORISTAS'],
