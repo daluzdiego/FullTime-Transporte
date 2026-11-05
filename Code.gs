@@ -1543,43 +1543,51 @@ function materializarCargasConfirmadasEntradaIA_(destSs,entrySheet){
   if(loads.getLastRow()>1)loads.getRange(2,1,loads.getLastRow()-1,loadMap.width).getDisplayValues().forEach(r=>{const id=String(r[loadMap.ix.ID]||'');if(id)existingLoadIds.add(id);});
   const put=(row,ix,key,value)=>{row[ix[ftNormHeader_(key)]]=value;};
   rows.forEach(r=>{
-    const entryId=String(r[0]||''),status=String(r[3]||''),loadId=String(r[8]||''),operationId=String(r[12]||'');
-    if(!entryId||status!==FT_IA_ENTRADA.STATUS_CONFIRMADO||!loadId||!operationId)return;
+    const entryId=String(r[0]||''),status=String(r[3]||''),firstLoadId=String(r[8]||''),operationId=String(r[12]||'');
+    if(!entryId||status!==FT_IA_ENTRADA.STATUS_CONFIRMADO||!firstLoadId||!operationId)return;
     try{
       const d=JSON.parse(String(r[5]||'{}')),pending=validarRascunhoOperacaoIA_(d);
       if(pending.length)throw new Error('Campos pendentes: '+pending.join(', '));
-      const peso=Number(String(d.peso||'').replace(',','.'));
-      if(!(peso>0&&isFinite(peso)))throw new Error('Peso da carga inválido.');
+      const volume=Number(String(d.volumeTotal||'').replace(',','.')),quantity=Number(d.cargasPrevistas||1);
+      if(!(volume>0&&isFinite(volume)))throw new Error('Volume total da operação inválido.');
+      if(!Number.isInteger(quantity)||quantity<1||quantity>30)throw new Error('Quantidade de viagens inválida.');
+      let loadIds=[];try{const parsed=JSON.parse(String(r[13]||'[]'));if(Array.isArray(parsed))loadIds=parsed.map(String);}catch(e){}
+      if(!loadIds.length)loadIds=[firstLoadId];
+      if(loadIds.length!==quantity)throw new Error('Quantidade de IDs de cargas não corresponde às viagens previstas.');
       if(!existingOpIds.has(operationId)){
         const opRow=new Array(opMap.width).fill(''),now=new Date();
         put(opRow,opMap.ix,'ID',operationId);put(opRow,opMap.ix,'CRIADO_EM',r[1] instanceof Date?r[1]:now);
         put(opRow,opMap.ix,'STATUS','ABERTA');put(opRow,opMap.ix,'DATA_OPERACAO',d.data);
         put(opRow,opMap.ix,'CLIENTE',d.cliente);put(opRow,opMap.ix,'NOME_OPERACAO',d.descricao||('Transporte '+d.origem+' → '+d.destino));
         put(opRow,opMap.ix,'ORIGEM',d.origem);put(opRow,opMap.ix,'DESTINO',d.destino);
-        put(opRow,opMap.ix,'CATEGORIA','PADRAO');put(opRow,opMap.ix,'VOLUME_TOTAL_TONELADAS',peso);
-        put(opRow,opMap.ix,'TOTAL_CARGAS_PREVISTAS',1);put(opRow,opMap.ix,'SALDO_TONELADAS',peso);
+        put(opRow,opMap.ix,'CATEGORIA','PADRAO');put(opRow,opMap.ix,'VOLUME_TOTAL_TONELADAS',volume);
+        put(opRow,opMap.ix,'TOTAL_CARGAS_PREVISTAS',quantity);put(opRow,opMap.ix,'SALDO_TONELADAS',volume);
         put(opRow,opMap.ix,'OBSERVACOES','Criada por entrada assistida IA '+entryId+'. '+String(d.observacoes||''));
         put(opRow,opMap.ix,'CRIADO_POR',String(r[10]||r[2]||''));put(opRow,opMap.ix,'TIPO_OPERACAO',String(d.tipoOperacao||'').toUpperCase());
         ops.appendRow(opRow);existingOpIds.add(operationId);result.operacoesCriadas++;
       }
-      if(!existingLoadIds.has(loadId)){
+      const perLoad=Number(String(d.pesoPorCarga||'').replace(',','.'));
+      for(let i=0;i<quantity;i++){
+        const loadId=String(loadIds[i]||'');if(!loadId)throw new Error('ID ausente para a viagem '+(i+1)+'.');
+        if(existingLoadIds.has(loadId)){result.existentes++;continue;}
         const loadRow=new Array(loadMap.width).fill(''),now=new Date();
         put(loadRow,loadMap.ix,'ID',loadId);put(loadRow,loadMap.ix,'CRIADO_EM',r[1] instanceof Date?r[1]:now);
         put(loadRow,loadMap.ix,'STATUS','A_ESCALAR');put(loadRow,loadMap.ix,'DATA_OPERACAO',d.data);
         put(loadRow,loadMap.ix,'HORARIO_PREVISTO',d.horario||'');put(loadRow,loadMap.ix,'CLIENTE',d.cliente);
         put(loadRow,loadMap.ix,'ORIGEM',d.origem);put(loadRow,loadMap.ix,'DESTINO',d.destino);
-        put(loadRow,loadMap.ix,'PESO_TONELADAS',peso);put(loadRow,loadMap.ix,'DESCRICAO',d.descricao);
-        put(loadRow,loadMap.ix,'OBSERVACOES',String(d.observacoes||'')+' | Entrada IA: '+entryId);
+        put(loadRow,loadMap.ix,'PESO_TONELADAS',perLoad>0?perLoad:(quantity===1?volume:''));
+        put(loadRow,loadMap.ix,'DESCRICAO',(d.descricao||'Operação')+' — Viagem '+(i+1)+' de '+quantity);
+        put(loadRow,loadMap.ix,'OBSERVACOES',String(d.observacoes||'')+' | Entrada IA: '+entryId+' | Operação: '+operationId);
         put(loadRow,loadMap.ix,'CRIADO_POR',String(r[10]||r[2]||''));put(loadRow,loadMap.ix,'TIPO_OPERACAO',String(d.tipoOperacao||'').toUpperCase());
-        put(loadRow,loadMap.ix,'VALOR_FRETE',d.valorFrete===''?'':Number(String(d.valorFrete).replace(',','.')));
+        put(loadRow,loadMap.ix,'VALOR_FRETE',i===0&&d.valorFrete!==''?Number(String(d.valorFrete).replace(',','.')):'');
         put(loadRow,loadMap.ix,'OPERACAO_ID',operationId);
         loads.appendRow(loadRow);existingLoadIds.add(loadId);result.cargasCriadas++;
-      }else if(!existingOpIds.has(operationId))throw new Error('A carga existe, mas a operação-pai não foi encontrada.');
-      else result.existentes++;
+      }
     }catch(e){result.erros.push('Entrada '+entryId+': '+e.message);}
   });
   return result;
 }
+
 function prepararEntradaOperacoesIAFullTime() {
   const c=obterPlanilhasEntradaOperacoesIA_();
   const origem=garantirGuiaEntradaOperacoesIA_(c.source,true),destino=garantirGuiaEntradaOperacoesIA_(c.dest,false);
@@ -1666,7 +1674,7 @@ function combinarExtracaoOperacaoIA_(ia,regras){
     if(ia[k]!==undefined&&ia[k]!==null&&String(ia[k]).trim()!=='')d[k]=ia[k];
   });
   if(ia.peso!==''&&ia.peso!==null&&ia.peso!==undefined)d.peso=ia.peso;
-  const n=Number(d.cargasPrevistas||1),per=Number(String(d.pesoPorCarga||'').replace(',','.'));
+  const n=Number(d.cargasPrevistas||0),per=Number(String(d.pesoPorCarga||'').replace(',','.'));
   if(!d.volumeTotal&&n>1&&per>0)d.volumeTotal=String(per*n);
   if(!d.volumeTotal&&n===1&&d.peso)d.volumeTotal=d.peso;
   return d;
@@ -1737,7 +1745,8 @@ function extrairQuantidadeCargasIA_(text){
   const s=String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const patterns=[/\b(\d{1,2})\s*(?:cargas?|viagens?|voltas?|carregamentos?)\b/,/\b(?:cargas?|viagens?|voltas?)\s*(\d{1,2})\b/];
   for(const re of patterns){const m=s.match(re);if(m){const n=Number(m[1]);if(Number.isInteger(n)&&n>=1&&n<=30)return n;}}
-  return 1;
+  const singular=s.match(/\buma\s+(?:carga|viagem|volta)\b/);if(singular)return 1;
+  return '';
 }
 function extrairVolumeTotalOperacaoIA_(text){
   const s=String(text||''),patterns=[/\bvolume\s+total\s*[:=\-]?\s*(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\btotal\s+de\s+(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i,/\b(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\s+(?:no\s+total|totais?)\b/i];
@@ -1753,7 +1762,7 @@ function extrairPesoPorCargaIA_(text){
 function extrairDescricaoOperacaoIA_(text){const n=String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),p=[['carga refrigerada',/refrigerad|frigorific/],['grãos',/\bgraos?\b|soja|milho|trigo/],['container',/container|conteiner/],['minério',/minerio|mineral/],['carga geral',/carga geral/]],h=p.find(x=>x[1].test(n));return h?h[0]:'';}
 function extrairTipoOperacaoIA_(n){if(/descarga.{0,20}navio|navio.{0,20}descarga|descarregamento.{0,20}navio/.test(n))return 'DESCARGA_NAVIO';if(/transferencia.{0,30}(fabrica|unidade)|entre.{0,20}(fabricas|unidades)|para.{0,20}(fabrica|unidade)/.test(n))return 'TRANSFERENCIA_FABRICAS';if(/remocao interna|movimentacao interna|dentro do porto/.test(n))return 'REMOCAO_INTERNA';if(/\boutra operacao\b|\boperacao diversa\b|\boutro tipo de operacao\b/.test(n))return 'OUTRA';return '';}
 function validarRascunhoOperacaoIA_(d){
-  const p=[],volume=Number(String(d.volumeTotal||'').replace(',','.')),n=Number(d.cargasPrevistas||1),per=Number(String(d.pesoPorCarga||'').replace(',','.'));
+  const p=[],volume=Number(String(d.volumeTotal||'').replace(',','.')),n=Number(d.cargasPrevistas||0),per=Number(String(d.pesoPorCarga||'').replace(',','.'));
   if(!d.data)p.push('data');if(!d.cliente)p.push('cliente');if(!d.origem)p.push('origem');if(!d.destino)p.push('destino');
   if(!(volume>0))p.push('volumeTotal');
   if(!Number.isInteger(n)||n<1||n>30)p.push('cargasPrevistas');
@@ -1787,7 +1796,7 @@ function atualizarRascunhoOperacaoIAFullTime(token,entradaId,data) {
 function confirmarEntradaOperacaoIAFullTime(token,entradaId,revisaoFinal) {
   const session=obterSessao_(token);exigirAdmin_(session);revisaoFinal=revisaoFinal||{};
   const lock=LockService.getScriptLock();if(!lock.tryLock(15000))throw new Error('Outra gravação está em andamento. Tente novamente.');
-  try {
+  try{
     const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
     if(!sh)throw new Error('A guia de entrada não foi preparada nas planilhas.');
     const rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===String(entradaId));
@@ -1799,16 +1808,21 @@ function confirmarEntradaOperacaoIAFullTime(token,entradaId,revisaoFinal) {
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data))||isNaN(new Date(d.data+'T12:00:00').getTime()))throw new Error('A data informada é inválida.');
     if(d.horario&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.horario))throw new Error('O horário deve estar no formato HH:MM.');
     if(String(d.origem).trim().toLowerCase()===String(d.destino).trim().toLowerCase())throw new Error('Origem e destino não podem ser iguais.');
-    const cargaId=String(rows[idx][8]||Utilities.getUuid()),operacaoId=String(rows[idx][12]||Utilities.getUuid()),now=new Date();
-    sh.getRange(idx+1,4,1,10).setValues([[FT_IA_ENTRADA.STATUS_CONFIRMADO,rows[idx][4],JSON.stringify(d),'[]','',cargaId,now,session.login,'',operacaoId]]);
-    auditar_(session,'CONFIRMAR_ENTRADA_IA','ENTRADA_OPERACAO_IA',entradaId,'Confirmada na planilha do Bruno; carga prevista '+cargaId+'; '+d.origem+' -> '+d.destino+'; '+d.tipoOperacao);
+    const quantidade=Number(d.cargasPrevistas),volume=Number(String(d.volumeTotal||'').replace(',','.'));
+    if(!Number.isInteger(quantidade)||quantidade<1||quantidade>30)throw new Error('A quantidade de viagens deve estar entre 1 e 30.');
+    if(!(volume>0&&isFinite(volume)))throw new Error('Informe o volume total da operação em toneladas.');
+    const cargaIdsExistentes=(()=>{try{const v=JSON.parse(String(rows[idx][13]||'[]'));return Array.isArray(v)?v.map(String):[];}catch(e){return [];}})();
+    const cargaIds=Array.from({length:quantidade},(_,i)=>cargaIdsExistentes[i]||(i===0?String(rows[idx][8]||Utilities.getUuid()):Utilities.getUuid()));
+    const operacaoId=String(rows[idx][12]||Utilities.getUuid()),now=new Date();
+    sh.getRange(idx+1,4,1,11).setValues([[FT_IA_ENTRADA.STATUS_CONFIRMADO,rows[idx][4],JSON.stringify(d),'[]','',cargaIds[0],now,session.login,'',operacaoId,JSON.stringify(cargaIds)]]);
+    auditar_(session,'CONFIRMAR_ENTRADA_IA','ENTRADA_OPERACAO_IA',entradaId,'Operação '+operacaoId+' confirmada; viagens previstas '+quantidade+'; '+d.origem+' -> '+d.destino);
     let sync=null,aviso='';try{sync=sincronizarEntradasOperacoesIA_(c);if(sync.erros.length)aviso=' Erros de sincronização: '+sync.erros.join(' | ');}
     catch(e){aviso=' Sincronização pendente; a confirmação permanece na planilha do Bruno: '+e.message;}
-    return {ok:true,id:cargaId,entradaId:entradaId,sincronizado:!!(sync&&sync.erros.length===0),
-      message:(sync&&sync.erros.length===0?'Viagem confirmada na planilha do Bruno e sincronizada para Full Time.':'Viagem confirmada na planilha do Bruno; a sincronização para o sistema está pendente.')+aviso};
-  } finally {lock.releaseLock();}
+    return {ok:true,id:cargaIds[0],idsCargas:cargaIds,operacaoId:operacaoId,entradaId:entradaId,sincronizado:!!(sync&&sync.erros.length===0),
+      message:(sync&&sync.erros.length===0?'Operação confirmada na planilha do Bruno e sincronizada para Full Time.':'Operação confirmada na planilha do Bruno; a sincronização para o sistema está pendente.')+aviso};
+  }finally{lock.releaseLock();}
 }
-/** Testes automatizados puros: não abre planilhas nem grava dados. */
+
 function testarExtracaoEntradaOperacoesIAFullTime() {
   const cases = [
     {name:'rota direta simples',text:'De Rio Grande para Canoas',expect:{origem:'Rio Grande',destino:'Canoas'}},
