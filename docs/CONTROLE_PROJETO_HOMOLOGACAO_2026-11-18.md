@@ -121,3 +121,9 @@
 - Registrar toda alteração de escopo e o impacto em horas/prazo.
 - Se um bloqueio consumir a reserva, renegociar escopo antes de comprometer a data.
 - A meta de 18/11 é homologação e liberação controlada, não promessa de operação crítica sem acompanhamento.
+
+
+## 9. Documentos de trabalho
+
+- [Arquitetura consolidada — homologação](ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md): mapa dos componentes, fontes de verdade, fluxo de entrada IA, regra operação-pai/cargas-filhas e pendências de integração.
+- Este controle deve ser atualizado junto com a arquitetura ao fechar cada marco.
