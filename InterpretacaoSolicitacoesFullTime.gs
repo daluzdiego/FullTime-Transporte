@@ -62,7 +62,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
 
   var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
     encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent';
-  var response = UrlFetchApp.fetch(endpoint, {
+  var requestOptions = {
     method: 'post',
     contentType: 'application/json',
     headers: { 'x-goog-api-key': apiKey },
@@ -71,8 +71,21 @@ function analisarSolicitacaoIAFullTime(token, id) {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
     })
-  });
-  var http = response.getResponseCode(), body = response.getContentText();
+  };
+
+  // 503 (sobrecarga) e 429 (limite temporário): repetir com espera exponencial.
+  var response, http, body;
+  var maxTentativas = 4;
+  for (var tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    response = UrlFetchApp.fetch(endpoint, requestOptions);
+    http = response.getResponseCode();
+    body = response.getContentText();
+    if ((http !== 503 && http !== 429 && http !== 500 && http !== 502) || tentativa === maxTentativas) break;
+    var esperaMs = Math.pow(2, tentativa) * 1000;
+    console.warn('Gemini HTTP ' + http + '. Nova tentativa ' + (tentativa + 1) +
+      '/' + maxTentativas + ' em ' + esperaMs + ' ms.');
+    Utilities.sleep(esperaMs);
+  }
   if (http < 200 || http >= 300) {
     console.error('Gemini HTTP ' + http + ': ' + body.slice(0, 1500));
     var detalhe = '';
