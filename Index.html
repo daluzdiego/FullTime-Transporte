@@ -114,7 +114,7 @@
   let currentUser = null;
   let dashboard = null;
   let solicitacoesFullTime = [];
-  let currentPage = 'inicio';
+  let currentPage = 'operacoes';
   let toastTimer;
   let operacoesRefreshTimer=null;
   let operacoesRefreshBusy=false;
@@ -528,7 +528,7 @@
     const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
     const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div></div>
+      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Abrir programação de cargas</button></div></div>
       <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
