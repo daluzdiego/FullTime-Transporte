@@ -4,7 +4,7 @@
  * Configuração: Script Properties > FT_GEMINI_API_KEY.
  */
 var FT_SOL_AI = {
-  MODEL: 'gemini-2.5-flash',
+  MODEL: 'gemini-3.8-flash',
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000
 };
@@ -61,10 +61,11 @@ function analisarSolicitacaoIAFullTime(token, id) {
   ].join('\n');
 
   var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-    encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent?key=' + encodeURIComponent(apiKey);
+    encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent';
   var response = UrlFetchApp.fetch(endpoint, {
     method: 'post',
     contentType: 'application/json',
+    headers: { 'x-goog-api-key': apiKey },
     muteHttpExceptions: true,
     payload: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -74,7 +75,9 @@ function analisarSolicitacaoIAFullTime(token, id) {
   var http = response.getResponseCode(), body = response.getContentText();
   if (http < 200 || http >= 300) {
     console.error('Gemini HTTP ' + http + ': ' + body.slice(0, 1500));
-    throw new Error('A IA retornou erro HTTP ' + http + '. Verifique a chave, a cota e o modelo configurado.');
+    var detalhe = '';
+    try { var erroApi = JSON.parse(body); detalhe = erroApi.error && erroApi.error.message ? String(erroApi.error.message) : ''; } catch (e) {}
+    throw new Error('Gemini HTTP ' + http + (detalhe ? ': ' + detalhe : '. Verifique a chave, a cota e o modelo configurado.'));
   }
 
   var envelope;
