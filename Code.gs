@@ -1296,7 +1296,7 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
     if(!set)throw new Error('Conjunto não encontrado no cadastro.');
     const loads=getSheet_('CARGAS'),loadValues=loads.getDataRange().getValues(),headers=loadValues[0].map(v=>String(v||'').trim()),ix={};
     headers.forEach((h,i)=>ix[h]=i);
-    const requiredLoad=['OPERACAO_ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
+    const requiredLoad=['ID','OPERACAO_ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
     const missingLoad=requiredLoad.filter(h=>ix[h]===undefined);
     if(missingLoad.length)throw new Error('A guia CARGAS precisa destas colunas: '+missingLoad.join(', ')+'. Execute prepararBaseOperacionalFullTime().');
     const escalas=getSheet_('ESCALAS'),escHeaders=escalas.getRange(1,1,1,escalas.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
