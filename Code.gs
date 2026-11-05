@@ -1354,17 +1354,17 @@ function processarOfertasExpiradasFullTime(token) {
   const session=obterSessao_(token);exigirAdmin_(session);
   const lock=LockService.getScriptLock();lock.waitLock(15000);
   try{
-    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),now=new Date(),operations=new Set();
+    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),now=new Date(),operations=new Set();let totalExpiradas=0;
     rows.slice(1).forEach((r,i)=>{
       const expires=r[7] instanceof Date?r[7]:new Date(r[7]);
       if(String(r[6]||'').toUpperCase()==='PENDENTE'&&isFinite(expires.getTime())&&expires<=now){
         sh.getRange(i+2,7).setValue('EXPIRADA');sh.getRange(i+2,9).setValue(now);
-        operations.add(String(r[11]||''));
+        operations.add(String(r[11]||''));totalExpiradas++;
         ftRegistrarEventoEscala_('OFERTA_EXPIRADA',String(r[11]||''),r[2],r[3],r[4],r[5],'Prazo de aceite expirado',session.login);
       }
     });
     const novas=[];operations.forEach(id=>{if(id)novas.push(ftGerarProximaOfertaOperacao_(token,id,session));});
-    return {ok:true,expiradas:operations.size,novasOfertas:novas,message:'Ofertas expiradas processadas.'};
+    return {ok:true,expiradas:totalExpiradas,operacoesAfetadas:operations.size,novasOfertas:novas,message:'Ofertas expiradas processadas.'};
   }finally{lock.releaseLock();}
 }
 
@@ -1401,7 +1401,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     const driverId=String(r[4]||''),day=dateKey(r[8]||r[6]),opId=String(r[2]||'');
     if(!driverId||!opId||!day||day<sinceKey||day>today)return;
     const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),todayOperations:new Set(),last:''});
-    h.operations.add(opId);h.days.add(day);if(day===today)h.todayOperations.add(opId);
+    h.operations.add(opId);h.days.add(day);if(day===operationDay)h.todayOperations.add(opId);
     if(!h.last||day>h.last)h.last=day;
   });
   const candidates=sets.slice(1).map(r=>{
