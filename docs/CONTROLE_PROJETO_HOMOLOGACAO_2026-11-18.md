@@ -24,11 +24,11 @@
 
 | Etapa | Janela | Horas | Entrega verificável | Status |
 |---|---:|---:|---|---|
-| 1. Consolidar arquitetura e versão-base | 05–06/11 | 12 h | Fluxos, fontes oficiais, contratos de dados, conflitos e estratégia de integração documentados | EM ANDAMENTO |
+| 1. Consolidar arquitetura e versão-base | 05–06/11 | 12 h | Fluxos, fontes oficiais, contratos de dados, conflitos e estratégia de integração documentados | EM VALIDAÇÃO ESTÁTICA |
 | 2. Cadastros, vínculos e sincronização | 06–07/11 | 13 h | Sincronização unidirecional idempotente Bruno → sistema, vínculos e capacidades conferidos | NÃO INICIADA |
-| 3. Entrada assistida por IA | 07–09/11 | 16 h | Mensagem fictícia → interpretação → revisão → confirmação → replicação sem duplicidade | NÃO INICIADA |
-| 4. Motor de escala automática | 09–12/11 | 24 h | Elegibilidade, prioridade, fila, operação distinta, associação do conjunto e auditoria | NÃO INICIADA |
-| 5. Ofertas, painel e notificações | 12–13/11 | 12 h | Ciclo de oferta/aceite/recusa/expiração, visão administrativa e avisos essenciais | NÃO INICIADA |
+| 3. Entrada assistida por IA | 07–09/11 | 16 h | Mensagem fictícia → operação-pai + 1–30 viagens → revisão → confirmação → replicação sem duplicidade | IMPLEMENTADA NA BRANCH; AGUARDA RUNTIME |
+| 4. Motor de escala automática | 09–12/11 | 24 h | Elegibilidade, prioridade, fila, oferta/aceite/recusa/expiração, atribuição por operação e auditoria | IMPLEMENTADO NA BRANCH; AGUARDA RUNTIME |
+| 5. Ofertas, painel e notificações | 12–13/11 | 12 h | Painel de ofertas e registro administrativo da resposta; canal automático ainda pendente | PARCIAL |
 | 6. Testes integrados e segurança | 13–15/11 | 18 h | Testes ponta a ponta, permissões, idempotência, concorrência, recuperação e evidências | NÃO INICIADA |
 | 7. Reserva para correções | 15–17/11 | 9 h | Correções de bloqueios encontrados na homologação | RESERVA |
 | 8. Liberação controlada | 18/11 | 8 h | Checklist aprovado, backup, versão identificada e liberação com acompanhamento | NÃO INICIADA |
@@ -112,7 +112,7 @@
 
 | Data | Horas trabalhadas | Entrega/evidência | Bloqueios | Próxima ação |
 |---|---:|---|---|---|
-| 05/11 | Em andamento | Leitura inicial da main, arquitetura, roadmap, regras e PRs #1/#4; identificados conflitos e divergências | PR #1 não integrável no estado atual; contratos precisam ser consolidados | Comparar mudanças dos PRs e fechar mapa de fontes/cabeçalhos |
+| 05/11 | Não cronometradas | PRs #1/#4 integrados na branch de trabalho; duplicidade removida; contratos de operação/viagens/ofertas ajustados; IA 1–30 viagens; escala com oferta de 120 min; movimentação vinculada à viagem; sintaxe global e scripts HTML aprovados; simulação de 5 viagens idempotente | Ainda sem execução no runtime Google, sem cópia de homologação e sem gatilho/WhatsApp ativo | Validar schema e sincronização com massa fictícia em cópias de teste |
 
 ## 8. Regras de atualização deste controle
 
@@ -163,4 +163,8 @@ A data de 18/11/2026 passa a ser o limite de segurança, não a data planejada p
 - Verificação estática: todos os arquivos `.gs` compilam em conjunto sem nomes globais duplicados; scripts JavaScript do `Index.html` compilam. Testes puros de ordenação e extração multi-viagem passaram.
 - **Ainda não executado:** testes no runtime Apps Script, execução de sincronização em planilhas, criação de gatilho, envio WhatsApp e implantação Web App.
 
-**Próximo marco imediato:** preparar/validar as guias em cópias de teste, sincronizar cadastros fictícios e executar um fluxo completo de entrada → operação → oferta → resposta → atribuição → movimentações.
+**Próximo marco imediato:** validar os cabeçalhos em cópias de teste, sincronizar cadastros fictícios e executar um fluxo completo de entrada → operação → 1–30 viagens → oferta → resposta → atribuição → movimentações reais no ambiente de homologação.
+
+- As viagens-filhas possuem `PESO_REAL_TONELADAS`; `MOVIMENTACOES_OPERACAO.CARGA_ID` registra qual viagem recebeu cada movimentação.
+- A capacidade útil é verificada na elegibilidade quando o peso previsto da viagem é conhecido e novamente nas movimentações reais.
+- O painel Cargas mostra peso previsto e peso real; a criação de uma viagem deve ocorrer dentro de uma operação, evitando cargas órfãs.
