@@ -136,7 +136,7 @@ function sincronizarCadastroBrunoFullTime() {
       }
       summary[pair[0]] = rows.length;
     });
-    importarCavalosECarretasOperacionaisFT_(dest);
+    importarCadastrosOperacionaisBrunoFT_(dest);
     console.log('Sincronização concluída: ' + JSON.stringify(summary));
     return {ok:true, linhasLidas:summary, mensagem:'Fichas detalhadas atualizadas. Novos veículos operacionais ficam PENDENTE_REVISAO.'};
   } finally {
@@ -145,49 +145,190 @@ function sincronizarCadastroBrunoFullTime() {
 }
 
 /** Acha a linha de origem pelo conteúdo da linha; evita depender de uma posição calculada fora do laço. */
-function importarCavalosECarretasOperacionaisFT_(dest) {
-  const pairs = [
-    {source:'FT_CADASTRO_BRUNO_CAVALOS', target:'CAVALOS', type:'CAVALO'},
-    {source:'FT_CADASTRO_BRUNO_CARRETAS', target:'CARRETAS', type:'CARRETA'}
-  ];
-  pairs.forEach(function(p) {
-    const src = dest.getSheetByName(p.source), target = dest.getSheetByName(p.target);
-    if (!src || !target) throw new Error('Guia operacional ausente: ' + p.target);
-    const headers = src.getRange(1,1,1,src.getLastColumn()).getDisplayValues()[0];
-    const idx = {}; headers.forEach(function(h,i){idx[h]=i;});
-    const rows = src.getLastRow() > 1 ? src.getRange(2,1,src.getLastRow()-1,headers.length).getValues() : [];
-    const targetRows = target.getLastRow() > 1 ? target.getDataRange().getValues() : [];
-    const bySourceId = {}, byPlate = {};
-    targetRows.slice(1).forEach(function(r,i) {
-      if (r[0]) bySourceId[String(r[0])] = i+2;
-      if (r[3]) {
-        const normalized = String(r[3]).toUpperCase().replace(/[^A-Z0-9]/g,'');
-        if (!byPlate[normalized]) byPlate[normalized] = [];
-        byPlate[normalized].push({row:i+2, id:String(r[0]||''), status:String(r[2]||'')});
-      }
-    });
-    rows.forEach(function(r) {
-      const externalId = String(r[idx.ID_EXTERNO] || '').trim();
-      const plate = String(r[idx.PLACA] || '').trim().toUpperCase();
-      if (!externalId || !plate) return;
-      const normPlate = plate.replace(/[^A-Z0-9]/g,'');
-      let rowNo = bySourceId[externalId];
-      if (!rowNo && byPlate[normPlate] && byPlate[normPlate].length) {
-        throw new Error('A placa ' + plate + ' já existe na guia ' + p.target + ' com outro ID. A sincronização não sobrescreveu esse registro; faça a conciliação manual.');
-      }
-      const statusDoc = String(r[idx.STATUS_DOCUMENTACAO] || '').trim().toUpperCase();
-      const obs = 'Importado da planilha de cadastro do Bruno; ID externo: ' + externalId + '; situação documental: ' + (statusDoc || 'NÃO INFORMADA') + '. Aprovação operacional pendente.';
-      if (p.type === 'CAVALO') {
-        const payload = [externalId,new Date(),'PENDENTE_REVISAO',plate,String(r[idx.MARCA]||''),String(r[idx.MODELO]||''),String(r[idx.ANO_FABRICACAO]||''),numOrBlankFT_(r[idx.TARA_TONELADAS]),numOrBlankFT_(r[idx.PBTC_MAX_TONELADAS]),obs];
-        if (rowNo) target.getRange(rowNo,1,1,10).setValues([payload]);
-        else target.appendRow(payload);
-      } else {
-        const payload = [externalId,new Date(),'PENDENTE_REVISAO',plate,String(r[idx.TIPO_CARRETA]||''),numOrBlankFT_(r[idx.TARA_TONELADAS]),numOrBlankFT_(r[idx.CAPACIDADE_CARGA_TONELADAS]),numOrBlankFT_(r[idx.PBTC_MAX_TONELADAS]),obs];
-        if (rowNo) target.getRange(rowNo,1,1,9).setValues([payload]);
-        else target.appendRow(payload);
-      }
-    });
+/**
+ * Importa cadastros para as guias operacionais usando cabeçalhos, nunca posição fixa.
+ * Só consulta guias explicitamente permitidas. Não enumera guias da planilha do Bruno.
+ * Status operacional existente é preservado; registros novos entram em PENDENTE_REVISAO.
+ */
+function importarCadastrosOperacionaisBrunoFT_(dest) {
+  importarMotoristasOperacionaisBrunoFT_(dest);
+  importarVeiculosOperacionaisBrunoFT_(dest, 'FT_CADASTRO_BRUNO_CAVALOS', 'CAVALOS', 'CAVALO');
+  importarVeiculosOperacionaisBrunoFT_(dest, 'FT_CADASTRO_BRUNO_CARRETAS', 'CARRETAS', 'CARRETA');
+  importarConjuntosOperacionaisBrunoFT_(dest);
+}
+
+function ftHeadersIndexBruno_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0]
+    .map(v => String(v || '').trim());
+  const index = {};
+  headers.forEach((h, i) => { if (h) index[h] = i; });
+  return {headers: headers, index: index};
+}
+
+function ftRowsBruno_(sheet, width) {
+  return sheet.getLastRow() > 1
+    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues()
+    : [];
+}
+
+function ftFindOperationalRowBruno_(sheet, targetIndex, externalId, cpf, plate) {
+  const rows = ftRowsBruno_(sheet, sheet.getLastColumn());
+  const idCol = targetIndex.ID;
+  const externalCol = targetIndex.ID_EXTERNO;
+  const cpfCol = targetIndex.CPF;
+  const plateCol = targetIndex.PLACA;
+  let match = 0;
+  rows.forEach((r, i) => {
+    const byExternal = externalId && (
+      (externalCol !== undefined && String(r[externalCol] || '').trim() === externalId) ||
+      (idCol !== undefined && String(r[idCol] || '').trim() === externalId)
+    );
+    const byCpf = cpf && cpfCol !== undefined && String(r[cpfCol] || '').replace(/\D/g, '') === cpf;
+    const byPlate = plate && plateCol !== undefined &&
+      String(r[plateCol] || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === plate;
+    if (byExternal || byCpf || byPlate) {
+      if (match && match !== i + 2) throw new Error('Correspondência ambígua em ' + sheet.getName() + ' para ID externo ' + externalId + '. Nenhuma linha adicional foi gravada.');
+      match = i + 2;
+    }
   });
+  return match;
+}
+
+function importarMotoristasOperacionaisBrunoFT_(dest) {
+  const src = dest.getSheetByName('FT_CADASTRO_BRUNO_MOTORISTAS');
+  const target = dest.getSheetByName('MOTORISTAS');
+  if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: MOTORISTAS.');
+  const si = ftHeadersIndexBruno_(src), ti = ftHeadersIndexBruno_(target);
+  ['ID_EXTERNO','NOME_COMPLETO'].forEach(k => { if (si.index[k] === undefined) throw new Error('Campo ausente no espelho de motoristas: ' + k); });
+  ['ID','STATUS','NOME_COMPLETO','ID_EXTERNO'].forEach(k => { if (ti.index[k] === undefined) throw new Error('Campo ausente em MOTORISTAS: ' + k); });
+  const rows = ftRowsBruno_(src, si.headers.length);
+  rows.forEach(r => {
+    const externalId = String(r[si.index.ID_EXTERNO] || '').trim();
+    const name = String(r[si.index.NOME_COMPLETO] || '').trim();
+    if (!externalId || !name) return;
+    const cpf = si.index.CPF === undefined ? '' : String(r[si.index.CPF] || '').replace(/\D/g, '');
+    const rowNo = ftFindOperationalRowBruno_(target, ti.index, externalId, cpf, '');
+    const isNew = !rowNo;
+    const out = isNew ? new Array(ti.headers.length).fill('') :
+      target.getRange(rowNo, 1, 1, ti.headers.length).getValues()[0];
+    if (isNew) {
+      out[ti.index.ID] = Utilities.getUuid();
+      out[ti.index.STATUS] = 'PENDENTE_REVISAO';
+      if (ti.index.CRIADO_EM !== undefined) out[ti.index.CRIADO_EM] = new Date();
+    }
+    const fields = ['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE',
+      'OBSERVACOES','ID_EXTERNO','RG','DATA_NASCIMENTO','WHATSAPP','ENDERECO','CIDADE','UF','CEP',
+      'CNH_PRIMEIRA_HABILITACAO','CNH_EAR','EXAME_TOXICOLOGICO_VALIDADE','STATUS_DOCUMENTACAO',
+      'LINK_CNH','LINK_EXAME_TOXICOLOGICO'];
+    fields.forEach(k => {
+      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+    });
+    if (isNew) target.appendRow(out);
+    else target.getRange(rowNo, 1, 1, out.length).setValues([out]);
+  });
+}
+
+function importarVeiculosOperacionaisBrunoFT_(dest, sourceName, targetName, type) {
+  const src = dest.getSheetByName(sourceName), target = dest.getSheetByName(targetName);
+  if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: ' + targetName + '.');
+  const si = ftHeadersIndexBruno_(src), ti = ftHeadersIndexBruno_(target);
+  ['ID_EXTERNO','PLACA'].forEach(k => { if (si.index[k] === undefined) throw new Error('Campo ausente no espelho ' + sourceName + ': ' + k); });
+  ['ID','STATUS','PLACA','ID_EXTERNO'].forEach(k => { if (ti.index[k] === undefined) throw new Error('Campo ausente em ' + targetName + ': ' + k); });
+  const rows = ftRowsBruno_(src, si.headers.length);
+  rows.forEach(r => {
+    const externalId = String(r[si.index.ID_EXTERNO] || '').trim();
+    const plate = String(r[si.index.PLACA] || '').trim().toUpperCase();
+    if (!externalId || !plate) return;
+    const rowNo = ftFindOperationalRowBruno_(target, ti.index, externalId, '', plate);
+    const isNew = !rowNo;
+    const out = isNew ? new Array(ti.headers.length).fill('') :
+      target.getRange(rowNo, 1, 1, ti.headers.length).getValues()[0];
+    if (isNew) {
+      out[ti.index.ID] = Utilities.getUuid();
+      out[ti.index.STATUS] = 'PENDENTE_REVISAO';
+      if (ti.index.CRIADO_EM !== undefined) out[ti.index.CRIADO_EM] = new Date();
+    }
+    const fields = type === 'CAVALO'
+      ? ['PLACA','MARCA','MODELO','TARA_TONELADAS','PBTC_MAX_TONELADAS','ID_EXTERNO','RENAVAM','CHASSI',
+         'NUMERO_MOTOR','VERSAO','ANO_FABRICACAO','ANO_MODELO','TIPO_VEICULO','ESPECIE','CARROCERIA','COR',
+         'COMBUSTIVEL','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_UTIL_TONELADAS','PROPRIETARIO_DOCUMENTO',
+         'PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE',
+         'ANTT_RNTRC','ANTT_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','OBSERVACOES']
+      : ['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS',
+         'ID_EXTERNO','RENAVAM','CHASSI','MARCA','MODELO','ANO_FABRICACAO','ANO_MODELO','ESPECIE','CARROCERIA',
+         'COR','NUMERO_EIXOS','LOTACAO_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME',
+         'CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE',
+         'STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','OBSERVACOES'];
+    fields.forEach(k => {
+      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+    });
+    if (ti.index.ANO !== undefined && !out[ti.index.ANO]) {
+      const yearKey = si.index.ANO_MODELO !== undefined ? 'ANO_MODELO' : 'ANO_FABRICACAO';
+      if (si.index[yearKey] !== undefined) out[ti.index.ANO] = r[si.index[yearKey]];
+    }
+    if (ti.index.OBSERVACOES !== undefined) {
+      const sourceObs = si.index.OBSERVACOES === undefined ? '' : String(r[si.index.OBSERVACOES] || '');
+      const doc = si.index.STATUS_DOCUMENTACAO === undefined ? '' : String(r[si.index.STATUS_DOCUMENTACAO] || '');
+      out[ti.index.OBSERVACOES] = [sourceObs, 'Cadastro Bruno; ID externo: ' + externalId,
+        'Situação documental: ' + (doc || 'NÃO INFORMADA')].filter(Boolean).join(' | ');
+    }
+    if (isNew) target.appendRow(out);
+    else target.getRange(rowNo, 1, 1, out.length).setValues([out]);
+  });
+}
+
+function importarConjuntosOperacionaisBrunoFT_(dest) {
+  const src = dest.getSheetByName('FT_CADASTRO_BRUNO_CONJUNTOS');
+  const target = dest.getSheetByName('CONJUNTOS');
+  if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: CONJUNTOS.');
+  const si = ftHeadersIndexBruno_(src), ti = ftHeadersIndexBruno_(target);
+  ['ID_EXTERNO','CAVALO_ID_EXTERNO'].forEach(k => { if (si.index[k] === undefined) throw new Error('Campo ausente no espelho de conjuntos: ' + k); });
+  ['ID','STATUS','ID_EXTERNO','CAVALO_ID','CAVALO_ID_EXTERNO'].forEach(k => { if (ti.index[k] === undefined) throw new Error('Campo ausente em CONJUNTOS: ' + k); });
+  const rows = ftRowsBruno_(src, si.headers.length);
+  rows.forEach(r => {
+    const externalId = String(r[si.index.ID_EXTERNO] || '').trim();
+    if (!externalId) return;
+    const rowNo = ftFindOperationalRowBruno_(target, ti.index, externalId, '', '');
+    const isNew = !rowNo;
+    const out = isNew ? new Array(ti.headers.length).fill('') :
+      target.getRange(rowNo, 1, 1, ti.headers.length).getValues()[0];
+    if (isNew) {
+      out[ti.index.ID] = Utilities.getUuid();
+      out[ti.index.STATUS] = 'PENDENTE_REVISAO';
+      if (ti.index.CRIADO_EM !== undefined) out[ti.index.CRIADO_EM] = new Date();
+    }
+    const directFields = ['ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME',
+      'CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA',
+      'CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO',
+      'DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO',
+      'OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'];
+    directFields.forEach(k => {
+      if (si.index[k] !== undefined && ti.index[k] !== undefined) out[ti.index[k]] = r[si.index[k]];
+    });
+    const links = [
+      ['MOTORISTA_ID_EXTERNO','MOTORISTA_ID','MOTORISTAS'],
+      ['CAVALO_ID_EXTERNO','CAVALO_ID','CAVALOS'],
+      ['CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_ID','CARRETAS'],
+      ['CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_ID','CARRETAS']
+    ];
+    links.forEach(pair => {
+      const ext = si.index[pair[0]] === undefined ? '' : String(r[si.index[pair[0]]] || '').trim();
+      if (!ext || ti.index[pair[1]] === undefined) return;
+      const lookup = dest.getSheetByName(pair[2]);
+      if (!lookup) throw new Error('Guia operacional ausente para vínculo: ' + pair[2]);
+      const li = ftHeadersIndexBruno_(lookup).index;
+      const found = ftFindOperationalRowBruno_(lookup, li, ext, '', '');
+      if (found) out[ti.index[pair[1]]] = lookup.getRange(found, li.ID + 1).getValue();
+      else out[ti.index[pair[1]]] = '';
+    });
+    if (isNew) target.appendRow(out);
+    else target.getRange(rowNo, 1, 1, out.length).setValues([out]);
+  });
+}
+
+/** Mantida por compatibilidade com chamadas antigas; agora importa todos os cadastros permitidos. */
+function importarCavalosECarretasOperacionaisFT_(dest) {
+  importarCadastrosOperacionaisBrunoFT_(dest);
 }
 
 function numOrBlankFT_(v) {
@@ -329,8 +470,12 @@ function atualizarLinksGuiasFullTime_() {
   let links = dest.getSheetByName('LINKS_GUIAS');
   if (!links) links = dest.insertSheet('LINKS_GUIAS', 0);
   const rows = [['PLANILHA','GUIA','LINK','FINALIDADE']];
-  source.getSheets().forEach(function(sh) {
-    rows.push(['Cadastro Bruno', sh.getName(), source.getUrl() + '#gid=' + sh.getSheetId(), 'Entrada de dados; edite apenas as linhas de cadastro, sem alterar cabeçalhos.']);
+  // Lista explícita e permitida. Nunca enumerar as guias da planilha do Bruno.
+  const sourceAllowlist = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','OPERACOES','CONTROLE_DOCUMENTAL','INSTRUCOES','ENTRADA_OPERACOES_IA','PLANILHABRUNO_AUDITORIA_SINCRONIZACAO'];
+  sourceAllowlist.forEach(function(name) {
+    const sh = source.getSheetByName(name);
+    if (!sh) return;
+    rows.push(['Cadastro Bruno', name, source.getUrl() + '#gid=' + sh.getSheetId(), 'Entrada de dados; edite apenas as linhas de cadastro, sem alterar cabeçalhos.']);
   });
   dest.getSheets().forEach(function(sh) {
     if (sh.getName() === 'LINKS_GUIAS') return;
