@@ -168,6 +168,17 @@ function executarTesteFluxoIntegralFullTime() {
     return 'Capacidade derivada apenas com componentes completos; 4 cenários aprovados.';
   });
 
+  executar('06 — CONDIÇÃO DO CONJUNTO', 'Escala automática exige inspeção APTO explícita', () => {
+    const apto=['','','','','','','','','APTO','',20];
+    const restrito=['','','','','','','','','APTO_COM_RESTRICAO','Uso restrito',20];
+    const semInspecao=['','','','','','','','','','',20];
+    exigir(ftConjuntoAptoParaEscalaAutomatica_(apto), 'Conjunto APTO explícito deveria ser elegível.');
+    exigir(!ftConjuntoAptoParaEscalaAutomatica_(restrito), 'Conjunto com restrição não deve entrar automaticamente na fila.');
+    exigir(!ftConjuntoAptoParaEscalaAutomatica_(semInspecao), 'Conjunto sem inspeção explícita não deve entrar na fila.');
+    exigir(ftConjuntoAptoParaMovimentacao_(restrito), 'Conjunto restrito pode movimentar somente após autorização/atribuição administrativa.');
+    return 'APTO explícito exigido para escala automática; restrição exige tratamento administrativo.';
+  });
+
   executar('07 — REGRAS DETERMINÍSTICAS', 'Ordenação exclui inelegíveis, respeita operação no dia, assiduidade e operações distintas', () => {
     const amostra = [
       {motoristaId:'A',nome:'A',elegivel:true,operacoesHoje:1,diasDisponivel30Dias:20,diasTrabalhados30Dias:18,operacoes30Dias:8},
