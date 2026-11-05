@@ -1148,7 +1148,7 @@ function alterarEstadoConjuntoFullTime(token, data) {
   const db=SpreadsheetApp.openById(registryId);let sh=db.getSheetByName('CONJUNTO_OVERRIDES');
   if(!sh){sh=db.insertSheet('CONJUNTO_OVERRIDES');sh.getRange(1,1,1,6).setValues([['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']]);sh.setFrozenRows(1);}
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,6).getValues():[];
-  const idx=rows.findIndex(r=>String(r[0])===id),cap=Object.prototype.hasOwnProperty.call(data,'capacidadeUtil')?Number(data.capacidadeUtil):Number(set[10]||0);
+  const idx=rows.findIndex(r=>String(r[0])===id),hasCap=data.capacidadeUtil!==undefined&&String(data.capacidadeUtil).trim()!=='',cap=hasCap?Number(data.capacidadeUtil):Number(set[10]||0);
   if(!(cap>=0&&cap<=200))throw new Error('Capacidade útil inválida.');
   const row=[id,estado,restricoes,cap,session.login,new Date()];
   if(idx>=0)sh.getRange(idx+2,1,1,6).setValues([row]);else sh.appendRow(row);
@@ -1224,7 +1224,6 @@ function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
   const activeParts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues().slice(1);
   if(activeParts.some(r=>String(r[2]||'')===String(operacaoId)&&String(r[5]||'')==='ATIVO'))return {ok:false,status:'JA_ATRIBUIDA',operacaoId:String(operacaoId),message:'Esta operação já possui motorista e conjunto ativos.'};
   const offers=getSheet_('OFERTAS_CARGAS'),rows=offers.getDataRange().getValues(),now=new Date();
-  if(rows.slice(1).some(r=>String(r[11]||'')===String(operacaoId)&&String(r[6]||'').toUpperCase()==='ACEITA'))return {ok:false,status:'JA_ACEITA',operacaoId:String(operacaoId),message:'Esta operação já teve uma oferta aceita.'};
   const pending=rows.map((r,i)=>({r,i})).filter(x=>String(x.r[11]||'')===String(operacaoId)&&String(x.r[6]||'').toUpperCase()==='PENDENTE');
   for(const item of pending){
     const expires=item.r[7] instanceof Date?item.r[7]:new Date(item.r[7]);
@@ -1382,7 +1381,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
   const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const dateKey=v=>{if(!v)return '';if(typeof v==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(v.trim()))return v.trim();const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
+  const dateKey=v=>{if(!v)return '';if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v.trim()))return v.trim();const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
   const operationDay=dateKey(op.data)||today;
   const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
   const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
@@ -1395,7 +1394,7 @@ function ftOrdenarCandidatosOperacao_(operacaoId) {
     if(day===operationDay)availableForOperation.add(driverId);
   });
   const offerRows=getSheet_('OFERTAS_CARGAS').getDataRange().getValues();
-  const skippedForOperation=new Set(offerRows.slice(1).filter(r=>String(r[11]||'')===String(operacaoId)&&['RECUSOU','INDISPONIVEL','EXPIRADA'].includes(String(r[6]||'').toUpperCase())).map(r=>String(r[3]||'')));
+  const skippedForOperation=new Set(offerRows.slice(1).filter(r=>String(r[11]||'')===String(operacaoId)&&['RECUSOU','INDISPONIVEL','EXPIRADA','ACEITA'].includes(String(r[6]||'').toUpperCase())).map(r=>String(r[3]||'')));
   const historyByDriver={};
   parts.slice(1).forEach(r=>{
     const driverId=String(r[4]||''),day=dateKey(r[8]||r[6]),opId=String(r[2]||'');
