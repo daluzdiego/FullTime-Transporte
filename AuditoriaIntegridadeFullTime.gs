@@ -37,6 +37,7 @@ function auditarIntegridadeMvpFullTime(token) {
     if(!horseById.has(horse))duplicateLinks.push(id+': cavalo não encontrado ('+horse+')');else if(String(horseById.get(horse)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': cavalo não ativo ('+horse+')');
     [middle,rear].filter(Boolean).forEach(key=>{if(!trailerById.has(key))duplicateLinks.push(id+': carreta não encontrada ('+key+')');else if(String(trailerById.get(key)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': carreta não ativa ('+key+')');});
     if(!(Number(String(r[10]||'').replace(',','.'))>0))duplicateLinks.push(id+': capacidade útil inválida');
+    if(!ftConjuntoTemVinculoFixo_(r))duplicateLinks.push(id+': vínculo motorista/cavalo/carreta não está marcado como fixo.');
     const condition=String(r[8]||'').trim().toUpperCase();
     if(!condition)conditionIssues.push(id+': condição não inspecionada; não entra na escala automática.');
     else if(condition==='APTO_COM_RESTRICAO')conditionIssues.push(id+': conjunto com restrição; exige avaliação/atribuição administrativa específica.');
