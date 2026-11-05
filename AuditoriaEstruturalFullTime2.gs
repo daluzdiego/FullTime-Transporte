@@ -70,3 +70,53 @@ function auditarEstruturaFullTime2() {
   Logger.log('FULLTIME 2.0 — AUDITORIA ESTRUTURAL: ' + JSON.stringify(result));
   return result;
 }
+
+
+/**
+ * FULLTIME 2.0 — CONTINUAÇÃO COMPACTA DA AUDITORIA
+ * Execute separadamente para evitar truncamento do log.
+ * Somente leitura. Não enumera guias e não acessa CAVALOS-BRUNO.
+ */
+function auditarEstruturaFullTime2BrunoCompacta() {
+  const id = '1cpTzFLfoorlFGj3rW1yCCbm4pQDumBqFKP0UWinijQI';
+  const names = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','OPERACOES',
+    'CONTROLE_DOCUMENTAL','INSTRUCOES','ENTRADA_OPERACOES_IA',
+    'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO'];
+  const ss = SpreadsheetApp.openById(id);
+  const result = {auditoria:'FULLTIME_2_0_BRUNO_COMPACTA',planilha:ss.getName(),guias:[]};
+  names.forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) { result.guias.push({guia:name,existe:false}); return; }
+    const n = sh.getLastColumn();
+    result.guias.push({
+      guia:name,existe:true,linhasComCabecalho:sh.getLastRow(),
+      colunasUsadas:n,
+      cabecalhos:n ? sh.getRange(1,1,1,n).getDisplayValues()[0].map(v=>String(v||'').trim()) : []
+    });
+  });
+  Logger.log('FULLTIME 2.0 — BRUNO COMPACTA: '+JSON.stringify(result));
+  return result;
+}
+
+function auditarEstruturaFullTime2PrincipalCompacta() {
+  const id = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const names = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS',
+    'LOCAIS','REGRAS_OPERACIONAIS','OPERACOES','PARTICIPACAO_OPERACOES',
+    'MOVIMENTACOES_OPERACAO','CARGAS','ESCALAS','HISTORICO_OPERACOES',
+    'TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS',
+    'EVENTOS_ESCALA','ENTRADA_OPERACOES_IA'];
+  const ss = SpreadsheetApp.openById(id);
+  const result = {auditoria:'FULLTIME_2_0_PRINCIPAL_COMPACTA',planilha:ss.getName(),guias:[]};
+  names.forEach(function(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) { result.guias.push({guia:name,existe:false}); return; }
+    const n = sh.getLastColumn();
+    result.guias.push({
+      guia:name,existe:true,linhasComCabecalho:sh.getLastRow(),
+      colunasUsadas:n,
+      cabecalhos:n ? sh.getRange(1,1,1,n).getDisplayValues()[0].map(v=>String(v||'').trim()) : []
+    });
+  });
+  Logger.log('FULLTIME 2.0 — PRINCIPAL COMPACTA: '+JSON.stringify(result));
+  return result;
+}
