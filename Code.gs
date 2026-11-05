@@ -773,7 +773,9 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   if(!record)throw new Error('Registro não encontrado no cadastro sincronizado do Bruno.');
   if(entidade==='CONJUNTOS'&&status==='ATIVO'){
     if(!ftConjuntoTemVinculoFixo_(record))throw new Error('Não é possível ativar o conjunto: VINCULO_FIXO precisa estar confirmado como SIM.');
-    if(!ftConjuntoComponentesAtivos_(record,ftCadastroRowsAsLegacy_('CAVALOS'),ftCadastroRowsAsLegacy_('CARRETAS')))throw new Error('Não é possível ativar o conjunto: motorista, cavalo e todas as carretas precisam estar ATIVOS.');
+    const driver=ftCadastroRowsAsLegacy_('MOTORISTAS').find(r=>String(r[0])===String(record[3]));
+    if(!driver||String(driver[2])!=='ATIVO')throw new Error('Não é possível ativar o conjunto: o motorista associado precisa estar ATIVO.');
+    if(!ftConjuntoComponentesAtivos_(record,ftCadastroRowsAsLegacy_('CAVALOS'),ftCadastroRowsAsLegacy_('CARRETAS')))throw new Error('Não é possível ativar o conjunto: cavalo e todas as carretas precisam estar ATIVOS.');
   }
   // Atualiza a cópia local quando existir e grava sempre o override canônico.
   try{
