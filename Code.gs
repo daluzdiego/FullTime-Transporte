@@ -428,7 +428,7 @@ function prepararGuiasEscalaFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR','OPERACAO_ID']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -479,7 +479,7 @@ function prepararBaseOperacionalFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR','OPERACAO_ID'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR','OPERACAO_ID'],
     CONJUNTO_OVERRIDES: ['CONJUNTO_ID','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ATUALIZADO_EM']
   };
   Object.keys(schemas).forEach(function(name) {
@@ -987,7 +987,8 @@ function getLoginBackground_() { return 'data:image/jpeg;base64,/9j/4AAQSkZJRgAB
 const FT_ESCALA_REGRAS = Object.freeze({
   JANELA_VIAGENS_DIAS: 30,
   HORARIOS_LEMBRETE: ['06:00', '12:00', '18:00'],
-  RECUSA_PENALIDADE: 'OPERACAO_ATUAL'
+  RECUSA_PENALIDADE: 'OPERACAO_ATUAL',
+  EXPIRACAO_OFERTA_MINUTOS: 120
 });
 
 /**
@@ -1209,6 +1210,127 @@ function designarConjuntoOperacaoFullTime(token, data) {
 function ftCadastroRowsAsLegacy_(entity) {
   return listarRegistros_(entity).map(r => [r.id,r.criado,r.status].concat(Array.isArray(r.campos)?r.campos:[]));
 }
+function ftRegistrarEventoEscala_(tipo, operacaoId, cargaId, motoristaId, conjuntoId, posicao, motivo, autor) {
+  const sh=getSheet_('EVENTOS_ESCALA');
+  sh.appendRow([Utilities.getUuid(),new Date(),tipo,cargaId||'',motoristaId||'',conjuntoId||'','',posicao||'',motivo||'',autor||'SISTEMA',operacaoId||'']);
+}
+
+function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
+  const ops=getSheet_('OPERACOES').getDataRange().getValues(),opIndex=ops.findIndex((r,i)=>i>0&&String(r[0])===String(operacaoId));
+  if(opIndex<1)throw new Error('Operação não encontrada.');
+  const op=ops[opIndex];
+  if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para receber uma oferta.');
+  const offers=getSheet_('OFERTAS_CARGAS'),rows=offers.getDataRange().getValues(),now=new Date();
+  const pending=rows.map((r,i)=>({r,i})).filter(x=>String(x.r[11]||'')===String(operacaoId)&&String(x.r[6]||'').toUpperCase()==='PENDENTE');
+  for(const item of pending){
+    const expires=item.r[7] instanceof Date?item.r[7]:new Date(item.r[7]);
+    if(isFinite(expires.getTime())&&expires>now){
+      return {ok:true,status:'PENDENTE',ofertaId:String(item.r[0]),operacaoId:String(operacaoId),motoristaId:String(item.r[3]),conjuntoId:String(item.r[4]),posicao:Number(item.r[5]||0),expiraEm:expires.toISOString(),message:'Já existe uma oferta pendente para esta operação.'};
+    }
+    offers.getRange(item.i+1,7).setValue('EXPIRADA');
+    offers.getRange(item.i+1,9).setValue(now);
+    ftRegistrarEventoEscala_('OFERTA_EXPIRADA',operacaoId,item.r[2],item.r[3],item.r[4],item.r[5],'Prazo de aceite expirado',session.login);
+  }
+  const candidatos=ordenarCandidatosOperacaoFullTime(token,operacaoId);
+  if(!candidatos.length)return {ok:false,status:'SEM_CANDIDATO',operacaoId:String(operacaoId),message:'Não há motorista elegível e disponível para esta operação neste momento.'};
+  const escolhido=candidatos[0],loads=getSheet_('CARGAS'),loadRows=loads.getDataRange().getValues();
+  const loadHeaders=loadRows[0].map(v=>String(v||'').trim()),opCol=loadHeaders.indexOf('OPERACAO_ID'),idCol=loadHeaders.indexOf('ID');
+  const firstLoad=opCol>=0?loadRows.slice(1).find(r=>String(r[opCol]||'')===String(operacaoId)):null;
+  const cargaId=firstLoad&&idCol>=0?String(firstLoad[idCol]||''):'';
+  const offerId=Utilities.getUuid(),expires=new Date(now.getTime()+FT_ESCALA_REGRAS.EXPIRACAO_OFERTA_MINUTOS*60000);
+  const posicao=1;
+  offers.appendRow([offerId,now,cargaId,escolhido.driverId,escolhido.id,posicao,'PENDENTE',expires,'','',''+(session.login||'ADMIN'),operacaoId]);
+  ftRegistrarEventoEscala_('OFERTA_CRIADA',operacaoId,cargaId,escolhido.driverId,escolhido.id,posicao,'Oferta enviada para aceite; expira em 120 minutos',session.login);
+  return {ok:true,status:'PENDENTE',ofertaId:offerId,operacaoId:String(operacaoId),cargaId:cargaId,motoristaId:escolhido.driverId,motorista:escolhido.driverName,conjuntoId:escolhido.id,expiraEm:expires.toISOString(),posicao:posicao,message:'Oferta criada para '+escolhido.driverName+'. A atribuição só será confirmada após o aceite.'};
+}
+
+function gerarEscalasAutomaticasFullTime(token, operacaoId) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const id=texto_(operacaoId,100);if(!id)throw new Error('Informe a operação.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{return ftGerarProximaOfertaOperacao_(token,id,session);}finally{lock.releaseLock();}
+}
+
+/**
+ * Registra a resposta recebida do motorista. Na primeira liberação controlada,
+ * o administrador registra a resposta; o canal automático de WhatsApp será integrado
+ * depois que o número e as credenciais de envio estiverem homologados.
+ */
+function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const id=texto_(ofertaId,100),answer=texto_(resposta,30).toUpperCase(),reason=texto_(motivo,500);
+  if(!id||!['ACEITAR','ACEITA','RECUSAR','RECUSOU','INDISPONIVEL'].includes(answer))throw new Error('Informe a oferta e uma resposta válida: ACEITAR, RECUSAR ou INDISPONIVEL.');
+  if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(answer)&&!reason)throw new Error('Informe o motivo da recusa/indisponibilidade.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
+    if(idx<1)throw new Error('Oferta não encontrada.');
+    const offer=rows[idx],status=String(offer[6]||'').toUpperCase(),operationId=String(offer[11]||'');
+    if(status!=='PENDENTE')throw new Error('Esta oferta não está mais pendente.');
+    const expires=offer[7] instanceof Date?offer[7]:new Date(offer[7]),now=new Date();
+    if(!isFinite(expires.getTime())||expires<=now){
+      sh.getRange(idx+1,7).setValue('EXPIRADA');sh.getRange(idx+1,9).setValue(now);
+      ftRegistrarEventoEscala_('OFERTA_EXPIRADA',operationId,offer[2],offer[3],offer[4],offer[5],'Prazo de aceite expirado',session.login);
+      const next=ftGerarProximaOfertaOperacao_(token,operationId,session);
+      return {ok:false,status:'EXPIRADA',proximaOferta:next,message:'O prazo desta oferta expirou. '+(next.message||'')};
+    }
+    if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(answer)){
+      const newStatus=answer==='INDISPONIVEL'?'INDISPONIVEL':'RECUSOU';
+      sh.getRange(idx+1,7).setValue(newStatus);sh.getRange(idx+1,9).setValue(now);sh.getRange(idx+1,10).setValue(reason);
+      ftRegistrarEventoEscala_('OFERTA_'+newStatus,operationId,offer[2],offer[3],offer[4],offer[5],reason,session.login);
+      const next=ftGerarProximaOfertaOperacao_(token,operationId,session);
+      return {ok:true,status:newStatus,proximaOferta:next,message:'Resposta registrada. '+(next.message||'')};
+    }
+    const candidates=ordenarCandidatosOperacaoFullTime(token,operationId),candidate=candidates.find(x=>String(x.id)===String(offer[4])&&String(x.driverId)===String(offer[3]));
+    if(!candidate)throw new Error('O motorista/conjunto deixou de atender aos critérios de elegibilidade ou disponibilidade. Gere a próxima oferta.');
+    const ops=getSheet_('OPERACOES'),opRows=ops.getDataRange().getValues(),opIndex=opRows.findIndex((r,i)=>i>0&&String(r[0])===operationId);
+    if(opIndex<1||!['ABERTA','EM_ANDAMENTO'].includes(String(opRows[opIndex][2])))throw new Error('A operação não está mais aberta.');
+    const set=ftCadastroRowsAsLegacy_('CONJUNTOS').find(r=>String(r[0])===String(offer[4]));
+    if(!set)throw new Error('Conjunto não encontrado no cadastro.');
+    const parts=getSheet_('PARTICIPACAO_OPERACOES'),partRows=parts.getDataRange().getValues();
+    if(partRows.some((r,i)=>i>0&&String(r[4])===String(offer[3])&&String(r[5])==='ATIVO'))throw new Error('O motorista já está em outra operação ativa.');
+    const now2=new Date(),partId=Utilities.getUuid();
+    parts.appendRow([partId,now2,operationId,String(offer[4]),String(offer[3]),'ATIVO',now2,'','','0',0,'Oferta aceita',session.login]);
+    const loads=getSheet_('CARGAS'),loadValues=loads.getDataRange().getValues(),headers=loadValues[0].map(v=>String(v||'').trim()),ix={};
+    headers.forEach((h,i)=>ix[h]=i);
+    if(ix.OPERACAO_ID===undefined)throw new Error('A guia CARGAS precisa da coluna OPERACAO_ID. Execute prepararBaseOperacionalFullTime().');
+    const loadMatches=[];
+    for(let i=1;i<loadValues.length;i++)if(String(loadValues[i][ix.OPERACAO_ID]||'')===operationId)loadMatches.push(i+1);
+    loadMatches.forEach(rowNo=>{
+      loads.getRange(rowNo,ix.STATUS+1).setValue('PROGRAMADA');
+      loads.getRange(rowNo,ix.MOTORISTA_ID+1).setValue(String(offer[3]));
+      loads.getRange(rowNo,ix.CAVALO_ID+1).setValue(String(set[4]||''));
+      loads.getRange(rowNo,ix.CARRETA_MEIO_ID+1).setValue(String(set[5]||''));
+      loads.getRange(rowNo,ix.CARRETA_FINAL_ID+1).setValue(String(set[6]||''));
+    });
+    const escalas=getSheet_('ESCALAS'),escalaId=Utilities.getUuid(),firstLoadId=String(offer[2]||'');
+    escalas.appendRow([escalaId,now2,'ATIVA',firstLoadId,String(offer[3]),String(set[4]||''),String(set[5]||''),String(set[6]||''),'Aceite de oferta',opRows[opIndex][3]||'','', 'Atribuição por operação; cargas filhas herdam o conjunto.',operationId]);
+    ops.getRange(opIndex+1,3).setValue('EM_ANDAMENTO');
+    sh.getRange(idx+1,7).setValue('ACEITA');sh.getRange(idx+1,9).setValue(now2);
+    ftRegistrarEventoEscala_('OFERTA_ACEITA',operationId,firstLoadId,offer[3],offer[4],offer[5],'Motorista aceitou a oferta',session.login);
+    auditar_(session,'ACEITAR_OFERTA','OPERACAO',operationId,'Motorista '+offer[3]+'; conjunto '+offer[4]);
+    return {ok:true,status:'ACEITA',operacaoId:operationId,motoristaId:String(offer[3]),conjuntoId:String(offer[4]),cargasAtualizadas:loadMatches.length,message:'Aceite registrado. A operação e suas cargas foram atribuídas ao motorista e ao conjunto.'};
+  }finally{lock.releaseLock();}
+}
+
+function processarOfertasExpiradasFullTime(token) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const sh=getSheet_('OFERTAS_CARGAS'),rows=sh.getDataRange().getValues(),now=new Date(),operations=new Set();
+    rows.slice(1).forEach((r,i)=>{
+      const expires=r[7] instanceof Date?r[7]:new Date(r[7]);
+      if(String(r[6]||'').toUpperCase()==='PENDENTE'&&isFinite(expires.getTime())&&expires<=now){
+        sh.getRange(i+2,7).setValue('EXPIRADA');sh.getRange(i+2,9).setValue(now);
+        operations.add(String(r[11]||''));
+        ftRegistrarEventoEscala_('OFERTA_EXPIRADA',String(r[11]||''),r[2],r[3],r[4],r[5],'Prazo de aceite expirado',session.login);
+      }
+    });
+    const novas=[];operations.forEach(id=>{if(id)novas.push(ftGerarProximaOfertaOperacao_(token,id,session));});
+    return {ok:true,expiradas:operations.size,novasOfertas:novas,message:'Ofertas expiradas processadas.'};
+  }finally{lock.releaseLock();}
+}
+
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
@@ -1234,6 +1356,8 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     if(day>=sinceKey&&day<=today)(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);
     if(day===operationDay)availableForOperation.add(driverId);
   });
+  const offerRows=getSheet_('OFERTAS_CARGAS').getDataRange().getValues();
+  const skippedForOperation=new Set(offerRows.slice(1).filter(r=>String(r[11]||'')===String(operacaoId)&&['RECUSOU','INDISPONIVEL','EXPIRADA'].includes(String(r[6]||'').toUpperCase())).map(r=>String(r[3]||'')));
   const historyByDriver={};
   parts.slice(1).forEach(r=>{
     const driverId=String(r[4]||''),day=dateKey(r[8]||r[6]),opId=String(r[2]||'');
@@ -1249,7 +1373,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const rawExpiry=driver&&driver[9],cnhExpiry=rawExpiry?dateKey(rawExpiry):'';
     const cnhValid=!rawExpiry||(!!cnhExpiry&&cnhExpiry>=operationDay);
     const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cnhValid&&cond==='APTO'&&
-      !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
+      !activeParts.has(String(r[0]))&&!activeDrivers.has(driverId)&&!skippedForOperation.has(driverId)&&availableForOperation.has(driverId)&&cap>0;
     return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,
       restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.todayOperations.size,operacoes30Dias:hist.operations.size,
       diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperacaoEm:hist.last};
