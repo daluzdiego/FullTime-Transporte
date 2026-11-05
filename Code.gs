@@ -1223,7 +1223,8 @@ function designarConjuntoOperacaoFullTime(token, data) {
     const escalas=getSheet_('ESCALAS'),eh=escalas.getRange(1,1,1,escalas.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
     const requiredEscala=['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES','OPERACAO_ID'];
     const missingEscala=requiredEscala.filter(k=>eh.indexOf(k)<0);if(missingEscala.length)throw new Error('A guia ESCALAS precisa destas colunas: '+missingEscala.join(', ')+'.');
-    const loadMatches=[];for(let i=1;i<loadRows.length;i++)if(String(loadRows[i][ix.OPERACAO_ID]||'')===operacaoId)loadMatches.push(i+1);
+    const loadMatches=[];let maxLoadWeight=0;for(let i=1;i<loadRows.length;i++)if(String(loadRows[i][ix.OPERACAO_ID]||'')===operacaoId){loadMatches.push(i+1);maxLoadWeight=Math.max(maxLoadWeight,Number(String(loadRows[i][ix.PESO_TONELADAS]||'').replace(',','.'))||0);}
+    if(maxLoadWeight>Number(set[10])+0.000001)throw new Error('A capacidade útil do conjunto é inferior ao peso previsto de uma das viagens.');
     const now=new Date(),partId=Utilities.getUuid(),escalaId=Utilities.getUuid();
     const firstLoadId=loadMatches.length?String(loadRows[loadMatches[0]-1][ix.ID]||''):'';
     // A designação excepcional também grava o mesmo snapshot e os vínculos das cargas-filhas.
