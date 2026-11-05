@@ -723,11 +723,12 @@ function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z
  * Guarda decisões administrativas fora das guias espelhadas do Bruno.
  * Assim, a aprovação não depende de o registro existir fisicamente na guia local.
  */
-function ftGetStatusControlSheet_() {
+function ftGetStatusControlSheet_(createIfMissing) {
   const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
   const ss = SpreadsheetApp.openById(registryId);
   let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
+  if (!sh && createIfMissing === false) return null;
   if (!sh) {
     sh = ss.insertSheet('FT_STATUS_CADASTROS');
     sh.getRange(1,1,1,5).setValues([['ENTIDADE','REGISTRO_ID','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
@@ -737,7 +738,7 @@ function ftGetStatusControlSheet_() {
 }
 
 function ftSaveStatusOverride_(entity, id, status, session) {
-  const sh = ftGetStatusControlSheet_();
+  const sh = ftGetStatusControlSheet_(true);
   const last = sh.getLastRow();
   const values = last > 1 ? sh.getRange(2,1,last-1,5).getDisplayValues() : [];
   const keyEntity = String(entity).trim().toUpperCase();
@@ -749,7 +750,8 @@ function ftSaveStatusOverride_(entity, id, status, session) {
 }
 
 function ftReadStatusOverrides_(entity) {
-  const sh = ftGetStatusControlSheet_();
+  const sh = ftGetStatusControlSheet_(false);
+  if (!sh) return {};
   const last = sh.getLastRow();
   if (last < 2) return {};
   const values = sh.getRange(2,1,last-1,5).getDisplayValues();
