@@ -124,7 +124,7 @@ function listarSolicitacoesFullTime(token,limite) {
       if(value instanceof Date) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss');
       return value==null?'':value;
     }
-    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),atualizadoEm:v('ATUALIZADO_EM')};
+    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),idCargaGerada:v('ID_CARGA_GERADA'),atualizadoEm:v('ATUALIZADO_EM')};
   });
 }
 
@@ -162,6 +162,8 @@ function atualizarStatusSolicitacaoFullTime(token,id,status,observacao) {
     for(var i=0;i<ids.length;i++) if(ids[i][0]===id){n=i+2;break;}
     if(n<0) throw new Error('Solicitação não encontrada.');
     var previous=sh.getRange(n,c.STATUS_ENTRADA).getDisplayValue(), now=new Date();
+    if(status==='APROVADA') ftSolValidateForApproval_(sh,c,n);
+    if(status==='APROVADA' && previous==='APROVADA') throw new Error('Esta solicitação já está aprovada.');
     sh.getRange(n,c.STATUS_ENTRADA).setValue(status); sh.getRange(n,c.ATUALIZADO_EM).setValue(now);
     if(status==='APROVADA' || status==='RECUSADA') {
       sh.getRange(n,c.CONFIRMADO_EM).setValue(now);
@@ -177,4 +179,81 @@ function atualizarStatusSolicitacaoFullTime(token,id,status,observacao) {
 function diagnosticarNucleoSolicitacoesFullTime() {
   var sh=ftSolSheet_();
   return {ok:true,guia:FT_SOL_REQUESTS_CFG.SHEET,colunas:sh.getLastColumn(),registros:Math.max(0,sh.getLastRow()-1),canaisPreparados:FT_SOL_REQUESTS_CFG.CHANNELS.slice(),webhookAtivo:false,criaOperacaoDefinitiva:false};
+}
+
+/** Salva a revisão humana dos dados extraídos sem alterar a mensagem original. */
+function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas) {
+  var session=obterSessao_(token); exigirAdmin_(session);
+  id=ftSolText_(id,180); dados=dados||{};
+  var allowed=['cliente','contato','produto','tipoCarga','volume','unidadeVolume','volumePorViagem','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'];
+  var clean={}; allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
+  if(!Array.isArray(pendentes)) throw new Error('A lista de pendências é inválida.');
+  var pending=pendentes.map(function(v){return ftSolText_(v,120);}).filter(Boolean);
+  var sh=ftSolSheet_(),c=ftSolCols_(sh),lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    var last=sh.getLastRow(),ids=last>1?sh.getRange(2,c.ID,last-1,1).getDisplayValues():[],row=-1;
+    for(var i=0;i<ids.length;i++)if(ids[i][0]===id){row=i+2;break;}
+    if(row<0)throw new Error('Solicitação não encontrada.');
+    var previous=String(sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).getValue()||'{}'), old={};
+    try{old=JSON.parse(previous)||{};}catch(e){}
+    var analysis={resumo:old.resumo||'Revisão manual',dados:clean,ambiguidades:old.ambiguidades||[],prontoParaRevisao:pending.length===0,origemRevisao:'HUMANA',revisadoEm:new Date().toISOString()};
+    var status=pending.length?'EM_COLETA':'AGUARDANDO_APROVACAO';
+    sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).setValue(JSON.stringify(analysis));
+    sh.getRange(row,c.CAMPOS_PENDENTES_JSON).setValue(JSON.stringify(pending));
+    sh.getRange(row,c.PERGUNTAS_IA).setValue(ftSolText_(perguntas,5000));
+    sh.getRange(row,c.STATUS_ENTRADA).setValue(status);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
+    var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
+    hist.push(ftSolEvent_('REVISAO_MANUAL_SALVA',session.login,'Campos revisados; '+pending.length+' pendência(s).'));
+    sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
+    return {ok:true,id:id,status:status,message:pending.length?'Revisão salva. Ainda há campos pendentes.':'Revisão salva; solicitação pronta para aprovação.'};
+  } finally {lock.releaseLock();}
+}
+
+function ftSolFindRow_(sh,c,id){
+  var last=sh.getLastRow();if(last<2)return -1;
+  var ids=sh.getRange(2,c.ID,last-1,1).getDisplayValues();
+  for(var i=0;i<ids.length;i++)if(ids[i][0]===id)return i+2;
+  return -1;
+}
+function ftSolValidateForApproval_(sh,c,row){
+  var raw=String(sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).getValue()||'{}'),a={};
+  try{a=JSON.parse(raw)||{};}catch(e){}
+  var d=a.dados||a,missing=[];
+  if(!ftSolText_(d.cliente,120))missing.push('cliente');
+  if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
+  if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
+  if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total em toneladas');
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(ftSolText_(d.dataColeta,10)))missing.push('data absoluta da coleta');
+  var pending=[];try{pending=JSON.parse(sh.getRange(row,c.CAMPOS_PENDENTES_JSON).getValue()||'[]');}catch(e){}
+  if(pending.length)missing.push('resolver campos pendentes: '+pending.join(', '));
+  if(missing.length)throw new Error('Não é possível aprovar. Complete/valide: '+missing.join('; ')+'.');
+  return d;
+}
+
+/** Converte uma solicitação aprovada em carga, com trava de duplicidade e vínculo de origem. */
+function converterSolicitacaoEmCargaFullTime(token,id){
+  var session=obterSessao_(token);exigirAdmin_(session);id=ftSolText_(id,180);
+  var sh=ftSolSheet_(),c=ftSolCols_(sh),lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    var row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
+    var status=String(sh.getRange(row,c.STATUS_ENTRADA).getValue()||'');
+    if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma carga.');
+    var existing=String(sh.getRange(row,c.ID_CARGA_GERADA).getValue()||'');
+    if(existing)return {ok:true,duplicada:true,idCarga:existing,message:'Esta solicitação já gerou a carga '+existing+'. Nenhuma duplicata foi criada.'};
+    var d=ftSolValidateForApproval_(sh,c,row);
+    var date=ftSolText_(d.dataColeta,10),time=ftSolText_(d.horarioColeta,5),weight=Number(String(d.volume).replace(',','.'));
+    if(time&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time))throw new Error('Horário de coleta inválido. Use HH:MM.');
+    var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
+    var type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
+    var cargoId=Utilities.getUuid(),cargo=getSheet_('CARGAS');
+    if(cargo.getLastColumn()<20)throw new Error('A guia CARGAS não possui as 20 colunas esperadas. Execute prepararBaseOperacionalFullTime().');
+    var description=[d.produto,d.tipoCarga,d.volumePorViagem].filter(Boolean).join(' | ').slice(0,300);
+    var observations=('[SOLICITACAO_ORIGEM:'+id+'] '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
+    cargo.appendRow([cargoId,new Date(),'A_ESCALAR',date,time,d.cliente,String(d.origemDetalhada||d.origem),String(d.destinoDetalhado||d.destino),weight,description,'','','','',observations,session.login||session.nome||'ADMIN',type,'','','']);
+    sh.getRange(row,c.ID_CARGA_GERADA).setValue(cargoId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
+    var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
+    hist.push(ftSolEvent_('CARGA_GERADA',session.login,'Carga '+cargoId+' criada a partir da solicitação aprovada.'));
+    sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
+    return {ok:true,duplicada:false,idCarga:cargoId,message:'Carga criada com vínculo à solicitação '+id+'.'};
+  }finally{lock.releaseLock();}
 }
