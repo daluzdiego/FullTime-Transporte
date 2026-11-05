@@ -1780,7 +1780,6 @@ function montarPerguntasPendentesOperacaoIA_(f){
   return f.map(k=>l[k]||('Informe '+k+'.')).join('\n');
 }
 
-function montarPerguntasPendentesOperacaoIA_(f){const l={data:'Qual é a data exata da viagem? (DD/MM/AAAA)',cliente:'Qual empresa/cliente está contratando o transporte?',origem:'Qual é o local exato de origem/carregamento?',destino:'Qual é o destino exato da descarga/entrega?',peso:'Qual é o peso estimado da carga em toneladas?',tipoOperacao:'Qual é o tipo: descarga de navio, transferência entre unidades, remoção interna ou outra?',descricao:'Qual é a descrição da carga?'};return f.map(k=>l[k]||('Informe '+k+'.')).join('\n');}
 function atualizarRascunhoOperacaoIAFullTime(token,entradaId,data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const c=obterPlanilhasEntradaOperacoesIA_(),sh=c.source.getSheetByName(FT_IA_ENTRADA.SHEET);
