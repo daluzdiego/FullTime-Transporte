@@ -1875,7 +1875,7 @@ function testarExtracaoEntradaOperacoesIAFullTime() {
     {name:'volume total e quantidade de viagens',text:'Volume total 300 toneladas para 5 viagens',expect:{volumeTotal:300,cargasPrevistas:5}},
     {name:'peso por viagem multiplicado explicitamente',text:'5 viagens de 20 toneladas cada',expect:{cargasPrevistas:5,pesoPorCarga:20,volumeCalculado:'100'}},
     {name:'quantidade não presumida',text:'Carga de 30 toneladas',expect:{cargasPrevistas:'',volumeTotal:''}},
-    {name:'carga singular',text:'Uma carga de 12,5 toneladas',expect:{cargasPrevistas:1,volumeCalculado:'12.5'}}
+    {name:'carga singular',text:'Uma carga de 12,5 toneladas',expect:{cargasPrevistas:1,volumeCalculado:12.5}}
   ];
   const results=cases.map(function(c){
     const norm=c.text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
