@@ -637,20 +637,26 @@
   function showCandidatosOperacao(id){
     const panel=document.getElementById('operacaoActionPanel');panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
     google.script.run.withSuccessHandler(rows=>{
-      panel.innerHTML='<div class="panel"><div class="panel-head"><h2>Candidatos para escala</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class=\"btn btn-primary\" onclick=\"designarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\')\">Designar</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma escala foi criada.</div>')+'</div></div>';
+      panel.innerHTML='<div class="panel"><div class="panel-head"><h2>Candidatos para escala</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class=\"btn btn-primary\" onclick=\"designarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\','+Number(r.capacity||0)+')\">Designar</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma escala foi criada.</div>')+'</div></div>';
     }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message)+'</div></div>';}).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
-  function designarConjuntoOperacao(operacaoId,conjuntoId){
-    const viagensRaw=prompt('Quantas viagens este motorista/conjunto deverá realizar nesta operação?');
-    if(viagensRaw===null)return;
-    const viagensPrevistas=Math.floor(Number(viagensRaw));
-    if(!(viagensPrevistas>0)){toast('Informe uma quantidade de viagens maior que zero.',true);return;}
-    const toneladasRaw=prompt('Qual volume (em toneladas) ficará sob responsabilidade deste motorista/conjunto?');
+  function designarConjuntoOperacao(operacaoId,conjuntoId,capacidade){
+    const op=(dashboard?.operacoes||[]).find(x=>x.id===operacaoId);
+    capacidade=Number(capacidade||0);
+    if(!(capacidade>0)){toast('Este conjunto não possui capacidade útil aprovada.',true);return;}
+    const saldo=Number(op?.campos?.[8]||0);
+    if(!(saldo>0)){toast('A operação não possui saldo de toneladas para distribuir.',true);return;}
+    const toneladasRaw=prompt('Volume que ficará sob responsabilidade deste motorista/conjunto (t). Saldo atual da operação: '+saldo.toLocaleString('pt-BR')+' t.');
     if(toneladasRaw===null)return;
     const toneladasPrevistas=Number(String(toneladasRaw).replace(',','.'));
-    if(!(toneladasPrevistas>0)){toast('Informe um volume maior que zero.',true);return;}
+    if(!(toneladasPrevistas>0&&toneladasPrevistas<=saldo)){toast('Informe um volume maior que zero e não superior ao saldo da operação.',true);return;}
+    const minimo=Math.ceil((toneladasPrevistas-0.000001)/capacidade);
+    const viagensRaw=prompt('Capacidade útil: '+capacidade.toLocaleString('pt-BR')+' t. Para '+toneladasPrevistas.toLocaleString('pt-BR')+' t, são necessárias no mínimo '+minimo+' viagens. Quantas viagens este motorista/conjunto fará? (mínimo '+minimo+')',String(minimo));
+    if(viagensRaw===null)return;
+    const viagensPrevistas=Math.floor(Number(viagensRaw));
+    if(!(viagensPrevistas>=minimo&&viagensPrevistas>0)){toast('A meta deve ser de pelo menos '+minimo+' viagens para a capacidade deste conjunto.',true);return;}
     const motivo=prompt('Justificativa/observação da designação (opcional):')||'';
-    if(!confirm('Confirmar '+viagensPrevistas+' viagens e '+toneladasPrevistas+' t para este motorista/conjunto?'))return;
+    if(!confirm('Confirmar participação?\\nVolume: '+toneladasPrevistas+' t\\nCapacidade útil: '+capacidade+' t\\nViagens mínimas: '+minimo+'\\nMeta definida: '+viagensPrevistas))return;
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,viagensPrevistas:viagensPrevistas,toneladasPrevistas:toneladasPrevistas,motivo:motivo});
   }
   let activeTripOperationId='';
