@@ -1498,42 +1498,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
 
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
-  const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
-  if(!op) throw new Error('Operação não encontrada.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
-  const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
-  const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
-  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
-  const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const dateKey=v=>{if(!v)return '';const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
-  const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
-  const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
-  const availabilityRows=getSheet_('DISPONIBILIDADE_DIARIA').getDataRange().getValues();
-  const availabilityByDriver={};
-  availabilityRows.slice(1).forEach(r=>{const day=dateKey(r[2]),driverId=String(r[3]||'');if(!driverId||day<sinceKey||day>today||String(r[4]||'').toUpperCase()!=='DISPONIVEL')return;(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);});
-  const attendanceEvents=obterHistoricoAssiduidadeFullTime_();
-  const historyByDriver={};
-  parts.slice(1).forEach(r=>{const driverId=String(r[4]||''),day=dateKey(r[6]),opId=String(r[2]||'');if(!driverId||!day||day<sinceKey||day>today)return;const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});h.operations.add(opId);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;});
-  const candidates=sets.slice(1).map(r=>{
-    const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
-    const cap=Number(r[10]||0), driverId=String(r[3]||''), hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
-    const queue=queueByDriver[driverId], avail=availabilityByDriver[driverId]||new Set();
-    const assid=calcularAssiduidadeMotoristaFullTime(attendanceEvents,driverId,since,new Date());
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,compromissosResolvidos:assid.compromissosResolvidos,assiduidade:assid.assiduidade,pontualidade:assid.pontualidade,comparecimentos:assid.comparecimentos,faltasInjustificadas:assid.faltasInjustificadas,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
-  }).filter(c=>c.eligible);
-  const byCategory=candidates.filter(c=>{
-    if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
-    if(op.categoria==='MANOBRA_DIFICIL')return c.capacity>0;
-    return true;
-  });
-  const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
-  if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
-  if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
-  return ordered.map((c,i)=>({posicao:i+1,...c}));
+  return ftSelecionarCandidatosCompativeis_(String(operacaoId||''),10);
 }
 
 
