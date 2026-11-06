@@ -496,6 +496,28 @@ function prepararGuiasEscalaFullTime() {
   return resposta;
 }
 
+/**
+ * Migração segura de nomenclatura: apenas renomeia o cabeçalho de quantidade
+ * prevista na guia OPERACOES. Não apaga, move nem reescreve linhas.
+ * Sem confirmar=true, funciona somente como prévia.
+ */
+function migrarCabecalhoViagensOperacoesFullTime(token,confirmar) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const sh=getSheet_('OPERACOES');
+  const width=sh.getLastColumn();
+  if(!width)throw new Error('A guia OPERACOES está vazia.');
+  const headers=sh.getRange(1,1,1,width).getDisplayValues()[0].map(v=>String(v||'').trim());
+  const oldName='TOTAL_CARGAS_PREVISTAS', newName='TOTAL_VIAGENS_PREVISTAS';
+  const oldIndex=headers.indexOf(oldName), newIndex=headers.indexOf(newName);
+  if(oldIndex<0&&newIndex>=0)return {ok:true,alterado:false,message:'O cabeçalho já está atualizado.'};
+  if(oldIndex<0)throw new Error('Não encontrei o cabeçalho legado esperado. Nenhuma alteração realizada.');
+  if(newIndex>=0)throw new Error('Há dois campos de meta de viagens. É necessária uma reconciliação manual; não alterei a guia.');
+  if(confirmar!==true)return {ok:true,alterado:false,previa:true,coluna:oldIndex+1,antes:oldName,depois:newName,linhasPreservadas:Math.max(0,sh.getLastRow()-1),message:'Prévia pronta. Para aplicar somente a renomeação do cabeçalho, confirme explicitamente.'};
+  sh.getRange(1,oldIndex+1).setValue(newName);
+  auditar_(session,'MIGRAR_CABECALHO','OPERACOES','',oldName+' → '+newName+'; dados preservados');
+  return {ok:true,alterado:true,coluna:oldIndex+1,linhasPreservadas:Math.max(0,sh.getLastRow()-1),message:'Cabeçalho atualizado. Nenhum registro foi apagado ou reescrito.'};
+}
+
 function prepararBaseOperacionalFullTime() {
   const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
