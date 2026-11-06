@@ -58,6 +58,50 @@
     .operation-fullscreen .page-head h1{font-size:clamp(24px,3vw,42px)}
     .operation-fullscreen .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
     .operation-fullscreen #operationFullscreenButton{position:fixed;top:12px;right:12px;z-index:99999;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+
+    /* Portal do motorista — painel limpo, com leitura em grade */
+    .driver-portal{max-width:1440px;margin:0 auto;padding:8px 0 34px}
+    .driver-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:8px 0 22px}
+    .driver-hero h1{margin:0 0 6px;font-size:clamp(25px,3vw,34px);letter-spacing:-.035em}
+    .driver-hero p{margin:0;color:var(--muted);font-size:14px}
+    .driver-section{margin-top:18px}
+    .driver-section .panel-head{min-height:58px;padding:15px 20px}
+    .driver-section .panel-body{padding:18px 20px}
+    .driver-profile-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .driver-info-tile{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#fbfcfe;min-width:0}
+    .driver-info-tile span{display:block;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.055em;margin-bottom:6px}
+    .driver-info-tile strong{display:block;font-size:14px;overflow-wrap:anywhere}
+    .driver-set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+    .driver-set-card{border:1px solid #dce6f3;border-radius:13px;padding:16px;background:linear-gradient(145deg,#fff,#f7faff);min-width:0}
+    .driver-set-card h3{font-size:14px;margin:0 0 12px}
+    .driver-set-card p{font-size:12px;line-height:1.55;margin:7px 0;color:#40516a}
+    .driver-set-card .driver-capacity{display:flex;align-items:baseline;gap:6px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+    .driver-capacity strong{font-size:25px;letter-spacing:-.04em;color:var(--blue-dark)}
+    .driver-capacity span{font-size:11px;color:var(--muted)}
+    .driver-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+    .driver-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;background:#fff}
+    .driver-table th{background:#f5f8fc;color:#5b6b80;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+    .driver-table td{padding:14px;border-bottom:1px solid #edf1f6;font-size:12px;vertical-align:middle}
+    .driver-table tbody tr:last-child td{border-bottom:0}
+    .driver-table tbody tr:hover{background:#fafcff}
+    .driver-op-name{font-weight:750;color:#172b45;font-size:13px;min-width:170px}
+    .driver-route{font-weight:650;white-space:normal;min-width:220px;line-height:1.5}
+    .driver-route span{display:block;color:var(--muted);font-weight:400;font-size:11px}
+    .driver-number{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:650}
+    .driver-status{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#fff5df;color:#8a5700;font-size:10px;font-weight:800;white-space:nowrap}
+    .driver-priority{font-weight:750;white-space:nowrap}
+    .driver-note{max-width:240px;white-space:normal;line-height:1.5;color:#5c6d82}
+    .driver-empty{padding:28px 16px;text-align:center;color:var(--muted);border:1px dashed #cbd5e1;border-radius:12px;background:#fbfcfe;font-size:13px}
+    .driver-section-title{display:flex;align-items:center;gap:9px}
+    .driver-count{font-size:11px;color:var(--muted);font-weight:600}
+    @media(max-width:760px){
+      .driver-hero{align-items:flex-start;flex-direction:column}
+      .driver-profile-grid{grid-template-columns:1fr}
+      .driver-section .panel-body{padding:14px}
+      .driver-section .panel-head{padding:13px 14px}
+      .driver-set-grid{grid-template-columns:1fr}
+    }
+
   </style>
 </head>
 <body>
@@ -155,31 +199,56 @@
     const d=data.motorista||{}, sets=data.conjuntos||[], ops=data.operacoes||[], trips=data.viagens||[], offers=data.ofertas||[];
     const opById={};ops.forEach(o=>opById[o.id]=o);
     const statusLabel=v=>String(v||'').replace(/_/g,' ');
+    const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    const average=o=>Number(o.viagens)>0?Number(o.volume||0)/Number(o.viagens):0;
     document.getElementById('content').innerHTML=`
-      <div class="page-head"><div><h1>Olá, ${esc(d.nome||'motorista')}</h1><p>Bem-vindo ao seu espaço no FullTime.</p></div></div>
-      <div class="grid-two">
-        <div class="panel"><div class="panel-head"><h2>Meu cadastro</h2></div><div class="panel-body">
-          <p><strong>Telefone:</strong> ${esc(d.telefone||'Não informado')}</p>
-          <p><strong>E-mail:</strong> ${esc(d.email||'Não informado')}</p>
-          <p><strong>Cidade:</strong> ${esc(d.cidade||'Não informada')}</p>
-          <p class="muted small">Para corrigir seus dados cadastrais, entre em contato com a administração.</p>
-        </div></div>
-        <div class="panel"><div class="panel-head"><h2>Meu conjunto</h2><span class="muted small">${sets.length} vínculo(s)</span></div><div class="panel-body">
-          ${sets.length?sets.map(s=>'<div class="notice"><strong>'+esc(statusLabel(s.status))+'</strong>'+
-            (s.cavalo?'<p class="small"><strong>Cavalo mecânico:</strong> '+esc([s.cavalo.placa,s.cavalo.marca,s.cavalo.modelo].filter(Boolean).join(' · ')||s.cavaloId||'—')+'</p><p class="small">Capacidade útil cadastrada do cavalo: '+Number(s.cavalo.capacidadeUtil||0).toLocaleString('pt-BR')+' t</p><p class="small">PBTC máximo do cavalo: '+Number(s.cavalo.pbtcMax||0).toLocaleString('pt-BR')+' t · Tara: '+Number(s.cavalo.tara||0).toLocaleString('pt-BR')+' t</p>':'<p class="small">Cavalo: '+esc(s.cavaloId||'Cadastro não localizado')+'</p>')+
-            (s.carretas||[]).map((c,i)=>'<p class="small"><strong>Carreta '+(i+1)+':</strong> '+esc([c.placa,c.tipo,c.marca,c.modelo].filter(Boolean).join(' · ')||c.id)+'</p><p class="small">Capacidade de carga: '+Number(c.capacidadeCarga||0).toLocaleString('pt-BR')+' t · PBTC máximo: '+Number(c.pbtcMax||0).toLocaleString('pt-BR')+' t · Tara: '+Number(c.tara||0).toLocaleString('pt-BR')+' t</p>').join('')+
-            '<p class="small"><strong>Capacidade útil registrada do conjunto:</strong> '+Number(s.capacidadeUtilConjunto||0).toLocaleString('pt-BR')+' t</p><p class="small">Condição: '+esc(s.estado||'Não informada')+'</p>'+(s.restricoes?'<p class="small">Restrições: '+esc(s.restricoes)+'</p>':'')+'</div>').join(''):'<p class="muted">Nenhum conjunto vinculado no momento.</p>'}
-        </div></div>
-      </div>
-      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Convites de operações</h2><span class="muted small">${offers.length} convite(s)</span></div><div class="panel-body">
-        ${offers.length?offers.map(o=>'<div class="notice"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>'+esc(o.nomeOperacao||'Convite de operação')+'</strong><span class="badge">'+esc(statusLabel(o.status))+'</span></div><p class="small">'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</p><p class="small">Volume total da operação: '+Number(o.volume||0).toLocaleString('pt-BR')+' t · Viagens previstas: '+Number(o.viagens||0).toLocaleString('pt-BR')+'</p><p class="small">Prioridade: '+esc(o.prioridade||'—')+'</p><p class="small">'+esc(o.detalhes||'')+'</p><p class="muted small">Convite de homologação. O fluxo de aceite e recusa será habilitado na próxima etapa.</p></div>').join(''):'<p class="muted">Você não possui convites pendentes.</p>'}
-      </div></div>
-      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Minhas operações</h2><span class="muted small">${ops.length} operação(ões)</span></div><div class="panel-body">
-        ${ops.length?ops.map(o=>'<div class="notice"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>'+esc(o.campos?.[2]||'Operação')+'</strong><span class="badge">'+esc(statusLabel(o.status))+'</span></div><p class="small">'+esc(o.campos?.[3]||'—')+' → '+esc(o.campos?.[4]||'—')+'</p><p class="small">Meta: '+Number(o.campos?.[7]||0)+' viagens · Volume: '+Number(o.campos?.[6]||0)+' t · Saldo: '+Number(o.campos?.[8]||0)+' t</p></div>').join(''):'<p class="muted">Você ainda não possui operações designadas.</p>'}
-      </div></div>
-      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Minhas viagens</h2><span class="muted small">${trips.length} registro(s)</span></div><div class="panel-body">
-        ${trips.length?trips.slice().sort((a,b)=>Number(b.sequencia||0)-Number(a.sequencia||0)).map(v=>{const o=opById[v.operacaoId]||{};return '<div class="notice"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>Viagem '+Number(v.sequencia||0)+'</strong><span class="badge">'+esc(statusLabel(v.status))+'</span></div><p class="small">'+esc(o.campos?.[2]||'Operação')+' · '+esc(v.campos?.[6]||'Origem não informada')+' → '+esc(v.campos?.[7]||'Destino não informado')+'</p><p class="small">Peso previsto: '+Number(v.campos?.[8]||0)+' t · Peso real: '+(v.campos?.[9]?Number(v.campos[9])+' t':'Pendente')+'</p></div>';}).join(''):'<p class="muted">Nenhuma viagem registrada para você.</p>'}
-      </div></div>`;
+      <div class="driver-portal">
+        <div class="driver-hero">
+          <div><h1>Olá, ${esc(d.nome||'motorista')}</h1><p>Acompanhe seus dados, conjunto veicular e oportunidades de operação.</p></div>
+        </div>
+
+        <section class="panel driver-section">
+          <div class="panel-head"><div class="driver-section-title"><h2>Meu cadastro</h2></div></div>
+          <div class="panel-body"><div class="driver-profile-grid">
+            <div class="driver-info-tile"><span>Telefone</span><strong>${esc(d.telefone||'Não informado')}</strong></div>
+            <div class="driver-info-tile"><span>E-mail</span><strong>${esc(d.email||'Não informado')}</strong></div>
+            <div class="driver-info-tile"><span>Cidade</span><strong>${esc(d.cidade||'Não informada')}</strong></div>
+          </div><p class="muted small" style="margin:13px 0 0">Para corrigir seus dados cadastrais, entre em contato com a administração.</p></div>
+        </section>
+
+        <section class="panel driver-section">
+          <div class="panel-head"><h2>Meu conjunto veicular</h2><span class="driver-count">${sets.length} vínculo(s)</span></div>
+          <div class="panel-body">
+            ${sets.length?'<div class="driver-set-grid">'+sets.map(s=>'<article class="driver-set-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>Conjunto vinculado</h3><span class="badge">'+esc(statusLabel(s.status))+'</span></div>'+
+              (s.cavalo?'<p><strong>Cavalo mecânico</strong><br>'+esc([s.cavalo.placa,s.cavalo.marca,s.cavalo.modelo].filter(Boolean).join(' · ')||s.cavaloId||'—')+'</p><p>Capacidade cadastrada: <strong>'+num(s.cavalo.capacidadeUtil)+' t</strong><br>PBTC: '+num(s.cavalo.pbtcMax)+' t · Tara: '+num(s.cavalo.tara)+' t</p>':'<p>Cavalo: '+esc(s.cavaloId||'Cadastro não localizado')+'</p>')+
+              (s.carretas||[]).map((c,i)=>'<p><strong>Carreta '+(i+1)+'</strong><br>'+esc([c.placa,c.tipo,c.marca,c.modelo].filter(Boolean).join(' · ')||c.id)+'<br>Capacidade: '+num(c.capacidadeCarga)+' t · PBTC: '+num(c.pbtcMax)+' t · Tara: '+num(c.tara)+' t</p>').join('')+
+              '<div class="driver-capacity"><strong>'+num(s.capacidadeUtilConjunto)+' t</strong><span>capacidade útil do conjunto</span></div><p><strong>Condição:</strong> '+esc(s.estado||'Não informada')+(s.restricoes?'<br><strong>Restrições:</strong> '+esc(s.restricoes):'')+'</p></article>').join('')+'</div>':'<div class="driver-empty">Nenhum conjunto veicular está vinculado ao seu cadastro.</div>'}
+          </div>
+        </section>
+
+        <section class="panel driver-section">
+          <div class="panel-head"><h2>Convites de operações</h2><span class="driver-count">${offers.length} convite(s)</span></div>
+          <div class="panel-body">
+            ${offers.length?'<div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Operação</th><th>Origem / destino</th><th>Volume total</th><th>Viagens</th><th>Média por viagem*</th><th>Prioridade</th><th>Status</th><th>Observações</th></tr></thead><tbody>'+
+              offers.map(o=>'<tr><td><div class="driver-op-name">'+esc(o.nomeOperacao||'Operação sem título')+'</div><div class="muted small">Convite individual</div></td><td><div class="driver-route">'+esc(o.origem||'Origem não informada')+'<span>↓</span>'+esc(o.destino||'Destino não informado')+'</div></td><td class="driver-number">'+num(o.volume)+' t</td><td class="driver-number">'+num(o.viagens)+'</td><td class="driver-number">'+num(average(o))+' t</td><td class="driver-priority">'+esc(o.prioridade||'—')+'</td><td><span class="driver-status">'+esc(statusLabel(o.status))+'</span></td><td class="driver-note">'+esc(o.detalhes||'Sem observações adicionais')+'</td></tr>').join('')+
+              '</tbody></table></div><p class="muted small" style="margin:10px 2px 0">*Média matemática do volume total dividido pelas viagens previstas. Não representa a carga individual atribuída ao motorista. Convites de homologação: aceite e recusa ainda serão habilitados.</p>':'<div class="driver-empty">Você não possui convites pendentes no momento.</div>'}
+          </div>
+        </section>
+
+        <section class="panel driver-section">
+          <div class="panel-head"><h2>Minhas operações</h2><span class="driver-count">${ops.length} operação(ões)</span></div>
+          <div class="panel-body">
+            ${ops.length?'<div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Operação</th><th>Origem / destino</th><th>Meta de viagens</th><th>Volume</th><th>Saldo</th><th>Status</th></tr></thead><tbody>'+ops.map(o=>'<tr><td class="driver-op-name">'+esc(o.campos?.[2]||'Operação')+'</td><td class="driver-route">'+esc(o.campos?.[3]||'—')+'<span>↓</span>'+esc(o.campos?.[4]||'—')+'</td><td class="driver-number">'+num(o.campos?.[7])+'</td><td class="driver-number">'+num(o.campos?.[6])+' t</td><td class="driver-number">'+num(o.campos?.[8])+' t</td><td><span class="driver-status">'+esc(statusLabel(o.status))+'</span></td></tr>').join('')+'</tbody></table></div>':'<div class="driver-empty">Você ainda não possui operações designadas.</div>'}
+          </div>
+        </section>
+
+        <section class="panel driver-section">
+          <div class="panel-head"><h2>Minhas viagens</h2><span class="driver-count">${trips.length} registro(s)</span></div>
+          <div class="panel-body">
+            ${trips.length?'<div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Viagem</th><th>Operação</th><th>Origem / destino</th><th>Peso previsto</th><th>Peso real</th><th>Status</th></tr></thead><tbody>'+trips.slice().sort((a,b)=>Number(b.sequencia||0)-Number(a.sequencia||0)).map(v=>{const o=opById[v.operacaoId]||{};return '<tr><td class="driver-number">#'+num(v.sequencia)+'</td><td class="driver-op-name">'+esc(o.campos?.[2]||'Operação')+'</td><td class="driver-route">'+esc(v.campos?.[6]||'Origem não informada')+'<span>↓</span>'+esc(v.campos?.[7]||'Destino não informado')+'</td><td class="driver-number">'+num(v.campos?.[8])+' t</td><td class="driver-number">'+(v.campos?.[9]?num(v.campos[9])+' t':'Pendente')+'</td><td><span class="driver-status">'+esc(statusLabel(v.status))+'</span></td></tr>';}).join('')+'</tbody></table></div>':'<div class="driver-empty">Nenhuma viagem registrada para você.</div>'}
+          </div>
+        </section>
+      </div>`;
   }
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
