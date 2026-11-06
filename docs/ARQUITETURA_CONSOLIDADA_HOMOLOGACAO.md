@@ -146,7 +146,7 @@ O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `
 - Substituição de Google Sheets por outro banco durante esta janela.
 - Qualquer limpeza/apagamento de dados reais antes de backup, ambiente de teste e autorização operacional.
 
-## ## 11. Implementações incorporadas à branch de consolidação em 06/11
+## ## 10. Implementações incorporadas à branch de consolidação em 06/11
 
 - Painel de escalas: registro diário de disponibilidade por motorista ativo, com motivo obrigatório para indisponibilidade.
 - Backend: gravação idempotente por motorista/data, atualizando o registro do dia em vez de criar uma segunda linha; duplicidades preexistentes são reportadas e não sobrescritas.
