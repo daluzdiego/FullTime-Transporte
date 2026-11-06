@@ -265,8 +265,14 @@ function validarMassaHomologacaoFullTime() {
   if(count('FILA_MOTORISTAS')!==40)errors.push('Esperados 40 registros na fila.');
   if(count('OFERTAS_OPERACOES')!==100)errors.push('Esperados 100 convites simulados (10 por operação).');
   const offers=read('OFERTAS_OPERACOES');
-  const offerCounts={};offers.slice(1).forEach(r=>{const id=String(r[2]||'');offerCounts[id]=(offerCounts[id]||0)+1;});
-  Object.keys(offerCounts).forEach(id=>{if(offerCounts[id]!==10)errors.push('Operação '+id+' não possui exatamente 10 convites.');});
+  const offerCounts={};offers.slice(1).forEach(r=>{
+    const id=String(r[2]||''),driverId=String(r[4]||''),setId=String(r[5]||'');
+    offerCounts[id]=(offerCounts[id]||0)+1;
+    const set=sets.slice(1).find(x=>String(x[0])===setId);
+    if(!driverIds.has(driverId))errors.push('Convite vinculado a motorista inexistente: '+driverId);
+    if(!set||String(set[3])!==driverId)errors.push('Convite com motorista/conjunto incompatível: '+r[0]);
+  });
+  ops.slice(1).forEach(op=>{if(offerCounts[String(op[0])]!==10)errors.push('Operação '+op[0]+' não possui exatamente 10 convites.');});
   sets.slice(1).forEach((r,i)=>{if(!driverIds.has(String(r[3])))errors.push('Conjunto '+(i+1)+' sem motorista válido.');if(!horseIds.has(String(r[4])))errors.push('Conjunto '+(i+1)+' sem cavalo válido.');if(r[6]&&!trailerIds.has(String(r[6])))errors.push('Conjunto '+(i+1)+' sem carreta válida.');});
   const ops=read('OPERACOES'), parts=read('PARTICIPACAO_OPERACOES'), trips=read('VIAGENS');
   const opIds=new Set(ops.slice(1).map(r=>String(r[0]))), partIds=new Set(parts.slice(1).map(r=>String(r[0])));
