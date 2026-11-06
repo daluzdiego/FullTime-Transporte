@@ -152,7 +152,9 @@
       .obterPainelFullTime(authToken);
   }
   function renderPortalMotorista(data){
-    const d=data.motorista||{}, sets=data.conjuntos||[];
+    const d=data.motorista||{}, sets=data.conjuntos||[], ops=data.operacoes||[], trips=data.viagens||[];
+    const opById={};ops.forEach(o=>opById[o.id]=o);
+    const statusLabel=v=>String(v||'').replace(/_/g,' ');
     document.getElementById('content').innerHTML=`
       <div class="page-head"><div><h1>Olá, ${esc(d.nome||'motorista')}</h1><p>Bem-vindo ao seu espaço no FullTime.</p></div></div>
       <div class="grid-two">
@@ -163,9 +165,15 @@
           <p class="muted small">Para corrigir seus dados cadastrais, entre em contato com a administração.</p>
         </div></div>
         <div class="panel"><div class="panel-head"><h2>Meu conjunto</h2><span class="muted small">${sets.length} vínculo(s)</span></div><div class="panel-body">
-          ${sets.length?sets.map(s=>'<div class="notice"><strong>'+esc(s.status)+'</strong><p class="small">Cavalo: '+esc(s.cavaloId||'—')+'</p><p class="small">Carreta do meio: '+esc(s.carretaMeioId||'—')+'</p><p class="small">Carreta final: '+esc(s.carretaFinalId||'—')+'</p><p class="small">Condição: '+esc(s.estado||'Não informada')+'</p></div>').join(''):'<p class="muted">Nenhum conjunto vinculado no momento.</p>'}
+          ${sets.length?sets.map(s=>'<div class="notice"><strong>'+esc(statusLabel(s.status))+'</strong><p class="small">Cavalo: '+esc(s.cavaloId||'—')+'</p><p class="small">Carreta do meio: '+esc(s.carretaMeioId||'—')+'</p><p class="small">Carreta final: '+esc(s.carretaFinalId||'—')+'</p><p class="small">Condição: '+esc(s.estado||'Não informada')+'</p></div>').join(''):'<p class="muted">Nenhum conjunto vinculado no momento.</p>'}
         </div></div>
-      </div>`;
+      </div>
+      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Minhas operações</h2><span class="muted small">${ops.length} operação(ões)</span></div><div class="panel-body">
+        ${ops.length?ops.map(o=>'<div class="notice"><div class="row-between"><strong>'+esc(o.campos?.[2]||'Operação')+'</strong><span class="badge">'+esc(statusLabel(o.status))+'</span></div><p class="small">'+esc(o.campos?.[3]||'—')+' → '+esc(o.campos?.[4]||'—')+'</p><p class="small">Meta: '+Number(o.campos?.[7]||0)+' viagens · Volume: '+Number(o.campos?.[6]||0)+' t · Saldo: '+Number(o.campos?.[8]||0)+' t</p></div>').join(''):'<p class="muted">Você ainda não possui operações designadas.</p>'}
+      </div></div>
+      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Minhas viagens</h2><span class="muted small">${trips.length} registro(s)</span></div><div class="panel-body">
+        ${trips.length?trips.slice().sort((a,b)=>Number(b.sequencia||0)-Number(a.sequencia||0)).map(v=>{const o=opById[v.operacaoId]||{};return '<div class="notice"><div class="row-between"><strong>Viagem '+Number(v.sequencia||0)+'</strong><span class="badge">'+esc(statusLabel(v.status))+'</span></div><p class="small">'+esc(o.campos?.[2]||'Operação')+' · '+esc(v.campos?.[6]||'Origem não informada')+' → '+esc(v.campos?.[7]||'Destino não informado')+'</p><p class="small">Peso previsto: '+Number(v.campos?.[8]||0)+' t · Peso real: '+(v.campos?.[9]?Number(v.campos[9])+' t':'Pendente')+'</p></div>';}).join(''):'<p class="muted">Nenhuma viagem registrada para você.</p>'}
+      </div></div>`;
   }
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
