@@ -322,7 +322,8 @@ function prepararGuiasEscalaFullTime() {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_VIAGEM_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
     OFERTAS_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','MOTORISTA_ID','CONJUNTO_ID','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO','CRIADO_POR'],
-    EVENTOS_OPERACAO: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','PARTICIPACAO_ID','MOTORISTA_ID','CONJUNTO_ID','MOTIVO','REGISTRADO_POR']
+    EVENTOS_OPERACAO: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','PARTICIPACAO_ID','MOTORISTA_ID','CONJUNTO_ID','MOTIVO','REGISTRADO_POR'],
+    HISTORICO_ASSIDUIDADE: ['ID','DATA_HORA','MOTORISTA_ID','OPERACAO_ID','PARTICIPACAO_ID','TIPO_EVENTO','PREVISTO_EM','REALIZADO_EM','JUSTIFICATIVA','ORIGEM','REGISTRADO_POR']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -929,6 +930,98 @@ const FT_ESCALA_REGRAS = Object.freeze({
 });
 
 /**
+ * Constrói indicadores de assiduidade a partir de compromissos aceitos e resultados
+ * efetivamente registrados. Pendências não entram no denominador; justificativas
+ * válidas e cancelamentos do cliente não são tratados como falta.
+ *
+ * Entrada: eventos com motoristaId, participacaoId, tipoEvento e dataHora.
+ * Tipos reconhecidos: COMPROMISSO_ACEITO, COMPARECEU_PONTUAL,
+ * COMPARECEU_ATRASADO, AUSENCIA_INJUSTIFICADA, AUSENCIA_JUSTIFICADA,
+ * CANCELAMENTO_CLIENTE.
+ */
+function calcularAssiduidadeMotoristaFullTime(eventos, motoristaId, desde, ate) {
+  const inicio = desde ? new Date(desde).getTime() : 0;
+  const fim = ate ? new Date(ate).getTime() : Date.now();
+  const porParticipacao = {};
+  (Array.isArray(eventos) ? eventos : []).forEach(function(e) {
+    if (!e || String(e.motoristaId || '') !== String(motoristaId || '')) return;
+    const dt = e.dataHora instanceof Date ? e.dataHora.getTime() : new Date(e.dataHora || '').getTime();
+    if (!isFinite(dt) || dt < inicio || dt > fim) return;
+    const pid = String(e.participacaoId || '').trim();
+    if (!pid) return;
+    const tipo = String(e.tipoEvento || '').toUpperCase();
+    const item = porParticipacao[pid] || (porParticipacao[pid] = {aceito:false,resultado:''});
+    if (tipo === 'COMPROMISSO_ACEITO') item.aceito = true;
+    if (['COMPARECEU_PONTUAL','COMPARECEU_ATRASADO','AUSENCIA_INJUSTIFICADA','AUSENCIA_JUSTIFICADA','CANCELAMENTO_CLIENTE'].indexOf(tipo) >= 0) item.resultado = tipo;
+  });
+  let compromissosResolvidos=0, comparecimentos=0, pontuais=0, atrasos=0, faltasInjustificadas=0, justificadas=0, canceladasCliente=0;
+  Object.keys(porParticipacao).forEach(function(pid) {
+    const x=porParticipacao[pid];
+    if (!x.aceito || !x.resultado) return;
+    if (x.resultado === 'AUSENCIA_JUSTIFICADA') { justificadas++; return; }
+    if (x.resultado === 'CANCELAMENTO_CLIENTE') { canceladasCliente++; return; }
+    compromissosResolvidos++;
+    if (x.resultado === 'COMPARECEU_PONTUAL') { comparecimentos++; pontuais++; }
+    else if (x.resultado === 'COMPARECEU_ATRASADO') { comparecimentos++; atrasos++; }
+    else if (x.resultado === 'AUSENCIA_INJUSTIFICADA') faltasInjustificadas++;
+  });
+  return {
+    compromissosResolvidos:compromissosResolvidos,
+    comparecimentos:comparecimentos,
+    pontualidade:comparecimentos ? pontuais/comparecimentos : null,
+    assiduidade:compromissosResolvidos ? comparecimentos/compromissosResolvidos : null,
+    pontuais:pontuais, atrasos:atrasos, faltasInjustificadas:faltasInjustificadas,
+    justificadas:justificadas, canceladasCliente:canceladasCliente
+  };
+}
+
+/** Lê o histórico de assiduidade pelo cabeçalho; guias ainda não preparadas equivalem a histórico vazio. */
+function obterHistoricoAssiduidadeFullTime_() {
+  const ssId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!ssId) return [];
+  const sh=SpreadsheetApp.openById(ssId).getSheetByName('HISTORICO_ASSIDUIDADE');
+  if (!sh || sh.getLastRow()<2) return [];
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
+  const ix={}; headers.forEach(function(h,i){if(h)ix[h]=i;});
+  ['MOTORISTAID','PARTICIPACAOID','TIPOEVENTO','DATAHORA'].forEach(function(k){if(ix[k]===undefined)throw new Error('HISTORICO_ASSIDUIDADE sem cabeçalho obrigatório: '+k);});
+  return sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues().map(function(r){
+    return {motoristaId:r[ix.MOTORISTAID],participacaoId:r[ix.PARTICIPACAOID],tipoEvento:r[ix.TIPOEVENTO],dataHora:r[ix.DATAHORA]};
+  });
+}
+
+/** Testes puros da regra: pendências, justificativas e cancelamentos não viram falta. */
+function testarRegressaoAssiduidadeFullTime() {
+  const agora=new Date('2026-11-06T12:00:00');
+  const eventos=[
+    {motoristaId:'A',participacaoId:'P1',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P1',tipoEvento:'COMPARECEU_PONTUAL',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P2',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P2',tipoEvento:'AUSENCIA_INJUSTIFICADA',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P3',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P3',tipoEvento:'AUSENCIA_JUSTIFICADA',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P4',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P4',tipoEvento:'COMPARECEU_ATRASADO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P5',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora},
+    {motoristaId:'A',participacaoId:'P5',tipoEvento:'CANCELAMENTO_CLIENTE',dataHora:agora},
+    {motoristaId:'B',participacaoId:'P6',tipoEvento:'COMPROMISSO_ACEITO',dataHora:agora}
+  ];
+  const x=calcularAssiduidadeMotoristaFullTime(eventos,'A',new Date('2026-11-01'),new Date('2026-11-30'));
+  const ok=x.compromissosResolvidos===3 && x.comparecimentos===2 && x.pontuais===1 &&
+    x.atrasos===1 && x.faltasInjustificadas===1 && x.justificadas===1 &&
+    x.canceladasCliente===1 && Math.abs(x.assiduidade-(2/3))<1e-9 &&
+    Math.abs(x.pontualidade-0.5)<1e-9;
+  if(!ok) throw new Error('Falha na regressão de cálculo de assiduidade: '+JSON.stringify(x));
+  const ranking=ordenarElegiveisEscalaFullTime([
+    {motoristaId:'A',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:4,assiduidade:0.66,pontualidade:0.5,compromissosResolvidos:3},
+    {motoristaId:'B',elegivel:true,operacoesHoje:0,diasDisponivel30Dias:10,diasTrabalhados30Dias:4,assiduidade:1,pontualidade:1,compromissosResolvidos:3}
+  ]);
+  if(ranking[0].motoristaId!=='B') throw new Error('Assiduidade não influenciou o desempate do ranking.');
+  const report={sucesso:true,indicadores:x,primeiroNoRanking:ranking[0].motoristaId};
+  console.log('FULL TIME — REGRESSÃO ASSIDUIDADE: '+JSON.stringify(report));
+  return report;
+}
+
+/**
  * Ordena elegíveis para uma operação (não para cada volta/carga individual).
  * Cada item esperado:
  * { motoristaId, nome, dataEntradaFila, operacoesHoje, operacoes30Dias,
@@ -960,6 +1053,19 @@ function ordenarElegiveisEscalaFullTime(lista) {
     const assidA = dispA / FT_ESCALA_REGRAS.JANELA_VIAGENS_DIAS;
     const assidB = dispB / FT_ESCALA_REGRAS.JANELA_VIAGENS_DIAS;
     if (assidA !== assidB) return assidB - assidA;
+
+    // Só compara assiduidade/pontualidade quando ambos têm compromissos resolvidos.
+    // Sem amostra, o histórico é neutro: ninguém perde posição por ser novo.
+    const amostraA = Math.max(0, Number(a.compromissosResolvidos) || 0);
+    const amostraB = Math.max(0, Number(b.compromissosResolvidos) || 0);
+    if (amostraA > 0 && amostraB > 0) {
+      const assiduidadeA = Number(a.assiduidade);
+      const assiduidadeB = Number(b.assiduidade);
+      if (isFinite(assiduidadeA) && isFinite(assiduidadeB) && assiduidadeA !== assiduidadeB) return assiduidadeB - assiduidadeA;
+      const pontualidadeA = Number(a.pontualidade);
+      const pontualidadeB = Number(b.pontualidade);
+      if (isFinite(pontualidadeA) && isFinite(pontualidadeB) && pontualidadeA !== pontualidadeB) return pontualidadeB - pontualidadeA;
+    }
     const trabA = dispA ? Math.max(0, Number(a.diasTrabalhados30Dias) || 0) / dispA : 0;
     const trabB = dispB ? Math.max(0, Number(b.diasTrabalhados30Dias) || 0) / dispB : 0;
     if (trabA !== trabB) return trabB - trabA;
@@ -1399,14 +1505,16 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const availabilityRows=getSheet_('DISPONIBILIDADE_DIARIA').getDataRange().getValues();
   const availabilityByDriver={};
   availabilityRows.slice(1).forEach(r=>{const day=dateKey(r[2]),driverId=String(r[3]||'');if(!driverId||day<sinceKey||day>today||String(r[4]||'').toUpperCase()!=='DISPONIVEL')return;(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);});
+  const attendanceEvents=obterHistoricoAssiduidadeFullTime_();
   const historyByDriver={};
   parts.slice(1).forEach(r=>{const driverId=String(r[4]||''),day=dateKey(r[6]),opId=String(r[2]||'');if(!driverId||!day||day<sinceKey||day>today)return;const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});h.operations.add(opId);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;});
   const candidates=sets.slice(1).map(r=>{
     const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
     const cap=Number(r[10]||0), driverId=String(r[3]||''), hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
     const queue=queueByDriver[driverId], avail=availabilityByDriver[driverId]||new Set();
+    const assid=calcularAssiduidadeMotoristaFullTime(attendanceEvents,driverId,since,new Date());
     const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
+    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,compromissosResolvidos:assid.compromissosResolvidos,assiduidade:assid.assiduidade,pontualidade:assid.pontualidade,comparecimentos:assid.comparecimentos,faltasInjustificadas:assid.faltasInjustificadas,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
   }).filter(c=>c.eligible);
   const byCategory=candidates.filter(c=>{
     if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
