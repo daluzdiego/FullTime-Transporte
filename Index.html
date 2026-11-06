@@ -135,7 +135,38 @@
   function setLoginError(msg){document.getElementById('loginError').textContent=msg;}
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
   function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
-  function loadApp(){showAppShell();google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser=data.user;paintNav();renderPage(currentPage);}).withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();}).obterPainelFullTime(authToken);}
+  function loadApp(){
+    showAppShell();
+    if(currentUser&&currentUser.perfil==='MOTORISTA'){
+      document.getElementById('appSidebar').classList.add('hidden');
+      document.getElementById('topTitle').textContent='Portal do motorista';
+      document.getElementById('topSubtitle').textContent='Suas informações e vínculos operacionais';
+      google.script.run.withSuccessHandler(data=>{renderPortalMotorista(data);})
+        .withFailureHandler(err=>{toast(err.message||'Não foi possível carregar o portal.',true);logoutLocal();})
+        .obterPainelMotoristaFullTime(authToken);
+      return;
+    }
+    document.getElementById('appSidebar').classList.remove('hidden');
+    google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser=data.user;paintNav();renderPage(currentPage);})
+      .withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();})
+      .obterPainelFullTime(authToken);
+  }
+  function renderPortalMotorista(data){
+    const d=data.motorista||{}, sets=data.conjuntos||[];
+    document.getElementById('content').innerHTML=`
+      <div class="page-head"><div><h1>Olá, ${esc(d.nome||'motorista')}</h1><p>Bem-vindo ao seu espaço no FullTime.</p></div></div>
+      <div class="grid-two">
+        <div class="panel"><div class="panel-head"><h2>Meu cadastro</h2></div><div class="panel-body">
+          <p><strong>Telefone:</strong> ${esc(d.telefone||'Não informado')}</p>
+          <p><strong>E-mail:</strong> ${esc(d.email||'Não informado')}</p>
+          <p><strong>Cidade:</strong> ${esc(d.cidade||'Não informada')}</p>
+          <p class="muted small">Para corrigir seus dados cadastrais, entre em contato com a administração.</p>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Meu conjunto</h2><span class="muted small">${sets.length} vínculo(s)</span></div><div class="panel-body">
+          ${sets.length?sets.map(s=>'<div class="notice"><strong>'+esc(s.status)+'</strong><p class="small">Cavalo: '+esc(s.cavaloId||'—')+'</p><p class="small">Carreta do meio: '+esc(s.carretaMeioId||'—')+'</p><p class="small">Carreta final: '+esc(s.carretaFinalId||'—')+'</p><p class="small">Condição: '+esc(s.estado||'Não informada')+'</p></div>').join(''):'<p class="muted">Nenhum conjunto vinculado no momento.</p>'}
+        </div></div>
+      </div>`;
+  }
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
     const back=document.getElementById('navBackdrop');
