@@ -1,16 +1,29 @@
-# Full Time — Transporte e Consultoria
+# FullTime — Transporte e Consultoria
 
-Sistema web responsivo para apoio à operação de transporte, iniciado pelo MVP administrativo.
+Aplicação web para gestão de operações de transporte, frota, motoristas, escala e execução individual de viagens.
 
-## Escopo do MVP
+## Modelo de negócio
 
-- Login administrativo com troca obrigatória da senha temporária no primeiro acesso.
-- Painel administrativo responsivo.
-- Cadastro, consulta, edição e inativação de motoristas.
-- Cadastro, consulta, edição e inativação de caminhões.
-- Validações de placa e CPF para minimizar duplicidades.
-- Os demais módulos aparecem como **EM DESENVOLVIMENTO**.
-- Interface otimizada para desktop e celular, com estética corporativa inspirada no Microsoft Fluent Design.
+- **OPERAÇÃO** é a unidade de planejamento e controle: cliente, serviço, origem, destino, volume, prazo, janela, prioridade e total previsto de viagens.
+- **PARTICIPAÇÃO_OPERACOES** liga uma operação ao motorista e ao conjunto veicular designados. Cada participação guarda a meta de viagens e toneladas daquele motorista.
+- **VIAGENS** são execuções individuais, cada uma com ID, sequência, motorista, conjunto, peso, horários, estado e observações.
+- **EVENTOS_VIAGEM** registra cada marco operacional com data/hora, responsável e origem do registro.
+- **DOCUMENTOS_VIAGEM** e **TICKETS** guardam evidências e comprovantes vinculados à execução.
+- Frota canônica: **MOTORISTAS**, **CAVALOS**, **CARRETAS** e **CONJUNTOS**.
+
+Não existem módulos operacionais independentes chamados `CAMINHOES` ou `CARGAS`. As antigas guias, quando existentes, são legado preservado e não fazem parte do fluxo ativo.
+
+## Regras essenciais
+
+- A soma das viagens previstas nas participações ativas deve ser igual ao total previsto da operação.
+- A soma dos volumes atribuídos às participações deve fechar o volume planejado da operação.
+- A quantidade mínima de viagens por participação é calculada por `ceil(volume atribuído / capacidade útil aprovada do conjunto)`.
+- Capacidade útil não é PBTC.
+- Motorista e conjunto não podem executar viagens simultâneas.
+- Viagens concluídas não são apagadas; correções exigem trilha de auditoria.
+- Solicitações multicanal só viram operações depois de revisão e aprovação explícita.
+- A IA não pode preencher lacunas por suposição: campos ambíguos ou ausentes ficam pendentes.
+- A planilha do Bruno é interface de integração do cliente; a base nativa FullTime é a fonte de verdade.
 
 ## Tecnologia
 
@@ -18,30 +31,29 @@ Sistema web responsivo para apoio à operação de transporte, iniciado pelo MVP
 - Google Sheets como persistência inicial.
 - HTML, CSS e JavaScript no frontend.
 
-## Estrutura do repositório
+## Arquivos principais
 
-- `Code.gs`: backend, autenticação, permissões, validações e operações de dados.
-- `Index.html`: interface responsiva de login e painel.
-- `appsscript.json`: manifesto sugerido do Apps Script.
-- `docs/ARQUITETURA.md`: visão técnica e modelo de dados.
-- `docs/INSTALACAO.md`: configuração, implantação e primeiros testes.
-- `docs/SEGURANCA.md`: premissas de segurança e proteção de dados.
-- `docs/TESTES.md`: roteiro de validação manual.
-- `docs/ROADMAP.md`: próximos módulos.
+- `Code.gs`: autenticação, cadastros, planejamento, escala e ciclo de vida de viagens.
+- `Index.html`: interface administrativa, solicitações, frota, operações e viagens.
+- `SolicitacoesFullTime.gs`: recebimento, revisão, aprovação e conversão de solicitação em operação.
+- `InterpretacaoSolicitacoesFullTime.gs`: interpretação assistida por IA; não aprova nem cria operação automaticamente.
+- `WhatsAppTickets.gs`: recebimento e retenção de evidências do WhatsApp.
+- `IntegracaoDriveCliente.gs`: integração com ambiente Drive do cliente.
+- `docs/FULLTIME_MODELO_OPERACIONAL_OPERACOES_VIAGENS.md`: contrato funcional e relacional do modelo de operação e viagem.
+- `docs/FULLTIME_PLANO_MASSA_FICTICIA_TESTES_CARGA.md`: plano de geração de massa sintética e teste de desempenho.
 
-## Instalação resumida
+## Estado de implementação
 
-1. Crie um projeto em [Google Apps Script](https://script.google.com/).
-2. Copie `Code.gs` para o editor de script.
-3. Crie um arquivo HTML chamado `Index` e copie `Index.html`.
-4. Ajuste o manifesto conforme `appsscript.json`, se necessário.
-5. Execute `configurarSistemaFullTime()` uma única vez e autorize as permissões solicitadas.
-6. Consulte os logs para recuperar a planilha criada e as informações de bootstrap.
-7. Implante como Aplicativo da web, restringindo o acesso à organização/usuários autorizados conforme as opções disponíveis na conta.
-8. No primeiro acesso, defina uma senha individual e forte para cada administrador.
+A branch contém a transição inicial para o modelo OPERAÇÃO → PARTICIPAÇÃO → VIAGEM, com schemas e endpoints de início, eventos e conclusão de viagens, além de validações de distribuição de metas. Ainda requer revisão estática integral, testes automatizados no Apps Script, conexão das telas do portal do motorista, revisão de integrações e homologação controlada. Não considerar pronta para operação crítica nem implantada até concluir esses passos.
 
-> **Importante:** credenciais temporárias servem apenas para bootstrap e não devem ser mantidas. Antes de usar dados reais de CNH, CPF ou documentos, restrinja o acesso à planilha e teste a autenticação e as permissões. Esta versão é um MVP em validação; não a considere pronta para operação crítica sem testes e revisão de segurança.
+## Segurança e migração
 
-## Estado atual
+- Nenhuma limpeza de dados reais foi executada.
+- Guias legadas não são apagadas automaticamente.
+- Não executar rotinas antigas de geração de dados no Drive do Bruno.
+- A guia protegida `CAVALOS-BRUNO` permanece estritamente fora de leitura, enumeração, escrita e limpeza.
+- Migrações de cabeçalhos são prévia-first e não devem ser executadas sem backup, revisão e autorização explícita.
 
-MVP inicial: login, painel, cadastros administrativos de motoristas e caminhões. Cargas, escalas, viagens, relatórios e configurações operacionais completas permanecem em desenvolvimento.
+## Instalação e implantação
+
+Consulte os documentos de instalação, segurança e homologação antes de publicar. Alterações no GitHub não significam implantação automática no Apps Script.
