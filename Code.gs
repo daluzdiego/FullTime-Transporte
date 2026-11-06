@@ -138,7 +138,25 @@ function obterPainelMotoristaFullTime(token) {
   const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
   const ownSet=sets.slice(1).filter(r=>String(r[3])===String(session.motoristaId)&&['ATIVO','PENDENTE_REVISAO'].includes(String(r[2]).toUpperCase()))
     .map(r=>({id:String(r[0]),status:String(r[2]),cavaloId:String(r[4]||''),carretaMeioId:String(r[5]||''),carretaFinalId:String(r[6]||''),estado:String(r[8]||''),restricoes:String(r[9]||'')}));
-  return {user:{nome:session.nome,perfil:session.perfil},motorista:{id:String(driver[0]),nome:String(driver[3]||''),telefone:String(driver[5]||''),email:String(driver[6]||''),cidade:String(driver[10]||'')},conjuntos:ownSet};
+  // O escopo é derivado exclusivamente do vínculo motoristaId gravado na sessão.
+  // Nenhum identificador enviado pelo navegador amplia o conjunto de dados retornado.
+  const participacoes=listarRegistros_('PARTICIPACAO_OPERACOES')
+    .filter(p=>String(p.motoristaId||'')===String(session.motoristaId));
+  const participacaoIds=new Set(participacoes.map(p=>String(p.id)));
+  const operacaoIds=new Set(participacoes.map(p=>String(p.operacaoId)));
+  const operacoes=listarRegistros_('OPERACOES')
+    .filter(o=>operacaoIds.has(String(o.id)));
+  const viagens=listarRegistros_('VIAGENS')
+    .filter(v=>String(v.motoristaId||'')===String(session.motoristaId) &&
+      participacaoIds.has(String(v.participacaoId||'')));
+  return {
+    user:{nome:session.nome,perfil:session.perfil},
+    motorista:{id:String(driver[0]),nome:String(driver[3]||''),telefone:String(driver[5]||''),email:String(driver[6]||''),cidade:String(driver[10]||'')},
+    conjuntos:ownSet,
+    participacoes:participacoes,
+    operacoes:operacoes,
+    viagens:viagens
+  };
 }
 
 function encerrarSessaoFullTime(token) {
