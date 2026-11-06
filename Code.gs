@@ -750,6 +750,79 @@ function ftExigirUnicidadeCadastro_(entidade, valor, idAtual) {
   });
 }
 
+
+/**
+ * Atualiza cadastro nativo sem gerar novo ID. Campos são permitidos por entidade.
+ * A unicidade é revalidada dentro do mesmo lock que protege a gravação.
+ */
+function atualizarCadastroFullTime(token, entidade, id, data) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  entidade=String(entidade||'').toUpperCase(); id=String(id||'').trim(); data=data||{};
+  if(!id)throw new Error('ID do cadastro não informado.');
+  const allowed={
+    MOTORISTAS:{sheet:'MOTORISTAS',fields:{NOME_COMPLETO:'nome',CPF:'cpf',TELEFONE:'telefone',EMAIL:'email',CNH_NUMERO:'cnh',CNH_CATEGORIA:'categoria',CNH_VALIDADE:'validade',CIDADE_UF:'cidade',OBSERVACOES:'observacoes'}},
+    CAMINHOES:{sheet:'CAMINHOES',fields:{PLACA:'placa',RENAVAM:'renavam',MARCA:'marca',MODELO:'modelo',ANO:'ano',TIPO:'tipo',CAPACIDADE_TONELADAS:'capacidade',SITUACAO_DOCUMENTAL:'documento',OBSERVACOES:'observacoes'}},
+    CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}},
+    CARRETAS:{sheet:'CARRETAS',fields:{PLACA:'placa',TIPO:'tipo',TARA_TONELADAS:'tara',CAPACIDADE_CARGA_TONELADAS:'capacidade',PBTC_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}}
+  };
+  const cfg=allowed[entidade]; if(!cfg)throw new Error('Entidade não permite edição por esta rotina.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_(cfg.sheet), rows=sh.getDataRange().getValues(), headers=rows[0].map(h=>String(h||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
+    const idCol=headers.indexOf('ID'), idx=rows.findIndex((r,i)=>i>0&&String(r[idCol])===id);
+    if(idx<1)throw new Error('Cadastro não encontrado.');
+    const row=rows[idx].slice(), changed=[];
+    Object.keys(cfg.fields).forEach(field=>{
+      const key=cfg.fields[field], col=headers.indexOf(field.replace(/[^A-Z0-9]/g,''));
+      if(col<0||!Object.prototype.hasOwnProperty.call(data,key))return;
+      let value=data[key];
+      if(['CPF','TELEFONE','RENAVAM'].includes(field))value=digitos_(value);
+      if(field==='PLACA')value=normalizarPlaca_(value);
+      if(['TARA_TONELADAS','PBTC_TONELADAS','CAPACIDADE_CARGA_TONELADAS','CAPACIDADE_TONELADAS'].includes(field)){
+        value=Number(String(value==null?'':value).replace(',','.'));
+        if(!isFinite(value)||value<0)throw new Error('Valor numérico inválido para '+field+'.');
+      }
+      if(field==='CPF'&&value&&(!/^\\d{11}$/.test(value)||!cpfValido_(value)))throw new Error('CPF inválido.');
+      if(field==='PLACA'&&value&&value.length!==7)throw new Error('A placa deve conter 7 caracteres.');
+      row[col]=value; changed.push(field);
+    });
+    if(!changed.length)throw new Error('Nenhum campo permitido foi enviado.');
+    if(entidade==='MOTORISTAS'&&row[headers.indexOf('CPF')])ftExigirUnicidadeCadastro_('MOTORISTAS',row[headers.indexOf('CPF')],id);
+    if(['CAMINHOES','CAVALOS','CARRETAS'].includes(entidade))ftExigirUnicidadeCadastro_(entidade,row[headers.indexOf('PLACA')],id);
+    sh.getRange(idx+1,1,1,row.length).setValues([row]);
+    auditar_(session,'EDITAR',entidade,id,'Campos alterados: '+changed.join(', '));
+    return {ok:true,id:id,camposAlterados:changed,message:'Cadastro atualizado mantendo o mesmo identificador.'};
+  } finally {lock.releaseLock();}
+}
+
+/** Atualiza a composição de um conjunto preservando seu ID e registrando antes/depois na auditoria. */
+function atualizarComposicaoConjuntoFullTime(token, dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const id=String(dados.conjuntoId||'').trim();
+  if(!id)throw new Error('Informe o conjunto que será editado.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues();
+    const headers=rows[0].map(h=>String(h||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
+    const idx=rows.findIndex((r,i)=>i>0&&String(r[headers.indexOf('ID')])===id);
+    if(idx<1)throw new Error('Conjunto não encontrado.');
+    const old=rows[idx].slice();
+    const request={conjuntoId:id,motoristaId:String(dados.motoristaId||''),cavaloId:String(dados.cavaloId||''),carretaMeioId:String(dados.carretaMeioId||''),carretaFinalId:String(dados.carretaFinalId||'')};
+    const validation=validarAlteracaoComposicaoConjuntoFullTime(token,request);
+    if(!validation.ok)throw new Error(validation.errors.join(' '));
+    const fields={MOTORISTA_ID:'motoristaId',CAVALO_ID:'cavaloId',CARRETA_MEIO_ID:'carretaMeioId',CARRETA_FINAL_ID:'carretaFinalId'};
+    const next=old.slice(), changes=[];
+    Object.keys(fields).forEach(field=>{
+      const col=headers.indexOf(field); if(col<0)throw new Error('Coluna '+field+' ausente.');
+      const value=request[fields[field]]; if(String(old[col]||'')!==value){next[col]=value;changes.push(field+': '+String(old[col]||'—')+' → '+(value||'—'));}
+    });
+    if(!changes.length)return {ok:true,id:id,message:'A composição não sofreu alterações.'};
+    sh.getRange(idx+1,1,1,next.length).setValues([next]);
+    auditar_(session,'EDITAR_COMPOSICAO','CONJUNTO',id,'ANTES [motorista='+old[headers.indexOf('MOTORISTA_ID')]+', cavalo='+old[headers.indexOf('CAVALO_ID')]+', meio='+old[headers.indexOf('CARRETA_MEIO_ID')]+', final='+old[headers.indexOf('CARRETA_FINAL_ID')]+']; DEPOIS '+changes.join('; '));
+    return {ok:true,id:id,message:'Composição atualizada. O ID do conjunto foi preservado e a composição anterior ficou registrada na auditoria.'};
+  } finally {lock.releaseLock();}
+}
+
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 /**
