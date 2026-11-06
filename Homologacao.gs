@@ -286,3 +286,72 @@ function validarMassaHomologacaoFullTime() {
   if(errors.length)throw new Error('Homologação inconsistente: '+errors.join(' | '));
   return result;
 }
+
+/**
+ * Padroniza as 40 credenciais fictícias do ambiente de HOMOLOGAÇÃO.
+ * Atualiza usuários existentes vinculados por MOTORISTA_ID; não cria usuários,
+ * não altera administradores e nunca grava senhas em texto aberto.
+ * Login e senha: motora01 ... motora40.
+ */
+function padronizarCredenciaisMotoristasHomologacaoFullTime() {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID');
+    if(!authId) throw new Error('FT_DATABASE_ID não configurado.');
+    const auth=SpreadsheetApp.openById(authId);
+    const sh=auth.getSheetByName('USUARIOS');
+    if(!sh||sh.getLastRow()<2) throw new Error('Guia USUARIOS ausente ou sem usuários.');
+    const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0]
+      .map(h=>String(h||'').trim().toUpperCase());
+    const col={};
+    headers.forEach((h,i)=>{if(h)col[h]=i;});
+    ['LOGIN','PERFIL','SALT','HASH_SENHA','ATIVO','TROCAR_SENHA','MOTORISTA_ID'].forEach(k=>{
+      if(col[k]==null) throw new Error('Coluna obrigatória ausente em USUARIOS: '+k);
+    });
+    const values=sh.getDataRange().getValues();
+    const targets=[];
+    for(let i=1;i<values.length;i++) {
+      const row=values[i];
+      const profile=String(row[col.PERFIL]||'').trim().toUpperCase();
+      const driverId=String(row[col.MOTORISTA_ID]||'').trim();
+      if(profile==='MOTORISTA' && /^FTTEST-MOT-\\d{4}$/.test(driverId)) {
+        const n=Number(driverId.slice(-4));
+        if(n>=1&&n<=40) targets.push({rowIndex:i+1,n:n,driverId:driverId});
+      }
+    }
+    if(targets.length!==40) throw new Error('Esperados 40 usuários de teste vinculados por MOTORISTA_ID; encontrados '+targets.length+'. Nenhuma credencial foi alterada.');
+    const byNumber=new Set(targets.map(x=>x.n));
+    if(byNumber.size!==40) throw new Error('Há vínculo de motorista duplicado. Nenhuma credencial foi alterada.');
+    const targetRows=new Set(targets.map(x=>x.rowIndex));
+    const desired=new Set(Array.from({length:40},(_,i)=>'motora'+String(i+1).padStart(2,'0')));
+    for(let i=1;i<values.length;i++) {
+      if(targetRows.has(i+1)) continue;
+      const otherLogin=String(values[i][col.LOGIN]||'').trim().toLowerCase();
+      if(desired.has(otherLogin)) throw new Error('O login '+otherLogin+' já pertence a outro usuário. Nenhuma credencial foi alterada.');
+    }
+    targets.sort((a,b)=>a.n-b.n);
+    targets.forEach(t=>{
+      const login='motora'+String(t.n).padStart(2,'0');
+      const salt=Utilities.getUuid();
+      sh.getRange(t.rowIndex,col.LOGIN+1).setValue(login);
+      sh.getRange(t.rowIndex,col.SALT+1).setValue(salt);
+      sh.getRange(t.rowIndex,col.HASH_SENHA+1).setValue(hashSenha_(salt,login));
+      sh.getRange(t.rowIndex,col.ATIVO+1).setValue(true);
+      sh.getRange(t.rowIndex,col.TROCAR_SENHA+1).setValue(false);
+    });
+    const result={
+      sucesso:true,
+      ambiente:'HOMOLOGACAO',
+      credenciaisAtualizadas:targets.length,
+      faixa:'motora01 até motora40',
+      regra:'senha igual ao login',
+      senhasEmTextoAberto:false,
+      administradoresPreservados:true
+    };
+    Logger.log('CREDENCIAIS HOMOLOGACAO ATUALIZADAS: '+JSON.stringify(result));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
