@@ -297,7 +297,6 @@ function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
   const viagens = listarRegistros_('VIAGENS');
-  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
@@ -1010,7 +1009,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_OPERACOES','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
