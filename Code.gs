@@ -135,9 +135,28 @@ function obterPainelMotoristaFullTime(token) {
   const rows=getSheet_('MOTORISTAS').getDataRange().getValues();
   const driver=rows.slice(1).find(r=>String(r[0])===String(session.motoristaId));
   if(!driver||String(driver[2]).toUpperCase()!=='ATIVO')throw new Error('Cadastro de motorista indisponível. Procure a administração.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const ownSet=sets.slice(1).filter(r=>String(r[3])===String(session.motoristaId)&&['ATIVO','PENDENTE_REVISAO'].includes(String(r[2]).toUpperCase()))
-    .map(r=>({id:String(r[0]),status:String(r[2]),cavaloId:String(r[4]||''),carretaMeioId:String(r[5]||''),carretaFinalId:String(r[6]||''),estado:String(r[8]||''),restricoes:String(r[9]||'')}));
+  const setSh=getSheet_('CONJUNTOS'), sets=setSh.getDataRange().getValues(), setMap=ftHeaderMapViagens_(setSh);
+  const horseSh=getSheet_('CAVALOS'), horseRows=horseSh.getDataRange().getValues(), horseMap=ftHeaderMapViagens_(horseSh);
+  const trailerSh=getSheet_('CARRETAS'), trailerRows=trailerSh.getDataRange().getValues(), trailerMap=ftHeaderMapViagens_(trailerSh);
+  const horseById={}, trailerById={};
+  horseRows.slice(1).forEach(r=>horseById[String(r[horseMap.ID]||'')]=r);
+  trailerRows.slice(1).forEach(r=>trailerById[String(r[trailerMap.ID]||'')]=r);
+  const vehicleSummary=(row,map,type)=>row?({
+    id:String(row[map.ID]||''),placa:String(row[map.PLACA]||''),
+    marca:String(row[map.MARCA]||''),modelo:String(row[map.MODELO]||''),
+    tipo:type==='CARRETA'?String(row[map.TIPOCARRETA]||''):'',
+    capacidadeUtil:type==='CAVALO'?Number(row[map.CAPACIDADEUTILTONELADAS]||0):0,
+    capacidadeCarga:type==='CARRETA'?Number(row[map.CAPACIDADECARGATONELADAS]||0):0,
+    pbtcMax:Number(row[map.PBTCMAXTONELADAS]||0),tara:Number(row[map.TARATONELADAS]||0),
+    status:String(row[map.STATUS]||'')
+  }):null;
+  const ownSet=sets.slice(1).filter(r=>String(r[setMap.MOTORISTAID])===String(session.motoristaId)&&['ATIVO','PENDENTE_REVISAO'].includes(String(r[setMap.STATUS]).toUpperCase()))
+    .map(r=>{
+      const horse=vehicleSummary(horseById[String(r[setMap.CAVALOID]||'')],horseMap,'CAVALO');
+      const trailerIds=[String(r[setMap.CARRETAMEIOID]||''),String(r[setMap.CARRETAFINALID]||'')].filter(Boolean);
+      const trailers=trailerIds.map(id=>vehicleSummary(trailerById[id],trailerMap,'CARRETA')).filter(Boolean);
+      return {id:String(r[setMap.ID]),status:String(r[setMap.STATUS]),cavaloId:String(r[setMap.CAVALOID]||''),carretaMeioId:String(r[setMap.CARRETAMEIOID]||''),carretaFinalId:String(r[setMap.CARRETAFINALID]||''),cavalo:horse,carretas:trailers,capacidadeUtilConjunto:Number(r[setMap.CAPACIDADEUTILTONELADAS]||0),estado:String(r[setMap.ESTADOCONSERVACAO]||''),restricoes:String(r[setMap.RESTRICOES]||'')};
+    });
   // O escopo é derivado exclusivamente do vínculo motoristaId gravado na sessão.
   // Nenhum identificador enviado pelo navegador amplia o conjunto de dados retornado.
   const escopo=ftFiltrarDadosPortalMotorista_(session, listarRegistros_('PARTICIPACAO_OPERACOES'),
