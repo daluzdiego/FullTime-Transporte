@@ -11,7 +11,8 @@ const FT_CONFIG = {
  * Não cria outra planilha, não apaga guias existentes e não altera FT_DATABASE_ID.
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
-function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
+function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() { throw new Error('Rotina legada descontinuada. O FullTime utiliza a base operacional oficial e não cria a guia CAMINHOES.')
+
   const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
   const schemas = {
@@ -78,7 +79,8 @@ function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
  * Configura a planilha operacional externa para os cadastros.
  * Executar manualmente uma vez. Não altera a base interna de login/auditoria.
  */
-function conectarPlanilhaOperacionalFullTime() {
+function conectarPlanilhaOperacionalFullTime() { throw new Error('Conector legado descontinuado. Utilize o fluxo de conexão da base operacional e os cadastros CAVALOS/CARRETAS.')
+
   const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
   const expected = {
@@ -104,7 +106,8 @@ function conectarPlanilhaOperacionalFullTime() {
  * É idempotente: se já existirem registros com ID TESTE-FT-*, não duplica a carga.
  * Execute apenas em ambiente de teste; os dados são marcados como TESTE.
  */
-function inserirDadosFakeFullTime() {
+function inserirDadosFakeFullTime() { throw new Error('Gerador legado descontinuado. A massa fictícia será criada pelo gerador relacional de testes, sem CAMINHOES.')
+
   const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!registryId) throw new Error('Execute primeiro conectarPlanilhaOperacionalFullTime().');
   const ss = SpreadsheetApp.openById(registryId);
@@ -170,7 +173,6 @@ function configurarSistemaFullTime() {
   const schemas = {
     USUARIOS: ['ID', 'LOGIN', 'NOME', 'PERFIL', 'SALT', 'HASH_SENHA', 'ATIVO', 'TROCAR_SENHA', 'CRIADO_EM'],
     MOTORISTAS: ['ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE', 'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE', 'CIDADE_UF', 'OBSERVACOES'],
-    CAMINHOES: ['ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA', 'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS', 'SITUACAO_DOCUMENTAL', 'OBSERVACOES'],
     AUDITORIA: ['DATA_HORA', 'LOGIN', 'ACAO', 'ENTIDADE', 'REGISTRO_ID', 'DETALHES']
   };
 
@@ -341,7 +343,8 @@ function salvarMotoristaFullTime(token, data) {
   return { ok: true, id: id, message: 'Motorista cadastrado e enviado para revisão.' };
 }
 
-function salvarCaminhaoFullTime(token, data) {
+function salvarCaminhaoFullTime(token, data) { throw new Error('Cadastro CAMINHOES descontinuado. Cadastre CAVALOS ou CARRETAS.')
+
   const session = obterSessao_(token); exigirAdmin_(session);
   data = data || {};
   const placa = texto_(data.placa, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -396,7 +399,8 @@ function importarMotoristasCsvFullTime(token, csvText) {
   return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' motorista(s) importado(s); '+errors.length+' linha(s) precisam de correção.'};
 }
 
-function importarCaminhoesCsvFullTime(token, csvText) { throw new Error('Cadastro CAMINHOES descontinuado. Utilize CAVALOS e CARRETAS.');
+function importarCaminhoesCsvFullTime(token, csvText) { throw new Error('Importação CAMINHOES descontinuada. Utilize os cadastros CAVALOS e CARRETAS.')
+ throw new Error('Cadastro CAMINHOES descontinuado. Utilize CAVALOS e CARRETAS.');
 
   const session = obterSessao_(token); exigirAdmin_(session);
   const rows = parseImportCsv_(csvText, [
@@ -607,7 +611,8 @@ function listarCargasFullTime_() {
   }).filter(function(c) { return c.id; })
     .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
 }
-function salvarCargaFullTime(token, data) { throw new Error('Módulo CARGAS descontinuado. Cadastre a demanda como OPERAÇÃO e acompanhe cada execução em VIAGENS.');
+function salvarCargaFullTime(token, data) { throw new Error('Módulo CARGAS descontinuado. Cadastre a demanda como OPERAÇÃO e acompanhe cada execução em VIAGENS.')
+ throw new Error('Módulo CARGAS descontinuado. Cadastre a demanda como OPERAÇÃO e acompanhe cada execução em VIAGENS.');
 
   const session = obterSessao_(token);
   exigirAdmin_(session);
@@ -770,9 +775,9 @@ function ftExigirUnicidadeCadastro_(entidade, valor, idAtual) {
   const entity=String(entidade||'').toUpperCase(), normalized=entity==='MOTORISTAS'?digitos_(valor):normalizarPlaca_(valor);
   if(!normalized)return;
   const targets=entity==='MOTORISTAS'?[['MOTORISTAS','CPF']]:
-    entity==='CAVALOS'?[['CAVALOS','PLACA'],['CAMINHOES','PLACA']]:
-    entity==='CARRETAS'?[['CARRETAS','PLACA'],['CAVALOS','PLACA'],['CAMINHOES','PLACA']]:
-    entity==='CAMINHOES'?[['CAMINHOES','PLACA'],['CAVALOS','PLACA'],['CARRETAS','PLACA']]:[];
+    entity==='CAVALOS'?[['CAVALOS','PLACA']]:
+    entity==='CARRETAS'?[['CARRETAS','PLACA'],['CAVALOS','PLACA']]:
+    [];
   if(!targets.length)throw new Error('Entidade sem regra de unicidade: '+entity);
   targets.forEach(([sheetName,field])=>{
     const rows=getSheet_(sheetName).getDataRange().getValues();if(rows.length<2)return;
@@ -799,7 +804,6 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
   if(!id)throw new Error('ID do cadastro não informado.');
   const allowed={
     MOTORISTAS:{sheet:'MOTORISTAS',fields:{NOME_COMPLETO:'nome',CPF:'cpf',TELEFONE:'telefone',EMAIL:'email',CNH_NUMERO:'cnh',CNH_CATEGORIA:'categoria',CNH_VALIDADE:'validade',CIDADE_UF:'cidade',OBSERVACOES:'observacoes'}},
-    CAMINHOES:{sheet:'CAMINHOES',fields:{PLACA:'placa',RENAVAM:'renavam',MARCA:'marca',MODELO:'modelo',ANO:'ano',TIPO:'tipo',CAPACIDADE_TONELADAS:'capacidade',SITUACAO_DOCUMENTAL:'documento',OBSERVACOES:'observacoes'}},
     CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_MAX_TONELADAS:'pbtc',CAPACIDADE_UTIL_TONELADAS:'capacidadeUtil',OBSERVACOES:'observacoes'}}, 
     CARRETAS:{sheet:'CARRETAS',fields:{PLACA:'placa',TIPO_CARRETA:'tipo',TARA_TONELADAS:'tara',CAPACIDADE_CARGA_TONELADAS:'capacidade',PBTC_MAX_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}}
   };
@@ -826,7 +830,7 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
     });
     if(!changed.length)throw new Error('Nenhum campo permitido foi enviado.');
     if(entidade==='MOTORISTAS'&&row[headers.indexOf('CPF')])ftExigirUnicidadeCadastro_('MOTORISTAS',row[headers.indexOf('CPF')],id);
-    if(['CAMINHOES','CAVALOS','CARRETAS'].includes(entidade))ftExigirUnicidadeCadastro_(entidade,row[headers.indexOf('PLACA')],id);
+    if(['CAVALOS','CARRETAS'].includes(entidade))ftExigirUnicidadeCadastro_(entidade,row[headers.indexOf('PLACA')],id);
     sh.getRange(idx+1,1,1,row.length).setValues([row]);
     auditar_(session,'EDITAR',entidade,id,'Campos alterados: '+changed.join(', '));
     return {ok:true,id:id,camposAlterados:changed,message:'Cadastro atualizado mantendo o mesmo identificador.'};
@@ -928,7 +932,7 @@ function ftReadStatusOverrides_(entity) {
 function atualizarStatusFullTime(token, entidade, id, status) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
+  const mapa = { MOTORISTAS: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
   if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
   if (!id) throw new Error('Identificador do cadastro não informado.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
