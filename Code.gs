@@ -219,7 +219,7 @@ function importarCaminhoesCsvFullTime() { throw new Error('Importação CAMINHOE
 
 function prepararGuiasEscalaFullTime() {
   const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if (!id) throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
+  if (!id) throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Execute prepararBaseOperacionalFullTime() após validar a conexão da base.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
@@ -419,7 +419,7 @@ function salvarConjuntoVeicularFullTime(token, data) {
   if (!cavalo) throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico na guia CAVALOS.');
 
   // CAVALOS é a fonte canônica. A capacidade útil deve estar explicitamente
-  // cadastrada; não inferimos capacidade a partir do PBTC nem de CAMINHOES.
+  // cadastrada; não inferimos capacidade a partir do PBTC.
   const cavaloHeaders=getSheet_('CAVALOS').getRange(1,1,1,getSheet_('CAVALOS').getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
   const capacityCol=cavaloHeaders.indexOf('CAPACIDADEUTILTONELADAS');
   const cavaloCapacity=capacityCol>=0?Number(String(cavalo[capacityCol]||'').replace(',','.')):0;
@@ -724,7 +724,7 @@ function listarRegistros_(name) {
     ...(name === 'VIAGENS' ? {operacaoId:String(r[2]||''),participacaoId:String(r[3]||''),sequencia:Number(r[4]||0),motoristaId:String(r[6]||''),conjuntoId:String(r[7]||'')} : {})
   }));
 
-  // Capacidade de cavalo e carreta vem do próprio cadastro canônico, não de CAMINHOES/placa.
+  // Capacidade de cavalo e carreta vem do próprio cadastro canônico, diretamente do cadastro canônico.
   if (name === 'CAVALOS') {
     mapped.forEach(item => {
       const capacity = Number(String(item.campos[21] || '').replace(',','.'));
@@ -906,47 +906,8 @@ function salvarOperacaoFullTime(token, data) {
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagens);
   return {ok:true,id:id,message:'Operação criada com '+viagens+' viagens previstas. Saldo inicial: '+volume+' t.'};
 }
-function registrarMovimentacaoOperacaoFullTime(token, data) { throw new Error('Movimentações agregadas foram descontinuadas. Utilize iniciarViagemFullTime, registrarEventoViagemFullTime e concluirViagemFullTime.');
+function registrarMovimentacaoOperacaoFullTime() { throw new Error('Movimentações agregadas foram removidas. Utilize o ciclo de vida individual de VIAGENS.'); }
 
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
-  const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
-  const viagemConcluida=data.viagemConcluida===true||String(data.viagemConcluida)==='true';
-  const observacoes=texto_(data.observacoes,1000);
-  if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
-  if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
-  const lock=LockService.getScriptLock(); lock.waitLock(10000);
-  try {
-    const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
-    if(idx<1) throw new Error('Operação não encontrada.');
-    const op=rows[idx], status=String(op[2]||'');
-    if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
-    const saldo=Number(op[11]||0);
-    if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
-    const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-    const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
-    if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
-    const cond=String(setRow[8]||'APTO').toUpperCase();
-    if(cond!=='APTO') throw new Error('O conjunto não está marcado como APTO. Conjuntos com restrição exigem validação explícita antes de movimentar cargas.');
-    const parts=getSheet_('PARTICIPACAO_OPERACOES'), pRows=parts.getDataRange().getValues();
-    const part=pRows.find((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
-    if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
-    const partId=String(part[0]);
-    const moveId=Utilities.getUuid();
-    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
-    const novoSaldo=Math.max(0,saldo-toneladas);
-    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
-    ops.getRange(idx+1,12).setValue(novoSaldo);
-    const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
-    const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
-    parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
-    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+(viagemConcluida?1:0));
-    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
-  } finally { lock.releaseLock(); }
-}
-
-/** Resolve colunas pelo cabeçalho para não depender da posição física após migrações aditivas. */
 function ftHeaderMapViagens_(sheet) {
   const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
   const map={}; headers.forEach((h,i)=>{if(h)map[h]=i;}); return map;
