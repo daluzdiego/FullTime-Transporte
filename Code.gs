@@ -768,7 +768,7 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
   const cfg=allowed[entidade]; if(!cfg)throw new Error('Entidade não permite edição por esta rotina.');
   const lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
-    const sh=getSheet_(cfg.sheet), rows=sh.getDataRange().getValues(), headers=rows[0].map(h=>String(h||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
+    const sh=getSheet_(cfg.sheet), rows=sh.getDataRange().getValues(), headers=rows[0].map(ftDriveNormHeader_);
     const idCol=headers.indexOf('ID'), idx=rows.findIndex((r,i)=>i>0&&String(r[idCol])===id);
     if(idx<1)throw new Error('Cadastro não encontrado.');
     const row=rows[idx].slice(), changed=[];
@@ -803,7 +803,7 @@ function atualizarComposicaoConjuntoFullTime(token, dados) {
   const lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
     const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues();
-    const headers=rows[0].map(h=>String(h||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
+    const headers=rows[0].map(ftDriveNormHeader_);
     const idx=rows.findIndex((r,i)=>i>0&&String(r[headers.indexOf('ID')])===id);
     if(idx<1)throw new Error('Conjunto não encontrado.');
     const old=rows[idx].slice();
