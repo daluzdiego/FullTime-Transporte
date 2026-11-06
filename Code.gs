@@ -721,23 +721,18 @@ function salvarConjuntoVeicularFullTime(token, data) {
   }
 
   const motorista=findById('MOTORISTAS',motoristaId);
-  const cavalo=findById('CAVALOS',cavaloId) || findById('CAMINHOES',cavaloId);
+  const cavalo=findById('CAVALOS',cavaloId);
   statusValid(motorista,'O motorista',false);
   const cavaloStatus=statusValid(cavalo,'O cavalo mecânico',true);
-  if (cavalo===null || (String(cavalo[8]||'').toLowerCase().indexOf('cavalo')===-1 && getSheet_('CAVALOS').getDataRange().getValues().slice(1).every(r=>String(r[0])!==cavaloId))) {
-    throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico.');
-  }
+  if (!cavalo) throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico na guia CAVALOS.');
 
-  // CAMINHOES.CAPACIDADE_TONELADAS é a capacidade originalmente informada.
-  // Localiza o registro pela placa, sem copiar PBTC para capacidade útil.
+  // CAVALOS é a fonte canônica. A capacidade útil deve estar explicitamente
+  // cadastrada; não inferimos capacidade a partir do PBTC nem de CAMINHOES.
+  const cavaloHeaders=getSheet_('CAVALOS').getRange(1,1,1,getSheet_('CAVALOS').getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
+  const capacityCol=cavaloHeaders.indexOf('CAPACIDADEUTILTONELADAS');
+  const cavaloCapacity=capacityCol>=0?Number(String(cavalo[capacityCol]||'').replace(',','.')):0;
   const cavaloPlate=normalizarPlaca_(cavalo[3]);
-  const truckSheet=getSheet_('CAMINHOES');
-  const truckRows=truckSheet.getLastRow()>1
-    ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-    : [];
-  const truck=truckRows.find(r=>normalizarPlaca_(r[3])===cavaloPlate);
-  const cavaloCapacity=Number(truck ? String(truck[9]||'').replace(',','.') : 0);
-  if (!(cavaloCapacity>0)) throw new Error('Não encontrei a capacidade do cavalo '+cavaloPlate+' na guia CAMINHOES. Confira a coluna CAPACIDADE_TONELADAS.');
+  if (!(cavaloCapacity>0)) throw new Error('O cavalo '+cavaloPlate+' não possui CAPACIDADE_UTIL_TONELADAS cadastrada. Complete o dado técnico antes de montar o conjunto.');
 
   let pending=cavaloStatus==='PENDENTE_REVISAO';
   const selectedTrailers=[];
