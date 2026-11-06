@@ -16,21 +16,21 @@ A meta é aproximadamente 100 registros por entidade, não 100 valores arbitrár
 | Entidade | Quantidade inicial |
 |---|---:|
 | MOTORISTAS | 100 |
-| CAMINHOES | 100 |
+| CAVALOS | 100 |
 | CAVALOS | 100 |
 | CARRETAS | 100 |
 | CONJUNTOS | 100 |
 | LOCAIS | 100 |
 | REGRAS_OPERACIONAIS | 100 |
 | OPERACOES | 100 |
-| CARGAS | 100 |
+| VIAGENS | 100 |
 | ESCALAS | 100 |
 | PARTICIPACAO_OPERACOES | 100 |
 | MOVIMENTACOES_OPERACAO | 100 |
 | CONTROLE_DOCUMENTAL | 100 |
 | DISPONIBILIDADE_DIARIA | 100 |
 | FILA_MOTORISTAS | 100 |
-| OFERTAS_CARGAS | 100 |
+| OFERTAS_VIAGENS | 100 |
 | EVENTOS_ESCALA | 100 |
 | TICKETS | 100 |
 
@@ -78,3 +78,8 @@ A massa será gerada com prefixo identificável `TESTE-`, e-mails em domínio re
 
 ## Estado
 Este documento define o plano. A limpeza, a geração de massa e os testes reais ainda não foram executados.
+
+
+## Modelo atualizado
+
+A massa fictícia deverá popular OPERAÇÕES, PARTICIPACAO_OPERACOES, VIAGENS, EVENTOS_VIAGEM e DOCUMENTOS_VIAGEM. Não gerar entidades CAMINHOES ou CARGAS. Para cada operação, garantir volume planejado, meta total de viagens e distribuição por motorista/conjunto. A soma das viagens previstas por participação deve ser igual ao total da operação; a soma dos volumes previstos deve ser igual ao volume contratado. Preservar todas as regras de segurança e exclusão da guia protegida CAVALOS-BRUNO.
