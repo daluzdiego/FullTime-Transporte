@@ -73,3 +73,33 @@ Também foi incluída `testarRegressaoEscopoPortalMotoristaFullTime()`, com dado
 ## Critério de continuidade
 
 Não considerar o sistema homologado ou pronto para liberação enquanto os itens acima e os critérios do contrato funcional não estiverem comprovados por testes executados no Apps Script.
+
+
+## 4. Assiduidade como critério do motor de escala automática
+
+A assiduidade foi incorporada ao ranking sem criar pontuação artificial ou penalizar motoristas sem histórico.
+
+### Dados e apuração
+- A rotina aditiva `prepararGuiasEscalaFullTime()` passa a preparar também `HISTORICO_ASSIDUIDADE`, com motorista, operação, participação, tipo de evento, horários previsto/realizado, justificativa, origem e responsável.
+- A função pura `calcularAssiduidadeMotoristaFullTime()` apura compromissos aceitos e seus resultados.
+- Comparecimento pontual e atrasado conta como presença; pontualidade é apurada separadamente.
+- Ausência injustificada entra como resultado negativo.
+- Ausência justificada e cancelamento pelo cliente ficam registrados, mas não reduzem a taxa de comparecimento.
+- Oferta ainda pendente ou compromisso sem resultado não entra no denominador.
+- A apuração é por participação/compromisso, evitando contar vários eventos do mesmo compromisso como várias ocorrências.
+
+### Efeito no ranking
+- Mantém-se a prioridade de equilíbrio diário: quem ainda não recebeu operação hoje permanece à frente.
+- Mantém-se a janela móvel de 30 dias e os critérios já existentes de disponibilidade, trabalho recente, fila e última operação.
+- Depois da disponibilidade, assiduidade e pontualidade passam a desempatar candidatos quando ambos têm histórico resolvido.
+- Sem amostra para qualquer um dos candidatos, esse critério fica neutro. Motorista novo não recebe nota zero nem perde posição por não ter histórico.
+- Não foram introduzidos pesos numéricos. A comparação é lexicográfica e transparente.
+
+### Teste incluído
+Foi adicionada `testarRegressaoAssiduidadeFullTime()`, com massa inteiramente sintética, cobrindo presença pontual, atraso, falta injustificada, justificativa, cancelamento pelo cliente, compromisso pendente e influência no desempate do ranking.
+
+### Limite desta entrega
+O esquema, o cálculo e a leitura do histórico foram incorporados ao código. **Ainda não existe integração completa de todos os eventos reais do ciclo de oferta/aceite/comparecimento**, portanto o ranking só refletirá assiduidade real quando os fluxos operacionais gravarem esses eventos. Não executar carga fictícia nem considerar a regra homologada até ligar os pontos de gravação e rodar os testes no Apps Script.
+
+## Commits adicionais
+- `3d454da07068f57317c910099303a409e6e81f6f` — prepara histórico de assiduidade, cálculo auditável, integração ao ranking e teste de regressão.
