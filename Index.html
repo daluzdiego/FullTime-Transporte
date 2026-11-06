@@ -229,9 +229,9 @@
         <section class="panel driver-section">
           <div class="panel-head"><h2>Convites de operações</h2><span class="driver-count">${offers.length} convite(s)</span></div>
           <div class="panel-body">
-            ${offers.length?'<div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Operação</th><th>Origem / destino</th><th>Volume total</th><th>Viagens</th><th>Média por viagem*</th><th>Prioridade</th><th>Status</th><th>Observações</th></tr></thead><tbody>'+
-              offers.map(o=>'<tr><td><div class="driver-op-name">'+esc(o.nomeOperacao||'Operação sem título')+'</div><div class="muted small">Convite individual</div></td><td><div class="driver-route">'+esc(o.origem||'Origem não informada')+'<span>↓</span>'+esc(o.destino||'Destino não informado')+'</div></td><td class="driver-number">'+num(o.volume)+' t</td><td class="driver-number">'+num(o.viagens)+'</td><td class="driver-number">'+num(average(o))+' t</td><td class="driver-priority">'+esc(o.prioridade||'—')+'</td><td><span class="driver-status">'+esc(statusLabel(o.status))+'</span></td><td class="driver-note">'+esc(o.detalhes||'Sem observações adicionais')+'</td></tr>').join('')+
-              '</tbody></table></div><p class="muted small" style="margin:10px 2px 0">*Média matemática do volume total dividido pelas viagens previstas. Não representa a carga individual atribuída ao motorista. Convites de homologação: aceite e recusa ainda serão habilitados.</p>':'<div class="driver-empty">Você não possui convites pendentes no momento.</div>'}
+            ${offers.length?'<div class="driver-table-wrap"><table class="driver-table"><thead><tr><th>Operação</th><th>Origem / destino</th><th>Volume total</th><th>Viagens</th><th>Média por viagem*</th><th>Prioridade</th><th>Status</th><th>Observações</th><th>Ação</th></tr></thead><tbody>'+
+              offers.map(o=>{const pending=['PENDENTE','PENDENTE_HOMOLOGACAO'].includes(String(o.status||'').toUpperCase());return '<tr><td><div class="driver-op-name">'+esc(o.nomeOperacao||'Operação sem título')+'</div><div class="muted small">Convite individual</div></td><td><div class="driver-route">'+esc(o.origem||'Origem não informada')+'<span>↓</span>'+esc(o.destino||'Destino não informado')+'</div></td><td class="driver-number">'+num(o.volume)+' t</td><td class="driver-number">'+num(o.viagens)+'</td><td class="driver-number">'+num(average(o))+' t</td><td class="driver-priority">'+esc(o.prioridade||'—')+'</td><td><span class="driver-status">'+esc(statusLabel(o.status))+'</span></td><td class="driver-note">'+esc(o.detalhes||'Sem observações adicionais')+'</td><td style="min-width:150px">'+(pending?'<button type="button" class="btn btn-primary" style="padding:7px 10px;margin:2px" onclick="responderConvitePortal(\''+esc(o.id)+'\',\'ACEITAR\')">Aceitar</button><button type="button" class="btn btn-secondary" style="padding:7px 10px;margin:2px" onclick="responderConvitePortal(\''+esc(o.id)+'\',\'RECUSAR\')">Recusar</button>':'<span class="muted small">Respondido</span>')+'</td></tr>';}).join('')+
+              '</tbody></table></div><p class="muted small" style="margin:10px 2px 0">*Média matemática do volume total dividido pelas viagens previstas. Não representa a carga individual atribuída ao motorista. Ao aceitar, você confirma interesse; a administração ainda fará a alocação das viagens.</p>':'<div class="driver-empty">Você não possui convites pendentes no momento.</div>'}
           </div>
         </section>
 
@@ -249,6 +249,24 @@
           </div>
         </section>
       </div>`;
+  }
+  function responderConvitePortal(ofertaId,decisao){
+    let motivo='';
+    if(decisao==='ACEITAR'){
+      if(!confirm('Confirma o aceite deste convite? O aceite registra seu compromisso, mas não cria viagens automaticamente.'))return;
+    }else{
+      motivo=prompt('Informe o motivo da recusa:');
+      if(motivo===null)return;
+      motivo=motivo.trim();
+      if(!motivo){toast('Informe um motivo para recusar.',true);return;}
+    }
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.mensagem||'Resposta registrada.');
+      google.script.run.withSuccessHandler(data=>renderPortalMotorista(data))
+        .withFailureHandler(err=>toast(err.message||'Resposta salva, mas não foi possível atualizar o portal.',true))
+        .obterPainelMotoristaFullTime(authToken);
+    }).withFailureHandler(err=>toast(err.message||'Não foi possível responder ao convite.',true))
+      .responderConviteOperacaoFullTime(authToken,ofertaId,decisao,motivo);
   }
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
