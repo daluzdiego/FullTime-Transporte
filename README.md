@@ -4,7 +4,7 @@ Aplicação web para gestão de operações de transporte, frota, motoristas, es
 
 ## Modelo de negócio
 
-- **OPERAÇÃO** é a unidade de planejamento e controle: cliente, serviço, origem, destino, volume, prazo, janela, prioridade e total previsto de viagens.
+- **CLIENTES** e **LOCAIS** são cadastros mestres reutilizáveis.\n- **OPERAÇÃO** é a unidade de planejamento e controle: cliente vinculado, serviço, locais de origem/destino, volume, prazo, janela, prioridade e total previsto de viagens.
 - **PARTICIPAÇÃO_OPERACOES** liga uma operação ao motorista e ao conjunto veicular designados. Cada participação guarda a meta de viagens e toneladas daquele motorista.
 - **VIAGENS** são execuções individuais, cada uma com ID, sequência, motorista, conjunto, peso, horários, estado e observações.
 - **EVENTOS_VIAGEM** registra cada marco operacional com data/hora, responsável e origem do registro.
