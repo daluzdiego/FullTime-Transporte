@@ -1,16 +1,36 @@
-# Full Time — Transporte e Consultoria
+# FullTime — Transporte e Consultoria
 
-Sistema web responsivo para apoio à operação de transporte, iniciado pelo MVP administrativo.
+Sistema web responsivo para gestão de operações de transporte, cadastros de frota, entrada assistida de solicitações e distribuição de motoristas por operação.
 
-## Escopo do MVP
+## Arquitetura operacional acordada
 
-- Login administrativo com troca obrigatória da senha temporária no primeiro acesso.
-- Painel administrativo responsivo.
-- Cadastro, consulta, edição e inativação de motoristas.
-- Cadastro, consulta, edição e inativação de caminhões.
-- Validações de placa e CPF para minimizar duplicidades.
-- Os demais módulos aparecem como **EM DESENVOLVIMENTO**.
-- Interface otimizada para desktop e celular, com estética corporativa inspirada no Microsoft Fluent Design.
+- **Planilha do Bruno:** origem oficial dos cadastros de motoristas, cavalos, carretas, conjuntos e documentos; também recebe a entrada confirmada de operações.
+- **Planilha principal Full Time:** base operacional, espelhos sincronizados, operações, viagens, disponibilidade, fila, ofertas, escalas e movimentações.
+- **Sincronização:** Bruno → Full Time, por IDs estáveis e com comportamento idempotente.
+- **Entrada de operações:** o administrador cola a mensagem recebida no WhatsApp pessoal; a IA extrai os dados, apresenta os campos para revisão e só grava após confirmação.
+- **Operação e viagens:** uma operação-pai pode conter de 1 a 30 viagens-filhas. A operação é a unidade de escala; as viagens herdam o motorista e o conjunto atribuídos.
+- **Peso:** volume total da operação, peso previsto por viagem e peso real movimentado são campos distintos. O sistema não divide o total por suposição.
+- **Escala:** elegibilidade por disponibilidade, CNH, conjunto APTO e capacidade; oferta sequencial com prazo de 120 minutos; aceite, recusa, indisponibilidade e expiração registrados.
+- **Movimentações:** cada movimento aponta para a viagem e acumula o peso real; o saldo da operação é atualizado.
+
+## Estado do projeto
+
+A consolidação e as alterações recentes estão na branch `planejamento/controle-18-11-2026`, em revisão no [PR #5 — rascunho](https://github.com/daluzdiego/FullTime-Transporte/pull/5).
+
+- A sintaxe estática dos arquivos Apps Script e dos scripts do frontend foi validada.
+- Foram feitas simulações com dados fictícios para entrada multi-viagem, idempotência e movimentações.
+- **Ainda não está homologado no runtime Google Apps Script.**
+- A resposta do motorista ainda é registrada pelo administrador no painel; a integração automática de mensagens e respostas via WhatsApp não está ativa.
+- O instalador do gatilho de expiração existe, mas ainda não foi executado. Só instalar após testes em cópia de homologação com `instalarGatilhoExpiracaoOfertasFullTime('ATIVAR_GATILHO_FULLTIME')`.
+
+## Documentos de referência
+
+- [Arquitetura consolidada para homologação](docs/ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md)
+- [Controle de progresso e cronograma](docs/CONTROLE_PROJETO_HOMOLOGACAO_2026-11-18.md)
+- [Regras de escala justa](docs/REGRAS_ESCALA_JUSTA.md)
+- [Segurança](docs/SEGURANCA.md)
+- [Instalação](docs/INSTALACAO.md)
+- [Testes](docs/TESTES.md)
 
 ## Tecnologia
 
@@ -18,30 +38,30 @@ Sistema web responsivo para apoio à operação de transporte, iniciado pelo MVP
 - Google Sheets como persistência inicial.
 - HTML, CSS e JavaScript no frontend.
 
-## Estrutura do repositório
+## Primeiro passo seguro de homologação
 
-- `Code.gs`: backend, autenticação, permissões, validações e operações de dados.
-- `Index.html`: interface responsiva de login e painel.
-- `appsscript.json`: manifesto sugerido do Apps Script.
-- `docs/ARQUITETURA.md`: visão técnica e modelo de dados.
-- `docs/INSTALACAO.md`: configuração, implantação e primeiros testes.
-- `docs/SEGURANCA.md`: premissas de segurança e proteção de dados.
-- `docs/TESTES.md`: roteiro de validação manual.
-- `docs/ROADMAP.md`: próximos módulos.
+No editor do Apps Script, execute `verificarAmbienteHomologacaoFullTime()`. Essa função é somente leitura: confere IDs configurados sem exibi-los, guias, cabeçalhos, propriedades e gatilho de expiração. Envie o objeto/log retornado para análise antes de executar qualquer migração.
 
-## Instalação resumida
+## Atenção antes de executar no ambiente real
 
-1. Crie um projeto em [Google Apps Script](https://script.google.com/).
-2. Copie `Code.gs` para o editor de script.
-3. Crie um arquivo HTML chamado `Index` e copie `Index.html`.
-4. Ajuste o manifesto conforme `appsscript.json`, se necessário.
-5. Execute `configurarSistemaFullTime()` uma única vez e autorize as permissões solicitadas.
-6. Consulte os logs para recuperar a planilha criada e as informações de bootstrap.
-7. Implante como Aplicativo da web, restringindo o acesso à organização/usuários autorizados conforme as opções disponíveis na conta.
-8. No primeiro acesso, defina uma senha individual e forte para cada administrador.
+1. Não execute rotinas de limpeza nem apague dados reais.
+2. Faça backup das duas planilhas e use cópias de homologação com dados fictícios.
+3. Confirme os IDs das planilhas e as propriedades do Apps Script antes de executar rotinas de preparação/sincronização.
+4. Execute a preparação de schema apenas depois de conferir os cabeçalhos existentes; as migrações previstas são aditivas.
+5. Não instale gatilhos nem implante o Web App antes da homologação das permissões e do fluxo ponta a ponta.
+6. Não use esta branch como sistema de produção crítica até que os testes no runtime Google sejam aprovados.
 
-> **Importante:** credenciais temporárias servem apenas para bootstrap e não devem ser mantidas. Antes de usar dados reais de CNH, CPF ou documentos, restrinja o acesso à planilha e teste a autenticação e as permissões. Esta versão é um MVP em validação; não a considere pronta para operação crítica sem testes e revisão de segurança.
+## Instalação
 
-## Estado atual
+As instruções históricas de bootstrap em [docs/INSTALACAO.md](docs/INSTALACAO.md) precisam ser lidas junto com a arquitetura consolidada. **Para a implantação existente Bruno → Full Time, não execute `configurarSistemaFullTime()` sem confirmar que a intenção é criar uma base nova.** O projeto deve continuar usando as planilhas existentes e seus IDs já configurados.
 
-MVP inicial: login, painel, cadastros administrativos de motoristas e caminhões. Cargas, escalas, viagens, relatórios e configurações operacionais completas permanecem em desenvolvimento.
+
+## Consolidação e homologação
+
+Para acompanhar a implementação e a validação da versão de homologação, consulte:
+
+- [Controle de progresso até 18/11/2026](docs/CONTROLE_PROJETO_HOMOLOGACAO_2026-11-18.md)
+- [Arquitetura consolidada](docs/ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md)
+- [Roteiro de execução da homologação no Apps Script](docs/EXECUCAO_HOMOLOGACAO_APPS_SCRIPT.md)
+
+A branch de trabalho é `planejamento/controle-18-11-2026`. A `main` permanece preservada até a conclusão dos testes no runtime do Apps Script e da homologação com dados fictícios.

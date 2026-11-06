@@ -99,6 +99,7 @@
   const NAV_ITEMS = [
     {id:'inicio',label:'Operação',icon:'⌂',title:'Painel da operação'},
     {id:'operacoes',label:'Operações',icon:'⇄',title:'Operações'},
+    {id:'entradaIA',label:'Entrada de viagens (IA)',icon:'✦',title:'Entrada de viagens com IA'},
     {id:'cargas',label:'Cargas',icon:'▤',title:'Cargas'},
     {id:'motoristas',label:'Motoristas',icon:'♙',title:'Motoristas'},
     {id:'frota',label:'Frota',icon:'▰',title:'Frota',group:true,children:[
@@ -198,7 +199,7 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
+    const titles={inicio:'Visão geral',motoristas:'Motoristas',caminhoes:'Caminhões cadastrados',cavalos:'Cavalos mecânicos',carretas:'Carretas',conjuntos:'Conjuntos e vínculos',operacoes:'Operações',entradaIA:'Entrada de viagens (IA)',cargas:'Cargas',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configurações'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
     const c=document.getElementById('content');
@@ -208,6 +209,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='cargas') c.innerHTML=renderCargas();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
+    else if(page==='entradaIA') { c.innerHTML=renderEntradaOperacoesIA(); setTimeout(carregarEntradasIA,0); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
@@ -228,10 +230,30 @@
     <div class="page-head"><div><h1>Operação da Full Time</h1><p>Visão geral da programação, das cargas e das escalas da empresa.</p></div><div class="head-actions"><button id="operationFullscreenButton" class="btn btn-secondary" onclick="toggleOperationFullscreen()">Exibir operação em tela cheia ⛶</button><button class="btn btn-secondary" onclick="goPage('motoristas')">Ver motoristas</button><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Nova carga</button></div></div>
     <div class="stats"><div class="stat-card"><div class="stat-icon">▤</div><div><div class="stat-label">Cargas futuras</div><div class="stat-value">${counts.cargasFuturas||0}</div></div></div><div class="stat-card"><div class="stat-icon" style="background:#fff4df;color:#a96300">◷</div><div><div class="stat-label">A escalar</div><div class="stat-value">${counts.semEscala||0}</div></div></div><div class="stat-card"><div class="stat-icon">⇢</div><div><div class="stat-label">Em andamento</div><div class="stat-value">${counts.emAndamento||0}</div></div></div><div class="stat-card"><div class="stat-icon">♙</div><div><div class="stat-label">Motoristas ativos</div><div class="stat-value">${counts.motoristas||0}</div></div></div></div>
     <div class="panel"><div class="panel-head"><h2>Programação de cargas</h2><button class="btn btn-primary" onclick="goPage('cargas');setTimeout(showCargaForm,0)">＋ Registrar carga</button></div><div class="panel-body"><div class="table-wrap"><table class="operations-table"><thead><tr><th>Data / hora</th><th>Motorista / CNH</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Peso</th><th>Cliente</th><th>Origem</th><th>Destino</th><th>Frete (R$)</th><th>Situação</th></tr></thead><tbody>${loads.length?loads.map(c=>`<tr><td class="date-cell">${esc(formatDate(c.data))}${c.horario?' - '+esc(c.horario):''}</td><td><div class="primary-cell">${esc(c.motoristaNome||'A definir')}</div><div class="secondary-cell">${esc(c.motoristaCnh?'CNH '+c.motoristaCnh:'CNH —')}</div></td><td>${esc(c.cavaloPlaca||'—')}</td><td>${esc(c.carretaMeioPlaca||'—')}</td><td>${esc(c.carretaFinalPlaca||'—')}</td><td>${Number(c.peso||0).toLocaleString('pt-BR')} t</td><td>${esc(c.cliente||'—')}</td><td>${esc(c.origem||'—')}</td><td>${esc(c.destino||'—')}</td><td>${c.valorFrete==null||c.valorFrete===''?'—':Number(c.valorFrete).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td>${statusCargaBadge(c.status)}</td></tr>`).join(''):`<tr><td colspan="11"><div class="empty"><strong>Nenhuma carga cadastrada</strong>Registre a programação para começar a acompanhar a operação.</div></td></tr>`}</tbody></table></div><div class="form-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Ver todas as cargas →</button><button class="btn btn-secondary" onclick="goPage('motoristas')">Motoristas</button><button class="btn btn-secondary" onclick="goPage('caminhoes')">Veículos cadastrados</button></div></div></div>`;}
-  function statusCargaBadge(s){const map={A_ESCALAR:['badge-pending','A escalar'],PROGRAMADA:['badge-active','Programada'],AGUARDANDO_CARREGAMENTO:['badge-pending','A carregar'],CARREGADA:['badge-active','Carregada'],EM_TRANSITO:['badge-active','Em trânsito'],AGUARDANDO_DESCARGA:['badge-pending','Aguardando descarga'],CONCLUIDA:['badge-active','Concluída'],CANCELADA:['badge-inactive','Cancelada']};const v=map[s]||['badge-pending',s||'A escalar'];return '<span class="badge '+v[0]+'">'+esc(v[1])+'</span>';}
-  function renderCargas(){const loads=dashboard?.cargas||[];return `<div class="page-head"><div><h1>Cargas</h1><p>Programe as cargas previstas e acompanhe a operação.</p></div><div class="head-actions"><button class="btn btn-primary" onclick="showCargaForm()">＋ Nova carga</button></div></div><div class="panel"><div class="panel-head"><h2>Programação operacional</h2><span class="muted small">${loads.length} carga(s)</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="cargaSearch" placeholder="Buscar cliente, origem ou destino…" oninput="filterCargas()"></div><select id="cargaStatusFilter" onchange="filterCargas()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todas as situações</option><option value="A_ESCALAR">A escalar</option><option value="AGUARDANDO_CARREGAMENTO">A carregar</option><option value="EM_TRANSITO">Em trânsito</option><option value="AGUARDANDO_DESCARGA">Aguardando descarga</option><option value="CONCLUIDA">Concluída</option><option value="CANCELADA">Cancelada</option></select></div><div class="table-wrap"><table class="operations-table"><thead><tr><th>Data / hora</th><th>Motorista / CNH</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Peso</th><th>Cliente</th><th>Origem</th><th>Destino</th><th>Situação</th></tr></thead><tbody id="cargasTableBody">${loads.length?loads.map(c=>`<tr data-carga-search="${esc((c.cliente+' '+c.origem+' '+c.destino+' '+c.status+' '+c.motoristaNome).toLowerCase())}" data-carga-status="${esc(c.status)}"><td class="date-cell">${esc(formatDate(c.data))}${c.horario?' - '+esc(c.horario):''}</td><td><div class="primary-cell">${esc(c.motoristaNome||'A definir')}</div><div class="secondary-cell">${esc(c.motoristaCnh?'CNH '+c.motoristaCnh:'CNH —')}</div></td><td>${esc(c.cavaloPlaca||'—')}</td><td>${esc(c.carretaMeioPlaca||'—')}</td><td>${esc(c.carretaFinalPlaca||'—')}</td><td>${Number(c.peso||0).toLocaleString('pt-BR')} t</td><td>${esc(c.cliente||'—')}</td><td>${esc(c.origem||'—')}</td><td>${esc(c.destino||'—')}</td><td>${statusCargaBadge(c.status)}</td></tr>`).join(''):`<tr><td colspan="10"><div class="empty"><strong>A programação ainda está vazia</strong>Cadastre a primeira carga prevista para começar a controlar a operação.</div></td></tr>`}</tbody></table></div></div></div>`;}
-  function showCargaForm(){const c=document.getElementById('content');if(!c)return;c.innerHTML=`<div class="page-head"><div><h1>Nova carga</h1><p>Registre uma carga prevista. A atribuição do motorista e do conjunto será feita após a validação operacional.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">← Voltar à programação</button></div></div><div class="panel form-panel"><div class="panel-head"><h2>Dados da operação</h2><span class="badge badge-pending">A escalar</span></div><div class="panel-body"><div class="notice">Informe os dados conhecidos. Os campos de horário e descrição são opcionais; não atribuímos automaticamente um veículo sem validar as regras.</div><form onsubmit="saveCarga(event)"><div class="form-grid"><div class="field"><label>Data prevista *</label><input type="date" name="data" required value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Horário previsto</label><input type="time" name="horario"></div><div class="field"><label>Cliente contratante *</label><input name="cliente" maxlength="120" required placeholder="Nome do cliente"></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div><div class="field"><label>Peso da carga (toneladas) *</label><input name="peso" type="number" min="0.1" step="0.1" required placeholder="Ex.: 500" inputmode="decimal"><small class="muted">Peso total da operação; pode superar 100 toneladas. O sistema calculará as voltas conforme a capacidade do conjunto.</small></div><div class="field"><label>Valor do frete (R$)</label><input name="valorFrete" type="number" min="0" step="0.01" placeholder="Ex.: 850,00"></div><div class="field"><label>Origem *</label><input name="origem" maxlength="160" list="locaisCarga" required placeholder="Empresa / cidade"></div><div class="field"><label>Destino *</label><input name="destino" maxlength="160" list="locaisCarga" required placeholder="Local de descarga"></div><datalist id="locaisCarga">${(dashboard?.locais||[]).filter(l=>l.status==='ATIVO').map(l=>'<option value="'+esc(l.campos[0])+'"></option>').join('')}</datalist><div class="field span-2"><label>Descrição / tipo de operação</label><input name="descricao" maxlength="300" placeholder="Ex.: transferência, descarga, observações da carga"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000" placeholder="Requisitos informados para esta operação"></textarea></div></div><div id="cargaFormError" class="error"></div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="goPage('cargas')">Cancelar</button><button type="submit" class="btn btn-primary" id="saveCargaButton">Salvar carga</button></div></form></div></div>`;}
+  function statusCargaBadge(s){const map={A_ESCALAR:['badge-pending','A escalar'],PROGRAMADA:['badge-active','Programada'],EM_ANDAMENTO:['badge-pending','Em andamento'],AGUARDANDO_CARREGAMENTO:['badge-pending','A carregar'],CARREGADA:['badge-active','Carregada'],EM_TRANSITO:['badge-active','Em trânsito'],AGUARDANDO_DESCARGA:['badge-pending','Aguardando descarga'],CONCLUIDA:['badge-active','Concluída'],CANCELADA:['badge-inactive','Cancelada']};const v=map[s]||['badge-pending',s||'A escalar'];return '<span class="badge '+v[0]+'">'+esc(v[1])+'</span>';}
+  function renderCargas(){
+  const loads=dashboard?.cargas||[];
+  const weightLabel=c=>c.pesoReal>0?'Real '+Number(c.pesoReal).toLocaleString('pt-BR')+' t'+(c.peso>0?' · previsto '+Number(c.peso).toLocaleString('pt-BR')+' t':''):c.peso>0?'Previsto '+Number(c.peso).toLocaleString('pt-BR')+' t':'A medir';
+  return `<div class="page-head"><div><h1>Cargas</h1><p>Viagens previstas vinculadas à operação principal; o peso real é atualizado pelas movimentações.</p></div><div class="head-actions"><button class="btn btn-primary" onclick="goPage('operacoes')">＋ Nova operação</button></div></div><div class="panel"><div class="panel-head"><h2>Programação operacional</h2><span class="muted small">${loads.length} carga(s)</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="cargaSearch" placeholder="Buscar cliente, origem ou destino…" oninput="filterCargas()"></div><select id="cargaStatusFilter" onchange="filterCargas()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todas as situações</option><option value="A_ESCALAR">A escalar</option><option value="PROGRAMADA">Programada</option><option value="EM_ANDAMENTO">Em andamento</option><option value="AGUARDANDO_CARREGAMENTO">A carregar</option><option value="EM_TRANSITO">Em trânsito</option><option value="AGUARDANDO_DESCARGA">Aguardando descarga</option><option value="CONCLUIDA">Concluída</option><option value="CANCELADA">Cancelada</option></select></div><div class="table-wrap"><table class="operations-table"><thead><tr><th>Data / hora</th><th>Motorista / CNH</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Peso previsto / real</th><th>Cliente</th><th>Origem</th><th>Destino</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="cargasTableBody">${loads.length?loads.map(c=>`<tr data-carga-search="${esc((c.cliente+' '+c.origem+' '+c.destino+' '+c.status+' '+c.motoristaNome+' '+c.operacaoId).toLowerCase())}" data-carga-status="${esc(c.status)}"><td class="date-cell">${esc(formatDate(c.data))}${c.horario?' - '+esc(c.horario):''}<div class="secondary-cell">${esc(c.operacaoId?'Op. '+c.operacaoId.slice(0,8):'')}</div></td><td><div class="primary-cell">${esc(c.motoristaNome||'A definir')}</div><div class="secondary-cell">${esc(c.motoristaCnh?'CNH '+c.motoristaCnh:'CNH —')}</div></td><td>${esc(c.cavaloPlaca||'—')}</td><td>${esc(c.carretaMeioPlaca||'—')}</td><td>${esc(c.carretaFinalPlaca||'—')}</td><td>${esc(weightLabel(c))}</td><td>${esc(c.cliente||'—')}</td><td>${esc(c.origem||'—')}</td><td>${esc(c.destino||'—')}</td><td>${statusCargaBadge(c.status)}</td><td>${['A_ESCALAR','SEM_ESCALA'].includes(c.status)?'<button class="btn btn-secondary" onclick="editarPesoPrevistoCarga(\''+esc(c.id)+'\',\''+esc(c.peso||'')+'\')">Definir peso</button>':'—'}</td></tr>`).join(''):`<tr><td colspan="11"><div class="empty"><strong>A programação ainda está vazia</strong>Cadastre a primeira carga prevista para começar a controlar a operação.</div></td></tr>`}</tbody></table></div></div></div>`;
+}
+
+  function showCargaForm(){
+    const c=document.getElementById('content');if(!c)return;
+    const openOperations=(dashboard?.operacoes||[]).filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status));
+    const opOptions='<option value="">Selecione a operação</option>'+openOperations.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — '+esc(o.campos[3]||'')+' → '+esc(o.campos[4]||'')+'</option>').join('');
+    c.innerHTML=`<div class="page-head"><div><h1>Nova viagem</h1><p>Adicione uma viagem a uma operação existente, informando seu peso previsto.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">← Voltar à programação</button></div></div><div class="panel form-panel"><div class="panel-head"><h2>Dados da viagem</h2><span class="badge badge-pending">A escalar</span></div><div class="panel-body"><div class="notice">Toda viagem precisa pertencer a uma operação. Informe o peso desta viagem, não o volume total da operação.</div><form onsubmit="saveCarga(event)"><div class="form-grid"><div class="field span-2"><label>Operação vinculada *</label><select name="operacaoId" required>${opOptions}</select></div><div class="field"><label>Data prevista *</label><input type="date" name="data" required value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Horário previsto</label><input type="time" name="horario"></div><div class="field"><label>Cliente contratante *</label><input name="cliente" maxlength="120" required placeholder="Nome do cliente"></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div><div class="field"><label>Peso previsto desta viagem (t) *</label><input name="peso" type="number" min="0.1" step="0.1" required placeholder="Ex.: 28,5" inputmode="decimal"></div><div class="field"><label>Valor do frete (R$)</label><input name="valorFrete" type="number" min="0" step="0.01" placeholder="Ex.: 850,00"></div><div class="field"><label>Origem *</label><input name="origem" maxlength="160" list="locaisCarga" required placeholder="Local de carregamento"></div><div class="field"><label>Destino *</label><input name="destino" maxlength="160" list="locaisCarga" required placeholder="Local de descarga"></div><datalist id="locaisCarga">${(dashboard?.locais||[]).filter(l=>l.status==='ATIVO').map(l=>'<option value="'+esc(l.campos[0])+'"></option>').join('')}</datalist><div class="field span-2"><label>Descrição / tipo de carga</label><input name="descricao" maxlength="300" placeholder="Ex.: soja, container, carga geral"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000" placeholder="Requisitos informados para esta viagem"></textarea></div></div><div id="cargaFormError" class="error"></div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="goPage('cargas')">Cancelar</button><button type="submit" class="btn btn-primary" id="saveCargaButton" ${openOperations.length?'':'disabled'}>Salvar viagem</button></div></form>${openOperations.length?'':'<div class="notice">Não há operações abertas. Cadastre uma operação antes de adicionar viagens.</div>'}</div></div>`;
+  }
   function saveCarga(ev){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveCargaButton');const err=document.getElementById('cargaFormError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;goPage('inicio');}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar carga';err.textContent=e.message||'Carga salva, mas não foi possível atualizar o painel.';}).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar carga';err.textContent=e.message||'Não foi possível salvar a carga.';}).salvarCargaFullTime(authToken,data);}
+  function editarPesoPrevistoCarga(cargaId,pesoAtual){
+    const raw=prompt('Informe o peso previsto desta viagem em toneladas:',String(pesoAtual||''));
+    if(raw===null)return;
+    const peso=Number(String(raw).trim().replace(',','.'));
+    if(!(peso>0&&isFinite(peso))){toast('Informe um peso maior que zero.',true);return;}
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Peso atualizado.');
+      google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('cargas');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a programação.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar o peso.',true)).atualizarPesoPrevistoCargaFullTime(authToken,cargaId,peso);
+  }
   function filterCargas(){const q=(document.getElementById('cargaSearch')?.value||'').toLowerCase();const s=document.getElementById('cargaStatusFilter')?.value||'';document.querySelectorAll('#cargasTableBody tr[data-carga-search]').forEach(tr=>tr.classList.toggle('hidden',!(tr.dataset.cargaSearch.includes(q)&&(!s||tr.dataset.cargaStatus===s))));}
   function renderList(kind){const isDriver=kind==='motoristas', rows=(dashboard?.[kind]||[]);const title=isDriver?'Motoristas':'Caminhões';return `
     <div class="page-head"><div><h1>${title}</h1><p>${isDriver?'Gerencie os dados cadastrais, CNH e situação dos motoristas.':'Gerencie os dados dos veículos e a situação documental.'}</p></div><div class="head-actions"><button class="btn btn-primary" onclick="showForm('${kind}')">＋ ${isDriver?'Novo motorista':'Novo caminhão'}</button></div></div>
@@ -343,16 +365,28 @@
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.campos[2]||o.id):id;};
-    const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
+    const setName=id=>{
+      const s=sets.find(x=>x.id===id);if(!s)return id;
+      const horses=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])];
+      const horse=horses.find(x=>x.id===String(s.campos[1]||''));
+      const middle=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[2]||''));
+      const rear=(dashboard?.carretas||[]).find(x=>x.id===String(s.campos[3]||''));
+      const plates=[horse?.campos?.[0],middle?.campos?.[0],rear?.campos?.[0]].filter(Boolean);
+      return plates.length?plates.join(' / '):'Veículos pendentes de vínculo';
+    };
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
     const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
+    const availabilityByDriver={};(dashboard?.disponibilidades||[]).forEach(a=>availabilityByDriver[a.motoristaId]=a);
+    const activeDrivers=drivers.filter(d=>d.status==='ATIVO');
+    const availabilityRows=activeDrivers.map(d=>{const a=availabilityByDriver[d.id]||{};return '<tr><td>'+esc(d.campos[0]||d.id)+'</td><td><select id="dispStatus_'+esc(d.id)+'"><option value="">Selecione</option><option value="DISPONIVEL" '+(a.status==='DISPONIVEL'?'selected':'')+'>Disponível</option><option value="INDISPONIVEL" '+(a.status==='INDISPONIVEL'?'selected':'')+'>Indisponível</option></select></td><td><input id="dispMotivo_'+esc(d.id)+'" maxlength="500" placeholder="Motivo se indisponível" value="'+esc(a.motivo||'')+'"></td><td><button class="btn btn-secondary" onclick="salvarDisponibilidadeDia(\''+esc(d.id)+'\')">Salvar</button></td></tr>';}).join('');
     return `
-      <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
+      <div class="page-head"><div><h1>Escalas por operação</h1><p>Acompanhe motoristas alocados pelo sistema, veículos vinculados e exceções operacionais.</p></div></div>
       <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Disponibilidade diária dos motoristas</h2><span class="muted small">Confirme antes de gerar ofertas</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Disponibilidade de hoje</th><th>Motivo</th><th>Ação</th></tr></thead><tbody>${availabilityRows||'<tr><td colspan="4">Nenhum motorista ativo cadastrado.</td></tr>'}</tbody></table></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e gere uma oferta automática para o próximo motorista elegível.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
         <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
           <div class="field"><label>Operação de origem *</label><select name="operacaoAtualId" required>${opOptions}</select></div>
@@ -368,6 +402,17 @@
       </div>
       <div class="panel"><div class="panel-head"><h2>Saídas registradas</h2><span class="muted small">${departed.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Saída</th><th>Motivo</th></tr></thead><tbody>${departed.length?departed.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[5]||'').slice(0,10)))+'</td><td>'+esc(p.campos[9]||'—')+'</td></tr>').join(''):'<tr><td colspan="5">Nenhuma saída registrada.</td></tr>'}</tbody></table></div></div></div>`;
   }
+  function salvarDisponibilidadeDia(motoristaId){
+    const status=document.getElementById('dispStatus_'+motoristaId)?.value||'';
+    const motivo=document.getElementById('dispMotivo_'+motoristaId)?.value||'';
+    if(!status){toast('Selecione a disponibilidade do motorista.',true);return;}
+    if(status==='INDISPONIVEL'&&!motivo.trim()){toast('Informe o motivo da indisponibilidade.',true);return;}
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Disponibilidade registrada.');
+      google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar o painel.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(e=>toast(e.message||'Não foi possível salvar a disponibilidade.',true)).registrarDisponibilidadeDiariaFullTime(authToken,motoristaId,status,motivo);
+  }
+
   function submitRemanejamento(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
     if(data.operacaoAtualId===data.operacaoDestinoId){document.getElementById('remanejamentoError').textContent='Escolha operações diferentes.';return;}
@@ -379,13 +424,77 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
   }
 
+  function renderEntradaOperacoesIA(){
+    return `<div class="page-head"><div><h1>Entrada de viagens com IA</h1><p>Cole a mensagem do WhatsApp. A interpretação fica em rascunho e só vira carga após conferência e confirmação.</p></div></div><div class="notice"><strong>Ambiente de testes:</strong> use mensagens fictícias. Quando a propriedade FT_GEMINI_API_KEY estiver configurada, o texto será interpretado pelo Gemini; sem chave, entram em ação regras locais conservadoras. A ferramenta não acessa o WhatsApp automaticamente. Durante os testes, use somente mensagens fictícias; com a chave configurada, o texto é enviado à API do Gemini.</div><div class="panel form-panel"><div class="panel-head"><h2>Interpretar mensagem</h2><span class="badge badge-pending">Confirmação obrigatória</span></div><div class="panel-body"><form onsubmit="interpretarEntradaIA(event)"><div class="field"><label for="entradaIATexto">Mensagem copiada do WhatsApp *</label><textarea id="entradaIATexto" name="texto" rows="6" maxlength="12000" required placeholder="Cole aqui o texto da solicitação de transporte..."></textarea></div><div id="entradaIAError" class="error"></div><div class="form-actions"><button id="entradaIABtn" class="btn btn-primary" type="submit">Interpretar mensagem</button></div></form></div></div><div id="entradaIARascunho"></div><div class="panel"><div class="panel-head"><h2>Histórico das entradas</h2><button class="btn btn-secondary" type="button" onclick="carregarEntradasIA()">Atualizar</button><button class="btn btn-secondary" type="button" onclick="sincronizarEntradasIA()">Sincronizar para Full Time</button></div><div class="panel-body"><div id="entradaIAHistorico" class="empty">Carregando entradas...</div></div></div>`;
+  }
+  function interpretarEntradaIA(ev){ev.preventDefault();const text=document.getElementById('entradaIATexto').value.trim(),btn=document.getElementById('entradaIABtn'),err=document.getElementById('entradaIAError');if(!text){err.textContent='Cole uma mensagem antes de continuar.';return;}btn.disabled=true;btn.textContent='Interpretando...';err.textContent='';google.script.run.withSuccessHandler(r=>{btn.disabled=false;btn.textContent='Interpretar mensagem';toast(r.message||'Rascunho criado.');renderRascunhoEntradaIA(r);carregarEntradasIA();}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Interpretar mensagem';err.textContent=e.message||'Não foi possível interpretar a mensagem.';}).interpretarTextoOperacaoIAFullTime(authToken,text);}
+  function renderRascunhoEntradaIA(r){
+    const d=r.dados||{},pending=r.camposPendentes||[],labels={data:'Data da operação',horario:'Horário',cliente:'Cliente/contratante',origem:'Origem',destino:'Destino',volumeTotal:'Volume total da operação (t)',cargasPrevistas:'Quantidade de viagens/cargas (1 a 30)',pesoPorCarga:'Peso por viagem (t), se conhecido',descricao:'Descrição da carga',tipoOperacao:'Tipo de operação',valorFrete:'Valor do frete total (R$)',observacoes:'Observações'};
+    const types=[['','Selecione'],['DESCARGA_NAVIO','Descarga de navio'],['TRANSFERENCIA_FABRICAS','Transferência entre fábricas/unidades'],['REMOCAO_INTERNA','Remoção interna'],['OUTRA','Outra']];
+    const field=(k,v)=>{
+      const numeric=['volumeTotal','cargasPrevistas','pesoPorCarga','valorFrete'].includes(k),required=pending.includes(k);
+      return '<div class="field"><label>'+labels[k]+(required?' *':'')+'</label>'+
+        (k==='tipoOperacao'?'<select name="'+k+'" '+(required?'required':'')+'>'+types.map(t=>'<option value="'+t[0]+'" '+(String(v||'')===t[0]?'selected':'')+'>'+t[1]+'</option>').join('')+'</select>':
+        k==='observacoes'?'<textarea name="'+k+'" maxlength="1000">'+esc(v||'')+'</textarea>':
+        '<input name="'+k+'" '+(k==='data'?'type="date"':k==='horario'?'type="time"':numeric?'type="number" step="'+(k==='cargasPrevistas'?'1':'0.01')+'" min="'+(k==='cargasPrevistas'?'1':'0')+'" '+(k==='cargasPrevistas'?'max="30"':''):'type="text"')+' value="'+esc(v==null?'':v)+'" '+(required?'required':'')+'>' )+'</div>';
+    };
+    document.getElementById('entradaIARascunho').innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Conferir dados extraídos</h2><span class="badge badge-pending">'+pending.length+' campo(s) pendente(s)</span></div><div class="panel-body"><div class="notice"><strong>Texto original preservado</strong><br>'+esc(r.textoOriginal||'')+'</div>'+(r.perguntas?'<div class="notice">'+esc(r.perguntas).replace(/\n/g,'<br>')+'</div>':'')+'<div class="notice">A operação é cadastrada uma única vez. As viagens são criadas como registros filhos; o peso por viagem só será preenchido quando estiver explícito, sem dividir o volume total por suposição.</div><form id="entradaIAForm" onsubmit="salvarRevisaoEntradaIA(event,\''+esc(r.id)+'\')"><div class="form-grid">'+['data','horario','cliente','origem','destino','volumeTotal','cargasPrevistas','pesoPorCarga','descricao','tipoOperacao','valorFrete','observacoes'].map(k=>field(k,d[k])).join('')+'</div><div id="entradaIARevisaoError" class="error"></div><div class="form-actions"><button class="btn btn-secondary" type="button" onclick="cancelarRascunhoEntradaIA()">Fechar</button><button class="btn btn-secondary" type="submit">Salvar revisão</button><button class="btn btn-primary" type="button" onclick="confirmarRascunhoEntradaIA(\''+esc(r.id)+'\')">Confirmar operação e viagens</button></div></form></div></div>';
+  }
+
+  function salvarRevisaoEntradaIA(ev,id){ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());google.script.run.withSuccessHandler(r=>{toast((r.message||'Revisão salva.')+' Campos pendentes: '+(r.camposPendentes||[]).length);renderRascunhoEntradaIA(r);carregarEntradasIA();}).withFailureHandler(e=>{document.getElementById('entradaIARevisaoError').textContent=e.message||'Falha ao salvar revisão.';}).atualizarRascunhoOperacaoIAFullTime(authToken,id,data);}
+  function confirmarRascunhoEntradaIA(id){
+  const form=document.getElementById('entradaIAForm');
+  if(!form){toast('Abra o rascunho para revisar.',true);return;}
+  const data=Object.fromEntries(new FormData(form).entries());
+  if(!confirm('Confirmar os dados revisados e criar a operação com todas as viagens previstas?'))return;
+  google.script.run.withSuccessHandler(r=>{
+    toast(r.message,!r.sincronizado);
+    document.getElementById('entradaIARascunho').innerHTML='';
+    carregarEntradasIA();
+    google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);
+  }).withFailureHandler(e=>{
+    const el=document.getElementById('entradaIARevisaoError');
+    if(el)el.textContent=e.message||'Não foi possível confirmar.';
+  }).confirmarEntradaOperacaoIAFullTime(authToken,id,data);
+}
+function cancelarRascunhoEntradaIA(){document.getElementById('entradaIARascunho').innerHTML='';}
+  function carregarEntradasIA(){
+  const host=document.getElementById('entradaIAHistorico');if(!host)return;
+  google.script.run.withSuccessHandler(rows=>{
+    if(!rows.length){host.className='empty';host.innerHTML='<strong>Nenhuma mensagem processada</strong>Use mensagens fictícias durante a fase de testes.';return;}
+    host.className='table-wrap';
+    host.innerHTML='<table><thead><tr><th>Recebido</th><th>Status</th><th>Rota</th><th>Pendências</th><th>Ação</th></tr></thead><tbody>'+
+      rows.map(r=>{const d=r.dados||{},action=r.status==='AGUARDANDO_REVISAO'?'Revisar':'Visualizar';return '<tr><td>'+esc(String(r.criado||'').slice(0,16).replace('T',' '))+'</td><td>'+esc(r.status)+'</td><td>'+esc(d.origem||'—')+' → '+esc(d.destino||'—')+'</td><td>'+esc((r.camposPendentes||[]).length)+'</td><td><button class="btn btn-secondary" onclick="abrirRascunhoEntradaIA(\''+esc(r.id)+'\')">'+action+'</button></td></tr>';}).join('')+
+      '</tbody></table>';
+  }).withFailureHandler(e=>{host.className='error';host.textContent=e.message||'Falha ao carregar histórico.';}).listarEntradasOperacoesIAFullTime(authToken);
+}
+function abrirRascunhoEntradaIA(id){
+  google.script.run.withSuccessHandler(rows=>{
+    const r=rows.find(x=>x.id===id);if(!r){toast('Entrada não encontrada.',true);return;}renderRascunhoEntradaIA(r);
+    if(r.status==='CONFIRMADO'){
+      const form=document.getElementById('entradaIAForm');
+      if(form){form.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);const actions=form.querySelector('.form-actions');
+        if(actions)actions.innerHTML='<button class="btn btn-secondary" type="button" onclick="cancelarRascunhoEntradaIA()">Fechar</button><span class="muted small">Operação: '+esc(r.operacaoId||'')+' · Viagens: '+esc((r.cargaIds||[]).length||1)+' · Primeira carga: '+esc(r.cargaId||'')+'</span>';
+      }
+    }
+  }).withFailureHandler(e=>toast(e.message||'Falha ao abrir entrada.',true)).listarEntradasOperacoesIAFullTime(authToken);
+}
+function sincronizarEntradasIA(){
+  const host=document.getElementById('entradaIAHistorico');if(host)host.textContent='Sincronizando a planilha do Bruno para Full Time...';
+  google.script.run.withSuccessHandler(r=>{
+    const msg='Sincronização concluída. Novas linhas: '+r.inseridos+'; atualizadas: '+r.atualizados+'; cargas criadas: '+r.cargasCriadas+'.'+(r.erros&&r.erros.length?' Erros: '+r.erros.join(' | '):'');
+    toast(msg,!!(r.erros&&r.erros.length));carregarEntradasIA();
+    google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);
+  }).withFailureHandler(e=>{toast(e.message||'Falha na sincronização.',true);carregarEntradasIA();}).sincronizarEntradasOperacoesIAFullTime(authToken);
+}
   function renderOperacoes(){
-    const ops=dashboard?.operacoes||[];
-    const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
-    const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
+    const ops=dashboard?.operacoes||[],ofertas=dashboard?.ofertas||[];
+    const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio',PADRAO:'Padrão'};
+    const latestOfferByOperation={};
+    ofertas.forEach(o=>{const current=latestOfferByOperation[o.operacaoId];if(!current||String(o.criado)>String(current.criado))latestOfferByOperation[o.operacaoId]=o;});
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div></div>
-      <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
+      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. A escala é feita uma vez por operação; as cargas/voltas herdam o motorista e o conjunto confirmados.</p></div></div>
+      <div class="notice"><strong>Fluxo da escala:</strong> o sistema seleciona o próximo motorista elegível e cria uma oferta com prazo de 2 horas. A atribuição só é confirmada após o aceite. Nesta fase de homologação, o administrador registra no painel a resposta recebida do motorista; o envio automático pelo WhatsApp ainda não está ativado.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
           <div class="field"><label>Data *</label><input name="data" type="date" required></div>
@@ -395,20 +504,55 @@
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
           <div class="field"><label>Categoria *</label><select name="categoria" required><option value="">Selecione</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" max="30" step="1" required></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>{
+        const offer=latestOfferByOperation[o.id],isOpen=o.status==='ABERTA';
+        let action='';
+        if(offer&&offer.status==='PENDENTE')action='<button class="btn btn-primary" onclick="registrarRespostaOfertaOperacao(\''+esc(offer.id)+'\')">Registrar resposta</button><div class="secondary-cell">Oferta expira: '+esc(String(offer.expiraEm||'').replace('T',' ').slice(0,16))+'</div>';
+        else if(offer&&offer.status==='ACEITA')action='<span class="badge badge-success">Motorista aceitou</span>';
+        else if(isOpen)action='<button class="btn btn-primary" onclick="gerarOfertaOperacao(\''+esc(o.id)+'\')">'+(offer?'Ofertar próximo motorista':'Gerar oferta automática')+'</button>';
+        else action='<span class="muted small">Operação encerrada</span>';
+        const movement=o.status==='EM_ANDAMENTO'?'<button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao(\''+esc(o.id)+'\')">＋</button>':'';
+        return '<tr><td><strong>'+esc(o.campos[2]||'')+'</strong><div class="secondary-cell">'+esc(o.campos[1]||'')+' · '+esc(o.campos[3]||'')+' → '+esc(o.campos[4]||'')+'</div></td><td>'+esc(formatDate(o.campos[0]))+'</td><td>'+esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')+'</td><td>'+esc(o.campos[6]||'0')+' t</td><td><strong>'+esc(o.campos[8]||'0')+' t</strong></td><td>'+statusBadge(o.status)+'</td><td>'+action+' '+movement+'</td></tr>';
+      }).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
+
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
     const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
+    function atualizarPainelOperacoes(){
+    google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message||'Falha ao atualizar o painel.',true)).obterPainelFullTime(authToken);
+  }
+  function gerarOfertaOperacao(operacaoId){
+    const panel=document.getElementById('operacaoActionPanel');if(panel)panel.innerHTML='<div class="panel"><div class="panel-body">Calculando prioridade e gerando oferta…</div></div>';
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Processamento concluído.',!r.ok);
+      atualizarPainelOperacoes();
+    }).withFailureHandler(e=>{toast(e.message||'Não foi possível gerar a oferta.',true);if(panel)panel.innerHTML='';}).gerarEscalasAutomaticasFullTime(authToken,operacaoId);
+  }
+  function registrarRespostaOfertaOperacao(ofertaId){
+    const resposta=prompt('Resposta recebida do motorista: digite ACEITAR, RECUSAR ou INDISPONIVEL.');
+    if(!resposta)return;
+    const normalized=resposta.trim().toUpperCase();
+    let motivo='';
+    if(['RECUSAR','RECUSOU','INDISPONIVEL'].includes(normalized)){
+      motivo=prompt('Informe o motivo da recusa/indisponibilidade:')||'';
+      if(!motivo.trim()){toast('O motivo é obrigatório para recusa ou indisponibilidade.',true);return;}
+    }else if(!['ACEITAR','ACEITA'].includes(normalized)){toast('Resposta inválida.',true);return;}
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Resposta registrada.',!r.ok);
+      atualizarPainelOperacoes();
+    }).withFailureHandler(e=>toast(e.message||'Não foi possível registrar a resposta.',true)).registrarRespostaOfertaEscalaFullTime(authToken,ofertaId,normalized,motivo);
+  }
+
   function showCandidatosOperacao(id){
     const panel=document.getElementById('operacaoActionPanel');panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
     google.script.run.withSuccessHandler(rows=>{
@@ -416,8 +560,9 @@
     }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message)+'</div></div>';}).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
   function designarConjuntoOperacao(operacaoId,conjuntoId){
-    const motivo=prompt('Justificativa/observação da designação (opcional):')||'';
-    if(!confirm('Confirmar designação deste conjunto para a operação?'))return;
+    const motivo=prompt('Informe a justificativa obrigatória para a designação excepcional:')||'';
+    if(!motivo.trim()){toast('A justificativa é obrigatória.',true);return;}
+    if(!confirm('Confirmar designação excepcional deste conjunto para a operação?'))return;
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,motivo:motivo});
   }
   function showMovimentacao(id){
