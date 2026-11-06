@@ -137,7 +137,7 @@ O segundo arquivo possui apenas os 12 campos iniciais. É uma versão antiga e n
 
 Arquivo alterado: `Code.gs`.
 
-Commit mais recente: `c508dd736849bfc0e24ebd3f1993b2700f138a4f`.
+Commits de implementação: `20af4cc2c41e3bc11e069a50bed6049e9f30fbf6`, `c508dd736849bfc0e24ebd3f1993b2700f138a4f` e `0b3a740be3fc8fd9fa6184aa8345fa936c57ca21`.
 
 Mudanças:
 1. Atualizei o esquema de MOTORISTAS para os 26 cabeçalhos observados na base operacional.
@@ -151,7 +151,7 @@ Mudanças:
 9. Mantive a aplicação de overrides administrativos de status dos motoristas.
 10. `contarAtivos_()` e `contarStatus_()` agora contam a base operacional nativa.
 11. O painel passou a ler documentos da guia nativa CONTROLE_DOCUMENTAL em vez do espelho legado.
-12. A capacidade útil do cavalo passou a ser lida do próprio cadastro CAVALOS, e não associada por placa a CAMINHOES.
+12. A capacidade útil do cavalo passou a ser lida do próprio cadastro CAVALOS, e não associada por placa a CAMINHOES.\n13. As rotinas de designação de conjunto e ordenação de candidatos passaram a consultar MOTORISTAS e CONJUNTOS nativos, removendo os últimos usos operacionais do leitor de espelhos legados.
 
 **Importante:** estas mudanças estão no repositório. Não foram publicadas no Apps Script e não foram executadas contra a planilha real.
 
