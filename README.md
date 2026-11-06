@@ -40,7 +40,7 @@ Não existem módulos operacionais independentes chamados `CAMINHOES` ou `CARGAS
 - `WhatsAppTickets.gs`: recebimento e retenção de evidências do WhatsApp.
 - `IntegracaoDriveCliente.gs`: integração com ambiente Drive do cliente.
 - `docs/FULLTIME_MODELO_OPERACIONAL_OPERACOES_VIAGENS.md`: contrato funcional e relacional do modelo de operação e viagem.
-- `docs/FULLTIME_PLANO_MASSA_FICTICIA_TESTES_CARGA.md`: plano de geração de massa sintética e teste de desempenho.
+- `docs/FULLTIME_PLANO_MASSA_FICTICIA_TESTES_CARGA.md`: plano de geração de massa sintética e teste de desempenho.\n- `docs/FULLTIME_CONTINUIDADE_TECNICA_2026-11-06.md`: registro das correções, commits, validações pendentes e próximas etapas.
 
 ## Estado de implementação
 
