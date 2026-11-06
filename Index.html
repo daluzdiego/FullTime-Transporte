@@ -628,9 +628,11 @@
     if(!confirm('Confirmar '+viagensPrevistas+' viagens e '+toneladasPrevistas+' t para este motorista/conjunto?'))return;
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,viagensPrevistas:viagensPrevistas,toneladasPrevistas:toneladasPrevistas,motivo:motivo});
   }
+  let activeTripOperationId='';
   function showMovimentacao(id){
+    activeTripOperationId=id;
     const op=(dashboard?.operacoes||[]).find(o=>o.id===id);
-    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>p.campos[2]==='ATIVO'&&p.campos[0]&&p.campos[1]);
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>p.operacaoId===id&&p.campos[2]==='ATIVO'&&p.campos[0]&&p.campos[1]);
     const mine=parts.filter(p=>p.campos[0]&&p.id);
     const panel=document.getElementById('operacaoActionPanel');
     const options=mine.map(p=>{
@@ -652,7 +654,7 @@
   function showViagensOperacao(id){
     const panel=document.getElementById('operacaoActionPanel');
     if(!panel)return;
-    const trips=(dashboard?.viagens||[]).filter(v=>v.campos[0]===id);
+    const trips=(dashboard?.viagens||[]).filter(v=>v.operacaoId===id);
     const rows=trips.map(v=>{
       const f=v.campos,seq=f[1]||'—',status=f[5]||'—',weight=f[10]||'';
       let actions='';
@@ -677,7 +679,7 @@
     google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao concluir viagem.',true)).concluirViagemFullTime(authToken,{viagemId:viagemId,pesoReal:peso});
   }
   function refreshTripPanel(){
-    google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
+    google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');if(activeTripOperationId)showMovimentacao(activeTripOperationId);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
   }
 
   function renderDocumentExpiryNotice(){
