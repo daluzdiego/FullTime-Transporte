@@ -176,7 +176,8 @@ function gerarMassaFicticiaHomologacaoFullTime() {
       const opId=id('FTTEST-OP',c), first=(c-1)*10+1, last=c*10, volume=1000, tripTarget=20;
       operations.push({ID:opId,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:today,CLIENTE:cli.NOME_FANTASIA,NOME_OPERACAO:'Operação de Homologação '+c,ORIGEM:origin,DESTINO:dest,CATEGORIA:categories[(c-1)%3],VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:tripTarget,SALDO_TONELADAS:volume,OBSERVACOES:tag,CRIADO_POR:'HOMOLOGACAO',ID_EXTERNO:opId,TOTAL_VIAGENS_CONCLUIDAS:0,TOTAL_TONELADAS_REALIZADAS:0,DATA_FIM_LIMITE:iso(future),JANELA_INICIO:'06:00',JANELA_FIM:'22:00',PRIORIDADE:c===1?'URGENTE':c===2?'ALTA':'NORMAL',PRODUTO_SERVICO:'Carga geral fictícia',TIPO_OPERACAO:'TRANSPORTE DIRETO',CONTATO_CLIENTE:'Contato Teste',CLIENTE_ID:cli.ID,LOCAL_ORIGEM_ID:originId,LOCAL_DESTINO_ID:destId});
       rules.push({ID:id('FTTEST-REG',c),CRIADO_EM:now,STATUS:'ATIVA',LOCAL_ID:originId,PESO_MIN_TONELADAS:1,PESO_MAX_TONELADAS:50,TIPO_CAVALO:'TRACAO',TIPO_CARRETA:'GRANELEIRA',EXIGENCIAS:'Documentação simulada para homologação',OBSERVACOES:tag});
-      for(let i=first;i<=last;i++){
+      // As três primeiras operações recebem 30 conjuntos; a quarta fica sem designação para testar o ranking automático com 10 conjuntos livres.
+      if(c<=3) for(let i=first;i<=last;i++){
         const driverId=id('FTTEST-MOT',i), setId=id('FTTEST-CON',i), partId=id('FTTEST-PAR',i);
         participations.push({ID:partId,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:setId,MOTORISTA_ID:driverId,STATUS_PARTICIPACAO:'ATIVO',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'',REGISTRADO_POR:'HOMOLOGACAO',VIAGENS_PREVISTAS:2,TONELADAS_PREVISTAS:100,VIAGENS_INICIADAS:0,INICIO_PREVISTO:today+' 06:00',FIM_PREVISTO:today+' 22:00',ATUALIZADO_EM:now,ATUALIZADO_POR:'HOMOLOGACAO'});
         for(let t=1;t<=2;t++){
