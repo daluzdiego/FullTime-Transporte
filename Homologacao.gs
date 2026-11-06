@@ -253,6 +253,7 @@ function validarMassaHomologacaoFullTime() {
   const ss=SpreadsheetApp.openById(id), read=n=>ss.getSheetByName(n).getDataRange().getValues();
   const count=n=>Math.max(0,read(n).length-1);
   const drivers=read('MOTORISTAS'), horses=read('CAVALOS'), trailers=read('CARRETAS'), sets=read('CONJUNTOS');
+  const ops=read('OPERACOES'), parts=read('PARTICIPACAO_OPERACOES'), trips=read('VIAGENS');
   const driverIds=new Set(drivers.slice(1).map(r=>String(r[0]))), horseIds=new Set(horses.slice(1).map(r=>String(r[0]))), trailerIds=new Set(trailers.slice(1).map(r=>String(r[0])));
   const errors=[];
   if(count('MOTORISTAS')!==40)errors.push('Esperados 40 motoristas.');
@@ -274,7 +275,6 @@ function validarMassaHomologacaoFullTime() {
   });
   ops.slice(1).forEach(op=>{if(offerCounts[String(op[0])]!==10)errors.push('Operação '+op[0]+' não possui exatamente 10 convites.');});
   sets.slice(1).forEach((r,i)=>{if(!driverIds.has(String(r[3])))errors.push('Conjunto '+(i+1)+' sem motorista válido.');if(!horseIds.has(String(r[4])))errors.push('Conjunto '+(i+1)+' sem cavalo válido.');if(r[6]&&!trailerIds.has(String(r[6])))errors.push('Conjunto '+(i+1)+' sem carreta válida.');});
-  const ops=read('OPERACOES'), parts=read('PARTICIPACAO_OPERACOES'), trips=read('VIAGENS');
   const opIds=new Set(ops.slice(1).map(r=>String(r[0]))), partIds=new Set(parts.slice(1).map(r=>String(r[0])));
   parts.slice(1).forEach(r=>{if(!opIds.has(String(r[2])))errors.push('Participação sem operação: '+r[0]);if(!driverIds.has(String(r[4])))errors.push('Participação sem motorista: '+r[0]);});
   trips.slice(1).forEach(r=>{if(!opIds.has(String(r[2]))||!partIds.has(String(r[3])))errors.push('Viagem sem operação/participação: '+r[0]);});
