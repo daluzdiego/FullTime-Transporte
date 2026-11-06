@@ -291,14 +291,12 @@ function salvarMotoristaFullTime(token, data) {
   if (!cnh) throw new Error('Informe o número da CNH.');
   if (!['C','D','E'].includes(categoria)) throw new Error('Selecione a categoria da CNH.');
   if (!data.validade) throw new Error('Informe a validade da CNH.');
-  if (cpf && duplicado_('MOTORISTAS', 5, cpf)) throw new Error('Já existe um motorista cadastrado com este CPF.');
-
-  const id = Utilities.getUuid();
-  getSheet_('MOTORISTAS').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', nome, cpf, telefone,
-    texto_(data.email, 150), cnh, categoria, data.validade,
-    texto_(data.cidade, 120), texto_(data.observacoes, 1000)
-  ]);
+  const lock=LockService.getScriptLock();lock.waitLock(10000);let id;
+  try{
+    if(cpf)ftExigirUnicidadeCadastro_('MOTORISTAS',cpf,'');
+    id=Utilities.getUuid();
+    getSheet_('MOTORISTAS').appendRow([id,new Date(),'PENDENTE_REVISAO',nome,cpf,telefone,texto_(data.email,150),cnh,categoria,data.validade,texto_(data.cidade,120),texto_(data.observacoes,1000)]);
+  }finally{lock.releaseLock();}
   auditar_(session, 'CRIAR', 'MOTORISTA', id, nome);
   return { ok: true, id: id, message: 'Motorista cadastrado e enviado para revisão.' };
 }
@@ -313,18 +311,15 @@ function salvarCaminhaoFullTime(token, data) {
   const tipo = texto_(data.tipo, 50);
   const capacidade = Number(data.capacidade);
   if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já está cadastrada.');
   if (!marca || !modelo) throw new Error('Informe marca e modelo.');
   if (!ano || !/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
   if (!tipo) throw new Error('Selecione o tipo de veículo.');
   if (!(capacidade > 0 && capacidade <= 200)) throw new Error('Informe uma capacidade em toneladas válida.');
 
-  const id = Utilities.getUuid();
-  getSheet_('CAMINHOES').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', placa,
-    digitos_(data.renavam), marca, modelo, ano, tipo, capacidade,
-    texto_(data.documento, 80), texto_(data.observacoes, 1000)
-  ]);
+  const lock=LockService.getScriptLock();lock.waitLock(10000);let id;
+  try{ftExigirUnicidadeCadastro_('CAMINHOES',placa,'');id=Utilities.getUuid();
+    getSheet_('CAMINHOES').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,digitos_(data.renavam),marca,modelo,ano,tipo,capacidade,texto_(data.documento,80),texto_(data.observacoes,1000)]);
+  }finally{lock.releaseLock();}
   auditar_(session, 'CRIAR', 'CAMINHAO', id, placa + ' — ' + marca + ' ' + modelo);
   return { ok: true, id: id, message: 'Caminhão cadastrado e enviado para revisão.' };
 }
@@ -625,13 +620,14 @@ function salvarCavaloFullTime(token, data) {
   const tara = Number(String(data.tara || '').replace(',', '.'));
   const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
   if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAVALOS', 4, placa) || duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já existe em CAVALOS ou CAMINHOES. Não duplique o veículo.');
   if (!marca || !modelo) throw new Error('Informe marca e modelo.');
   if (!/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
   if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
   if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id = Utilities.getUuid();
-  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
+  const lock=LockService.getScriptLock();lock.waitLock(10000);let id;
+  try{ftExigirUnicidadeCadastro_('CAVALOS',placa,'');id=Utilities.getUuid();
+    getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
+  }finally{lock.releaseLock();}
   auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
   return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
 }
@@ -645,13 +641,14 @@ function salvarCarretaFullTime(token, data) {
   const capacidade = Number(String(data.capacidade || '').replace(',', '.'));
   const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
   if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CARRETAS',4,placa) || duplicado_('CAVALOS',4,placa) || duplicado_('CAMINHOES',4,placa)) throw new Error('Esta placa já está cadastrada em outro veículo.');
   if (!tipo) throw new Error('Selecione o tipo de carreta.');
   if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
   if (!(capacidade > 0 && capacidade <= 100)) throw new Error('Informe a capacidade de carga em toneladas.');
   if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id=Utilities.getUuid();
-  getSheet_('CARRETAS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,tipo,tara,capacidade,pbtc,texto_(data.observacoes,1000)]);
+  const lock=LockService.getScriptLock();lock.waitLock(10000);let id;
+  try{ftExigirUnicidadeCadastro_('CARRETAS',placa,'');id=Utilities.getUuid();
+    getSheet_('CARRETAS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,tipo,tara,capacidade,pbtc,texto_(data.observacoes,1000)]);
+  }finally{lock.releaseLock();}
   auditar_(session,'CRIAR','CARRETA',id,placa+' — '+tipo);
   return {ok:true,id:id,message:'Carreta cadastrada e enviada para revisão.'};
 }
@@ -728,6 +725,29 @@ function salvarConjuntoVeicularFullTime(token, data) {
   sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
   auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
   return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
+}
+
+/** Verificação final de unicidade; chamar sob ScriptLock. */
+function ftExigirUnicidadeCadastro_(entidade, valor, idAtual) {
+  const entity=String(entidade||'').toUpperCase(), normalized=entity==='MOTORISTAS'?digitos_(valor):normalizarPlaca_(valor);
+  if(!normalized)return;
+  const targets=entity==='MOTORISTAS'?[['MOTORISTAS','CPF']]:
+    entity==='CAVALOS'?[['CAVALOS','PLACA'],['CAMINHOES','PLACA']]:
+    entity==='CARRETAS'?[['CARRETAS','PLACA'],['CAVALOS','PLACA'],['CAMINHOES','PLACA']]:
+    entity==='CAMINHOES'?[['CAMINHOES','PLACA'],['CAVALOS','PLACA'],['CARRETAS','PLACA']]:[];
+  if(!targets.length)throw new Error('Entidade sem regra de unicidade: '+entity);
+  targets.forEach(([sheetName,field])=>{
+    const rows=getSheet_(sheetName).getDataRange().getValues();if(rows.length<2)return;
+    const hs=rows[0].map(ftNormHeader_), vi=hs.indexOf(field), ii=hs.indexOf('ID');
+    if(vi<0)throw new Error('Coluna '+field+' ausente em '+sheetName+'.');
+    for(let i=1;i<rows.length;i++){
+      const found=entity==='MOTORISTAS'?digitos_(rows[i][vi]):normalizarPlaca_(rows[i][vi]);
+      if(found!==normalized)continue;
+      if(idAtual&&ii>=0&&String(rows[i][ii])===String(idAtual))continue;
+      const ni=hs.indexOf('NOMECOMPLETO'), name=entity==='MOTORISTAS'&&ni>=0?String(rows[i][ni]||'motorista'):normalized;
+      throw new Error('Já existe cadastro com este '+(entity==='MOTORISTAS'?'CPF':'placa')+' ('+name+'), na guia '+sheetName+'. Abra o registro existente em vez de criar outro.');
+    }
+  });
 }
 
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
