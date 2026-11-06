@@ -1008,6 +1008,35 @@ function iniciarViagemFullTime(token,dados) {
   } finally {lock.releaseLock();}
 }
 
+/** Replaneja viagens adicionais quando o plano anterior se esgotou e ainda há saldo. */
+function replanejarOperacaoFullTime(token,dados) {
+  const session=obterSessao_(token);exigirAdmin_(session);dados=dados||{};
+  const operacaoId=texto_(dados.operacaoId,100),participacaoId=texto_(dados.participacaoId,100),extra=Math.floor(Number(dados.viagensAdicionais||0));
+  if(!operacaoId||!participacaoId||!(extra>0))throw new Error('Informe operação, participação e quantidade adicional de viagens.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const opSh=getSheet_('OPERACOES'),ops=opSh.getDataRange().getValues(),om=ftHeaderMapViagens_(opSh),oi=ops.findIndex((r,i)=>i>0&&String(r[om.ID])===operacaoId);
+    if(oi<1)throw new Error('Operação não encontrada.');
+    const op=ops[oi];if(!['PENDENTE_REPLANEJAMENTO','EM_ANDAMENTO'].includes(String(op[om.STATUS])))throw new Error('A operação não está aguardando replanejamento.');
+    const partSh=getSheet_('PARTICIPACAO_OPERACOES'),parts=partSh.getDataRange().getValues(),pm=ftHeaderMapViagens_(partSh),pi=parts.findIndex((r,i)=>i>0&&String(r[pm.ID])===participacaoId&&String(r[pm.OPERACAOID])===operacaoId);
+    if(pi<1)throw new Error('Participação não encontrada.');
+    const part=parts[pi];if(String(part[pm.STATUSPARTICIPACAO])!=='ATIVO')throw new Error('A participação não está ativa.');
+    const sets=getSheet_('CONJUNTOS').getDataRange().getValues(),set=sets.find((r,i)=>i>0&&String(r[0])===String(part[pm.CONJUNTOID]));
+    const cap=set?Number(set[10]||0):0,remaining=Number(op[om.SALDOTONELADAS]||0);
+    const tonsRemaining=Number(part[pm.TONELADASPREVISTAS]||0)-Number(part[pm.TONELADASMOVIMENTADAS]||0);
+    if(!(cap>0&&remaining>0&&tonsRemaining>0))throw new Error('Não há saldo operacional e capacidade disponíveis para replanejar.');
+    const current=Number(part[pm.VIAGENSPREVISTAS]||0),next=current+extra;
+    if(!validarMetaViagensFullTime(tonsRemaining,cap,next-Number(part[pm.VIAGENSCONCLUIDAS]||0)).ok)throw new Error('A nova meta ainda não comporta o volume restante.');
+    const oldTotal=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0),newTotal=oldTotal+extra;
+    partSh.getRange(pi+1,pm.VIAGENSPREVISTAS+1).setValue(next);
+    opSh.getRange(oi+1,om.TOTALVIAGENSPREVISTAS+1).setValue(newTotal);
+    opSh.getRange(oi+1,om.STATUS+1).setValue('EM_ANDAMENTO');
+    const detail='Meta da participação '+current+' → '+next+'; total da operação '+oldTotal+' → '+newTotal+'. Saldo '+remaining+' t.';
+    auditar_(session,'REPLANEJAR_OPERACAO','OPERACAO',operacaoId,detail);
+    return {ok:true,message:'Plano atualizado: '+newTotal+' viagens previstas na operação.'};
+  }finally{lock.releaseLock();}
+}
+
 /** Registra um evento rastreável e atualiza o estado atual da viagem. */
 function registrarEventoViagemFullTime(token,dados) {
   const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
@@ -1124,7 +1153,9 @@ function concluirViagemFullTime(token,dados) {
     if(om.TOTALVIAGENSCONCLUIDAS!=null)opSh.getRange(oi+1,om.TOTALVIAGENSCONCLUIDAS+1).setValue(Number(op[om.TOTALVIAGENSCONCLUIDAS]||0)+1);
     if(om.TOTALTONELADASREALIZADAS!=null)opSh.getRange(oi+1,om.TOTALTONELADASREALIZADAS+1).setValue(Number(op[om.TOTALTONELADASREALIZADAS]||0)+peso);
     const otherOpen=trips.some((r,i)=>i>0&&i!==ti&&String(r[tm.OPERACAOID])===String(trip[tm.OPERACAOID])&&!['CONCLUIDA','CANCELADA'].includes(String(r[tm.STATUS])));
-    opSh.getRange(oi+1,om.STATUS+1).setValue(newBalance<=0.000001&&!otherOpen?'CONCLUIDA':'EM_ANDAMENTO');
+    const totalDone=Number(op[om.TOTALVIAGENSCONCLUIDAS]||0)+1,totalPlanned=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0);
+    const nextStatus=newBalance<=0.000001&&!otherOpen?'CONCLUIDA':(totalDone>=totalPlanned&&newBalance>0.000001&&!otherOpen?'PENDENTE_REPLANEJAMENTO':'EM_ANDAMENTO');
+    opSh.getRange(oi+1,om.STATUS+1).setValue(nextStatus);
     partSh.getRange(pi+1,pm.VIAGENSCONCLUIDAS+1).setValue(Number(parts[pi][pm.VIAGENSCONCLUIDAS]||0)+1);
     partSh.getRange(pi+1,pm.TONELADASMOVIMENTADAS+1).setValue(Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0)+peso);
     ftAppendEventoViagem_(viagemId,'VIAGEM_CONCLUIDA',session,'Peso real: '+peso+' t.');
