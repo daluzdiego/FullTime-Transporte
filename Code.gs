@@ -183,7 +183,7 @@ function obterPainelFullTime(token) {
     counts: {
       motoristas: contarAtivos_('MOTORISTAS'),
       pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAVALOS', 'PENDENTE_REVISAO') + contarStatus_('CARRETAS', 'PENDENTE_REVISAO'),
-      operacoesAbertas: contarStatus_('OPERACOES','ABERTA') + contarStatus_('OPERACOES','EM_ANDAMENTO'),
+      operacoesAbertas: contarStatus_('OPERACOES','ABERTA') + contarStatus_('OPERACOES','EM_ANDAMENTO') + contarStatus_('OPERACOES','PENDENTE_REPLANEJAMENTO'),
       viagensEmAndamento: viagens.filter(v=>['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'].includes(v.status)).length,
       viagensConcluidas: contarStatus_('VIAGENS','CONCLUIDA'),
       viagensPrevistas: operacoes.reduce((n,o)=>n+Number(o.campos[7]||0),0),
