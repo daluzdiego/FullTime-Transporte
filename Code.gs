@@ -256,7 +256,7 @@ function obterPainelFullTime(token) {
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
-    documentos: ftBrunoRowsAsLegacy_('DOCUMENTOS').map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))})),
+    documentos: (function(){const sh=getSheet_('CONTROLE_DOCUMENTAL'),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1).filter(r=>r[0]).map(r=>({id:String(r[0]||''),criado:r[6] instanceof Date?r[6].toISOString():String(r[6]||''),status:String(r[8]||''),campos:r.slice(3).map(x=>String(x==null?'':x))}));})(),
     caminhoes: listarRegistros_('CAMINHOES'),
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
@@ -852,6 +852,15 @@ function listarRegistros_(name) {
   const values = sh.getDataRange().getValues();
   const rows = values.length < 2 ? [] : values.slice(1);
   if (!rows.length) return [];
+
+  // Mantém decisões administrativas registradas no controle local, sem consultar espelhos externos.
+  if (name === 'MOTORISTAS') {
+    const overrides = ftReadStatusOverrides_('MOTORISTAS');
+    rows.forEach(r => {
+      const id = String(r[0] || '').trim();
+      if (id && overrides[id]) r[2] = overrides[id];
+    });
+  }
 
   const mapped = rows.filter(r => r[0]).map(r => ({
     id: String(r[0] || ''),
