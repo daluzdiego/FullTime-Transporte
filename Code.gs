@@ -1196,7 +1196,8 @@ function salvarOperacaoFullTime(token, data) {
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagens);
   return {ok:true,id:id,message:'Operação criada com '+viagens+' viagens previstas. Saldo inicial: '+volume+' t.'};
 }
-function registrarMovimentacaoOperacaoFullTime(token, data) {
+function registrarMovimentacaoOperacaoFullTime(token, data) { throw new Error('Movimentações agregadas foram descontinuadas. Utilize iniciarViagemFullTime, registrarEventoViagemFullTime e concluirViagemFullTime.');
+
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
   const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
@@ -1293,6 +1294,9 @@ function iniciarViagemFullTime(token,dados) {
     const counted=belonging.filter(r=>!['CANCELADA'].includes(String(r[tm.STATUS])));
     if(counted.length>=target)throw new Error('A meta de '+target+' viagens deste motorista/conjunto já foi atingida.');
     if(belonging.some(r=>['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'].includes(String(r[tm.STATUS]))))throw new Error('Já existe uma viagem aberta ou interrompida nesta participação.');
+    const driverId=String(part[pm.MOTORISTAID]||''),setId=String(part[pm.CONJUNTOID]||'');
+    const inProgress=tripRows.slice(1).some(r=>['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'].includes(String(r[tm.STATUS]))&&(String(r[tm.MOTORISTAID])===driverId||String(r[tm.CONJUNTOID])===setId));
+    if(inProgress)throw new Error('Motorista ou conjunto já possui viagem aberta em outra operação.');
     const setRows=getSheet_('CONJUNTOS').getDataRange().getValues(), set=setRows.find((r,i)=>i>0&&String(r[0])===String(part[pm.CONJUNTOID]));
     if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo.');
     const cap=Number(set[10]||0); if(!(cap>0))throw new Error('Conjunto sem capacidade útil aprovada.');
@@ -1363,7 +1367,8 @@ function concluirViagemFullTime(token,dados) {
     opSh.getRange(oi+1,om.SALDOTONELADAS+1).setValue(newBalance);
     if(om.TOTALVIAGENSCONCLUIDAS!=null)opSh.getRange(oi+1,om.TOTALVIAGENSCONCLUIDAS+1).setValue(Number(op[om.TOTALVIAGENSCONCLUIDAS]||0)+1);
     if(om.TOTALTONELADASREALIZADAS!=null)opSh.getRange(oi+1,om.TOTALTONELADASREALIZADAS+1).setValue(Number(op[om.TOTALTONELADASREALIZADAS]||0)+peso);
-    opSh.getRange(oi+1,om.STATUS+1).setValue(newBalance<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+    const otherOpen=trips.some((r,i)=>i>0&&i!==ti&&String(r[tm.OPERACAOID])===String(trip[tm.OPERACAOID])&&!['CONCLUIDA','CANCELADA'].includes(String(r[tm.STATUS])));
+    opSh.getRange(oi+1,om.STATUS+1).setValue(newBalance<=0.000001&&!otherOpen?'CONCLUIDA':'EM_ANDAMENTO');
     partSh.getRange(pi+1,pm.VIAGENSCONCLUIDAS+1).setValue(Number(parts[pi][pm.VIAGENSCONCLUIDAS]||0)+1);
     partSh.getRange(pi+1,pm.TONELADASMOVIMENTADAS+1).setValue(Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0)+peso);
     ftAppendEventoViagem_(viagemId,'VIAGEM_CONCLUIDA',session,'Peso real: '+peso+' t.');
