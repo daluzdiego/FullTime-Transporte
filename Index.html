@@ -230,11 +230,11 @@
   function renderPage(page){
     const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':page==='cargas'?'Programação e acompanhamento de cargas.':'Área administrativa';
+    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='motoristas') c.innerHTML=renderList('motoristas');
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
-    else if(page==='cargas') c.innerHTML=renderCargas();
+    
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
@@ -580,7 +580,7 @@
     const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
     const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Abrir programação de cargas</button></div></div>
+      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As viagens individuais são controladas diretamente nesta operação.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Abrir programação de cargas</button></div></div>
       <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
@@ -591,7 +591,7 @@
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
           <div class="field"><label>Categoria *</label><select name="categoria" required><option value="">Selecione</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Total previsto de viagens *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
