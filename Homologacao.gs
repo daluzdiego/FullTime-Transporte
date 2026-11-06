@@ -355,3 +355,35 @@ function padronizarCredenciaisMotoristasHomologacaoFullTime() {
     lock.releaseLock();
   }
 }
+
+/**
+ * Vincula o e-mail de teste do responsável ao motorista fictício 01.
+ * Não altera login, senha, vínculo de conjunto ou outros motoristas.
+ */
+function vincularEmailMotorista01HomologacaoFullTime() {
+  const email='contato.diegodaluz@gmail.com';
+  const driverId='FTTEST-MOT-0001';
+  const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID');
+  if(!authId) throw new Error('FT_DATABASE_ID não configurado.');
+  const auth=SpreadsheetApp.openById(authId);
+  const users=auth.getSheetByName('USUARIOS');
+  if(!users) throw new Error('Guia USUARIOS não encontrada.');
+  const uv=users.getDataRange().getValues();
+  const uh=uv[0].map(x=>String(x||'').trim().toUpperCase());
+  const loginCol=uh.indexOf('LOGIN'), profileCol=uh.indexOf('PERFIL'), driverCol=uh.indexOf('MOTORISTA_ID');
+  if(loginCol<0||profileCol<0||driverCol<0) throw new Error('Colunas de vínculo ausentes na guia USUARIOS.');
+  const user=uv.slice(1).find(r=>String(r[loginCol]||'').trim().toLowerCase()==='motora01'&&String(r[profileCol]||'').toUpperCase()==='MOTORISTA');
+  if(!user||String(user[driverCol]||'')!==driverId) throw new Error('O login motora01 não está vinculado ao motorista fictício 01. Nenhuma alteração realizada.');
+  const sh=getSheet_('MOTORISTAS'), values=sh.getDataRange().getValues();
+  const headers=values[0].map(x=>String(x||'').trim().toUpperCase());
+  const idCol=headers.indexOf('ID'), emailCol=headers.indexOf('EMAIL');
+  if(idCol<0||emailCol<0) throw new Error('Colunas ID/EMAIL ausentes em MOTORISTAS.');
+  const idx=values.findIndex((r,i)=>i>0&&String(r[idCol])===driverId);
+  if(idx<1) throw new Error('Motorista fictício 01 não encontrado.');
+  const collision=values.some((r,i)=>i>0&&i!==idx&&String(r[emailCol]||'').trim().toLowerCase()===email);
+  if(collision) throw new Error('Este e-mail já está cadastrado em outro motorista.');
+  sh.getRange(idx+1,emailCol+1).setValue(email);
+  const result={sucesso:true,motoristaId:driverId,login:'motora01',email:email,demaisMotoristasPreservados:true,notificacaoEmailAtivada:false};
+  Logger.log('EMAIL MOTORISTA 01 HOMOLOGACAO: '+JSON.stringify(result));
+  return result;
+}
