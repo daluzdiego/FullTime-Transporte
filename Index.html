@@ -518,7 +518,7 @@
           <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade útil cadastrada diretamente em CAVALOS</small></div>
           <div class="field"><label>Carreta do meio (opcional)</label><select name="carretaMeioId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta do meio')}</select></div>
           <div class="field"><label>Carreta final (opcional)</label><select name="carretaFinalId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta final')}</select></div>
-          <div class="field"><label>Capacidade somada do conjunto (t)</label><input name="capacidadeUtil" id="capacidadeConjunto" type="number" min="0.1" step="0.1" readonly required placeholder="Calculada automaticamente"><small id="capacidadeConjuntoDetalhe" class="muted">Selecione o cavalo e, se necessário, as carretas.</small></div>
+          <div class="field"><label>Capacidade útil aprovada do conjunto (t) *</label><input name="capacidadeUtil" id="capacidadeConjunto" type="number" min="0.1" step="0.1" required placeholder="Informe a capacidade validada"><small id="capacidadeConjuntoDetalhe" class="muted">Informe a capacidade operacional validada para esta combinação. O sistema não soma capacidades automaticamente.</small></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000" placeholder="Ex.: conjunto fixo; substituição somente com autorização do gestor"></textarea></div>
         </div><div id="conjuntoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" id="saveConjuntoButton" type="submit">Salvar conjunto</button></div></form>
       </div></div>
@@ -550,17 +550,15 @@
       const select=form.elements[name], option=select&&select.selectedOptions[0];
       return option&&option.value?Number(option.dataset.capacity||0):0;
     });
-    const input=document.getElementById('capacidadeConjunto');
     const detail=document.getElementById('capacidadeConjuntoDetalhe');
     const invalidTrailer=ids.slice(1).some((name,i)=>form.elements[name].value && values[i+1]<=0);
     if(!form.elements.cavaloId.value||values[0]<=0||invalidTrailer){
-      input.value='';
-      detail.textContent='Não foi possível calcular: confira a capacidade do cavalo e das carretas selecionadas.';
+      detail.textContent='Confira a capacidade cadastrada do cavalo e de cada carreta.';
       return;
     }
-    const total=values.reduce((sum,v)=>sum+v,0);
-    input.value=total.toFixed(1);
-    detail.textContent='Cavalo '+values[0].toLocaleString('pt-BR')+' t + carretas '+values.slice(1).filter(v=>v>0).map(v=>v.toLocaleString('pt-BR')+' t').join(' + ')+' = '+total.toLocaleString('pt-BR')+' t (soma nominal para teste; validar limites legais do conjunto).';
+    const trailers=values.slice(1).filter(v=>v>0);
+    const limit=trailers.length?Math.min(values[0],trailers.reduce((sum,v)=>sum+v,0)):values[0];
+    detail.textContent='Limite conservador pelos componentes: até '+limit.toLocaleString('pt-BR')+' t. Informe abaixo a capacidade útil homologada desta combinação; ela pode ser menor por PBTC, tara, configuração, AET e legislação aplicável.';
   }
 
   function saveConjunto(ev){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveConjuntoButton');const err=document.getElementById('conjuntoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar conjunto';err.textContent=e.message||'Não foi possível salvar o conjunto.';}).salvarConjuntoVeicularFullTime(authToken,data);}
