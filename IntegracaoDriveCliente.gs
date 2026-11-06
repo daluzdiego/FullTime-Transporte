@@ -185,3 +185,93 @@ function ftDriveTemGatilho_() {
       trigger.getTriggerSourceId() === id;
   });
 }
+
+
+/** Valida CPF/placa na base nativa, permitindo editar o próprio registro. */
+function validarUnicidadeCadastroFullTime(token, entidade, dados) {
+  obterSessao_(token); exigirAdmin_(obterSessao_(token));
+  dados=dados||{}; entidade=String(entidade||'').trim().toUpperCase();
+  const rules={
+    MOTORISTAS:{field:'CPF',sheet:'MOTORISTAS',message:'Este CPF já está cadastrado como motorista.'},
+    CAVALOS:{field:'PLACA',sheet:'CAVALOS',message:'Esta placa já está cadastrada como cavalo.'},
+    CARRETAS:{field:'PLACA',sheet:'CARRETAS',message:'Esta placa já está cadastrada como carreta.'}
+  };
+  const rule=rules[entidade]; if(!rule) throw new Error('Entidade inválida.');
+  const raw=String(dados[rule.field]||dados[rule.field.toLowerCase()]||'');
+  const normalized=entidade==='MOTORISTAS'?raw.replace(/\\D/g,''):ftDriveNormalizarPlaca_(raw);
+  if(!normalized) return {ok:false,duplicado:false,message:'Informe '+rule.field+'.'};
+  if(entidade==='MOTORISTAS'&&(normalized.length!==11||!cpfValido_(normalized)))
+    return {ok:false,invalido:true,message:'CPF inválido. Confira os 11 dígitos.'};
+  if(entidade!=='MOTORISTAS'&&normalized.length!==7)
+    return {ok:false,invalido:true,message:'Placa inválida. Informe os 7 caracteres.'};
+
+  const values=getSheet_(rule.sheet).getDataRange().getValues();
+  if(values.length<2) return {ok:true,duplicado:false,message:'Cadastro disponível.'};
+  const headers=values[0].map(ftDriveNormHeader_);
+  const fieldIndex=headers.indexOf(ftDriveNormHeader_(rule.field));
+  const idIndex=headers.indexOf('ID'), externalIndex=headers.indexOf('IDEXTERNO');
+  if(fieldIndex<0) throw new Error('Coluna '+rule.field+' ausente na base '+rule.sheet+'.');
+  const currentId=String(dados.idInterno||dados.ID||'').trim();
+  const currentExternalId=String(dados.idExterno||dados.ID_EXTERNO||'').trim();
+  const duplicate=values.slice(1).find(row=>{
+    const same=entidade==='MOTORISTAS'
+      ? String(row[fieldIndex]||'').replace(/\\D/g,'')===normalized
+      : ftDriveNormalizarPlaca_(row[fieldIndex])===normalized;
+    if(!same) return false;
+    if(currentId&&idIndex>=0&&String(row[idIndex]||'').trim()===currentId) return false;
+    if(currentExternalId&&externalIndex>=0&&String(row[externalIndex]||'').trim()===currentExternalId) return false;
+    return true;
+  });
+  if(!duplicate) return {ok:true,duplicado:false,message:'Cadastro disponível.'};
+  const nameIndex=headers.indexOf(entidade==='MOTORISTAS'?'NOMECOMPLETO':'PLACA');
+  const name=nameIndex>=0?String(duplicate[nameIndex]||'Registro existente'):'Registro existente';
+  const id=idIndex>=0?String(duplicate[idIndex]||''):'';
+  return {ok:false,duplicado:true,registroExistenteId:id,registroExistenteNome:name,
+    message:rule.message+' Registro encontrado: '+name+(id?' (ID '+id+').':'.')};
+}
+
+function ftDriveNormalizarPlaca_(value) {
+  return String(value==null?'':value).toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+
+/** Confere se uma nova composição pode substituir os vínculos de um conjunto. */
+function validarAlteracaoComposicaoConjuntoFullTime(token, dados) {
+  obterSessao_(token); exigirAdmin_(obterSessao_(token));
+  dados=dados||{};
+  const conjuntoId=String(dados.conjuntoId||'').trim();
+  if(!conjuntoId) throw new Error('Informe o conjunto que será editado.');
+  const setValues=getSheet_('CONJUNTOS').getDataRange().getValues();
+  const headers=setValues[0].map(ftDriveNormHeader_), idCol=headers.indexOf('ID');
+  const current=setValues.slice(1).find(r=>idCol>=0&&String(r[idCol])===conjuntoId);
+  if(!current) throw new Error('Conjunto não encontrado.');
+
+  const requested=[
+    {sheet:'MOTORISTAS',id:String(dados.motoristaId||''),label:'motorista'},
+    {sheet:'CAVALOS',id:String(dados.cavaloId||''),label:'cavalo'},
+    {sheet:'CARRETAS',id:String(dados.carretaMeioId||''),label:'carreta do meio',optional:true},
+    {sheet:'CARRETAS',id:String(dados.carretaFinalId||''),label:'carreta final',optional:true}
+  ];
+  const errors=[];
+  requested.forEach(item=>{
+    item.id=item.id.trim();
+    if(!item.id&&item.optional) return;
+    if(!item.id){errors.push('Selecione '+item.label+'.');return;}
+    const rows=getSheet_(item.sheet).getDataRange().getValues();
+    const hs=rows[0].map(ftDriveNormHeader_), ix=hs.indexOf('ID'), st=hs.indexOf('STATUS');
+    const found=rows.slice(1).find(r=>ix>=0&&String(r[ix])===item.id);
+    if(!found){errors.push('O '+item.label+' selecionado não existe.');return;}
+    if(st>=0&&String(found[st]).toUpperCase()!=='ATIVO') errors.push('O '+item.label+' não está ATIVO/aprovado.');
+  });
+  const ids=requested.filter(x=>x.id).map(x=>x.id);
+  if(new Set(ids).size!==ids.length) errors.push('O mesmo cadastro foi selecionado em mais de uma posição.');
+  const statusCol=headers.indexOf('STATUS');
+  const componentCols=['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'].map(h=>headers.indexOf(h));
+  setValues.slice(1).forEach(row=>{
+    if(String(row[idCol])===conjuntoId||(statusCol>=0&&String(row[statusCol]).toUpperCase()!=='ATIVO')) return;
+    componentCols.forEach(col=>{
+      if(col>=0&&row[col]&&ids.includes(String(row[col]))) errors.push('Um componente selecionado já pertence a outro conjunto ATIVO.');
+    });
+  });
+  return {ok:errors.length===0,conjuntoId:conjuntoId,errors:errors,
+    message:errors.length?errors.join(' '):'Composição válida. A confirmação poderá substituir os vínculos atuais, preservando histórico.'};
+}
