@@ -1236,6 +1236,118 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
 }
+
+/** Resolve colunas pelo cabeçalho para não depender da posição física após migrações aditivas. */
+function ftHeaderMapViagens_(sheet) {
+  const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
+  const map={}; headers.forEach((h,i)=>{if(h)map[h]=i;}); return map;
+}
+function ftAppendEventoViagem_(viagemId,tipo,session,detalhes) {
+  const sh=getSheet_('EVENTOS_VIAGEM'), now=new Date();
+  sh.appendRow([Utilities.getUuid(),viagemId,tipo,now,now,'','','',session.id||session.login||'', 'PAINEL_ADMIN',tipo, texto_(detalhes,1000), Utilities.getUuid()]);
+}
+
+/** Inicia uma viagem individual dentro de uma participação já designada. */
+function iniciarViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const operacaoId=texto_(dados.operacaoId,100), participacaoId=texto_(dados.participacaoId,100);
+  if(!operacaoId||!participacaoId)throw new Error('Informe operação e participação.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try {
+    const opSh=getSheet_('OPERACOES'), opRows=opSh.getDataRange().getValues(), om=ftHeaderMapViagens_(opSh);
+    const oi=opRows.findIndex((r,i)=>i>0&&String(r[om.ID])===operacaoId);
+    if(oi<1)throw new Error('Operação não encontrada.');
+    if(!['ABERTA','EM_ANDAMENTO'].includes(String(opRows[oi][om.STATUS])))throw new Error('Operação não está aberta.');
+    const partSh=getSheet_('PARTICIPACAO_OPERACOES'), partRows=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
+    const pi=partRows.findIndex((r,i)=>i>0&&String(r[pm.ID])===participacaoId&&String(r[pm.OPERACAO_ID])===operacaoId);
+    if(pi<1)throw new Error('Participação não encontrada nesta operação.');
+    const part=partRows[pi];
+    if(String(part[pm.STATUS_PARTICIPACAO])!=='ATIVO')throw new Error('A participação não está ativa.');
+    const target=Number(part[pm.VIAGENS_PREVISTAS]||0);
+    if(!(target>0))throw new Error('Defina a meta de viagens desta participação antes de iniciar.');
+    const tripSh=getSheet_('VIAGENS'), tripRows=tripSh.getDataRange().getValues(), tm=ftHeaderMapViagens_(tripSh);
+    const belonging=tripRows.slice(1).filter(r=>String(r[tm.PARTICIPACAO_ID])===participacaoId);
+    const counted=belonging.filter(r=>!['CANCELADA'].includes(String(r[tm.STATUS])));
+    if(counted.length>=target)throw new Error('A meta de '+target+' viagens deste motorista/conjunto já foi atingida.');
+    if(belonging.some(r=>['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'].includes(String(r[tm.STATUS]))))throw new Error('Já existe uma viagem aberta ou interrompida nesta participação.');
+    const setRows=getSheet_('CONJUNTOS').getDataRange().getValues(), set=setRows.find((r,i)=>i>0&&String(r[0])===String(part[pm.CONJUNTO_ID]));
+    if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo.');
+    const cap=Number(set[10]||0); if(!(cap>0))throw new Error('Conjunto sem capacidade útil aprovada.');
+    const op=opRows[oi], remaining=Number(op[om.SALDO_TONELADAS]||0);
+    if(!(remaining>0))throw new Error('Operação sem saldo de toneladas.');
+    const seqOp=tripRows.slice(1).filter(r=>String(r[tm.OPERACAO_ID])===operacaoId).reduce((m,r)=>Math.max(m,Number(r[tm.SEQUENCIA_OPERACAO]||0)),0)+1;
+    const seqDriver=counted.length+1;
+    const id=Utilities.getUuid(), now=new Date();
+    const row=new Array(tripSh.getLastColumn()).fill('');
+    const setv=(k,v)=>{if(tm[k]!=null)row[tm[k]]=v;};
+    setv('ID',id);setv('CRIADO_EM',now);setv('OPERACAO_ID',operacaoId);setv('PARTICIPACAO_ID',participacaoId);
+    setv('SEQUENCIA_OPERACAO',seqOp);setv('SEQUENCIA_MOTORISTA',seqDriver);setv('MOTORISTA_ID',part[pm.MOTORISTA_ID]);setv('CONJUNTO_ID',part[pm.CONJUNTO_ID]);
+    setv('STATUS','A_CAMINHO_ORIGEM');setv('ORIGEM_DESCRICAO',op[om.ORIGEM]);setv('DESTINO_DESCRICAO',op[om.DESTINO]);
+    setv('PESO_PREVISTO_TONELADAS',Math.min(cap,remaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
+    tripSh.appendRow(row);
+    if(om.TOTAL_VIAGENS_PREVISTAS!=null&&Number(op[om.TOTAL_VIAGENS_PREVISTAS]||0)<seqOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
+    if(pm.VIAGENS_INICIADAS!=null)partSh.getRange(pi+1,pm.VIAGENS_INICIADAS+1).setValue(Number(part[pm.VIAGENS_INICIADAS]||0)+1);
+    ftAppendEventoViagem_(id,'INICIO_VIAGEM',session,'Viagem '+seqOp+' iniciada.');
+    auditar_(session,'INICIAR_VIAGEM','VIAGEM',id,'Operação '+operacaoId+'; participação '+participacaoId);
+    return {ok:true,id:id,sequencia:seqOp,message:'Viagem '+seqOp+' iniciada.'};
+  } finally {lock.releaseLock();}
+}
+
+/** Registra um evento rastreável e atualiza o estado atual da viagem. */
+function registrarEventoViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const viagemId=texto_(dados.viagemId,100), tipo=texto_(dados.tipoEvento,50).toUpperCase(), detalhes=texto_(dados.observacoes,1000);
+  const allowed={CHEGADA_ORIGEM:'NO_LOCAL_ORIGEM',INICIO_CARREGAMENTO:'CARREGANDO',FIM_CARREGAMENTO:'CARREGADA',SAIDA_ORIGEM:'EM_TRANSITO',CHEGADA_DESTINO:'NO_LOCAL_DESTINO',INICIO_DESCARGA:'DESCARREGANDO'};
+  if(!viagemId||!allowed[tipo])throw new Error('Evento de viagem inválido.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_('VIAGENS'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),idx=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===viagemId);
+    if(idx<1)throw new Error('Viagem não encontrada.');
+    const row=rows[idx], status=String(row[m.STATUS]||'');
+    if(['CONCLUIDA','CANCELADA'].includes(status))throw new Error('Não é possível alterar uma viagem encerrada.');
+    const next=allowed[tipo];
+    const transitions={A_CAMINHO_ORIGEM:['NO_LOCAL_ORIGEM'],NO_LOCAL_ORIGEM:['CARREGANDO'],CARREGANDO:['CARREGADA'],CARREGADA:['EM_TRANSITO'],EM_TRANSITO:['NO_LOCAL_DESTINO'],NO_LOCAL_DESTINO:['DESCARREGANDO']};
+    if(!(transitions[status]||[]).includes(next))throw new Error('Transição inválida: '+status+' → '+next+'.');
+    const now=new Date();sh.getRange(idx+1,m.STATUS+1).setValue(next);sh.getRange(idx+1,m.ATUALIZADA_EM+1).setValue(now);sh.getRange(idx+1,m.ATUALIZADA_POR+1).setValue(session.login);
+    const dateFields={CHEGADA_ORIGEM:'CHEGADA_ORIGEM_REAL',INICIO_CARREGAMENTO:'CHEGADA_ORIGEM_REAL',FIM_CARREGAMENTO:'SAIDA_ORIGEM_REAL',SAIDA_ORIGEM:'SAIDA_ORIGEM_REAL',CHEGADA_DESTINO:'CHEGADA_DESTINO_REAL',INICIO_DESCARGA:'CHEGADA_DESTINO_REAL'};
+    const col=m[dateFields[tipo]];if(col!=null)sh.getRange(idx+1,col+1).setValue(now);
+    ftAppendEventoViagem_(viagemId,tipo,session,detalhes);
+    auditar_(session,'EVENTO_VIAGEM','VIAGEM',viagemId,tipo+'; '+detalhes);
+    return {ok:true,status:next,message:'Evento registrado: '+tipo+'.'};
+  }finally{lock.releaseLock();}
+}
+
+/** Conclui viagem, confere capacidade/saldo e atualiza os acumuladores da operação e participação. */
+function concluirViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const viagemId=texto_(dados.viagemId,100), peso=Number(String(dados.pesoReal||'').replace(',','.'));
+  if(!viagemId||!(peso>0&&isFinite(peso)))throw new Error('Informe a viagem e o peso real maior que zero.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const tripSh=getSheet_('VIAGENS'), trips=tripSh.getDataRange().getValues(),tm=ftHeaderMapViagens_(tripSh),ti=trips.findIndex((r,i)=>i>0&&String(r[tm.ID])===viagemId);
+    if(ti<1)throw new Error('Viagem não encontrada.');
+    const trip=trips[ti];if(String(trip[tm.STATUS])!=='DESCARREGANDO'&&String(trip[tm.STATUS])!=='NO_LOCAL_DESTINO')throw new Error('A viagem precisa estar no destino e com descarga iniciada antes da conclusão.');
+    const setRows=getSheet_('CONJUNTOS').getDataRange().getValues(),set=setRows.find((r,i)=>i>0&&String(r[0])===String(trip[tm.CONJUNTO_ID]));
+    const cap=set?Number(set[10]||0):0;if(!(cap>0)||peso>cap+0.000001)throw new Error('Peso real excede a capacidade útil aprovada do conjunto ('+cap+' t).');
+    const opSh=getSheet_('OPERACOES'),ops=opSh.getDataRange().getValues(),om=ftHeaderMapViagens_(opSh),oi=ops.findIndex((r,i)=>i>0&&String(r[om.ID])===String(trip[tm.OPERACAO_ID]));
+    if(oi<1)throw new Error('Operação vinculada não encontrada.');
+    const op=ops[oi],saldo=Number(op[om.SALDO_TONELADAS]||0);if(peso>saldo+0.000001)throw new Error('Peso excede saldo da operação ('+saldo+' t).');
+    const partSh=getSheet_('PARTICIPACAO_OPERACOES'),parts=partSh.getDataRange().getValues(),pm=ftHeaderMapViagens_(partSh),pi=parts.findIndex((r,i)=>i>0&&String(r[pm.ID])===String(trip[tm.PARTICIPACAO_ID]));
+    if(pi<1)throw new Error('Participação da viagem não encontrada.');
+    const now=new Date(),newBalance=Math.max(0,saldo-peso);
+    tripSh.getRange(ti+1,tm.STATUS+1).setValue('CONCLUIDA');tripSh.getRange(ti+1,tm.PESO_REAL_TONELADAS+1).setValue(peso);tripSh.getRange(ti+1,tm.FIM_REAL+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADA_EM+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADA_POR+1).setValue(session.login);
+    opSh.getRange(oi+1,om.SALDO_TONELADAS+1).setValue(newBalance);
+    if(om.TOTAL_VIAGENS_CONCLUIDAS!=null)opSh.getRange(oi+1,om.TOTAL_VIAGENS_CONCLUIDAS+1).setValue(Number(op[om.TOTAL_VIAGENS_CONCLUIDAS]||0)+1);
+    if(om.TOTAL_TONELADAS_REALIZADAS!=null)opSh.getRange(oi+1,om.TOTAL_TONELADAS_REALIZADAS+1).setValue(Number(op[om.TOTAL_TONELADAS_REALIZADAS]||0)+peso);
+    opSh.getRange(oi+1,om.STATUS+1).setValue(newBalance<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+    partSh.getRange(pi+1,pm.VIAGENS_CONCLUIDAS+1).setValue(Number(parts[pi][pm.VIAGENS_CONCLUIDAS]||0)+1);
+    partSh.getRange(pi+1,pm.TONELADAS_MOVIMENTADAS+1).setValue(Number(parts[pi][pm.TONELADAS_MOVIMENTADAS]||0)+peso);
+    ftAppendEventoViagem_(viagemId,'VIAGEM_CONCLUIDA',session,'Peso real: '+peso+' t.');
+    auditar_(session,'CONCLUIR_VIAGEM','VIAGEM',viagemId,'Peso '+peso+' t; saldo operação '+newBalance+' t.');
+    return {ok:true,saldoRestante:newBalance,message:'Viagem concluída. Saldo da operação: '+newBalance+' t.'};
+  }finally{lock.releaseLock();}
+}
+
 function alterarEstadoConjuntoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const id=texto_(data.conjuntoId,100), estado=texto_(data.estado,40).toUpperCase(), restricoes=texto_(data.restricoes,1000);
