@@ -1049,6 +1049,70 @@ function registrarEventoViagemFullTime(token,dados) {
   }finally{lock.releaseLock();}
 }
 
+/** Interrompe uma viagem sem perder seu estado anterior nem o histórico. */
+function interromperViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const id=texto_(dados.viagemId,100),motivo=texto_(dados.motivo,1000);
+  if(!id||!motivo)throw new Error('Informe a viagem e o motivo da interrupção.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_('VIAGENS'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),idx=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);
+    if(idx<1)throw new Error('Viagem não encontrada.');
+    const status=String(rows[idx][m.STATUS]||'');
+    if(['CONCLUIDA','CANCELADA','INTERROMPIDA'].includes(status))throw new Error('Esta viagem não pode ser interrompida no estado atual.');
+    const now=new Date();
+    sh.getRange(idx+1,m.STATUS+1).setValue('INTERROMPIDA');
+    sh.getRange(idx+1,m.STATUSANTESINTERRUPCAO+1).setValue(status);
+    sh.getRange(idx+1,m.INTERRUPPIDAEM+1).setValue(now);
+    sh.getRange(idx+1,m.MOTIVOINTERRUPCAO+1).setValue(motivo);
+    sh.getRange(idx+1,m.ATUALIZADAEM+1).setValue(now);sh.getRange(idx+1,m.ATUALIZADAPOR+1).setValue(session.login);
+    ftAppendEventoViagem_(id,'VIAGEM_INTERROMPIDA',session,motivo);
+    auditar_(session,'INTERROMPER_VIAGEM','VIAGEM',id,status+' → INTERROMPIDA; '+motivo);
+    return {ok:true,message:'Viagem interrompida. O estado anterior foi preservado para retomada.'};
+  }finally{lock.releaseLock();}
+}
+
+/** Retoma uma viagem interrompida, desde que motorista e conjunto não estejam em outra viagem. */
+function retomarViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const id=texto_(dados.viagemId,100);
+  if(!id)throw new Error('Informe a viagem.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_('VIAGENS'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),idx=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);
+    if(idx<1)throw new Error('Viagem não encontrada.');
+    const trip=rows[idx];if(String(trip[m.STATUS])!=='INTERROMPIDA')throw new Error('Somente viagens interrompidas podem ser retomadas.');
+    const previous=String(trip[m.STATUSANTESINTERRUPCAO]||'');
+    if(!previous||['CONCLUIDA','CANCELADA','INTERROMPIDA'].includes(previous))throw new Error('Estado anterior inválido. Exige revisão administrativa.');
+    const overlap=rows.slice(1).some((r,i)=>i!==idx-1&&!['CONCLUIDA','CANCELADA'].includes(String(r[m.STATUS]))&&(String(r[m.MOTORISTAID])===String(trip[m.MOTORISTAID])||String(r[m.CONJUNTOID])===String(trip[m.CONJUNTOID])));
+    if(overlap)throw new Error('Motorista ou conjunto está em outra viagem ativa. Resolva a sobreposição antes de retomar.');
+    const now=new Date();sh.getRange(idx+1,m.STATUS+1).setValue(previous);sh.getRange(idx+1,m.RETOMADAEM+1).setValue(now);
+    sh.getRange(idx+1,m.ATUALIZADAEM+1).setValue(now);sh.getRange(idx+1,m.ATUALIZADAPOR+1).setValue(session.login);
+    ftAppendEventoViagem_(id,'VIAGEM_RETOMADA',session,'Retomada no estado '+previous+'.');
+    auditar_(session,'RETOMAR_VIAGEM','VIAGEM',id,'INTERROMPIDA → '+previous);
+    return {ok:true,message:'Viagem retomada no estado '+previous+'.'};
+  }finally{lock.releaseLock();}
+}
+
+/** Cancela uma viagem não concluída, preservando motivo e histórico. */
+function cancelarViagemFullTime(token,dados) {
+  const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
+  const id=texto_(dados.viagemId,100),motivo=texto_(dados.motivo,1000);
+  if(!id||!motivo)throw new Error('Informe a viagem e o motivo do cancelamento.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const sh=getSheet_('VIAGENS'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),idx=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);
+    if(idx<1)throw new Error('Viagem não encontrada.');
+    const trip=rows[idx];if(['CONCLUIDA','CANCELADA'].includes(String(trip[m.STATUS])))throw new Error('Viagem já encerrada.');
+    if(Number(trip[m.PESOREALTONELADAS]||0)>0)throw new Error('Viagem com peso real informado exige fluxo de ajuste, não cancelamento.');
+    const now=new Date();sh.getRange(idx+1,m.STATUS+1).setValue('CANCELADA');sh.getRange(idx+1,m.MOTIVOCANCELAMENTO+1).setValue(motivo);
+    sh.getRange(idx+1,m.ATUALIZADAEM+1).setValue(now);sh.getRange(idx+1,m.ATUALIZADAPOR+1).setValue(session.login);
+    ftAppendEventoViagem_(id,'VIAGEM_CANCELADA',session,motivo);
+    auditar_(session,'CANCELAR_VIAGEM','VIAGEM',id,motivo);
+    return {ok:true,message:'Viagem cancelada. A meta da participação poderá ser atendida por uma nova viagem.'};
+  }finally{lock.releaseLock();}
+}
+
 /** Conclui viagem, confere capacidade/saldo e atualiza os acumuladores da operação e participação. */
 function concluirViagemFullTime(token,dados) {
   const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
