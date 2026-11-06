@@ -518,9 +518,9 @@ function prepararBaseOperacionalFullTime() {
     HISTORICO_OPERACOES: ['ID','DATA_HORA','VIAGEM_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR'],
     TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','VIAGEM_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
-    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_VIAGEM_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    OFERTAS_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   Object.keys(schemas).forEach(function(name) {
     let sh = ss.getSheetByName(name);
@@ -961,10 +961,6 @@ function atualizarStatusFullTime(token, entidade, id, status) {
     required.forEach(item => {
       let assetRows = getSheet_(item[0]).getDataRange().getValues();
       let asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]));
-      if (!asset && item[0] === 'CAVALOS') {
-        assetRows = getSheet_('CAMINHOES').getDataRange().getValues();
-        asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
-      }
       if (!asset || String(asset[2]) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
     });
   }
