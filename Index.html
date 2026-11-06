@@ -636,7 +636,7 @@
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Concluídas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Abrir viagens da operação" onclick="showViagensOperacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="btn btn-primary" onclick="notificarCandidatosOperacao('${esc(o.id)}')">Notificar 10 candidatos</button> <button class="icon-btn" title="Abrir viagens da operação" onclick="showViagensOperacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
@@ -650,6 +650,15 @@
     google.script.run.withSuccessHandler(rows=>{
       panel.innerHTML='<div class="panel"><div class="panel-head"><h2>Conjuntos disponíveis para a operação</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class=\"btn btn-primary\" onclick=\"designarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\','+Number(r.capacity||0)+')\">Designar</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma participação foi criada.</div>')+'</div></div>';
     }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message)+'</div></div>';}).ordenarCandidatosOperacaoFullTime(authToken,id);
+  }
+  function notificarCandidatosOperacao(operacaoId){
+    if(!confirm('Gerar até dez convites individuais para os motoristas compatíveis com esta operação?'))return;
+    toast('Verificando compatibilidade e gerando convites…');
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Convites processados.');
+      showCandidatosOperacao(operacaoId);
+    }).withFailureHandler(err=>toast(err.message||'Não foi possível gerar os convites.',true))
+      .gerarOfertasCandidatosOperacaoFullTime(authToken,operacaoId);
   }
   function designarConjuntoOperacao(operacaoId,conjuntoId,capacidade){
     const op=(dashboard?.operacoes||[]).find(x=>x.id===operacaoId);
