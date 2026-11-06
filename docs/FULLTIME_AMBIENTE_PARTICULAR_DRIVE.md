@@ -112,3 +112,20 @@ Campos críticos podem exigir revisão humana antes de efetivar alteração, con
 ## 8. Limites da implementação inicial
 
 O arquivo IntegracaoDriveCliente.gs não deve ser considerado sincronização bidirecional concluída. Ele estabelece o vínculo e captura eventos de edição com segurança básica. Ainda não aplica alterações de negócio nem escreve os resultados de volta às guias do cliente. Essa separação é intencional: evita que uma integração recém-conectada sobrescreva cadastros reais antes da homologação das regras de conflito e propriedade dos campos.
+
+
+## 9. Validação de duplicidade e edição de vínculos (implementado no backend)
+
+O módulo `IntegracaoDriveCliente.gs` inclui agora duas validações administrativas:
+
+- `validarUnicidadeCadastroFullTime(token, entidade, dados)`: valida CPF de motorista e placa de cavalo/carreta contra a base operacional nativa. Normaliza CPF e placa, valida formato, identifica o registro já existente e não devolve o CPF completo. Em edição, aceita `idInterno` ou `idExterno` para não acusar o próprio registro como duplicado.
+- `validarAlteracaoComposicaoConjuntoFullTime(token, dados)`: valida a substituição de motorista, cavalo e carretas de um conjunto existente. Exige componentes ativos/aprovados, impede repetir o mesmo componente e detecta componentes já comprometidos em outro conjunto ativo. O conjunto em edição é excluído da verificação de conflito.
+
+Essas funções são validações de backend. A tela de cadastro ainda precisa chamar a validação ao sair do campo/antes de salvar e exibir a mensagem junto ao campo. A tela de conjunto precisa carregar a composição atual, permitir selecionar outros componentes e pedir confirmação antes de salvar. A gravação final deve registrar valores anteriores e novos na auditoria; não basta atualizar silenciosamente as quatro colunas.
+
+**Comportamento de UX requerido:**
+1. CPF digitado: validar formato e consultar a base; se existir, mostrar “CPF já cadastrado” e oferecer abrir/editar o motorista encontrado, em vez de criar outro.
+2. Placa digitada: consultar a entidade correspondente; bloquear duplicidade em cavalo e em carreta.
+3. Edição de cadastro: permitir manter o mesmo CPF/placa no próprio registro, mas bloquear se pertencer a outro registro.
+4. Troca de composição: editar o conjunto existente, escolher motorista/cavalo/carreta novos, validar disponibilidade e confirmar; preservar o histórico da composição anterior.
+5. Revalidar no momento da gravação, sob lock, pois dois usuários podem tentar cadastrar o mesmo CPF ou placa simultaneamente.
