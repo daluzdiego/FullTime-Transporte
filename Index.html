@@ -364,9 +364,13 @@
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
+    const availabilityByDriver={};(dashboard?.disponibilidades||[]).forEach(a=>availabilityByDriver[a.motoristaId]=a);
+    const activeDrivers=drivers.filter(d=>d.status==='ATIVO');
+    const availabilityRows=activeDrivers.map(d=>{const a=availabilityByDriver[d.id]||{};return '<tr><td>'+esc(d.campos[0]||d.id)+'</td><td><select id="dispStatus_'+esc(d.id)+'"><option value="">Selecione</option><option value="DISPONIVEL" '+(a.status==='DISPONIVEL'?'selected':'')+'>Disponível</option><option value="INDISPONIVEL" '+(a.status==='INDISPONIVEL'?'selected':'')+'>Indisponível</option></select></td><td><input id="dispMotivo_'+esc(d.id)+'" maxlength="500" placeholder="Motivo se indisponível" value="'+esc(a.motivo||'')+'"></td><td><button class="btn btn-secondary" onclick="salvarDisponibilidadeDia(\''+esc(d.id)+'\')">Salvar</button></td></tr>';}).join('');
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Acompanhe motoristas alocados pelo sistema, veículos vinculados e exceções operacionais.</p></div></div>
       <div class="notice">Uma designação é por operação, não por carga. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
+      <div class="panel"><div class="panel-head"><h2>Disponibilidade diária dos motoristas</h2><span class="muted small">Confirme antes de gerar ofertas</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Disponibilidade de hoje</th><th>Motivo</th><th>Ação</th></tr></thead><tbody>${availabilityRows||'<tr><td colspan="4">Nenhum motorista ativo cadastrado.</td></tr>'}</tbody></table></div></div></div>
       <div class="panel"><div class="panel-head"><h2>Motoristas alocados automaticamente</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Veículos vinculados</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e gere uma oferta automática para o próximo motorista elegível.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
         <div class="panel form-panel"><div class="panel-head"><h2>Remanejar conjunto</h2></div><div class="panel-body"><form onsubmit="submitRemanejamento(event)"><div class="form-grid">
@@ -383,6 +387,17 @@
       </div>
       <div class="panel"><div class="panel-head"><h2>Saídas registradas</h2><span class="muted small">${departed.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Saída</th><th>Motivo</th></tr></thead><tbody>${departed.length?departed.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[5]||'').slice(0,10)))+'</td><td>'+esc(p.campos[9]||'—')+'</td></tr>').join(''):'<tr><td colspan="5">Nenhuma saída registrada.</td></tr>'}</tbody></table></div></div></div>`;
   }
+  function salvarDisponibilidadeDia(motoristaId){
+    const status=document.getElementById('dispStatus_'+motoristaId)?.value||'';
+    const motivo=document.getElementById('dispMotivo_'+motoristaId)?.value||'';
+    if(!status){toast('Selecione a disponibilidade do motorista.',true);return;}
+    if(status==='INDISPONIVEL'&&!motivo.trim()){toast('Informe o motivo da indisponibilidade.',true);return;}
+    google.script.run.withSuccessHandler(r=>{
+      toast(r.message||'Disponibilidade registrada.');
+      google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar o painel.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(e=>toast(e.message||'Não foi possível salvar a disponibilidade.',true)).registrarDisponibilidadeDiariaFullTime(authToken,motoristaId,status,motivo);
+  }
+
   function submitRemanejamento(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
     if(data.operacaoAtualId===data.operacaoDestinoId){document.getElementById('remanejamentoError').textContent='Escolha operações diferentes.';return;}
@@ -530,8 +545,9 @@ function sincronizarEntradasIA(){
     }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message)+'</div></div>';}).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
   function designarConjuntoOperacao(operacaoId,conjuntoId){
-    const motivo=prompt('Justificativa/observação da designação (opcional):')||'';
-    if(!confirm('Confirmar designação deste conjunto para a operação?'))return;
+    const motivo=prompt('Informe a justificativa obrigatória para a designação excepcional:')||'';
+    if(!motivo.trim()){toast('A justificativa é obrigatória.',true);return;}
+    if(!confirm('Confirmar designação excepcional deste conjunto para a operação?'))return;
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,motivo:motivo});
   }
   function showMovimentacao(id){
