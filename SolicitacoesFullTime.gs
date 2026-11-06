@@ -269,7 +269,10 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
       var endDate=ftSolText_(d.dataFimLimite,10),startWindow=ftSolText_(d.janelaInicio,5),endWindow=ftSolText_(d.janelaFim,5);
       var priority=String(d.prioridade||'NORMAL').toUpperCase();
       if(['BAIXA','NORMAL','ALTA','URGENTE'].indexOf(priority)<0)priority='NORMAL';
-      ops.appendRow([operationId,new Date(),'ABERTA',date,ftSolText_(d.cliente,120),operationName,ftSolText_(d.origemDetalhada||d.origem,160),ftSolText_(d.destinoDetalhado||d.destino,160),category,weight,trips,weight,obs,session.login||session.nome||'ADMIN','',0,0,endDate,startWindow,endWindow,priority,ftSolText_(d.produto||d.tipoCarga,120),ftSolText_(d.tipoOperacao,60),ftSolText_(d.contato,120)]);
+      var clientId=ftGetOrCreateClienteSolicitacao_(d.cliente,d.contato,session);
+      var originName=ftSolText_(d.origemDetalhada||d.origem,160),destinationName=ftSolText_(d.destinoDetalhado||d.destino,160);
+      var originId=ftGetOrCreateLocalOperacao_(clientId,originName,'ORIGEM',session),destinationId=ftGetOrCreateLocalOperacao_(clientId,destinationName,'DESTINO',session);
+      ops.appendRow([operationId,new Date(),'ABERTA',date,ftSolText_(d.cliente,120),operationName,originName,destinationName,category,weight,trips,weight,obs,session.login||session.nome||'ADMIN','',0,0,endDate,startWindow,endWindow,priority,ftSolText_(d.produto||d.tipoCarga,120),ftSolText_(d.tipoOperacao,60),ftSolText_(d.contato,120),clientId,originId,destinationId]);
     }
     sh.getRange(row,c.ID_OPERACAO_GERADA).setValue(operationId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
