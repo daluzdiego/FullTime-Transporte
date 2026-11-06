@@ -685,6 +685,8 @@
       else if(status==='EM_TRANSITO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_DESTINO\')">Chegou ao destino</button>';
       else if(status==='NO_LOCAL_DESTINO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_DESCARGA\')">Iniciar descarga</button>';
       else if(status==='DESCARREGANDO')actions='<button class="icon-btn" onclick="completeTrip(\''+v.id+'\')">Concluir viagem</button>';
+      if(!['CONCLUIDA','CANCELADA','INTERROMPIDA'].includes(status))actions+=' <button class="icon-btn" onclick="interruptTrip(\\''+v.id+'\\')">Interromper</button>';
+      if(status==='INTERROMPIDA')actions='<button class="icon-btn" onclick="resumeTrip(\\''+v.id+'\\')">Retomar</button> <button class="icon-btn" onclick="cancelTrip(\\''+v.id+'\\')">Cancelar</button>';
       return '<tr><td>'+esc(seq)+'</td><td>'+esc(driver?.campos[0]||f[3]||'')+'</td><td>'+esc(f[4]||'')+'</td><td>'+esc(status)+'</td><td>'+esc(weight)+' t</td><td>'+actions+'</td></tr>';
     }).join('');
     panel.innerHTML += '<div class="panel"><div class="panel-head"><h2>Viagens da operação</h2><span class="muted small">'+trips.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Sequência</th><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Peso previsto</th><th>Ação</th></tr></thead><tbody>'+ (rows||'<tr><td colspan="6">Nenhuma viagem iniciada.</td></tr>')+'</tbody></table></div></div></div>';
@@ -697,6 +699,19 @@
     const peso=prompt('Informe o peso real descarregado (toneladas):');
     if(peso===null)return;
     google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao concluir viagem.',true)).concluirViagemFullTime(authToken,{viagemId:viagemId,pesoReal:peso});
+  }
+  function interruptTrip(viagemId){
+    const motivo=prompt('Motivo da interrupção:');if(!motivo)return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao interromper viagem.',true)).interromperViagemFullTime(authToken,{viagemId:viagemId,motivo:motivo});
+  }
+  function resumeTrip(viagemId){
+    if(!confirm('Retomar esta viagem no último estado registrado?'))return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao retomar viagem.',true)).retomarViagemFullTime(authToken,{viagemId:viagemId});
+  }
+  function cancelTrip(viagemId){
+    const motivo=prompt('Motivo do cancelamento:');if(!motivo)return;
+    if(!confirm('Confirmar cancelamento desta viagem?'))return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao cancelar viagem.',true)).cancelarViagemFullTime(authToken,{viagemId:viagemId,motivo:motivo});
   }
   function refreshTripPanel(){
     google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');if(activeTripOperationId)showMovimentacao(activeTripOperationId);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
