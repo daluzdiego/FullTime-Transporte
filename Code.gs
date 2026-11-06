@@ -978,8 +978,12 @@ function iniciarViagemFullTime(token,dados) {
     if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo.');
     const cap=Number(set[10]||0); if(!(cap>0))throw new Error('Conjunto sem capacidade útil aprovada.');
     const op=opRows[oi], remaining=Number(op[om.SALDOTONELADAS]||0);
-    const partRemaining=Number(part[pm.TONELADASPREVISTAS]||0)-Number(part[pm.TONELADASMOVIMENTADAS]||0);
-    if(!(remaining>0&&partRemaining>0))throw new Error('Operação ou participação sem saldo de toneladas.');
+    const activeTripStatuses=['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'];
+    const reservedOperation=tripRows.slice(1).filter(r=>String(r[tm.OPERACAOID])===operacaoId&&activeTripStatuses.includes(String(r[tm.STATUS]))).reduce((n,r)=>n+Number(r[tm.PESOPREVISTOTONELADAS]||0),0);
+    const reservedParticipation=belonging.filter(r=>activeTripStatuses.includes(String(r[tm.STATUS]))).reduce((n,r)=>n+Number(r[tm.PESOPREVISTOTONELADAS]||0),0);
+    const availableOperation=Math.max(0,remaining-reservedOperation);
+    const partRemaining=Number(part[pm.TONELADASPREVISTAS]||0)-Number(part[pm.TONELADASMOVIMENTADAS]||0)-reservedParticipation;
+    if(!(availableOperation>0&&partRemaining>0))throw new Error('Saldo disponível insuficiente: há volume reservado em outras viagens ou a participação esgotou seu saldo.');
     const seqOp=tripRows.slice(1).filter(r=>String(r[tm.OPERACAOID])===operacaoId).reduce((m,r)=>Math.max(m,Number(r[tm.SEQUENCIAOPERACAO]||0)),0)+1;
     const seqDriver=belonging.reduce((m,r)=>Math.max(m,Number(r[tm.SEQUENCIAMOTORISTA]||0)),0)+1;
     const id=Utilities.getUuid(), now=new Date();
@@ -988,7 +992,7 @@ function iniciarViagemFullTime(token,dados) {
     setv('ID',id);setv('CRIADO_EM',now);setv('OPERACAO_ID',operacaoId);setv('PARTICIPACAO_ID',participacaoId);
     setv('SEQUENCIA_OPERACAO',seqOp);setv('SEQUENCIA_MOTORISTA',seqDriver);setv('MOTORISTA_ID',part[pm.MOTORISTAID]);setv('CONJUNTO_ID',part[pm.CONJUNTOID]);
     setv('STATUS','A_CAMINHO_ORIGEM');setv('ORIGEM_DESCRICAO',op[om.ORIGEM]);setv('DESTINO_DESCRICAO',op[om.DESTINO]);
-    setv('PESO_PREVISTO_TONELADAS',Math.min(cap,remaining,partRemaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
+    setv('PESO_PREVISTO_TONELADAS',Math.min(cap,availableOperation,partRemaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
     const totalOp=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0);
     if(totalOp>0&&seqOp>totalOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
     tripSh.appendRow(row);
@@ -1099,6 +1103,7 @@ function concluirViagemFullTime(token,dados) {
     const trip=trips[ti];if(String(trip[tm.STATUS])!=='DESCARREGANDO'&&String(trip[tm.STATUS])!=='NO_LOCAL_DESTINO')throw new Error('A viagem precisa estar no destino e com descarga iniciada antes da conclusão.');
     const setRows=getSheet_('CONJUNTOS').getDataRange().getValues(),set=setRows.find((r,i)=>i>0&&String(r[0])===String(trip[tm.CONJUNTOID]));
     const cap=set?Number(set[10]||0):0;if(!(cap>0)||peso>cap+0.000001)throw new Error('Peso real excede a capacidade útil aprovada do conjunto ('+cap+' t).');
+    const pesoPlanejado=Number(trip[tm.PESOPREVISTOTONELADAS]||0);if(peso>pesoPlanejado+0.000001)throw new Error('Peso real excede o peso reservado para esta viagem ('+pesoPlanejado+' t).');
     const opSh=getSheet_('OPERACOES'),ops=opSh.getDataRange().getValues(),om=ftHeaderMapViagens_(opSh),oi=ops.findIndex((r,i)=>i>0&&String(r[om.ID])===String(trip[tm.OPERACAOID]));
     if(oi<1)throw new Error('Operação vinculada não encontrada.');
     const op=ops[oi],saldo=Number(op[om.SALDOTONELADAS]||0);if(peso>saldo+0.000001)throw new Error('Peso excede saldo da operação ('+saldo+' t).');
