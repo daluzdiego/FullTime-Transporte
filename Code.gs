@@ -558,6 +558,11 @@ function calcularViagensMinimasFullTime(volumeToneladas,capacidadeUtilToneladas)
   if(!(capacidade>0&&isFinite(capacidade)))throw new Error('Capacidade útil deve ser maior que zero.');
   return Math.ceil((volume-0.000001)/capacidade);
 }
+function validarMetaViagensFullTime(volumeToneladas,capacidadeUtilToneladas,viagensPrevistas) {
+  const minimo=calcularViagensMinimasFullTime(volumeToneladas,capacidadeUtilToneladas);
+  const viagens=Math.floor(Number(viagensPrevistas));
+  return {ok:viagens>=minimo,minimo:minimo,informadas:viagens,capacidadeTotal:viagens*Number(capacidadeUtilToneladas)};
+}
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 /**
@@ -573,7 +578,9 @@ function testarFuncoesPurasFullTime() {
     {nome:'Placa Mercosul normalizada', esperado:'ABC1D23', obtido:normalizarPlaca_('abc-1d23')},
     {nome:'Cabeçalho normalizado', esperado:'CAPACIDADEUTILTONELADAS', obtido:ftDriveNormHeader_('Capacidade útil toneladas')},
     {nome:'Viagens exatas por capacidade', esperado:20, obtido:calcularViagensMinimasFullTime(500,25)},
-    {nome:'Viagem parcial arredondada para cima', esperado:21, obtido:calcularViagensMinimasFullTime(501,25)}
+    {nome:'Viagem parcial arredondada para cima', esperado:21, obtido:calcularViagensMinimasFullTime(501,25)},
+    {nome:'Meta de viagens insuficiente', esperado:false, obtido:validarMetaViagensFullTime(501,25,20).ok},
+    {nome:'Meta de viagens suficiente', esperado:true, obtido:validarMetaViagensFullTime(501,25,21).ok}
   ];
   const results=cases.map(test=>({teste:test.nome,sucesso:test.obtido===test.esperado,esperado:test.esperado,obtido:test.obtido}));
   const failed=results.filter(x=>!x.sucesso);
@@ -1210,7 +1217,8 @@ function designarConjuntoOperacaoFullTime(token, data) {
   const capacidade=Number(set[10]||0);
   if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a meta de viagens deste motorista nesta operação.');
   if(!(toneladasPrevistas>0&&isFinite(toneladasPrevistas))) throw new Error('Informe o volume previsto para este motorista/conjunto.');
-  if(toneladasPrevistas>capacidade*viagensPrevistas+0.000001) throw new Error('O volume previsto excede a capacidade útil do conjunto multiplicada pela meta de viagens.');
+  const meta=validarMetaViagensFullTime(toneladasPrevistas,capacidade,viagensPrevistas);
+  if(!meta.ok) throw new Error('A meta é insuficiente. São necessárias pelo menos '+meta.minimo+' viagens para transportar '+toneladasPrevistas+' t com capacidade útil de '+capacidade+' t.');
   const totalViagens=Number(op[10]||0);
   const existing=rows.slice(1).filter(r=>String(r[2])===operacaoId&&['ATIVO','PLANEJADA'].includes(String(r[5])));
   const allocatedTrips=existing.reduce((sum,r)=>sum+Number(r[13]||0),0);
