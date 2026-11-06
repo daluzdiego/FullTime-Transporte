@@ -750,29 +750,53 @@ function listarRegistros_(name) {
   // A base operacional FullTime é a fonte de verdade. Espelhos legados não são consultados.
   const sh = getSheet_(name);
   const values = sh.getDataRange().getValues();
-  const rows = values.length < 2 ? [] : values.slice(1);
-  if (!rows.length) return [];
+  if (values.length < 2) return [];
+  const headers = values[0].map(ftDriveNormHeader_);
+  const col = {};
+  headers.forEach((h, i) => { if (h && col[h] === undefined) col[h] = i; });
+  const rows = values.slice(1);
 
   // Mantém decisões administrativas registradas no controle local, sem consultar espelhos externos.
   if (name === 'MOTORISTAS') {
     const overrides = ftReadStatusOverrides_('MOTORISTAS');
     rows.forEach(r => {
-      const id = String(r[0] || '').trim();
-      if (id && overrides[id]) r[2] = overrides[id];
+      const id = String(r[col.ID] || '').trim();
+      if (id && overrides[id] && col.STATUS != null) r[col.STATUS] = overrides[id];
     });
   }
 
-  const mapped = rows.filter(r => r[0]).map(r => ({
-    id: String(r[0] || ''),
-    criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-    status: String(r[2] || ''),
-    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-    ...(name === 'CONJUNTOS' ? {origem:'SISTEMA'} : {}),
-    ...(name === 'PARTICIPACAO_OPERACOES' ? {operacaoId:String(r[2]||''),conjuntoId:String(r[3]||''),motoristaId:String(r[4]||'')} : {}),
-    ...(name === 'VIAGENS' ? {operacaoId:String(r[2]||''),participacaoId:String(r[3]||''),sequencia:Number(r[4]||0),motoristaId:String(r[6]||''),conjuntoId:String(r[7]||'')} : {})
-  }));
+  const statusCol = col.STATUS != null ? col.STATUS :
+    (col.STATUSPARTICIPACAO != null ? col.STATUSPARTICIPACAO :
+    (col.STATUSOFERTA != null ? col.STATUSOFERTA :
+    (col.STATUSFILA != null ? col.STATUSFILA :
+    (col.STATUSDISPONIBILIDADE != null ? col.STATUSDISPONIBILIDADE :
+    (col.STATUSLEITURA != null ? col.STATUSLEITURA :
+    (col.STATUSVALIDACAO != null ? col.STATUSVALIDACAO : -1))))));
+  const createdCol = col.CRIADOEM != null ? col.CRIADOEM : col.DATAHORA;
+  const mapped = rows.filter(r => r[col.ID != null ? col.ID : 0]).map(r => {
+    const item = {
+      id: String(r[col.ID != null ? col.ID : 0] || ''),
+      criado: createdCol != null ? (r[createdCol] instanceof Date ? r[createdCol].toISOString() : String(r[createdCol] || '')) : '',
+      status: statusCol >= 0 ? String(r[statusCol] || '') : '',
+      campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v))
+    };
+    if (name === 'CONJUNTOS') item.origem = 'SISTEMA';
+    if (name === 'PARTICIPACAO_OPERACOES') {
+      item.operacaoId = String(r[col.OPERACAOID] || '');
+      item.conjuntoId = String(r[col.CONJUNTOID] || '');
+      item.motoristaId = String(r[col.MOTORISTAID] || '');
+    }
+    if (name === 'VIAGENS') {
+      item.operacaoId = String(r[col.OPERACAOID] || '');
+      item.participacaoId = String(r[col.PARTICIPACAOID] || '');
+      item.sequencia = Number(r[col.SEQUENCIAOPERACAO] || 0);
+      item.motoristaId = String(r[col.MOTORISTAID] || '');
+      item.conjuntoId = String(r[col.CONJUNTOID] || '');
+    }
+    return item;
+  });
 
-  // Capacidade de cavalo e carreta vem do próprio cadastro canônico, diretamente do cadastro canônico.
+  // Capacidade vem do cadastro canônico; PBTC nunca substitui capacidade útil.
   if (name === 'CAVALOS') {
     mapped.forEach(item => {
       const capacity = Number(String(item.campos[21] || '').replace(',','.'));
@@ -787,14 +811,22 @@ function listarRegistros_(name) {
   return mapped.reverse();
 }
 
-function contarAtivos_(name) {
+function ftContarPorStatus_(name, status) {
   const sh = getSheet_(name), values = sh.getDataRange().getValues();
-  return values.slice(1).filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
+  if (values.length < 2) return 0;
+  const headers = values[0].map(ftDriveNormHeader_);
+  const candidates = ['STATUS','STATUSPARTICIPACAO','STATUSOFERTA','STATUSFILA','STATUSDISPONIBILIDADE','STATUSLEITURA','STATUSVALIDACAO'];
+  let index = -1;
+  for (let i = 0; i < candidates.length; i++) {
+    index = headers.indexOf(candidates[i]);
+    if (index >= 0) break;
+  }
+  if (index < 0) throw new Error('A guia ' + name + ' não possui coluna de status reconhecida.');
+  const expected = String(status || '').trim().toUpperCase();
+  return values.slice(1).filter(r => String(r[index] || '').trim().toUpperCase() === expected).length;
 }
-function contarStatus_(name, status) {
-  const sh = getSheet_(name), values = sh.getDataRange().getValues();
-  return values.slice(1).filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
-}
+function contarAtivos_(name) { return ftContarPorStatus_(name, 'ATIVO'); }
+function contarStatus_(name, status) { return ftContarPorStatus_(name, status);}
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
   if (last < 2) return false;
