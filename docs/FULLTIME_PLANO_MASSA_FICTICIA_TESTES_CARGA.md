@@ -34,7 +34,7 @@ Criar um ambiente de homologação integralmente sintético para testar integrid
 | EVENTOS_OPERACAO | 300 | Designações, substituições, alterações e auditoria |
 | TICKETS | 100 | Metadados de mensagens e comprovantes sintéticos vinculáveis a VIAGENS |
 
-**Não criar:** CAMINHOES, CARGAS, MOVIMENTACOES_OPERACAO ou ESCALAS como entidades de execução. A execução é registrada em VIAGENS; as metas ficam em PARTICIPACAO_OPERACOES.
+**Não criar:** CAMINHOES, CARGAS, MOVIMENTACOES_OPERACAO ou ESCALAS como entidades/telas independentes. A OPERAÇÃO concentra o planejamento; PARTICIPACAO_OPERACOES concentra a distribuição por motorista/conjunto; VIAGENS registra cada execução.
 
 ## Regras de integridade para a massa
 
@@ -80,7 +80,7 @@ A massa deve incluir:
 ## Cenários de teste de desempenho e segurança
 
 - Abrir painel com todas as entidades carregadas.
-- Listar, pesquisar, filtrar e paginar motoristas, frota, operações e viagens.
+- Listar, pesquisar, filtrar e paginar motoristas, frota, operações e viagens; distribuir metas e replanejar dentro da operação.
 - Designar 1, 2, 5 e 10 conjuntos à mesma operação.
 - Distribuir e validar metas individuais de viagens/toneladas.
 - Iniciar, atualizar eventos e concluir viagens em sequência.
