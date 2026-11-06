@@ -1449,7 +1449,7 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
     if(!set)throw new Error('Conjunto não encontrado no cadastro.');
     const loads=getSheet_('CARGAS'),loadValues=loads.getDataRange().getValues(),headers=loadValues[0].map(v=>String(v||'').trim()),ix={};
     headers.forEach((h,i)=>ix[h]=i);
-    const requiredLoad=['ID','OPERACAO_ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
+    const requiredLoad=['ID','OPERACAO_ID','STATUS','PESO_TONELADAS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'];
     const missingLoad=requiredLoad.filter(h=>ix[h]===undefined);
     if(missingLoad.length)throw new Error('A guia CARGAS precisa destas colunas: '+missingLoad.join(', ')+'. Execute prepararBaseOperacionalFullTime().');
     const escalas=getSheet_('ESCALAS'),escHeaders=escalas.getRange(1,1,1,escalas.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
@@ -1458,7 +1458,13 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
     if(missingEscala.length)throw new Error('A guia ESCALAS precisa destas colunas: '+missingEscala.join(', ')+'. Execute prepararBaseOperacionalFullTime().');
     const loadMatches=[];
     for(let i=1;i<loadValues.length;i++)if(String(loadValues[i][ix.OPERACAO_ID]||'')===operationId)loadMatches.push(i+1);
-    const now2=new Date(),partId=Utilities.getUuid(),firstLoadId=loadMatches.length?String(loadValues[loadMatches[0]-1][ix.ID]||''):'';
+    if(!loadMatches.length)throw new Error('A operação não possui viagens vinculadas; nenhuma atribuição foi gravada.');
+    if(loadMatches.length!==Number(opRows[opIndex][10]||0))throw new Error('A quantidade de viagens vinculadas diverge do total previsto da operação.');
+    const plannedWeight=loadMatches.reduce((sum,rowNo)=>sum+Number(String(loadValues[rowNo-1][ix.PESO_TONELADAS]||'').replace(',','.')),0);
+    const missingWeight=loadMatches.filter(rowNo=>!(Number(String(loadValues[rowNo-1][ix.PESO_TONELADAS]||'').replace(',','.'))>0));
+    if(missingWeight.length)throw new Error('Há '+missingWeight.length+' viagem(ns) sem peso previsto. A oferta não pode ser aceita até a correção.');
+    if(Math.abs(plannedWeight-Number(opRows[opIndex][9]||0))>0.05)throw new Error('A soma dos pesos das viagens diverge do volume total da operação. Revise os pesos antes do aceite.');
+    const now2=new Date(),partId=Utilities.getUuid(),firstLoadId=String(loadValues[loadMatches[0]-1][ix.ID]||'');
     // Todas as validações ocorrem antes da primeira escrita.
     activeParts.appendRow([partId,now2,operationId,String(offer[4]),String(offer[3]),'ATIVO',now2,'','','0',0,'Oferta aceita',session.login]);
     loadMatches.forEach(rowNo=>{
