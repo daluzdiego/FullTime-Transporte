@@ -1361,6 +1361,32 @@ function ftRegistrarEventoEscala_(tipo, operacaoId, cargaId, motoristaId, conjun
   sh.appendRow([Utilities.getUuid(),new Date(),tipo,cargaId||'',motoristaId||'',conjuntoId||'','',posicao||'',motivo||'',autor||'SISTEMA',operacaoId||'']);
 }
 
+
+function validarPesosViagensOperacaoFullTime_(volumeTotal,quantidadePrevista,pesosViagens) {
+  const expected=Number(quantidadePrevista||0),weights=Array.isArray(pesosViagens)?pesosViagens:[];
+  if(!weights.length)return {ok:false,status:'SEM_VIAGENS',message:'A operação ainda não possui viagens cadastradas.'};
+  if(!Number.isInteger(expected)||expected<1||expected!==weights.length)return {ok:false,status:'QUANTIDADE_VIAGENS_DIVERGENTE',message:'A quantidade de viagens cadastradas não corresponde ao total previsto da operação.'};
+  const parsed=weights.map(v=>Number(String(v==null?'':v).replace(',','.')));
+  const missing=parsed.filter(v=>!(v>0&&isFinite(v))).length;
+  if(missing)return {ok:false,status:'PESO_POR_VIAGEM_PENDENTE',faltantes:missing,message:missing+' viagem(ns) ainda está(ão) sem peso previsto. Informe o peso de cada viagem antes de gerar a oferta.'};
+  const sum=parsed.reduce((a,b)=>a+b,0),total=Number(String(volumeTotal||'').replace(',','.'));
+  if(!(total>0&&isFinite(total))||Math.abs(sum-total)>0.05)return {ok:false,status:'PESOS_INCONSISTENTES',pesoViagens:sum,volumeOperacao:total,message:'A soma dos pesos das viagens ('+sum+' t) precisa corresponder ao volume total da operação ('+total+' t). Revise os pesos antes de gerar a oferta.'};
+  return {ok:true,status:'VALIDADO',pesoTotal:sum,quantidade:parsed.length};
+}
+
+function testarValidacaoPesosViagensOperacaoFullTime() {
+  const cases=[
+    {nome:'cinco viagens somam o volume da operação',volume:300,quantidade:5,pesos:[60,60,60,60,60],ok:true},
+    {nome:'peso de uma viagem ausente bloqueia oferta',volume:300,quantidade:5,pesos:[60,60,'',60,60],ok:false,status:'PESO_POR_VIAGEM_PENDENTE'},
+    {nome:'soma diferente do volume bloqueia oferta',volume:300,quantidade:5,pesos:[60,60,60,60,50],ok:false,status:'PESOS_INCONSISTENTES'},
+    {nome:'quantidade de viagens divergente bloqueia oferta',volume:300,quantidade:5,pesos:[60,60,60,60],ok:false,status:'QUANTIDADE_VIAGENS_DIVERGENTE'}
+  ];
+  const results=cases.map(c=>{const r=validarPesosViagensOperacaoFullTime_(c.volume,c.quantidade,c.pesos);return {teste:c.nome,aprovado:r.ok===c.ok&&(!c.status||r.status===c.status),resultado:r};});
+  const result={suite:'VALIDACAO_PESOS_VIAGENS',total:results.length,aprovados:results.filter(x=>x.aprovado).length,falhas:results.filter(x=>!x.aprovado).length,resultados:results};
+  Logger.log('FULL TIME — TESTE PESOS VIAGENS: '+JSON.stringify(result));
+  return result;
+}
+
 function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
   const ops=getSheet_('OPERACOES').getDataRange().getValues(),opIndex=ops.findIndex((r,i)=>i>0&&String(r[0])===String(operacaoId));
   if(opIndex<1)throw new Error('Operação não encontrada.');
@@ -1384,12 +1410,8 @@ function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
   if(opCol<0||idCol<0||weightCol<0)return {ok:false,status:'SCHEMA_CARGAS_INCOMPLETO',operacaoId:String(operacaoId),message:'A guia CARGAS precisa das colunas ID, OPERACAO_ID e PESO_TONELADAS.'};
   const operationLoads=loadRows.slice(1).filter(r=>String(r[opCol]||'')===String(operacaoId));
   if(!operationLoads.length)return {ok:false,status:'SEM_VIAGENS',operacaoId:String(operacaoId),message:'Esta operação ainda não possui viagens cadastradas.'};
-  const expectedLoads=Number(op[10]||0);
-  if(expectedLoads!==operationLoads.length)return {ok:false,status:'QUANTIDADE_VIAGENS_DIVERGENTE',operacaoId:String(operacaoId),message:'A quantidade de viagens cadastradas não corresponde ao total previsto da operação.'};
-  const missingWeights=operationLoads.filter(r=>!(Number(String(r[weightCol]||'').replace(',','.'))>0));
-  if(missingWeights.length)return {ok:false,status:'PESO_POR_VIAGEM_PENDENTE',operacaoId:String(operacaoId),faltantes:missingWeights.length,message:missingWeights.length+' viagem(ns) ainda está(ão) sem peso previsto. Informe o peso de cada viagem antes de gerar a oferta.'};
-  const plannedTotal=operationLoads.reduce((sum,r)=>sum+Number(String(r[weightCol]||'').replace(',','.')),0),operationTotal=Number(op[9]||0);
-  if(!(operationTotal>0)||Math.abs(plannedTotal-operationTotal)>0.05)return {ok:false,status:'PESOS_INCONSISTENTES',operacaoId:String(operacaoId),pesoViagens:plannedTotal,volumeOperacao:operationTotal,message:'A soma dos pesos das viagens ('+plannedTotal+' t) precisa corresponder ao volume total da operação ('+operationTotal+' t). Revise os pesos antes de gerar a oferta.'};
+  const weightCheck=validarPesosViagensOperacaoFullTime_(op[9],op[10],operationLoads.map(r=>r[weightCol]));
+  if(!weightCheck.ok)return Object.assign({ok:false,operacaoId:String(operacaoId)},weightCheck);
   const candidatos=ftOrdenarCandidatosOperacao_(operacaoId);
   if(!candidatos.length)return {ok:false,status:'SEM_CANDIDATO',operacaoId:String(operacaoId),message:'Não há motorista elegível e disponível para esta operação neste momento.'};
   const escolhido=candidatos[0],firstLoad=operationLoads[0];
@@ -1459,11 +1481,8 @@ function registrarRespostaOfertaEscalaFullTime(token, ofertaId, resposta, motivo
     const loadMatches=[];
     for(let i=1;i<loadValues.length;i++)if(String(loadValues[i][ix.OPERACAO_ID]||'')===operationId)loadMatches.push(i+1);
     if(!loadMatches.length)throw new Error('A operação não possui viagens vinculadas; nenhuma atribuição foi gravada.');
-    if(loadMatches.length!==Number(opRows[opIndex][10]||0))throw new Error('A quantidade de viagens vinculadas diverge do total previsto da operação.');
-    const plannedWeight=loadMatches.reduce((sum,rowNo)=>sum+Number(String(loadValues[rowNo-1][ix.PESO_TONELADAS]||'').replace(',','.')),0);
-    const missingWeight=loadMatches.filter(rowNo=>!(Number(String(loadValues[rowNo-1][ix.PESO_TONELADAS]||'').replace(',','.'))>0));
-    if(missingWeight.length)throw new Error('Há '+missingWeight.length+' viagem(ns) sem peso previsto. A oferta não pode ser aceita até a correção.');
-    if(Math.abs(plannedWeight-Number(opRows[opIndex][9]||0))>0.05)throw new Error('A soma dos pesos das viagens diverge do volume total da operação. Revise os pesos antes do aceite.');
+    const weightCheck=validarPesosViagensOperacaoFullTime_(opRows[opIndex][9],opRows[opIndex][10],loadMatches.map(rowNo=>loadValues[rowNo-1][ix.PESO_TONELADAS]));
+    if(!weightCheck.ok)throw new Error(weightCheck.message);
     const now2=new Date(),partId=Utilities.getUuid(),firstLoadId=String(loadValues[loadMatches[0]-1][ix.ID]||'');
     // Todas as validações ocorrem antes da primeira escrita.
     activeParts.appendRow([partId,now2,operationId,String(offer[4]),String(offer[3]),'ATIVO',now2,'','','0',0,'Oferta aceita',session.login]);
