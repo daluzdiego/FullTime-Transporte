@@ -656,6 +656,31 @@ function salvarCargaFullTime(token, data) {
   }finally{lock.releaseLock();}
 }
 
+
+function atualizarPesoPrevistoCargaFullTime(token,cargaId,pesoPrevisto) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const id=texto_(cargaId,100),peso=Number(String(pesoPrevisto==null?'':pesoPrevisto).replace(',','.'));
+  if(!id)throw new Error('Informe a carga.');
+  if(!(peso>0&&isFinite(peso)))throw new Error('O peso previsto deve ser maior que zero.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try {
+    const sh=getSheet_('CARGAS'),values=sh.getDataRange().getValues();
+    if(!values.length)throw new Error('A guia CARGAS está vazia.');
+    const headers=values[0].map(v=>String(v||'').trim()),ix={};headers.forEach((h,i)=>ix[h]=i);
+    ['ID','STATUS','OPERACAO_ID','PESO_TONELADAS'].forEach(k=>{if(ix[k]===undefined)throw new Error('Coluna ausente em CARGAS: '+k);});
+    const rowIndex=values.findIndex((r,i)=>i>0&&String(r[ix.ID])===id);
+    if(rowIndex<1)throw new Error('Carga não encontrada.');
+    const row=values[rowIndex],status=String(row[ix.STATUS]||'').toUpperCase(),operationId=String(row[ix.OPERACAO_ID]||'');
+    if(!['A_ESCALAR','SEM_ESCALA'].includes(status))throw new Error('O peso só pode ser ajustado antes da atribuição da carga.');
+    if(!operationId)throw new Error('A carga não está vinculada a uma operação.');
+    const ops=getSheet_('OPERACOES').getDataRange().getValues(),op=ops.find((r,i)=>i>0&&String(r[0])===operationId);
+    if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[2])))throw new Error('A operação não está aberta para edição.');
+    sh.getRange(rowIndex+1,ix.PESO_TONELADAS+1).setValue(peso);
+    auditar_(session,'ATUALIZAR_PESO_PREVISTO','CARGA',id,'Operação '+operationId+'; peso previsto='+peso+' t');
+    return {ok:true,id:id,peso:peso,message:'Peso previsto da viagem atualizado.'};
+  } finally {lock.releaseLock();}
+}
+
 function salvarCavaloFullTime(token, data) {
   const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
   const placa = normalizarPlaca_(data.placa);
@@ -1354,12 +1379,21 @@ function ftGerarProximaOfertaOperacao_(token, operacaoId, session) {
     offers.getRange(item.i+1,9).setValue(now);
     ftRegistrarEventoEscala_('OFERTA_EXPIRADA',operacaoId,item.r[2],item.r[3],item.r[4],item.r[5],'Prazo de aceite expirado',session.login);
   }
+  const loads=getSheet_('CARGAS'),loadRows=loads.getDataRange().getValues();
+  const loadHeaders=loadRows[0].map(v=>String(v||'').trim()),opCol=loadHeaders.indexOf('OPERACAO_ID'),idCol=loadHeaders.indexOf('ID'),weightCol=loadHeaders.indexOf('PESO_TONELADAS');
+  if(opCol<0||idCol<0||weightCol<0)return {ok:false,status:'SCHEMA_CARGAS_INCOMPLETO',operacaoId:String(operacaoId),message:'A guia CARGAS precisa das colunas ID, OPERACAO_ID e PESO_TONELADAS.'};
+  const operationLoads=loadRows.slice(1).filter(r=>String(r[opCol]||'')===String(operacaoId));
+  if(!operationLoads.length)return {ok:false,status:'SEM_VIAGENS',operacaoId:String(operacaoId),message:'Esta operação ainda não possui viagens cadastradas.'};
+  const expectedLoads=Number(op[10]||0);
+  if(expectedLoads!==operationLoads.length)return {ok:false,status:'QUANTIDADE_VIAGENS_DIVERGENTE',operacaoId:String(operacaoId),message:'A quantidade de viagens cadastradas não corresponde ao total previsto da operação.'};
+  const missingWeights=operationLoads.filter(r=>!(Number(String(r[weightCol]||'').replace(',','.'))>0));
+  if(missingWeights.length)return {ok:false,status:'PESO_POR_VIAGEM_PENDENTE',operacaoId:String(operacaoId),faltantes:missingWeights.length,message:missingWeights.length+' viagem(ns) ainda está(ão) sem peso previsto. Informe o peso de cada viagem antes de gerar a oferta.'};
+  const plannedTotal=operationLoads.reduce((sum,r)=>sum+Number(String(r[weightCol]||'').replace(',','.')),0),operationTotal=Number(op[9]||0);
+  if(!(operationTotal>0)||Math.abs(plannedTotal-operationTotal)>0.05)return {ok:false,status:'PESOS_INCONSISTENTES',operacaoId:String(operacaoId),pesoViagens:plannedTotal,volumeOperacao:operationTotal,message:'A soma dos pesos das viagens ('+plannedTotal+' t) precisa corresponder ao volume total da operação ('+operationTotal+' t). Revise os pesos antes de gerar a oferta.'};
   const candidatos=ftOrdenarCandidatosOperacao_(operacaoId);
   if(!candidatos.length)return {ok:false,status:'SEM_CANDIDATO',operacaoId:String(operacaoId),message:'Não há motorista elegível e disponível para esta operação neste momento.'};
-  const escolhido=candidatos[0],loads=getSheet_('CARGAS'),loadRows=loads.getDataRange().getValues();
-  const loadHeaders=loadRows[0].map(v=>String(v||'').trim()),opCol=loadHeaders.indexOf('OPERACAO_ID'),idCol=loadHeaders.indexOf('ID');
-  const firstLoad=opCol>=0?loadRows.slice(1).find(r=>String(r[opCol]||'')===String(operacaoId)):null;
-  const cargaId=firstLoad&&idCol>=0?String(firstLoad[idCol]||''):'';
+  const escolhido=candidatos[0],firstLoad=operationLoads[0];
+  const cargaId=String(firstLoad[idCol]||'');
   const offerId=Utilities.getUuid(),expires=new Date(now.getTime()+FT_ESCALA_REGRAS.EXPIRACAO_OFERTA_MINUTOS*60000);
   const posicao=1;
   offers.appendRow([offerId,now,cargaId,escolhido.driverId,escolhido.id,posicao,'PENDENTE',expires,'','',''+(session.login||'ADMIN'),operacaoId]);
