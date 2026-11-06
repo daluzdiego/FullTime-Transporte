@@ -126,6 +126,7 @@
 ## 9. Documentos de trabalho
 
 - [Arquitetura consolidada — homologação](ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md): mapa dos componentes, fontes de verdade, fluxo de entrada IA, regra operação-pai/cargas-filhas e pendências de integração.
+- [Roteiro de execução da homologação no Apps Script](EXECUCAO_HOMOLOGACAO_APPS_SCRIPT.md): sequência segura de testes, pré-condições da escala e instalação dos gatilhos.
 - Este controle deve ser atualizado junto com a arquitetura ao fechar cada marco.
 
 
