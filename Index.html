@@ -152,7 +152,7 @@
       .obterPainelFullTime(authToken);
   }
   function renderPortalMotorista(data){
-    const d=data.motorista||{}, sets=data.conjuntos||[], ops=data.operacoes||[], trips=data.viagens||[];
+    const d=data.motorista||{}, sets=data.conjuntos||[], ops=data.operacoes||[], trips=data.viagens||[], offers=data.ofertas||[];
     const opById={};ops.forEach(o=>opById[o.id]=o);
     const statusLabel=v=>String(v||'').replace(/_/g,' ');
     document.getElementById('content').innerHTML=`
@@ -168,6 +168,9 @@
           ${sets.length?sets.map(s=>'<div class="notice"><strong>'+esc(statusLabel(s.status))+'</strong><p class="small">Cavalo: '+esc(s.cavaloId||'—')+'</p><p class="small">Carreta do meio: '+esc(s.carretaMeioId||'—')+'</p><p class="small">Carreta final: '+esc(s.carretaFinalId||'—')+'</p><p class="small">Condição: '+esc(s.estado||'Não informada')+'</p></div>').join(''):'<p class="muted">Nenhum conjunto vinculado no momento.</p>'}
         </div></div>
       </div>
+      <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Convites de operações</h2><span class="muted small">${offers.length} convite(s)</span></div><div class="panel-body">
+        ${offers.length?offers.map(o=>'<div class="notice"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>'+esc(o.nomeOperacao||'Convite de operação')+'</strong><span class="badge">'+esc(statusLabel(o.status))+'</span></div><p class="small">'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</p><p class="small">Volume total da operação: '+Number(o.volume||0).toLocaleString('pt-BR')+' t · Viagens previstas: '+Number(o.viagens||0).toLocaleString('pt-BR')+'</p><p class="small">Prioridade: '+esc(o.prioridade||'—')+'</p><p class="small">'+esc(o.detalhes||'')+'</p><p class="muted small">Convite de homologação. O fluxo de aceite e recusa será habilitado na próxima etapa.</p></div>').join(''):'<p class="muted">Você não possui convites pendentes.</p>'}
+      </div></div>
       <div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Minhas operações</h2><span class="muted small">${ops.length} operação(ões)</span></div><div class="panel-body">
         ${ops.length?ops.map(o=>'<div class="notice"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>'+esc(o.campos?.[2]||'Operação')+'</strong><span class="badge">'+esc(statusLabel(o.status))+'</span></div><p class="small">'+esc(o.campos?.[3]||'—')+' → '+esc(o.campos?.[4]||'—')+'</p><p class="small">Meta: '+Number(o.campos?.[7]||0)+' viagens · Volume: '+Number(o.campos?.[6]||0)+' t · Saldo: '+Number(o.campos?.[8]||0)+' t</p></div>').join(''):'<p class="muted">Você ainda não possui operações designadas.</p>'}
       </div></div>
