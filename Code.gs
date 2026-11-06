@@ -172,6 +172,7 @@ function obterPainelFullTime(token) {
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
+    clientes: listarRegistros_('CLIENTES'),
     documentos: (function(){const sh=getSheet_('CONTROLE_DOCUMENTAL'),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1).filter(r=>r[0]).map(r=>({id:String(r[0]||''),criado:r[6] instanceof Date?r[6].toISOString():String(r[6]||''),status:String(r[8]||''),campos:r.slice(3).map(x=>String(x==null?'':x))}));})(),
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
@@ -193,6 +194,21 @@ function obterPainelFullTime(token) {
       conjuntosAtivos: contarAtivos_('CONJUNTOS')
     }
   };
+}
+
+function salvarClienteFullTime(token,data) {
+  const session=obterSessao_(token);exigirAdmin_(session);data=data||{};
+  const razao=texto_(data.razaoSocial,160),fantasia=texto_(data.nomeFantasia,160),cnpj=digitos_(data.cnpj);
+  const telefone=texto_(data.telefone,30),email=texto_(data.email,160),contato=texto_(data.contato,120),obs=texto_(data.observacoes,1000);
+  if(!razao&&!fantasia)throw new Error('Informe a razão social ou o nome do cliente.');
+  if(cnpj&&cnpj.length!==14)throw new Error('CNPJ deve conter 14 dígitos.');
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('E-mail inválido.');
+  const sh=getSheet_('CLIENTES'),rows=sh.getDataRange().getValues(),headers=rows[0].map(ftDriveNormHeader_),ci=headers.indexOf('CNPJ');
+  if(cnpj&&rows.slice(1).some(r=>digitos_(r[ci])===cnpj))throw new Error('Já existe cliente cadastrado com este CNPJ.');
+  const id=Utilities.getUuid(),now=new Date();
+  sh.appendRow([id,now,'ATIVO',razao,fantasia,cnpj,telefone,email,contato,obs,'']);
+  auditar_(session,'CRIAR','CLIENTE',id,(fantasia||razao)+'; CNPJ '+(cnpj||'não informado'));
+  return {ok:true,id:id,message:'Cliente cadastrado.'};
 }
 
 function salvarMotoristaFullTime(token, data) {
@@ -311,14 +327,15 @@ function prepararBaseOperacionalFullTime() {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','ID_EXTERNO','RENAVAM','CHASSI','NUMERO_MOTOR','VERSAO','ANO_FABRICACAO','ANO_MODELO','TIPO_VEICULO','ESPECIE','CARROCERIA','COR','COMBUSTIVEL','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_UTIL_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','ANTT_RNTRC','ANTT_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','ID_EXTERNO','RENAVAM','CHASSI','ANO_FABRICACAO','ANO_MODELO','ESPECIE','CARROCERIA','COR','NUMERO_EIXOS','LOTACAO_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','MARCA','MODELO'],
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO','DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO'],
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','ID_EXTERNO','TOTAL_VIAGENS_CONCLUIDAS','TOTAL_TONELADAS_REALIZADAS','DATA_FIM_LIMITE','JANELA_INICIO','JANELA_FIM','PRIORIDADE','PRODUTO_SERVICO','TIPO_OPERACAO','CONTATO_CLIENTE'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','ID_EXTERNO','TOTAL_VIAGENS_CONCLUIDAS','TOTAL_TONELADAS_REALIZADAS','DATA_FIM_LIMITE','JANELA_INICIO','JANELA_FIM','PRIORIDADE','PRODUTO_SERVICO','TIPO_OPERACAO','CONTATO_CLIENTE','CLIENTE_ID','LOCAL_ORIGEM_ID','LOCAL_DESTINO_ID'],
     CONTROLE_DOCUMENTAL: ['ID_DOCUMENTO','TIPO_REGISTRO','ID_EXTERNO_REGISTRO','PLACA_OU_CPF','TIPO_DOCUMENTO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','STATUS_DOCUMENTO','LINK_ARQUIVO','DATA_CONFERENCIA','CONFERIDO_POR','PENDENCIA','OBSERVACOES'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR','VIAGENS_PREVISTAS','TONELADAS_PREVISTAS','VIAGENS_INICIADAS','INICIO_PREVISTO','FIM_PREVISTO','ATUALIZADO_EM','ATUALIZADO_POR'],
     VIAGENS: ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','SEQUENCIA_OPERACAO','SEQUENCIA_MOTORISTA','MOTORISTA_ID','CONJUNTO_ID','STATUS','ORIGEM_DESCRICAO','DESTINO_DESCRICAO','PESO_PREVISTO_TONELADAS','PESO_REAL_TONELADAS','PREVISTA_INICIO','PREVISTA_CHEGADA','INICIO_REAL','CHEGADA_ORIGEM_REAL','SAIDA_ORIGEM_REAL','CHEGADA_DESTINO_REAL','FIM_REAL','DISTANCIA_PREVISTA_KM','DISTANCIA_REAL_KM','MOTIVO_CANCELAMENTO','OBSERVACOES','ATUALIZADA_EM','ATUALIZADA_POR','STATUS_ANTES_INTERRUPCAO','INTERRUPPIDA_EM','MOTIVO_INTERRUPCAO','RETOMADA_EM','INICIO_CARREGAMENTO_REAL','FIM_CARREGAMENTO_REAL','INICIO_DESCARGA_REAL','FIM_DESCARGA_REAL'],
     EVENTOS_VIAGEM: ['ID','VIAGEM_ID','TIPO_EVENTO','DATA_HORA_EVENTO','DATA_HORA_RECEBIMENTO','LOCAL_ID','LATITUDE','LONGITUDE','RESPONSAVEL_ID','ORIGEM_REGISTRO','DESCRICAO','OBSERVACOES','IDEMPOTENCIA'],
     DOCUMENTOS_VIAGEM: ['ID','VIAGEM_ID','EVENTO_VIAGEM_ID','TIPO_DOCUMENTO','DRIVE_FILE_ID','URL','NOME_ARQUIVO','MIME_TYPE','HASH_ARQUIVO','RECEBIDO_EM','RECEBIDO_POR','STATUS_VALIDACAO','OBSERVACOES'],
     TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','VIAGEM_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
-    LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
+    CLIENTES: ['ID','CRIADO_EM','STATUS','RAZAO_SOCIAL','NOME_FANTASIA','CNPJ','TELEFONE','EMAIL','CONTATO_PRINCIPAL','OBSERVACOES','ID_EXTERNO'],
+    LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES','CLIENTE_ID'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_VIAGEM_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
@@ -696,7 +713,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','TICKETS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','CLIENTES','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','TICKETS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
@@ -890,15 +907,18 @@ function listarOperacoesFullTime(token) {
 }
 function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
+  const dataOp=texto_(data.data,10), clienteId=texto_(data.clienteId,100), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
+  const clienteRows=getSheet_('CLIENTES').getDataRange().getValues(), clienteRow=clienteRows.find((r,i)=>i>0&&String(r[0])===clienteId);
+  if(!clienteRow||String(clienteRow[2])!=='ATIVO')throw new Error('Selecione um cliente ativo cadastrado no sistema.');
+  const cliente=String(clienteRow[4]||clienteRow[3]||'');
   const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagens=Math.floor(Number(data.viagensPrevistas));
   const dataFim=texto_(data.dataFimLimite,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
   const prioridade=texto_(data.prioridade||'NORMAL',20).toUpperCase(), produto=texto_(data.produtoServico,120);
   const tipoOperacao=texto_(data.tipoOperacao,60), contato=texto_(data.contatoCliente,120);
   const observacoes=texto_(data.observacoes,1000);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
-  if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
+  if(!nome||!origem||!destino) throw new Error('Preencha nome da operação, origem e destino.');
   if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
   if(!(viagens>0&&viagens<=100000)) throw new Error('Informe a quantidade total prevista de viagens.');
@@ -908,7 +928,7 @@ function salvarOperacaoFullTime(token, data) {
   if(janelaInicio&&janelaFim&&janelaFim<janelaInicio)throw new Error('A janela final não pode ser anterior à inicial.');
   if(!['BAIXA','NORMAL','ALTA','URGENTE'].includes(prioridade))throw new Error('Prioridade inválida.');
   const id=Utilities.getUuid(), now=new Date();
-  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagens,volume,observacoes,session.login,'',0,0,dataFim,janelaInicio,janelaFim,prioridade,produto,tipoOperacao,contato]);
+  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagens,volume,observacoes,session.login,'',0,0,dataFim,janelaInicio,janelaFim,prioridade,produto,tipoOperacao,contato,clienteId,'','']);
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagens);
   return {ok:true,id:id,message:'Operação criada com '+viagens+' viagens previstas. Saldo inicial: '+volume+' t.'};
 }
