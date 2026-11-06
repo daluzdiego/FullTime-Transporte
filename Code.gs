@@ -140,15 +140,9 @@ function obterPainelMotoristaFullTime(token) {
     .map(r=>({id:String(r[0]),status:String(r[2]),cavaloId:String(r[4]||''),carretaMeioId:String(r[5]||''),carretaFinalId:String(r[6]||''),estado:String(r[8]||''),restricoes:String(r[9]||'')}));
   // O escopo é derivado exclusivamente do vínculo motoristaId gravado na sessão.
   // Nenhum identificador enviado pelo navegador amplia o conjunto de dados retornado.
-  const participacoes=listarRegistros_('PARTICIPACAO_OPERACOES')
-    .filter(p=>String(p.motoristaId||'')===String(session.motoristaId));
-  const participacaoIds=new Set(participacoes.map(p=>String(p.id)));
-  const operacaoIds=new Set(participacoes.map(p=>String(p.operacaoId)));
-  const operacoes=listarRegistros_('OPERACOES')
-    .filter(o=>operacaoIds.has(String(o.id)));
-  const viagens=listarRegistros_('VIAGENS')
-    .filter(v=>String(v.motoristaId||'')===String(session.motoristaId) &&
-      participacaoIds.has(String(v.participacaoId||'')));
+  const escopo=ftFiltrarDadosPortalMotorista_(session, listarRegistros_('PARTICIPACAO_OPERACOES'),
+    listarRegistros_('OPERACOES'), listarRegistros_('VIAGENS'));
+  const participacoes=escopo.participacoes, operacoes=escopo.operacoes, viagens=escopo.viagens;
   return {
     user:{nome:session.nome,perfil:session.perfil},
     motorista:{id:String(driver[0]),nome:String(driver[3]||''),telefone:String(driver[5]||''),email:String(driver[6]||''),cidade:String(driver[10]||'')},
@@ -157,6 +151,43 @@ function obterPainelMotoristaFullTime(token) {
     operacoes:operacoes,
     viagens:viagens
   };
+}
+
+/** Filtro puro do portal: nenhum ID enviado pelo cliente amplia o escopo. */
+function ftFiltrarDadosPortalMotorista_(session, participacoes, operacoes, viagens) {
+  const motoristaId=String(session && session.motoristaId || '');
+  if(!motoristaId || !session || session.perfil!=='MOTORISTA') throw new Error('Sessão de motorista inválida.');
+  const ownParts=(participacoes||[]).filter(p=>String(p.motoristaId||'')===motoristaId);
+  const partIds=new Set(ownParts.map(p=>String(p.id)));
+  const opIds=new Set(ownParts.map(p=>String(p.operacaoId)));
+  return {
+    participacoes:ownParts,
+    operacoes:(operacoes||[]).filter(o=>opIds.has(String(o.id))),
+    viagens:(viagens||[]).filter(v=>String(v.motoristaId||'')===motoristaId && partIds.has(String(v.participacaoId||'')))
+  };
+}
+
+/** Teste de isolamento do portal com registros inteiramente fictícios. */
+function testarRegressaoEscopoPortalMotoristaFullTime() {
+  const session={perfil:'MOTORISTA',motoristaId:'MOTORISTA_TESTE_A'};
+  const parts=[
+    {id:'PART_A',operacaoId:'OP_A',motoristaId:'MOTORISTA_TESTE_A'},
+    {id:'PART_B',operacaoId:'OP_B',motoristaId:'MOTORISTA_TESTE_B'}
+  ];
+  const ops=[{id:'OP_A'},{id:'OP_B'},{id:'OP_SEM_PARTICIPACAO'}];
+  const trips=[
+    {id:'V_A',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_A'},
+    {id:'V_B',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_B'},
+    {id:'V_C',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_B'}
+  ];
+  const result=ftFiltrarDadosPortalMotorista_(session,parts,ops,trips);
+  const ok=result.participacoes.length===1 && result.participacoes[0].id==='PART_A' &&
+    result.operacoes.length===1 && result.operacoes[0].id==='OP_A' &&
+    result.viagens.length===1 && result.viagens[0].id==='V_A';
+  const report={sucesso:ok,participacoes:result.participacoes.length,operacoes:result.operacoes.length,viagens:result.viagens.length};
+  console.log('FULL TIME — REGRESSÃO ESCOPO PORTAL: '+JSON.stringify(report));
+  if(!ok)throw new Error('Falha no isolamento de dados do portal do motorista.');
+  return report;
 }
 
 function encerrarSessaoFullTime(token) {
