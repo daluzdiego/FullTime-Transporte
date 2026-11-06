@@ -1279,13 +1279,14 @@ function iniciarViagemFullTime(token,dados) {
     const seqDriver=counted.length+1;
     const id=Utilities.getUuid(), now=new Date();
     const row=new Array(tripSh.getLastColumn()).fill('');
-    const setv=(k,v)=>{if(tm[k]!=null)row[tm[k]]=v;};
+    const setv=(k,v)=>{const col=tm[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
     setv('ID',id);setv('CRIADO_EM',now);setv('OPERACAO_ID',operacaoId);setv('PARTICIPACAO_ID',participacaoId);
     setv('SEQUENCIA_OPERACAO',seqOp);setv('SEQUENCIA_MOTORISTA',seqDriver);setv('MOTORISTA_ID',part[pm.MOTORISTAID]);setv('CONJUNTO_ID',part[pm.CONJUNTOID]);
     setv('STATUS','A_CAMINHO_ORIGEM');setv('ORIGEM_DESCRICAO',op[om.ORIGEM]);setv('DESTINO_DESCRICAO',op[om.DESTINO]);
     setv('PESO_PREVISTO_TONELADAS',Math.min(cap,remaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
+    const totalOp=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0);
+    if(totalOp>0&&seqOp>totalOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
     tripSh.appendRow(row);
-    if(om.TOTALVIAGENSPREVISTAS!=null&&Number(op[om.TOTALVIAGENSPREVISTAS]||0)<seqOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
     if(pm.VIAGENSINICIADAS!=null)partSh.getRange(pi+1,pm.VIAGENSINICIADAS+1).setValue(Number(part[pm.VIAGENSINICIADAS]||0)+1);
     ftAppendEventoViagem_(id,'INICIO_VIAGEM',session,'Viagem '+seqOp+' iniciada.');
     auditar_(session,'INICIAR_VIAGEM','VIAGEM',id,'Operação '+operacaoId+'; participação '+participacaoId);
@@ -1310,7 +1311,7 @@ function registrarEventoViagemFullTime(token,dados) {
     if(!(transitions[status]||[]).includes(next))throw new Error('Transição inválida: '+status+' → '+next+'.');
     const now=new Date();sh.getRange(idx+1,m.STATUS+1).setValue(next);sh.getRange(idx+1,m.ATUALIZADAEM+1).setValue(now);sh.getRange(idx+1,m.ATUALIZADAPOR+1).setValue(session.login);
     const dateFields={CHEGADA_ORIGEM:'CHEGADA_ORIGEM_REAL',INICIO_CARREGAMENTO:'CHEGADA_ORIGEM_REAL',FIM_CARREGAMENTO:'SAIDA_ORIGEM_REAL',SAIDA_ORIGEM:'SAIDA_ORIGEM_REAL',CHEGADA_DESTINO:'CHEGADA_DESTINO_REAL',INICIO_DESCARGA:'CHEGADA_DESTINO_REAL'};
-    const col=m[dateFields[tipo]];if(col!=null)sh.getRange(idx+1,col+1).setValue(now);
+    const col=m[ftDriveNormHeader_(dateFields[tipo])];if(col!=null)sh.getRange(idx+1,col+1).setValue(now);
     ftAppendEventoViagem_(viagemId,tipo,session,detalhes);
     auditar_(session,'EVENTO_VIAGEM','VIAGEM',viagemId,tipo+'; '+detalhes);
     return {ok:true,status:next,message:'Evento registrado: '+tipo+'.'};
