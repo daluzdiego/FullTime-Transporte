@@ -189,7 +189,7 @@ function ftDriveTemGatilho_() {
 
 /** Valida CPF/placa na base nativa, permitindo editar o próprio registro. */
 function validarUnicidadeCadastroFullTime(token, entidade, dados) {
-  obterSessao_(token); exigirAdmin_(obterSessao_(token));
+  const session=obterSessao_(token); exigirAdmin_(session);
   dados=dados||{}; entidade=String(entidade||'').trim().toUpperCase();
   const rules={
     MOTORISTAS:{field:'CPF',sheet:'MOTORISTAS',message:'Este CPF já está cadastrado como motorista.'},
@@ -268,7 +268,7 @@ function validarAlteracaoComposicaoConjuntoFullTime(token, dados) {
   const statusCol=headers.indexOf('STATUS');
   const componentCols=['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID'].map(h=>headers.indexOf(h));
   setValues.slice(1).forEach(row=>{
-    if(String(row[idCol])===conjuntoId||(statusCol>=0&&String(row[statusCol]).toUpperCase()!=='ATIVO')) return;
+    if(String(row[idCol])===conjuntoId||(statusCol>=0&&!['ATIVO','PENDENTE_REVISAO'].includes(String(row[statusCol]).toUpperCase()))) return;
     componentCols.forEach(col=>{
       if(col>=0&&row[col]&&ids.includes(String(row[col]))) errors.push('Um componente selecionado já pertence a outro conjunto ATIVO.');
     });
