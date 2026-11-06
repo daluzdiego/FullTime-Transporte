@@ -202,9 +202,11 @@ function ftGetOrCreateLocalOperacao_(clienteId,nome,tipo,session) {
   const found=rows.slice(1).find(r=>String(r[m.CLIENTEID]||'')===String(clienteId)&&String(r[m.NOMELOCAL]||'').trim().toUpperCase()===key&&String(r[m.TIPOLOCAL]||'')===tipo);
   if(found)return String(found[m.ID]);
   const id=Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
+  const clientRows=getSheet_('CLIENTES').getDataRange().getValues(),client=clientRows.find((r,i)=>i>0&&String(r[0])===String(clienteId));
+  const clientName=client?String(client[4]||client[3]||''):'';
   const put=(k,v)=>{const col=m[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
   put('ID',id);put('CRIADO_EM',new Date());put('STATUS','ATIVO');put('NOME_LOCAL',clean);put('CLIENTE_ID',clienteId);
-  put('TIPO_LOCAL',tipo);put('ENDERECO',clean);put('CLIENTE','');
+  put('TIPO_LOCAL',tipo);put('ENDERECO',clean);put('CLIENTE',clientName);
   sh.appendRow(row);auditar_(session,'CRIAR','LOCAL',id,tipo+' — '+clean);
   return id;
 }
