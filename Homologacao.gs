@@ -315,7 +315,7 @@ function padronizarCredenciaisMotoristasHomologacaoFullTime() {
       const row=values[i];
       const profile=String(row[col.PERFIL]||'').trim().toUpperCase();
       const driverId=String(row[col.MOTORISTA_ID]||'').trim();
-      if(profile==='MOTORISTA' && /^FTTEST-MOT-\\d{4}$/.test(driverId)) {
+      if(profile==='MOTORISTA' && /^FTTEST-MOT-\d{4}$/.test(driverId)) {
         const n=Number(driverId.slice(-4));
         if(n>=1&&n<=40) targets.push({rowIndex:i+1,n:n,driverId:driverId});
       }
