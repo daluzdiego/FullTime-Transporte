@@ -947,9 +947,9 @@ function salvarOperacaoFullTime(token, data) {
   if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
   if(!(viagens>0&&viagens<=100000)) throw new Error('Informe a quantidade total prevista de viagens.');
-  if(dataFim&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dataFim)||dataFim<dataOp))throw new Error('O prazo final deve ser uma data válida igual ou posterior ao início.');
-  if(janelaInicio&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaInicio))throw new Error('Horário inicial inválido.');
-  if(janelaFim&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaFim))throw new Error('Horário final inválido.');
+  if(dataFim&&(!/^\d{4}-\d{2}-\d{2}$/.test(dataFim)||dataFim<dataOp))throw new Error('O prazo final deve ser uma data válida igual ou posterior ao início.');
+  if(janelaInicio&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(janelaInicio))throw new Error('Horário inicial inválido.');
+  if(janelaFim&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(janelaFim))throw new Error('Horário final inválido.');
   if(janelaInicio&&janelaFim&&janelaFim<janelaInicio)throw new Error('A janela final não pode ser anterior à inicial.');
   if(!['BAIXA','NORMAL','ALTA','URGENTE'].includes(prioridade))throw new Error('Prioridade inválida.');
   const id=Utilities.getUuid(), now=new Date();
