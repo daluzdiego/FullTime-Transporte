@@ -783,13 +783,7 @@ function listarRegistros_(name) {
     });
   }
 
-  const statusCol = col.STATUS != null ? col.STATUS :
-    (col.STATUSPARTICIPACAO != null ? col.STATUSPARTICIPACAO :
-    (col.STATUSOFERTA != null ? col.STATUSOFERTA :
-    (col.STATUSFILA != null ? col.STATUSFILA :
-    (col.STATUSDISPONIBILIDADE != null ? col.STATUSDISPONIBILIDADE :
-    (col.STATUSLEITURA != null ? col.STATUSLEITURA :
-    (col.STATUSVALIDACAO != null ? col.STATUSVALIDACAO : -1))))));
+  const statusCol = ftStatusColumnIndex_(headers);
   const createdCol = col.CRIADOEM != null ? col.CRIADOEM : col.DATAHORA;
   const mapped = rows.filter(r => r[col.ID != null ? col.ID : 0]).map(r => {
     const item = {
@@ -829,22 +823,42 @@ function listarRegistros_(name) {
   return mapped.reverse();
 }
 
+function ftStatusColumnIndex_(headers) {
+  const normalized = (headers || []).map(ftDriveNormHeader_);
+  const candidates = ['STATUS','STATUSPARTICIPACAO','STATUSOFERTA','STATUSFILA','STATUSDISPONIBILIDADE','STATUSLEITURA','STATUSVALIDACAO'];
+  for (let i = 0; i < candidates.length; i++) {
+    const index = normalized.indexOf(candidates[i]);
+    if (index >= 0) return index;
+  }
+  return -1;
+}
 function ftContarPorStatus_(name, status) {
   const sh = getSheet_(name), values = sh.getDataRange().getValues();
   if (values.length < 2) return 0;
-  const headers = values[0].map(ftDriveNormHeader_);
-  const candidates = ['STATUS','STATUSPARTICIPACAO','STATUSOFERTA','STATUSFILA','STATUSDISPONIBILIDADE','STATUSLEITURA','STATUSVALIDACAO'];
-  let index = -1;
-  for (let i = 0; i < candidates.length; i++) {
-    index = headers.indexOf(candidates[i]);
-    if (index >= 0) break;
-  }
+  const index = ftStatusColumnIndex_(values[0]);
   if (index < 0) throw new Error('A guia ' + name + ' não possui coluna de status reconhecida.');
   const expected = String(status || '').trim().toUpperCase();
   return values.slice(1).filter(r => String(r[index] || '').trim().toUpperCase() === expected).length;
 }
 function contarAtivos_(name) { return ftContarPorStatus_(name, 'ATIVO'); }
-function contarStatus_(name, status) { return ftContarPorStatus_(name, status);}
+function contarStatus_(name, status) { return ftContarPorStatus_(name, status); }
+
+/** Teste de regressão sem leitura ou escrita de planilhas. */
+function testarRegressaoStatusPorCabecalhoFullTime() {
+  const participacao = ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO'];
+  const viagem = ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','SEQUENCIA_OPERACAO','SEQUENCIA_MOTORISTA','MOTORISTA_ID','CONJUNTO_ID','STATUS'];
+  const operacao = ['ID','CRIADO_EM','STATUS','DATA_OPERACAO'];
+  const checks = [
+    {entidade:'PARTICIPACAO_OPERACOES',esperado:5,obtido:ftStatusColumnIndex_(participacao)},
+    {entidade:'VIAGENS',esperado:8,obtido:ftStatusColumnIndex_(viagem)},
+    {entidade:'OPERACOES',esperado:2,obtido:ftStatusColumnIndex_(operacao)}
+  ];
+  const falhas = checks.filter(x => x.obtido !== x.esperado);
+  const result = {sucesso:falhas.length===0,total:checks.length,aprovados:checks.length-falhas.length,checks:checks, falhas:falhas};
+  console.log('FULL TIME — REGRESSÃO STATUS POR CABEÇALHO: '+JSON.stringify(result));
+  if (falhas.length) throw new Error('Falha na regressão de mapeamento de status: '+JSON.stringify(falhas));
+  return result;
+}
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
   if (last < 2) return false;
