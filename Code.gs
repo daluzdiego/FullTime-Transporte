@@ -1173,7 +1173,7 @@ function listarOperacoesFullTime(token) {
   const session = obterSessao_(token); exigirAdmin_(session);
   return listarRegistros_('OPERACOES').map(function(r) {
     const f = r.campos;
-    return {id:r.id,criado:r.criado,status:r.status,data:f[0]||'',cliente:f[1]||'',nome:f[2]||'',origem:f[3]||'',destino:f[4]||'',categoria:f[5]||'',volumeTotal:Number(f[6]||0),cargasPrevistas:Number(f[7]||0),saldo:Number(f[8]||0),observacoes:f[9]||'',criadoPor:f[10]||''};
+    return {id:r.id,criado:r.criado,status:r.status,data:f[0]||'',cliente:f[1]||'',nome:f[2]||'',origem:f[3]||'',destino:f[4]||'',categoria:f[5]||'',volumeTotal:Number(f[6]||0),viagensPrevistas:Number(f[7]||0),saldo:Number(f[8]||0),observacoes:f[9]||'',criadoPor:f[10]||''};
   });
 }
 function salvarOperacaoFullTime(token, data) {
@@ -1286,13 +1286,25 @@ function designarConjuntoOperacaoFullTime(token, data) {
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
   if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
+  const viagensPrevistas=Math.floor(Number(data.viagensPrevistas||0));
+  const toneladasPrevistas=Number(String(data.toneladasPrevistas||'').replace(',','.'));
+  const capacidade=Number(set[10]||0);
+  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a meta de viagens deste motorista nesta operação.');
+  if(!(toneladasPrevistas>0&&isFinite(toneladasPrevistas))) throw new Error('Informe o volume previsto para este motorista/conjunto.');
+  if(toneladasPrevistas>capacidade*viagensPrevistas+0.000001) throw new Error('O volume previsto excede a capacidade útil do conjunto multiplicada pela meta de viagens.');
+  const totalViagens=Number(op[15]||op[10]||0);
+  const existing=rows.slice(1).filter(r=>String(r[2])===operacaoId&&['ATIVO','PLANEJADA'].includes(String(r[5])));
+  const allocatedTrips=existing.reduce((sum,r)=>sum+Number(r[13]||0),0);
+  const allocatedTons=existing.reduce((sum,r)=>sum+Number(r[14]||0),0);
+  if(allocatedTrips+viagensPrevistas>totalViagens) throw new Error('A soma das metas dos motoristas ultrapassaria o total previsto de '+totalViagens+' viagens.');
+  if(allocatedTons+toneladasPrevistas>Number(op[9]||0)+0.000001) throw new Error('O volume distribuído ultrapassaria o volume total da operação.');
   const id=Utilities.getUuid(), now=new Date();
-  parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login]);
+  parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login,viagensPrevistas,toneladasPrevistas,0,'','','',session.login]);
   const eventSheet=getSheet_('EVENTOS_ESCALA');
   eventSheet.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação manual do administrador',session.login]);
   if(String(op[2])==='ABERTA') getSheet_('OPERACOES').getRange(ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId)+1,3).setValue('EM_ANDAMENTO');
   auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
-  return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
+  return {ok:true,message:'Conjunto designado com meta de '+viagensPrevistas+' viagens e '+toneladasPrevistas+' t. A decisão ficou registrada no histórico.'};
 }
 
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
