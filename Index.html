@@ -230,7 +230,7 @@
   function renderPage(page){
     const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='caminhoes'?'Cadastro atual de caminhões.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
+    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='motoristas') c.innerHTML=renderList('motoristas');
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
@@ -308,7 +308,7 @@
         const dt=x.criadoEm?new Date(x.criadoEm):null,dateLabel=dt&&isFinite(dt.getTime())?dt.toLocaleString('pt-BR'):'—';
         const status=String(x.status||'RECEBIDA'),labels={RECEBIDA:'Recebida',AGUARDANDO_IA:'Aguardando IA',EM_COLETA:'Em coleta',AGUARDANDO_APROVACAO:'Aguardando aprovação',APROVADA:'Aprovada',RECUSADA:'Recusada',AJUSTE_SOLICITADO:'Ajuste solicitado'};
         const msg=String(x.textoOriginal||''),preview=msg.length>150?msg.slice(0,150)+'…':msg;
-        return '<tr><td>'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:220px;white-space:normal">'+esc(preview)+'</td><td>'+esc(labels[status]||status)+'</td><td><button class="btn btn-secondary" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(x.id)+'\')">Revisar</button> <button class="btn btn-secondary" onclick="analisarSolicitacaoIAFullTime(\''+esc(x.id)+'\')">IA</button>'+(status==='APROVADA'&&!x.idCargaGerada?' <button class="btn btn-primary" onclick="converterSolicitacaoFullTime(\''+esc(x.id)+'\')">Gerar carga</button>':'')+(x.idCargaGerada?' <span class="muted small">Carga '+esc(x.idCargaGerada)+'</span>':'')+'</td></tr>';
+        return '<tr><td>'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:220px;white-space:normal">'+esc(preview)+'</td><td>'+esc(labels[status]||status)+'</td><td><button class="btn btn-secondary" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(x.id)+'\')">Revisar</button> <button class="btn btn-secondary" onclick="analisarSolicitacaoIAFullTime(\''+esc(x.id)+'\')">IA</button>'+(status==='APROVADA'&&!x.idOperacaoGerada?' <button class="btn btn-primary" onclick="converterSolicitacaoFullTime(\''+esc(x.id)+'\')">Gerar operação</button>':'')+(x.idOperacaoGerada?' <span class="muted small">Operação '+esc(x.idOperacaoGerada)+'</span>':'')+'</td></tr>';
       }).join('')+'</tbody></table></div>';
   }
   function carregarSolicitacoesFullTime(){
@@ -347,8 +347,8 @@
     const obs=prompt('Observação (opcional):')||'';
     google.script.run.withSuccessHandler(res=>{toast(res.message||'Status atualizado.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Não foi possível alterar o status.',true)).atualizarStatusSolicitacaoFullTime(authToken,id,status,obs);
   }
-  function aprovarSolicitacaoUI(id){if(!confirm('Aprovar esta solicitação? Isso não cria uma carga automaticamente.'))return;alterarStatusSolicitacaoUI(id,'APROVADA');}
-  function converterSolicitacaoFullTime(id){if(!confirm('Gerar carga definitiva com os dados aprovados?'))return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Carga gerada.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao gerar carga.',true)).converterSolicitacaoEmCargaFullTime(authToken,id);}
+  function aprovarSolicitacaoUI(id){if(!confirm('Aprovar esta solicitação? Isso não cria uma operação automaticamente.'))return;alterarStatusSolicitacaoUI(id,'APROVADA');}
+  function converterSolicitacaoFullTime(id){if(!confirm('Gerar operação definitiva com os dados aprovados?'))return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Carga gerada.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao gerar operação.',true)).converterSolicitacaoEmOperacaoFullTime(authToken,id);}
 
   function analisarSolicitacaoIAFullTime(id){
     const host=document.getElementById('solAnaliseResultado');
