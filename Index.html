@@ -685,8 +685,8 @@
       else if(status==='EM_TRANSITO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_DESTINO\')">Chegou ao destino</button>';
       else if(status==='NO_LOCAL_DESTINO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_DESCARGA\')">Iniciar descarga</button>';
       else if(status==='DESCARREGANDO')actions='<button class="icon-btn" onclick="completeTrip(\''+v.id+'\')">Concluir viagem</button>';
-      if(!['CONCLUIDA','CANCELADA','INTERROMPIDA'].includes(status))actions+=' <button class="icon-btn" onclick="interruptTrip(\\''+v.id+'\\')">Interromper</button>';
-      if(status==='INTERROMPIDA')actions='<button class="icon-btn" onclick="resumeTrip(\\''+v.id+'\\')">Retomar</button> <button class="icon-btn" onclick="cancelTrip(\\''+v.id+'\\')">Cancelar</button>';
+      if(!['CONCLUIDA','CANCELADA','INTERROMPIDA'].includes(status))actions+=' <button class="icon-btn" onclick="interruptTrip(\''+v.id+'\')">Interromper</button>';
+      if(status==='INTERROMPIDA')actions='<button class="icon-btn" onclick="resumeTrip(\''+v.id+'\')">Retomar</button> <button class="icon-btn" onclick="cancelTrip(\''+v.id+'\')">Cancelar</button>';
       return '<tr><td>'+esc(seq)+'</td><td>'+esc(driver?.campos[0]||f[3]||'')+'</td><td>'+esc(f[4]||'')+'</td><td>'+esc(status)+'</td><td>'+esc(weight)+' t</td><td>'+actions+'</td></tr>';
     }).join('');
     panel.innerHTML += '<div class="panel"><div class="panel-head"><h2>Viagens da operação</h2><span class="muted small">'+trips.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Sequência</th><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Peso previsto</th><th>Ação</th></tr></thead><tbody>'+ (rows||'<tr><td colspan="6">Nenhuma viagem iniciada.</td></tr>')+'</tbody></table></div></div></div>';
