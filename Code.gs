@@ -275,6 +275,27 @@ function migrarCabecalhoViagensOperacoesFullTime(token,confirmar) {
   return {ok:true,alterado:true,coluna:oldIndex+1,linhasPreservadas:Math.max(0,sh.getLastRow()-1),message:'Cabeçalho atualizado. Nenhum registro foi apagado ou reescrito.'};
 }
 
+/**
+ * Migração segura do vínculo de comprovantes: CARGA_ID legado → VIAGEM_ID.
+ * Só permite renomear se todos os valores existentes estiverem vazios.
+ */
+function migrarCabecalhoTicketsViagemFullTime(token,confirmar) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const sh=getSheet_('TICKETS'), width=sh.getLastColumn();
+  const headers=sh.getRange(1,1,1,width).getDisplayValues()[0].map(v=>String(v||'').trim());
+  const oldIndex=headers.indexOf('CARGA_ID'), newIndex=headers.indexOf('VIAGEM_ID');
+  if(oldIndex<0&&newIndex>=0)return {ok:true,alterado:false,message:'TICKETS já está vinculado a VIAGENS.'};
+  if(oldIndex<0)throw new Error('Não encontrei CARGA_ID na guia TICKETS.');
+  if(newIndex>=0)throw new Error('Já existe VIAGEM_ID. Reconciliação manual necessária.');
+  const values=sh.getLastRow()>1?sh.getRange(2,oldIndex+1,sh.getLastRow()-1,1).getDisplayValues().flat():[];
+  const occupied=values.filter(v=>String(v||'').trim()).length;
+  if(occupied)throw new Error('Há '+occupied+' referência(s) antigas de carga. Não renomeei para evitar vínculos incorretos.');
+  if(confirmar!==true)return {ok:true,previa:true,alterado:false,linhasPreservadas:values.length,message:'Todos os vínculos antigos estão vazios. Confirme para renomear somente o cabeçalho.'};
+  sh.getRange(1,oldIndex+1).setValue('VIAGEM_ID');
+  auditar_(session,'MIGRAR_CABECALHO','TICKETS','', 'CARGA_ID → VIAGEM_ID; dados preservados');
+  return {ok:true,alterado:true,linhasPreservadas:values.length,message:'TICKETS agora referencia VIAGEM_ID.'};
+}
+
 function prepararBaseOperacionalFullTime() {
   const id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
@@ -290,6 +311,7 @@ function prepararBaseOperacionalFullTime() {
     VIAGENS: ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','SEQUENCIA_OPERACAO','SEQUENCIA_MOTORISTA','MOTORISTA_ID','CONJUNTO_ID','STATUS','ORIGEM_DESCRICAO','DESTINO_DESCRICAO','PESO_PREVISTO_TONELADAS','PESO_REAL_TONELADAS','PREVISTA_INICIO','PREVISTA_CHEGADA','INICIO_REAL','CHEGADA_ORIGEM_REAL','SAIDA_ORIGEM_REAL','CHEGADA_DESTINO_REAL','FIM_REAL','DISTANCIA_PREVISTA_KM','DISTANCIA_REAL_KM','MOTIVO_CANCELAMENTO','OBSERVACOES','ATUALIZADA_EM','ATUALIZADA_POR'],
     EVENTOS_VIAGEM: ['ID','VIAGEM_ID','TIPO_EVENTO','DATA_HORA_EVENTO','DATA_HORA_RECEBIMENTO','LOCAL_ID','LATITUDE','LONGITUDE','RESPONSAVEL_ID','ORIGEM_REGISTRO','DESCRICAO','OBSERVACOES','IDEMPOTENCIA'],
     DOCUMENTOS_VIAGEM: ['ID','VIAGEM_ID','EVENTO_VIAGEM_ID','TIPO_DOCUMENTO','DRIVE_FILE_ID','URL','NOME_ARQUIVO','MIME_TYPE','HASH_ARQUIVO','RECEBIDO_EM','RECEBIDO_POR','STATUS_VALIDACAO','OBSERVACOES'],
+    TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','VIAGEM_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
@@ -661,7 +683,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','TICKETS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
