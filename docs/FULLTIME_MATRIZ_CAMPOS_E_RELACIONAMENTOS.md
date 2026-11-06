@@ -10,8 +10,8 @@
 O repositório já declara uma base operacional com 18 guias de negócio, além das guias internas de usuários e auditoria. Há, porém, quatro problemas arquiteturais que precisam ser tratados antes de ampliar os cadastros:
 
 1. **Leitura legada ainda ativa:** `listarRegistros_()`, `contarAtivos_()` e `contarStatus_()` ainda recorrem a `ftBrunoRowsAsLegacy_()` para MOTORISTAS, CAVALOS, CARRETAS e CONJUNTOS. A consulta de documentos do painel também lê o espelho legado. Portanto, a base nativa ainda não é a fonte exclusiva dessas consultas.
-2. **Modelo duplicado de veículo:** existem MOTORISTAS e CAMINHOES no cadastro inicial, e também CAVALOS e CARRETAS no esquema operacional. O código faz associação de capacidade de CAMINHOES com CAVALOS pela placa normalizada. Isso cria dois contratos para informações que precisam ter uma definição canônica.
-3. **Relacionamentos incompletos:** OPERACOES e CARGAS guardam cliente, origem e destino como texto, enquanto o modelo futuro exige referências estáveis para CLIENTES, ENDERECOS, LOCAIS e ROTAS.
+2. **Modelo duplicado de veículo:** existem MOTORISTAS e CAMINHOES (LEGADO — DESCONTINUADO) no cadastro inicial, e também CAVALOS e CARRETAS no esquema operacional. O código faz associação de capacidade de CAMINHOES (LEGADO — DESCONTINUADO) com CAVALOS pela placa normalizada. Isso cria dois contratos para informações que precisam ter uma definição canônica.
+3. **Relacionamentos incompletos:** OPERACOES e CARGAS (LEGADO — DESCONTINUADO) guardam cliente, origem e destino como texto, enquanto o modelo futuro exige referências estáveis para CLIENTES, ENDERECOS, LOCAIS e ROTAS.
 4. **Viagem não está modelada como entidade própria no esquema operacional auditado:** há MOVIMENTACOES_OPERACAO e HISTORICO_OPERACOES, mas não uma tabela/guia VIAGENS com ciclo individual, identificador próprio e eventos/comprovantes vinculados.
 
 **Conclusão:** não é seguro criar novas guias ou migrar dados antes de fechar o dicionário canônico, mapear os campos legados e definir chaves de relacionamento.
@@ -27,7 +27,7 @@ Os campos abaixo foram extraídos dos arrays de cabeçalho encontrados em `Code.
 | USUARIOS | ID, LOGIN, NOME, PERFIL, SALT, HASH_SENHA, ATIVO, TROCAR_SENHA, CRIADO_EM | Identidade e autenticação; não é cadastro operacional. |
 | AUDITORIA | DATA_HORA, LOGIN, ACAO, ENTIDADE, REGISTRO_ID, DETALHES | Trilha administrativa básica; avaliar tenant_id, ator_id e estrutura de evento. |
 | MOTORISTAS | ID, CRIADO_EM, STATUS, NOME_COMPLETO, CPF, TELEFONE, EMAIL, CNH_NUMERO, CNH_CATEGORIA, CNH_VALIDADE, CIDADE_UF, OBSERVACOES | O cadastro inicial é de 12 campos. |
-| CAMINHOES | ID, CRIADO_EM, STATUS, PLACA, RENAVAM, MARCA, MODELO, ANO, TIPO_VEICULO, CAPACIDADE_TONELADAS, SITUACAO_DOCUMENTAL, OBSERVACOES | Estrutura genérica de caminhão; conflita conceitualmente com CAVALOS e CARRETAS. |
+| CAMINHOES (LEGADO — DESCONTINUADO) | ID, CRIADO_EM, STATUS, PLACA, RENAVAM, MARCA, MODELO, ANO, TIPO_VEICULO, CAPACIDADE_TONELADAS, SITUACAO_DOCUMENTAL, OBSERVACOES | Estrutura genérica de caminhão; conflita conceitualmente com CAVALOS e CARRETAS. |
 
 ### 2.2 Base operacional preparada por `prepararBaseOperacionalFullTime()`
 
@@ -36,18 +36,18 @@ Os campos abaixo foram extraídos dos arrays de cabeçalho encontrados em `Code.
 | CAVALOS | ID, CRIADO_EM, STATUS, PLACA, MARCA, MODELO, ANO, TARA_TONELADAS, PBTC_MAX_TONELADAS, OBSERVACOES | 10 |
 | CARRETAS | ID, CRIADO_EM, STATUS, PLACA, TIPO_CARRETA, TARA_TONELADAS, CAPACIDADE_CARGA_TONELADAS, PBTC_MAX_TONELADAS, OBSERVACOES | 9 |
 | CONJUNTOS | ID, CRIADO_EM, STATUS, MOTORISTA_ID, CAVALO_ID, CARRETA_MEIO_ID, CARRETA_FINAL_ID, OBSERVACOES, ESTADO_CONSERVACAO, RESTRICOES, CAPACIDADE_UTIL_TONELADAS, ATUALIZADO_POR | 12 |
-| OPERACOES | ID, CRIADO_EM, STATUS, DATA_OPERACAO, CLIENTE, NOME_OPERACAO, ORIGEM, DESTINO, CATEGORIA, VOLUME_TOTAL_TONELADAS, TOTAL_CARGAS_PREVISTAS, SALDO_TONELADAS, OBSERVACOES, CRIADO_POR | 14 |
+| OPERACOES | ID, CRIADO_EM, STATUS, DATA_OPERACAO, CLIENTE, NOME_OPERACAO, ORIGEM, DESTINO, CATEGORIA, VOLUME_TOTAL_TONELADAS, TOTAL_CARGAS (LEGADO — DESCONTINUADO)_PREVISTAS, SALDO_TONELADAS, OBSERVACOES, CRIADO_POR | 14 |
 | PARTICIPACAO_OPERACOES | ID, CRIADO_EM, OPERACAO_ID, CONJUNTO_ID, MOTORISTA_ID, STATUS_PARTICIPACAO, INICIO_EM, SAIDA_EM, RETORNO_EM, TONELADAS_MOVIMENTADAS, VIAGENS_CONCLUIDAS, MOTIVO, REGISTRADO_POR | 13 |
 | MOVIMENTACOES_OPERACAO | ID, DATA_HORA, OPERACAO_ID, PARTICIPACAO_ID, CONJUNTO_ID, TONELADAS, VIAGEM_CONCLUIDA, OBSERVACOES, REGISTRADO_POR | 9 |
 | LOCAIS | ID, CRIADO_EM, STATUS, NOME_LOCAL, CLIENTE, TIPO_LOCAL, ENDERECO, CIDADE_UF, REGRAS_OBSERVACOES | 9 |
 | REGRAS_OPERACIONAIS | ID, CRIADO_EM, STATUS, LOCAL_ID, PESO_MIN_TONELADAS, PESO_MAX_TONELADAS, TIPO_CAVALO, TIPO_CARRETA, EXIGENCIAS, OBSERVACOES | 10 |
-| CARGAS | ID, CRIADO_EM, STATUS, DATA_OPERACAO, HORARIO_PREVISTO, CLIENTE, ORIGEM, DESTINO, PESO_TONELADAS, DESCRICAO, MOTORISTA_ID, CAVALO_ID, CARRETA_MEIO_ID, CARRETA_FINAL_ID, OBSERVACOES, CRIADO_POR, TIPO_OPERACAO, TICKET_CARREGAMENTO_URL, TICKET_DESCARGA_URL, VALOR_FRETE | 20 |
+| CARGAS (LEGADO — DESCONTINUADO) | ID, CRIADO_EM, STATUS, DATA_OPERACAO, HORARIO_PREVISTO, CLIENTE, ORIGEM, DESTINO, PESO_TONELADAS, DESCRICAO, MOTORISTA_ID, CAVALO_ID, CARRETA_MEIO_ID, CARRETA_FINAL_ID, OBSERVACOES, CRIADO_POR, TIPO_OPERACAO, TICKET_CARREGAMENTO_URL, TICKET_DESCARGA_URL, VALOR_FRETE | 20 |
 | ESCALAS | ID, CRIADO_EM, STATUS, CARGA_ID, MOTORISTA_ID, CAVALO_ID, CARRETA_MEIO_ID, CARRETA_FINAL_ID, MOTIVO_SELECAO, INICIO_PREVISTO, FIM_PREVISTO, OBSERVACOES | 12 |
 | HISTORICO_OPERACOES | ID, DATA_HORA, CARGA_ID, MOTORISTA_ID, ORIGEM, DESTINO, EVENTO, OBSERVACOES, REGISTRADO_POR | 9 |
 | TICKETS | ID, RECEBIDO_EM, WHATSAPP_MESSAGE_ID, TELEFONE_REMETENTE, MOTORISTA_ID, CARGA_ID, TIPO_TICKET, MEDIA_ID, DRIVE_FILE_ID, DRIVE_FILE_URL, NOME_ARQUIVO, MIME_TYPE, STATUS_LEITURA, DATA_HORA_EXTRAIDA, CONFIANCA_LEITURA, ERRO_VALIDACAO, RETENCAO_ATE, METADADOS_JSON | 18 |
 | DISPONIBILIDADE_DIARIA | ID, CRIADO_EM, DATA_OPERACAO, MOTORISTA_ID, STATUS_DISPONIBILIDADE, CONFIRMADO_EM, INDISPONIVEL_EM, MOTIVO, ATUALIZADO_POR | 9 |
 | FILA_MOTORISTAS | ID, DATA_ENTRADA, MOTORISTA_ID, CONJUNTO_ID, STATUS_FILA, ULTIMA_OFERTA_EM, ULTIMA_CARGA_CONCLUIDA_EM, VIAGENS_PERIODO, OBSERVACOES | 9 |
-| OFERTAS_CARGAS | ID, CRIADO_EM, CARGA_ID, MOTORISTA_ID, CONJUNTO_ID, POSICAO_FILA, STATUS_OFERTA, EXPIRA_EM, RESPONDIDO_EM, MOTIVO_RECUSA, CRIADO_POR | 11 |
+| OFERTAS_CARGAS (LEGADO — DESCONTINUADO) | ID, CRIADO_EM, CARGA_ID, MOTORISTA_ID, CONJUNTO_ID, POSICAO_FILA, STATUS_OFERTA, EXPIRA_EM, RESPONDIDO_EM, MOTIVO_RECUSA, CRIADO_POR | 11 |
 | EVENTOS_ESCALA | ID, DATA_HORA, TIPO_EVENTO, CARGA_ID, MOTORISTA_ID, CONJUNTO_ID, POSICAO_ANTERIOR, POSICAO_NOVA, MOTIVO, REGISTRADO_POR | 10 |
 
 ### 2.3 Espelhos legados identificados
@@ -71,12 +71,12 @@ O leitor legado normaliza nomes de cabeçalho e tenta mapear aliases. Quando uma
 | D-01 | Cadastros de frota ainda dependem de espelhos Bruno | `listarRegistros_()`, `contarAtivos_()`, `contarStatus_()` | O sistema não opera de forma independente da planilha externa | Migrar leitura para tabelas nativas após reconciliação e homologação. |
 | D-02 | MOTORISTAS é lido do espelho e combinado com registros locais | Bloco especial de `listarRegistros_('MOTORISTAS')` | Precedência e status podem divergir; risco de duplicidade | Definir chave canônica e política de reconciliação. |
 | D-03 | CONJUNTOS combina espelho e guia local | Bloco especial de `listarRegistros_('CONJUNTOS')` | Mesmo conjunto pode existir em duas fontes com dados diferentes | Resolver origem, IDs e conflitos antes de desligar integração. |
-| D-04 | CAMINHOES e CAVALOS coexistem | Esquema inicial e operacional | Dois cadastros podem representar o mesmo veículo | Definir CAMINHOES como legado/compatibilidade ou migrar seus campos para CAVALOS. Não apagar antes da prova de dependências. |
-| D-05 | Capacidade do cavalo é derivada de CAMINHOES pela placa | `listarRegistros_('CAVALOS')` | Dependência indireta e associação por placa mutável | Capacidade e atributos devem pertencer ao registro canônico do veículo; vínculo por ID. |
-| D-06 | CLIENTE, ORIGEM e DESTINO são texto em OPERAÇÕES/CARGAS | Cabeçalhos OPERACOES e CARGAS | Erros de digitação e ausência de integridade referencial | Introduzir CLIENTE_ID, LOCAL_ORIGEM_ID, LOCAL_DESTINO_ID e, quando aplicável, ROTA_ID. |
+| D-04 | CAMINHOES (LEGADO — DESCONTINUADO) e CAVALOS coexistem | Esquema inicial e operacional | Dois cadastros podem representar o mesmo veículo | Definir CAMINHOES (LEGADO — DESCONTINUADO) como legado/compatibilidade ou migrar seus campos para CAVALOS. Não apagar antes da prova de dependências. |
+| D-05 | Capacidade do cavalo é derivada de CAMINHOES (LEGADO — DESCONTINUADO) pela placa | `listarRegistros_('CAVALOS')` | Dependência indireta e associação por placa mutável | Capacidade e atributos devem pertencer ao registro canônico do veículo; vínculo por ID. |
+| D-06 | CLIENTE, ORIGEM e DESTINO são texto em OPERAÇÕES/CARGAS (LEGADO — DESCONTINUADO) | Cabeçalhos OPERACOES e CARGAS (LEGADO — DESCONTINUADO) | Erros de digitação e ausência de integridade referencial | Introduzir CLIENTE_ID, LOCAL_ORIGEM_ID, LOCAL_DESTINO_ID e, quando aplicável, ROTA_ID. |
 | D-07 | LOCAIS guarda endereço em um único campo | Cabeçalho LOCAIS | Não representa geocódigo, portaria, terminal, município, UF, país e dados de acesso separadamente | Normalizar endereço e dados operacionais do local. |
 | D-08 | REGRAS_OPERACIONAIS tem escopo centrado em LOCAL_ID | Cabeçalho REGRAS_OPERACIONAIS | Regras por cliente, rota, operação e veículo não ficam bem representadas | Definir escopo, referência, vigência, prioridade e precedência. |
-| D-09 | CARGAS possui tickets como URL direta | Campos TICKET_CARREGAMENTO_URL e TICKET_DESCARGA_URL | Baixa rastreabilidade para múltiplos comprovantes e múltiplas viagens | Criar entidade de documento/comprovante vinculada à viagem e ao evento. |
+| D-09 | CARGAS (LEGADO — DESCONTINUADO) possui tickets como URL direta | Campos TICKET_CARREGAMENTO_URL e TICKET_DESCARGA_URL | Baixa rastreabilidade para múltiplos comprovantes e múltiplas viagens | Criar entidade de documento/comprovante vinculada à viagem e ao evento. |
 | D-10 | Não há guia VIAGENS no esquema operacional | Ausência no mapa de schemas; MOVIMENTACOES_OPERACAO e HISTORICO_OPERACOES existentes | Uma carga pode ser confundida com execução/viagem | Criar modelo de viagem independente com eventos próprios. |
 | D-11 | Participação e movimentação agregam viagens | VIAGENS_CONCLUIDAS e VIAGEM_CONCLUIDA | Não detalha ciclo individual de cada viagem | Relacionar cada movimentação a VIAGEM_ID e preservar histórico. |
 | D-12 | Documentos só aparecem no espelho legado identificado | FT_CADASTRO_BRUNO_DOCUMENTOS e painel | Dependência legada e ausência de cadastro nativo formal no schema principal | Criar DOCUMENTOS com entidade proprietária, tipo, número, emissão, validade, arquivo e status. |
@@ -152,9 +152,9 @@ Não repetir todos esses campos em entidades puramente derivadas sem avaliar o c
 - OPERACOES: ID, TENANT_ID, CODIGO_EXTERNO, MODELO_OPERACAO_ID opcional, CLIENTE_ID, TIPO_OPERACAO, DATA_INICIO, DATA_FIM, LOCAL_ORIGEM_ID, LOCAL_DESTINO_ID, ROTA_ID, VOLUME_TOTAL, UNIDADE_MEDIDA, STATUS, OBSERVACOES.
 - Modelo recorrente/contrato não deve ser confundido com operação concreta.
 
-### 4.11 CARGAS, VIAGENS e EVENTOS_VIAGEM
+### 4.11 CARGAS (LEGADO — DESCONTINUADO), VIAGENS e EVENTOS_VIAGEM
 
-- CARGAS: ID, TENANT_ID, CODIGO_EXTERNO, OPERACAO_ID, CLIENTE_ID, LOCAL_ORIGEM_ID, LOCAL_DESTINO_ID, ROTA_ID, PRODUTO, PESO_PLANEJADO_KG, JANELA_CARREGAMENTO, JANELA_DESCARGA, STATUS.
+- CARGAS (LEGADO — DESCONTINUADO): ID, TENANT_ID, CODIGO_EXTERNO, OPERACAO_ID, CLIENTE_ID, LOCAL_ORIGEM_ID, LOCAL_DESTINO_ID, ROTA_ID, PRODUTO, PESO_PLANEJADO_KG, JANELA_CARREGAMENTO, JANELA_DESCARGA, STATUS.
 - VIAGENS: ID, TENANT_ID, CARGA_ID, CONJUNTO_ID, MOTORISTA_ID, INICIO_PREVISTO, INICIO_REAL, FIM_REAL, PESO_REAL_KG, STATUS, identificadores externos e observações.
 - EVENTOS_VIAGEM: ID, TENANT_ID, VIAGEM_ID, TIPO_EVENTO, DATA_HORA, LOCAL_ID, LATITUDE, LONGITUDE, RESPONSAVEL_ID, OBSERVACOES.
 - DOCUMENTOS/COMPROVANTES devem referenciar VIAGEM_ID e, quando aplicável, EVENTO_VIAGEM_ID.
@@ -184,13 +184,13 @@ Ordem recomendada de dependência:
 7. ROTAS e PONTOS_ROTA.
 8. MODELOS_OPERACAO e REGRAS_OPERACIONAIS.
 9. OPERACOES.
-10. CARGAS, quando o processo de importação de operação/carga estiver aprovado.
+10. CARGAS (LEGADO — DESCONTINUADO), quando o processo de importação de operação/carga estiver aprovado.
 
 ## 6. Decisões que precisam ser fechadas antes da implementação
 
 | Tema | Decisão necessária | Proposta técnica |
 |---|---|---|
-| CAMINHOES x CAVALOS | CAMINHOES será descontinuado, alias ou cadastro de outro tipo de veículo? | Tratar como legado/compatibilidade até mapear dependências; não excluir agora. |
+| CAMINHOES (LEGADO — DESCONTINUADO) x CAVALOS | CAMINHOES (LEGADO — DESCONTINUADO) será descontinuado, alias ou cadastro de outro tipo de veículo? | Tratar como legado/compatibilidade até mapear dependências; não excluir agora. |
 | Composição | Quantos implementos e quais tipos podem compor um conjunto? | Relação de composição variável, parametrizada por empresa/operação, após confirmação das regras reais. |
 | Peso e capacidade | Unidade padrão? | Armazenar em kg como inteiro/decimal controlado; converter para toneladas apenas na interface/importação. |
 | Cliente/local | Origem e destino podem ser endereço livre ou devem referenciar local? | Preferir LOCAL_ID; permitir entrada provisória para revisão sem perder o texto original. |
@@ -205,7 +205,7 @@ Ordem recomendada de dependência:
 2. Cruzar esse inventário com as estruturas deste documento.
 3. Criar testes de contrato para os cabeçalhos e mapeamentos.
 4. Corrigir a leitura legada para usar repositórios nativos, preservando IDs e status após plano de migração validado.
-5. Definir a migração CAMINHOES → CAVALOS (ou contrato alternativo aprovado).
+5. Definir a migração CAMINHOES (LEGADO — DESCONTINUADO) → CAVALOS (ou contrato alternativo aprovado).
 6. Implementar entidades CLIENTES, ENDERECOS_CLIENTES, LOCAIS_OPERACIONAIS, ROTAS, PONTOS_ROTA, VIAGENS e DOCUMENTOS conforme os contratos aprovados.
 7. Implementar importação em lote com prévia, relatório e processamento retomável.
 8. Só depois iniciar a migração de dados reais e desligamento controlado da sincronização antiga.
@@ -219,3 +219,8 @@ Ordem recomendada de dependência:
 - Nenhum dado real foi migrado.
 - A guia `CAVALOS-BRUNO` não foi acessada.
 - As conclusões sobre planilhas são limitadas aos cabeçalhos e mapeamentos declarados no código; a conferência ao vivo permanece pendente.
+
+
+## Decisão de produto — operações e viagens (2026-11-06)
+
+A unidade de negócio é OPERAÇÃO; a execução é VIAGEM. Não criar entidade CARGAS. Não utilizar CAMINHOES como cadastro: frota = MOTORISTAS, CAVALOS, CARRETAS e CONJUNTOS. Cada participação em operação recebe VIAGENS_PREVISTAS e TONELADAS_PREVISTAS. A soma das metas das participações deve fechar o TOTAL_VIAGENS_PREVISTAS e o volume total da operação. Cada viagem possui ID próprio, sequência, participação, motorista, conjunto, pesos, horários, status, eventos e documentos. Consultar `docs/FULLTIME_MODELO_OPERACIONAL_OPERACOES_VIAGENS.md` como contrato normativo.
