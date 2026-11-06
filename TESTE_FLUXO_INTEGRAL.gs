@@ -228,6 +228,29 @@ function executarTesteFluxoIntegralFullTime() {
     return 'Oferta sequencial, resposta administrativa e expiração automática estão disponíveis no backend.';
   });
 
+  executar('08 — DISPONIBILIDADE', 'Registro diário de disponibilidade e edição de peso estão disponíveis', () => {
+    exigir(typeof registrarDisponibilidadeDiariaFullTime === 'function', 'Endpoint de disponibilidade diária ausente.');
+    exigir(typeof listarDisponibilidadeDiariaFullTime_ === 'function', 'Leitura da disponibilidade diária ausente.');
+    exigir(typeof atualizarPesoPrevistoCargaFullTime === 'function', 'Endpoint para corrigir peso previsto da viagem ausente.');
+    exigir(typeof instalarMonitoramentoOfertasEscalaFullTime === 'function', 'Instalador do monitor de ofertas expiradas ausente.');
+    return 'Disponibilidade diária, ajuste de peso por viagem e instalador do monitor encontrados.';
+  }, 'BLOQUEIO');
+
+  executar('08 — PESOS DAS VIAGENS', 'Oferta só é liberada com pesos completos e soma consistente', () => {
+    exigir(typeof validarPesosViagensOperacaoFullTime_ === 'function', 'Validador de pesos por viagem ausente.');
+    const r=testarValidacaoPesosViagensOperacaoFullTime();
+    exigir(r.falhas===0 && r.aprovados===r.total, 'Falha na suíte de pesos por viagem: '+JSON.stringify(r.resultados));
+    return r.aprovados+'/'+r.total+' cenários aprovados; peso ausente, soma divergente e quantidade divergente bloqueiam a oferta.';
+  }, 'BLOQUEIO');
+
+  executar('08 — INTERPRETAÇÃO DE ROTA', 'Texto de volume e quantidade não é confundido com origem/destino', () => {
+    const route=extrairRotaDiretaOperacaoIA_('Volume total 300 toneladas para 5 viagens');
+    exigir(!route.origem&&!route.destino, 'O parser confundiu volume/quantidade com rota.');
+    const valid=extrairRotaDiretaOperacaoIA_('De Rio Grande para Canoas');
+    exigir(valid.origem==='Rio Grande'&&valid.destino==='Canoas', 'A rota explícita não foi extraída corretamente.');
+    return 'Regressão de falso positivo e rota explícita aprovadas.';
+  }, 'BLOQUEIO');
+
   const aprovados = testes.filter(t => t.status === 'APROVADO').length;
   const falhas = testes.filter(t => t.status === 'FALHA').length;
   const bloqueios = testes.filter(t => t.status === 'BLOQUEIO').length;
