@@ -629,13 +629,55 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,viagensPrevistas:viagensPrevistas,toneladasPrevistas:toneladasPrevistas,motivo:motivo});
   }
   function showMovimentacao(id){
-    const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id);const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
+    const op=(dashboard?.operacoes||[]).find(o=>o.id===id);
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>p.campos[2]==='ATIVO'&&p.campos[0]&&p.campos[1]);
+    const mine=parts.filter(p=>p.campos[0]&&p.id);
     const panel=document.getElementById('operacaoActionPanel');
-    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar movimentação</h2><span class="badge badge-pending">Saldo: '+esc(op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><div class="form-grid"><div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas movimentadas *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Viagem concluída?</label><select name="viagemConcluida"><option value="false">Não</option><option value="true">Sim</option></select></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar e descontar do saldo</button></div></form></div></div>';
+    const options=mine.map(p=>{
+      const driver=(dashboard?.motoristas||[]).find(d=>d.id===p.campos[1]);
+      const set=(dashboard?.conjuntos||[]).find(x=>x.id===p.campos[0]);
+      const target=Number(p.campos[10]||0),tons=Number(p.campos[11]||0);
+      return '<option value="'+esc(p.id)+'" data-target="'+target+'">'+esc(driver?.campos[0]||p.campos[1])+' · '+esc(set?.id||p.campos[0])+' · '+target+' viagens / '+tons+' t</option>';
+    }).join('');
+    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Iniciar viagem — '+esc(op?.campos[2]||'Operação')+'</h2><span class="badge badge-pending">Plano: '+esc(op?.viagensPrevistas||op?.campos[7]||0)+' viagens</span></div><div class="panel-body"><div class="notice">A viagem só poderá começar quando a soma das metas individuais de viagens e toneladas estiver exatamente igual ao plano da operação.</div><form onsubmit="startTrip(event,\''+esc(id)+'\')"><div class="field"><label>Motorista / conjunto designado *</label><select name="participacaoId" required><option value="">Selecione uma participação ativa</option>'+options+'</select></div><div id="tripStartError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Iniciar próxima viagem</button><button class="btn btn-secondary" type="button" onclick="validarPlanoOperacao(\''+esc(id)+'\')">Validar distribuição</button></div></form></div></div>';
+    showViagensOperacao(id);
   }
-  function saveMovimentacao(ev){
-    ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagemConcluida=data.viagemConcluida==='true';
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
+  function validarPlanoOperacao(id){
+    google.script.run.withSuccessHandler(r=>{if(r.ok)toast(r.message);else toast(r.message,true);}).withFailureHandler(e=>toast(e.message||'Falha ao validar plano.',true)).validarPlanejamentoOperacaoFullTime(authToken,id);
+  }
+  function startTrip(ev,operacaoId){
+    ev.preventDefault();const participacaoId=ev.currentTarget.elements.participacaoId.value;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');showMovimentacao(operacaoId);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('tripStartError').textContent=e.message||'Não foi possível iniciar a viagem.';}).iniciarViagemFullTime(authToken,{operacaoId:operacaoId,participacaoId:participacaoId});
+  }
+  function showViagensOperacao(id){
+    const panel=document.getElementById('operacaoActionPanel');
+    if(!panel)return;
+    const trips=(dashboard?.viagens||[]).filter(v=>v.campos[0]===id);
+    const rows=trips.map(v=>{
+      const f=v.campos,seq=f[1]||'—',status=f[5]||'—',weight=f[10]||'';
+      let actions='';
+      if(status==='A_CAMINHO_ORIGEM')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_ORIGEM\')">Chegou à origem</button>';
+      else if(status==='NO_LOCAL_ORIGEM')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_CARREGAMENTO\')">Iniciar carga</button>';
+      else if(status==='CARREGANDO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'FIM_CARREGAMENTO\')">Carga concluída</button>';
+      else if(status==='CARREGADA')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'SAIDA_ORIGEM\')">Sair da origem</button>';
+      else if(status==='EM_TRANSITO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_DESTINO\')">Chegou ao destino</button>';
+      else if(status==='NO_LOCAL_DESTINO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_DESCARGA\')">Iniciar descarga</button>';
+      else if(status==='DESCARREGANDO')actions='<button class="icon-btn" onclick="completeTrip(\''+v.id+'\')">Concluir viagem</button>';
+      return '<tr><td>'+esc(seq)+'</td><td>'+esc(f[3]||'')+'</td><td>'+esc(f[4]||'')+'</td><td>'+esc(status)+'</td><td>'+esc(weight)+' t</td><td>'+actions+'</td></tr>';
+    }).join('');
+    panel.innerHTML += '<div class="panel"><div class="panel-head"><h2>Viagens da operação</h2><span class="muted small">'+trips.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Sequência</th><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Peso previsto</th><th>Ação</th></tr></thead><tbody>'+ (rows||'<tr><td colspan="6">Nenhuma viagem iniciada.</td></tr>')+'</tbody></table></div></div></div>';
+  }
+  function tripEvent(viagemId,tipoEvento){
+    const obs=prompt('Observação do evento (opcional):')||'';
+    google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao registrar evento.',true)).registrarEventoViagemFullTime(authToken,{viagemId:viagemId,tipoEvento:tipoEvento,observacoes:obs});
+  }
+  function completeTrip(viagemId){
+    const peso=prompt('Informe o peso real descarregado (toneladas):');
+    if(peso===null)return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);refreshTripPanel();}).withFailureHandler(e=>toast(e.message||'Falha ao concluir viagem.',true)).concluirViagemFullTime(authToken,{viagemId:viagemId,pesoReal:peso});
+  }
+  function refreshTripPanel(){
+    google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
   }
 
   function renderDocumentExpiryNotice(){
