@@ -1021,7 +1021,9 @@ function listarRegistros_(name) {
     criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-    ...(name === 'CONJUNTOS' ? {origem:'SISTEMA'} : {})
+    ...(name === 'CONJUNTOS' ? {origem:'SISTEMA'} : {}),
+    ...(name === 'PARTICIPACAO_OPERACOES' ? {operacaoId:String(r[2]||''),conjuntoId:String(r[3]||''),motoristaId:String(r[4]||'')} : {}),
+    ...(name === 'VIAGENS' ? {operacaoId:String(r[2]||''),participacaoId:String(r[3]||''),sequencia:Number(r[4]||0),motoristaId:String(r[6]||''),conjuntoId:String(r[7]||'')} : {})
   }));
 
   // Capacidade de cavalo e carreta vem do próprio cadastro canônico, não de CAMINHOES/placa.
