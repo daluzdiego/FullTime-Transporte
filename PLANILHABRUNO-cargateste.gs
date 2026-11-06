@@ -14,7 +14,8 @@
  * - Todos os registros são fictícios e identificados como TESTE.
  * - CORREÇÃO V1.1: CONTROLE_DOCUMENTAL usa ID_DOCUMENTO como chave.
  */
-function gerarCargaFicticiaFullTime_V1() {
+function gerarCargaFicticiaFullTime_V1() { throw new Error('Gerador antigo descontinuado: a massa fictícia será gerada na base nativa FullTime, sem gravar na planilha do Bruno.');
+
   if (typeof FT_BRUNO_CONFIG === 'undefined' || !FT_BRUNO_CONFIG.SOURCE_ID) {
     throw new Error('Configuração FT_BRUNO_CONFIG.SOURCE_ID não encontrada. Atualize IntegracaoCadastroBruno.gs antes de executar.');
   }
