@@ -1,3 +1,5 @@
+> **Atualização normativa (2026-11-06):** este documento registra também problemas e estruturas históricas. Para a arquitetura vigente, CARGAS e CAMINHOES estão descontinuados. A fonte normativa é `docs/FULLTIME_MODELO_OPERACIONAL_OPERACOES_VIAGENS.md`: OPERAÇÃO → PARTICIPACAO_OPERACOES → VIAGENS → EVENTOS_VIAGEM/DOCUMENTOS_VIAGEM.
+
 # FullTime — Matriz de campos, estruturas e relacionamentos
 
 **Branch:** `feat/arquitetura-multicanal-sem-planilha-bruno`  
