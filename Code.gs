@@ -168,6 +168,7 @@ function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
   const viagens = listarRegistros_('VIAGENS');
+  const operacoes = listarRegistros_('OPERACOES');
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
@@ -175,7 +176,7 @@ function obterPainelFullTime(token) {
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
     conjuntos: listarRegistros_('CONJUNTOS'),
-    operacoes: listarRegistros_('OPERACOES'),
+    operacoes: operacoes,
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
     viagens: viagens,
     locais: listarRegistros_('LOCAIS'),
@@ -183,8 +184,13 @@ function obterPainelFullTime(token) {
       motoristas: contarAtivos_('MOTORISTAS'),
       pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAVALOS', 'PENDENTE_REVISAO') + contarStatus_('CARRETAS', 'PENDENTE_REVISAO'),
       operacoesAbertas: contarStatus_('OPERACOES','ABERTA') + contarStatus_('OPERACOES','EM_ANDAMENTO'),
-      viagensEmAndamento: contarStatus_('VIAGENS','EM_TRANSITO'),
-      viagensPendentes: contarStatus_('VIAGENS','PLANEJADA')
+      viagensEmAndamento: viagens.filter(v=>['A_CAMINHO_ORIGEM','NO_LOCAL_ORIGEM','CARREGANDO','CARREGADA','EM_TRANSITO','NO_LOCAL_DESTINO','DESCARREGANDO','INTERROMPIDA'].includes(v.status)).length,
+      viagensConcluidas: contarStatus_('VIAGENS','CONCLUIDA'),
+      viagensPrevistas: operacoes.reduce((n,o)=>n+Number(o.campos[7]||0),0),
+      viagensPendentes: Math.max(0,operacoes.reduce((n,o)=>n+Number(o.campos[7]||0),0)-contarStatus_('VIAGENS','CONCLUIDA')),
+      cavalosAtivos: contarAtivos_('CAVALOS'),
+      carretasAtivas: contarAtivos_('CARRETAS'),
+      conjuntosAtivos: contarAtivos_('CONJUNTOS')
     }
   };
 }
