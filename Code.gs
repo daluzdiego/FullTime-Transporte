@@ -197,24 +197,66 @@ function ftFiltrarDadosPortalMotorista_(session, participacoes, operacoes, viage
 
 /** Teste de isolamento do portal com registros inteiramente fictícios. */
 function testarRegressaoEscopoPortalMotoristaFullTime() {
-  const session={perfil:'MOTORISTA',motoristaId:'MOTORISTA_TESTE_A'};
+  const checks=[];
+  const assert=(name,condition,details)=>{
+    checks.push({teste:name,aprovado:!!condition,detalhes:details||''});
+    if(!condition)throw new Error('Regressão do portal reprovada em "'+name+'". '+(details||''));
+  };
+
+  const sessionA={perfil:'MOTORISTA',motoristaId:'MOTORISTA_TESTE_A'};
   const parts=[
-    {id:'PART_A',operacaoId:'OP_A',motoristaId:'MOTORISTA_TESTE_A'},
-    {id:'PART_B',operacaoId:'OP_B',motoristaId:'MOTORISTA_TESTE_B'}
+    {id:'PART_A1',operacaoId:'OP_COMPARTILHADA',motoristaId:'MOTORISTA_TESTE_A'},
+    {id:'PART_A2',operacaoId:'OP_A2',motoristaId:'MOTORISTA_TESTE_A'},
+    {id:'PART_B1',operacaoId:'OP_COMPARTILHADA',motoristaId:'MOTORISTA_TESTE_B'},
+    {id:'PART_B2',operacaoId:'OP_B2',motoristaId:'MOTORISTA_TESTE_B'}
   ];
-  const ops=[{id:'OP_A'},{id:'OP_B'},{id:'OP_SEM_PARTICIPACAO'}];
+  const ops=[
+    {id:'OP_COMPARTILHADA'},{id:'OP_A2'},{id:'OP_B2'},
+    {id:'OP_SEM_PARTICIPACAO'}
+  ];
   const trips=[
-    {id:'V_A',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_A'},
-    {id:'V_B',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_B'},
-    {id:'V_C',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_B'}
+    {id:'V_A1',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_A1'},
+    {id:'V_A2',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_A2'},
+    {id:'V_B1',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_B1'},
+    {id:'V_B2',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_B2'},
+    // Tentativas de associação cruzada ou inconsistência de vínculo:
+    {id:'V_CROSS_1',motoristaId:'MOTORISTA_TESTE_A',participacaoId:'PART_B1'},
+    {id:'V_CROSS_2',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_A1'},
+    {id:'V_WRONG_DRIVER',motoristaId:'MOTORISTA_TESTE_B',participacaoId:'PART_A2'}
   ];
-  const result=ftFiltrarDadosPortalMotorista_(session,parts,ops,trips);
-  const ok=result.participacoes.length===1 && result.participacoes[0].id==='PART_A' &&
-    result.operacoes.length===1 && result.operacoes[0].id==='OP_A' &&
-    result.viagens.length===1 && result.viagens[0].id==='V_A';
-  const report={sucesso:ok,participacoes:result.participacoes.length,operacoes:result.operacoes.length,viagens:result.viagens.length};
+
+  const resultA=ftFiltrarDadosPortalMotorista_(sessionA,parts,ops,trips);
+  assert('Motorista A recebe somente suas participações',
+    resultA.participacoes.length===2&&resultA.participacoes.every(p=>p.motoristaId==='MOTORISTA_TESTE_A'));
+  assert('Operações compartilhadas aparecem quando há participação própria',
+    resultA.operacoes.length===2&&resultA.operacoes.some(o=>o.id==='OP_COMPARTILHADA'));
+  assert('Motorista A recebe somente viagens próprias e vinculadas às suas participações',
+    resultA.viagens.length===2&&resultA.viagens.every(v=>v.motoristaId==='MOTORISTA_TESTE_A'&&['PART_A1','PART_A2'].includes(v.participacaoId)));
+  assert('Operação sem participação não é exposta',
+    !resultA.operacoes.some(o=>o.id==='OP_SEM_PARTICIPACAO'));
+
+  const resultB=ftFiltrarDadosPortalMotorista_(
+    {perfil:'MOTORISTA',motoristaId:'MOTORISTA_TESTE_B'},parts,ops,trips);
+  assert('Motorista B recebe somente seus próprios dados',
+    resultB.participacoes.length===2&&resultB.viagens.length===2&&
+    resultB.participacoes.every(p=>p.motoristaId==='MOTORISTA_TESTE_B')&&
+    resultB.viagens.every(v=>v.motoristaId==='MOTORISTA_TESTE_B'));
+
+  let rejectedProfile=false, rejectedMissingId=false;
+  try{ftFiltrarDadosPortalMotorista_({perfil:'ADMIN',motoristaId:'MOTORISTA_TESTE_A'},parts,ops,trips);}catch(e){rejectedProfile=true;}
+  try{ftFiltrarDadosPortalMotorista_({perfil:'MOTORISTA',motoristaId:''},parts,ops,trips);}catch(e){rejectedMissingId=true;}
+  assert('Perfil diferente de MOTORISTA é rejeitado',rejectedProfile);
+  assert('Sessão sem motoristaId é rejeitada',rejectedMissingId);
+
+  const report={
+    sucesso:checks.every(x=>x.aprovado),
+    total:checks.length,
+    aprovados:checks.filter(x=>x.aprovado).length,
+    falhas:checks.filter(x=>!x.aprovado).length,
+    testes:checks
+  };
   console.log('FULL TIME — REGRESSÃO ESCOPO PORTAL: '+JSON.stringify(report));
-  if(!ok)throw new Error('Falha no isolamento de dados do portal do motorista.');
+  if(!report.sucesso)throw new Error('Falha no isolamento de dados do portal do motorista.');
   return report;
 }
 
