@@ -1180,17 +1180,17 @@ function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), cargas=Math.floor(Number(data.cargasPrevistas));
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagens=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
   if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
   if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(cargas>0&&cargas<=100000)) throw new Error('Informe a quantidade prevista de cargas.');
+  if(!(viagens>0&&viagens<=100000)) throw new Error('Informe a quantidade total prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
-  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,cargas,volume,observacoes,session.login]);
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; cargas='+cargas);
-  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t.'};
+  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagens,volume,observacoes,session.login,'',viagens,0,0]);
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagens);
+  return {ok:true,id:id,message:'Operação criada com '+viagens+' viagens previstas. Saldo inicial: '+volume+' t.'};
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
