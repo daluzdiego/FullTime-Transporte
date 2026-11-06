@@ -218,11 +218,54 @@ function loginFullTime(login, senha) {
   const token = Utilities.getUuid() + Utilities.getUuid();
   const session = {
     id: String(user[0]), login: String(user[1]), nome: String(user[2]),
-    perfil: String(user[3]), trocarSenha: user[7] === true
+    perfil: String(user[3]), trocarSenha: user[7] === true,
+    motoristaId: String(user[9]||''),
+    permissoes: (function(){try{return JSON.parse(String(user[10]||'{}'));}catch(e){return {};}})()
   };
   CacheService.getScriptCache().put(FT_CONFIG.SESSION_PREFIX + token, JSON.stringify(session), FT_CONFIG.SESSION_TTL_SECONDS);
   auditar_(session, 'LOGIN', 'SESSAO', '', 'Login efetuado');
   return { token: token, user: session };
+}
+
+
+/** Cria credencial vinculada a um único motorista. A senha temporária é exibida uma única vez. */
+function criarAcessoMotoristaFullTime(token, motoristaId, login) {
+  const admin=obterSessao_(token); exigirAdmin_(admin);
+  motoristaId=String(motoristaId||'').trim(); login=String(login||'').trim().toLowerCase();
+  if(!motoristaId||!login||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(login))throw new Error('Informe o ID do motorista e um e-mail válido para login.');
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try{
+    const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
+    const driver=drivers.slice(1).find(r=>String(r[0])===motoristaId);
+    if(!driver)throw new Error('Motorista não encontrado.');
+    if(String(driver[2]).toUpperCase()!=='ATIVO')throw new Error('Somente motoristas aprovados podem receber acesso.');
+    const sh=getSheet_('USUARIOS');
+    if(sh.getLastColumn()<11)sh.insertColumnsAfter(sh.getLastColumn(),11-sh.getLastColumn());
+    if(!sh.getRange(1,10).getValue())sh.getRange(1,10).setValue('MOTORISTA_ID');
+    if(!sh.getRange(1,11).getValue())sh.getRange(1,11).setValue('PERMISSOES_JSON');
+    const users=sh.getDataRange().getValues();
+    if(users.slice(1).some(r=>String(r[1]||'').trim().toLowerCase()===login))throw new Error('Já existe um usuário com este login.');
+    if(users.slice(1).some(r=>String(r[9]||'')===motoristaId))throw new Error('Este motorista já possui acesso.');
+    const temporaryPassword=Utilities.getUuid().replace(/-/g,'').slice(0,14)+'aA1!';
+    const salt=Utilities.getUuid(), id=Utilities.getUuid();
+    const permissions={portal:true,perfil:'MOTORISTA',acoes:['VER_PROPRIO_PERFIL','VER_PROPRIO_CONJUNTO','INFORMAR_DISPONIBILIDADE','VER_PROPRIAS_VIAGENS']};
+    sh.appendRow([id,login,String(driver[3]||login),'MOTORISTA',salt,hashSenha_(salt,temporaryPassword),true,true,new Date(),motoristaId,JSON.stringify(permissions)]);
+    auditar_(admin,'CRIAR_ACESSO','USUARIO',id,'Acesso de motorista criado para '+motoristaId);
+    return {ok:true,login:login,senhaTemporaria:temporaryPassword,mensagem:'Acesso criado. Entregue a senha temporária ao motorista por canal seguro; ele deverá trocá-la no primeiro login.'};
+  }finally{lock.releaseLock();}
+}
+
+/** Retorna somente dados do motorista vinculado à sessão; nunca aceita ID vindo do navegador. */
+function obterPainelMotoristaFullTime(token) {
+  const session=obterSessao_(token);
+  if(session.perfil!=='MOTORISTA'||!session.motoristaId)throw new Error('Acesso restrito ao portal do motorista.');
+  const rows=getSheet_('MOTORISTAS').getDataRange().getValues();
+  const driver=rows.slice(1).find(r=>String(r[0])===String(session.motoristaId));
+  if(!driver||String(driver[2]).toUpperCase()!=='ATIVO')throw new Error('Cadastro de motorista indisponível. Procure a administração.');
+  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
+  const ownSet=sets.slice(1).filter(r=>String(r[3])===String(session.motoristaId)&&['ATIVO','PENDENTE_REVISAO'].includes(String(r[2]).toUpperCase()))
+    .map(r=>({id:String(r[0]),status:String(r[2]),cavaloId:String(r[4]||''),carretaMeioId:String(r[5]||''),carretaFinalId:String(r[6]||''),estado:String(r[8]||''),restricoes:String(r[9]||'')}));
+  return {user:{nome:session.nome,perfil:session.perfil},motorista:{id:String(driver[0]),nome:String(driver[3]||''),telefone:String(driver[5]||''),email:String(driver[6]||''),cidade:String(driver[10]||'')},conjuntos:ownSet};
 }
 
 function encerrarSessaoFullTime(token) {
