@@ -105,6 +105,7 @@
       {id:'carretas',label:'CARRETA',icon:'▱',title:'Carretas'},
       {id:'conjuntos',label:'CONJUNTO',icon:'⛓',title:'Conjuntos'}
     ]},
+    {id:'clientes',label:'CLIENTES',icon:'⌂',title:'Clientes'},
     {id:'escalas',label:'ESCALAS',icon:'▦',title:'Escalas'},
     {id:'viagens',label:'VIAGENS',icon:'⇄',title:'Viagens'},
     {id:'relatorios',label:'RELATÓRIOS',icon:'▥',title:'Relatórios'},
@@ -228,7 +229,7 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configuração'};
+    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Viagens',clientes:'Clientes',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
@@ -239,6 +240,7 @@
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
     else if(page==='viagens') c.innerHTML=renderViagens();
+    else if(page==='clientes') c.innerHTML=renderClientes();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -593,6 +595,28 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
   }
 
+  function renderClientes(){
+    const rows=dashboard?.clientes||[];
+    return `
+      <div class="page-head"><div><h1>Clientes</h1><p>Cadastro centralizado de empresas contratantes. Operações devem selecionar um cliente ativo.</p></div></div>
+      <div class="panel form-panel"><div class="panel-head"><h2>Novo cliente</h2></div><div class="panel-body">
+        <form onsubmit="saveCliente(event)"><div class="form-grid">
+          <div class="field"><label>Razão social</label><input name="razaoSocial" maxlength="160"></div>
+          <div class="field"><label>Nome fantasia</label><input name="nomeFantasia" maxlength="160"></div>
+          <div class="field"><label>CNPJ</label><input name="cnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00"></div>
+          <div class="field"><label>Telefone</label><input name="telefone" maxlength="30"></div>
+          <div class="field"><label>E-mail</label><input name="email" type="email" maxlength="160"></div>
+          <div class="field"><label>Contato principal</label><input name="contato" maxlength="120"></div>
+          <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
+        </div><div id="clienteError" class="error"></div><div class="form-actions"><button class="btn btn-primary" id="saveClienteButton" type="submit">Salvar cliente</button></div></form>
+      </div></div>
+      <div class="panel"><div class="panel-head"><h2>Clientes cadastrados</h2><span class="muted small">${rows.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Telefone</th><th>E-mail</th><th>Status</th></tr></thead><tbody>${rows.map(r=>'<tr><td>'+esc(r.campos[1]||r.campos[0])+'</td><td>'+esc(r.campos[2]||'—')+'</td><td>'+esc(r.campos[3]||'—')+'</td><td>'+esc(r.campos[4]||'—')+'</td><td>'+statusBadge(r.status)+'</td></tr>').join('')||'<tr><td colspan="5">Nenhum cliente cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+  }
+  function saveCliente(ev){
+    ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
+    const btn=document.getElementById('saveClienteButton'),err=document.getElementById('clienteError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
+    google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('clientes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar cliente';err.textContent=e.message||'Não foi possível salvar o cliente.';}).salvarClienteFullTime(authToken,data);
+  }
   function renderViagens(){
     const trips=dashboard?.viagens||[];
     const drivers=dashboard?.motoristas||[],sets=dashboard?.conjuntos||[],ops=dashboard?.operacoes||[];
@@ -625,7 +649,7 @@
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
           <div class="field"><label>Data de início *</label><input name="data" type="date" required></div>
           <div class="field"><label>Prazo final previsto</label><input name="dataFimLimite" type="date"></div>
-          <div class="field"><label>Cliente contratante *</label><input name="cliente" required maxlength="120"></div>
+          <div class="field"><label>Cliente contratante *</label><select name="clienteId" required><option value="">Selecione um cliente cadastrado</option>${(dashboard?.clientes||[]).filter(x=>x.status==='ATIVO').map(x=>'<option value="'+esc(x.id)+'">'+esc(x.campos[1]||x.campos[0])+'</option>').join('')}</select><small class="muted">Cadastre novos clientes na área Clientes.</small></div>
           <div class="field"><label>Contato do cliente</label><input name="contatoCliente" maxlength="120" placeholder="Nome, telefone ou e-mail"></div>
           <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Descarga do navio / transferência"></div>
           <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
