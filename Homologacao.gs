@@ -275,7 +275,7 @@ function validarMassaHomologacaoFullTime() {
   const auth=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')), users=auth.getSheetByName('USUARIOS').getDataRange().getValues();
   const testUsers=users.slice(1).filter(r=>String(r[1]||'').toLowerCase().endsWith('@fulltime.test')&&String(r[3]).toUpperCase()==='MOTORISTA');
   if(testUsers.length!==40)errors.push('Esperados 40 logins fictícios; encontrados '+testUsers.length+'.');
-  const result={sucesso:errors.length===0,erros:errors,contagens:{motoristas:count('MOTORISTAS'),cavalos:count('CAVALOS'),carretas:count('CARRETAS'),conjuntos:count('CONJUNTOS'),clientes:count('CLIENTES'),operacoes:count('OPERACOES'),participacoes:count('PARTICIPACAO_OPERACOES'),viagens:count('VIAGENS'),usuariosTeste:testUsers.length}};
+  const result={sucesso:errors.length===0,erros:errors,contagens:{motoristas:count('MOTORISTAS'),cavalos:count('CAVALOS'),carretas:count('CARRETAS'),conjuntos:count('CONJUNTOS'),clientes:count('CLIENTES'),operacoes:count('OPERACOES'),participacoes:count('PARTICIPACAO_OPERACOES'),viagens:count('VIAGENS'),ofertas:count('OFERTAS_OPERACOES'),disponibilidades:count('DISPONIBILIDADE_DIARIA'),usuariosTeste:testUsers.length}};
   Logger.log('VALIDACAO HOMOLOGACAO: '+JSON.stringify(result));
   if(errors.length)throw new Error('Homologação inconsistente: '+errors.join(' | '));
   return result;
