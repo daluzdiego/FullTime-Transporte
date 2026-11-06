@@ -49,6 +49,8 @@ function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
     if(String(r[2]||'').toUpperCase()!=='ATIVO')reasons.push('Conjunto inativo');
     if(!driver||String(driver[2]||'').toUpperCase()!=='ATIVO')reasons.push('Motorista inativo');
     if(condition!=='APTO')reasons.push('Conjunto não está apto');
+    if(!horseRow||String(horseRow[horseMap.STATUS]||'').toUpperCase()!=='ATIVO')reasons.push('Cavalo mecânico não está ativo');
+    if(trailerRows.length!==trailerIds.length||trailerRows.some(t=>String(t[2]||'').toUpperCase()!=='ATIVO'))reasons.push('Uma ou mais carretas não estão ativas');
     if(busySets.has(setId))reasons.push('Conjunto já comprometido');
     if(!(capacity>0)||capacity<min||capacity>max)reasons.push('Capacidade útil fora do limite');
     if(!(componentLimit>0)||capacity>componentLimit+0.000001)reasons.push('Capacidade do conjunto excede o limite conservador dos componentes');
