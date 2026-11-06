@@ -262,7 +262,7 @@ function obterPainelFullTime(token) {
     carretas: listarRegistros_('CARRETAS'),
     conjuntos: listarRegistros_('CONJUNTOS'),
     operacoes: listarRegistros_('OPERACOES'),
-    participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
+    participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),\n    disponibilidades: listarDisponibilidadeDiariaFullTime_(),
     cargas: cargas,
     ofertas: (function(){const sh=getSheet_('OFERTAS_CARGAS'),v=sh.getDataRange().getValues();return v.slice(1).filter(r=>r[0]).map(r=>({id:String(r[0]),criado:r[1] instanceof Date?r[1].toISOString():String(r[1]||''),cargaId:String(r[2]||''),motoristaId:String(r[3]||''),conjuntoId:String(r[4]||''),posicao:Number(r[5]||0),status:String(r[6]||''),expiraEm:r[7] instanceof Date?r[7].toISOString():String(r[7]||''),operacaoId:String(r[11]||'')})).reverse();})(),
     locais: listarRegistros_('LOCAIS'),
@@ -276,6 +276,57 @@ function obterPainelFullTime(token) {
       semEscala: cargas.filter(c => ['A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length
     }
   };
+}
+
+
+function listarDisponibilidadeDiariaFullTime_() {
+  const sh=getSheet_('DISPONIBILIDADE_DIARIA');
+  if(sh.getLastRow()<2)return [];
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
+  const ix={};headers.forEach((h,i)=>ix[h]=i);
+  ['DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','MOTIVO'].forEach(k=>{if(ix[k]===undefined)throw new Error('Coluna ausente em DISPONIBILIDADE_DIARIA: '+k);});
+  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const values=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();
+  const dateKey=v=>v instanceof Date?Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(v||'').slice(0,10);
+  return values.filter(r=>dateKey(r[ix.DATA_OPERACAO])===today&&r[ix.MOTORISTA_ID]).map(r=>({
+    motoristaId:String(r[ix.MOTORISTA_ID]),status:String(r[ix.STATUS_DISPONIBILIDADE]||''),
+    motivo:String(r[ix.MOTIVO]||''),dataOperacao:today
+  }));
+}
+
+function registrarDisponibilidadeDiariaFullTime(token,motoristaId,status,motivo) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const driverId=texto_(motoristaId,100),state=texto_(status,30).toUpperCase(),reason=texto_(motivo,500);
+  if(!driverId)throw new Error('Selecione o motorista.');
+  if(!['DISPONIVEL','INDISPONIVEL'].includes(state))throw new Error('Informe DISPONIVEL ou INDISPONIVEL.');
+  if(state==='INDISPONIVEL'&&!reason)throw new Error('Informe o motivo da indisponibilidade.');
+  const driver=ftCadastroRowsAsLegacy_('MOTORISTAS').find(r=>String(r[0])===driverId);
+  if(!driver||String(driver[2]).toUpperCase()!=='ATIVO')throw new Error('Somente motoristas ativos podem confirmar disponibilidade.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try {
+    const sh=getSheet_('DISPONIBILIDADE_DIARIA');
+    const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim());
+    const ix={};headers.forEach((h,i)=>ix[h]=i);
+    const required=['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'];
+    const missing=required.filter(k=>ix[k]===undefined);
+    if(missing.length)throw new Error('Schema de DISPONIBILIDADE_DIARIA incompleto: '+missing.join(', '));
+    const now=new Date(),today=Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyy-MM-dd');
+    const values=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues():[];
+    const dateKey=v=>v instanceof Date?Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(v||'').slice(0,10);
+    const matches=[];
+    values.forEach((r,i)=>{if(String(r[ix.MOTORISTA_ID]||'')===driverId&&dateKey(r[ix.DATA_OPERACAO])===today)matches.push(i+2);});
+    if(matches.length>1)throw new Error('Existem registros duplicados de disponibilidade para este motorista hoje. Corrija a duplicidade antes de atualizar.');
+    const row=matches.length?sh.getRange(matches[0],1,1,sh.getLastColumn()).getValues()[0]:new Array(sh.getLastColumn()).fill('');
+    if(!matches.length){row[ix.ID]=Utilities.getUuid();row[ix.CRIADO_EM]=now;row[ix.DATA_OPERACAO]=today;row[ix.MOTORISTA_ID]=driverId;}
+    row[ix.STATUS_DISPONIBILIDADE]=state;
+    row[ix.CONFIRMADO_EM]=state==='DISPONIVEL'?now:'';
+    row[ix.INDISPONIVEL_EM]=state==='INDISPONIVEL'?now:'';
+    row[ix.MOTIVO]=reason;
+    row[ix.ATUALIZADO_POR]=session.login;
+    if(matches.length)sh.getRange(matches[0],1,1,row.length).setValues([row]);else sh.appendRow(row);
+    auditar_(session,'REGISTRAR_DISPONIBILIDADE','MOTORISTA',driverId,today+' — '+state+(reason?' — '+reason:''));
+    return {ok:true,motoristaId:driverId,dataOperacao:today,status:state,message:'Disponibilidade de '+String(driver[3]||driverId)+' registrada para '+today+'.'};
+  } finally {lock.releaseLock();}
 }
 
 function salvarMotoristaFullTime(token, data) {
@@ -1428,6 +1479,15 @@ function processarOfertasExpiradasFullTime(token) {
   }finally{lock.releaseLock();}
 }
 
+
+function instalarMonitoramentoOfertasEscalaFullTime() {
+  const handler='processarOfertasExpiradasSistema_';
+  const triggers=ScriptApp.getProjectTriggers();
+  triggers.filter(t=>t.getHandlerFunction()===handler).forEach(t=>ScriptApp.deleteTrigger(t));
+  const trigger=ScriptApp.newTrigger(handler).timeBased().everyMinutes(5).create();
+  return {ok:true,handler:handler,frequencia:'A cada 5 minutos',triggerId:trigger.getUniqueId(),message:'Monitoramento de ofertas expiradas instalado. Execute esta função uma única vez no editor do Apps Script.'};
+}
+
 function ftOrdenarCandidatosOperacao_(operacaoId) {
   const opRows=getSheet_('OPERACOES').getDataRange().getValues();
   const opRow=opRows.find((r,i)=>i>0&&String(r[0])===String(operacaoId));
@@ -1817,7 +1877,7 @@ function extrairDataOperacaoIA_(text) {
 }
 function extrairHorarioOperacaoIA_(text){const m=String(text||'').match(/\b([01]?\d|2[0-3])\s*(?:h|:)([0-5]\d)?\b/i);return m?('0'+Number(m[1])).slice(-2)+':'+(m[2]||'00'):'';}
 function extrairCampoRotuladoOperacaoIA_(text,labels){const lines=String(text||'').split(/[\n;]+/).map(x=>x.trim()).filter(Boolean);for(let i=0;i<lines.length;i++)for(let j=0;j<labels.length;j++){const label=labels[j].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');const m=lines[i].match(new RegExp('(?:^|\\b)'+label+'\\s*[:=-]\\s*(.+)$','i'));if(m&&m[1])return m[1].trim().replace(/[.,;]+$/,'').slice(0,160);}return '';}
-function extrairRotaDiretaOperacaoIA_(text){const s=String(text||'');const m=s.match(/(?:^|[,;\n])\s*(?:de\s+)?([^,\n;]+?)\s+(?:para|até|ate)\s+([^,\n;.!]+?)(?:[,.;\n]|$)/i)||s.match(/\bde\s+([^,\n;]+?)\s+(?:para|até|ate)\s+([^,\n;.!]+?)(?:[,.;\n]|$)/i);if(!m)return {origem:'',destino:''};let a=m[1].trim(),b=m[2].trim();a=a.replace(/^(?:saida|saída|viagem|transporte)\s+(?:hoje|amanha|amanhã)?\s*\d{0,2}\s*h?\s*/i,'').trim();return {origem:a.slice(0,160),destino:b.slice(0,160)};}
+function extrairRotaDiretaOperacaoIA_(text){\n  const s=String(text||'');\n  // Não interpretar qualquer ocorrência de "para" como rota: isso confundia\n  // frases de volume/quantidade, por exemplo "300 toneladas para 5 viagens".\n  const routePattern=/(?:^|[,;\\n])\\s*de\\s+([^,\\n;]+?)\\s+(?:para|até|ate)\\s+([^,\\n;.!]+?)(?=[,.;\\n]|$)/i;\n  const arrowPattern=/(?:^|[,;\\n])\\s*([^,\\n;]+?)\\s*(?:->|→|➜)\\s*([^,\\n;.!]+?)(?=[,.;\\n]|$)/i;\n  let m=s.match(routePattern)||s.match(arrowPattern);\n  if(!m)return {origem:'',destino:''};\n  let a=m[1].trim(),b=m[2].trim();\n  const invalid=/\\d|\\b(?:volume|toneladas?|peso|viagens?|voltas?|cargas?)\\b/i;\n  if(invalid.test(a)||invalid.test(b))return {origem:'',destino:''};\n  a=a.replace(/^(?:saida|saída|viagem|transporte)\\s+(?:hoje|amanha|amanhã)?\\s*\\d{0,2}\\s*h?\\s*/i,'').trim();\n  return a&&b?{origem:a.slice(0,160),destino:b.slice(0,160)}:{origem:'',destino:''};\n}
 function extrairPesoOperacaoIA_(text){const m=String(text||'').match(/\b(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i);if(!m)return '';const n=Number(m[1].replace(',','.'));return n>0&&isFinite(n)?n:'';}
 function extrairQuantidadeCargasIA_(text){
   const s=String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -1909,7 +1969,7 @@ function testarExtracaoEntradaOperacoesIAFullTime() {
     {name:'horario simples',text:'Saída às 06h',expect:{horario:'06:00'}},
     {name:'tipo transferencia',text:'Transferência entre unidades',expect:{tipoOperacao:'TRANSFERENCIA_FABRICAS'}},
     {name:'tipo nao inferido sem evidência',text:'Carga em rota',expect:{tipoOperacao:''}},
-    {name:'volume total e quantidade de viagens',text:'Volume total 300 toneladas para 5 viagens',expect:{volumeTotal:300,cargasPrevistas:5}},
+    {name:'volume total e quantidade de viagens não é uma rota',text:'Volume total 300 toneladas para 5 viagens',expect:{origem:'',destino:'',volumeTotal:300,cargasPrevistas:5}},\n    {name:'peso total para várias viagens não é uma rota',text:'Carga de 40 toneladas para 2 viagens',expect:{origem:'',destino:'',cargasPrevistas:2}},
     {name:'peso por viagem multiplicado explicitamente',text:'5 viagens de 20 toneladas cada',expect:{cargasPrevistas:5,pesoPorCarga:20,volumeCalculado:'100'}},
     {name:'quantidade não presumida',text:'Carga de 30 toneladas',expect:{cargasPrevistas:'',volumeTotal:''}},
     {name:'carga singular',text:'Uma carga de 12,5 toneladas',expect:{cargasPrevistas:1,volumeCalculado:12.5}}
