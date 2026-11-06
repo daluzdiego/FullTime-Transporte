@@ -1877,7 +1877,20 @@ function extrairDataOperacaoIA_(text) {
 }
 function extrairHorarioOperacaoIA_(text){const m=String(text||'').match(/\b([01]?\d|2[0-3])\s*(?:h|:)([0-5]\d)?\b/i);return m?('0'+Number(m[1])).slice(-2)+':'+(m[2]||'00'):'';}
 function extrairCampoRotuladoOperacaoIA_(text,labels){const lines=String(text||'').split(/[\n;]+/).map(x=>x.trim()).filter(Boolean);for(let i=0;i<lines.length;i++)for(let j=0;j<labels.length;j++){const label=labels[j].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');const m=lines[i].match(new RegExp('(?:^|\\b)'+label+'\\s*[:=-]\\s*(.+)$','i'));if(m&&m[1])return m[1].trim().replace(/[.,;]+$/,'').slice(0,160);}return '';}
-function extrairRotaDiretaOperacaoIA_(text){\n  const s=String(text||'');\n  // Não interpretar qualquer ocorrência de "para" como rota: isso confundia\n  // frases de volume/quantidade, por exemplo "300 toneladas para 5 viagens".\n  const routePattern=/(?:^|[,;\\n])\\s*de\\s+([^,\\n;]+?)\\s+(?:para|até|ate)\\s+([^,\\n;.!]+?)(?=[,.;\\n]|$)/i;\n  const arrowPattern=/(?:^|[,;\\n])\\s*([^,\\n;]+?)\\s*(?:->|→|➜)\\s*([^,\\n;.!]+?)(?=[,.;\\n]|$)/i;\n  let m=s.match(routePattern)||s.match(arrowPattern);\n  if(!m)return {origem:'',destino:''};\n  let a=m[1].trim(),b=m[2].trim();\n  const invalid=/\\d|\\b(?:volume|toneladas?|peso|viagens?|voltas?|cargas?)\\b/i;\n  if(invalid.test(a)||invalid.test(b))return {origem:'',destino:''};\n  a=a.replace(/^(?:saida|saída|viagem|transporte)\\s+(?:hoje|amanha|amanhã)?\\s*\\d{0,2}\\s*h?\\s*/i,'').trim();\n  return a&&b?{origem:a.slice(0,160),destino:b.slice(0,160)}:{origem:'',destino:''};\n}
+function extrairRotaDiretaOperacaoIA_(text){
+  const s=String(text||'');
+  // Não interpretar qualquer ocorrência de "para" como rota: isso confundia
+  // frases de volume/quantidade, por exemplo "300 toneladas para 5 viagens".
+  const routePattern=/(?:^|[,;\n])\s*de\s+([^,\n;]+?)\s+(?:para|até|ate)\s+([^,\n;.!]+?)(?=[,.;\n]|$)/i;
+  const arrowPattern=/(?:^|[,;\n])\s*([^,\n;]+?)\s*(?:->|→|➜)\s*([^,\n;.!]+?)(?=[,.;\n]|$)/i;
+  let m=s.match(routePattern)||s.match(arrowPattern);
+  if(!m)return {origem:'',destino:''};
+  let a=m[1].trim(),b=m[2].trim();
+  const invalid=/\d|\b(?:volume|toneladas?|peso|viagens?|voltas?|cargas?)\b/i;
+  if(invalid.test(a)||invalid.test(b))return {origem:'',destino:''};
+  a=a.replace(/^(?:saida|saída|viagem|transporte)\s+(?:hoje|amanha|amanhã)?\s*\d{0,2}\s*h?\s*/i,'').trim();
+  return a&&b?{origem:a.slice(0,160),destino:b.slice(0,160)}:{origem:'',destino:''};
+}
 function extrairPesoOperacaoIA_(text){const m=String(text||'').match(/\b(\d+(?:[.,]\d+)?)\s*(?:t|ton|toneladas?)\b/i);if(!m)return '';const n=Number(m[1].replace(',','.'));return n>0&&isFinite(n)?n:'';}
 function extrairQuantidadeCargasIA_(text){
   const s=String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
