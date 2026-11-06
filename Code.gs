@@ -738,7 +738,7 @@ function ftExigirUnicidadeCadastro_(entidade, valor, idAtual) {
   if(!targets.length)throw new Error('Entidade sem regra de unicidade: '+entity);
   targets.forEach(([sheetName,field])=>{
     const rows=getSheet_(sheetName).getDataRange().getValues();if(rows.length<2)return;
-    const hs=rows[0].map(ftNormHeader_), vi=hs.indexOf(field), ii=hs.indexOf('ID');
+    const hs=rows[0].map(ftDriveNormHeader_), vi=hs.indexOf(field), ii=hs.indexOf('ID');
     if(vi<0)throw new Error('Coluna '+field+' ausente em '+sheetName+'.');
     for(let i=1;i<rows.length;i++){
       const found=entity==='MOTORISTAS'?digitos_(rows[i][vi]):normalizarPlaca_(rows[i][vi]);
@@ -762,7 +762,7 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
   const allowed={
     MOTORISTAS:{sheet:'MOTORISTAS',fields:{NOME_COMPLETO:'nome',CPF:'cpf',TELEFONE:'telefone',EMAIL:'email',CNH_NUMERO:'cnh',CNH_CATEGORIA:'categoria',CNH_VALIDADE:'validade',CIDADE_UF:'cidade',OBSERVACOES:'observacoes'}},
     CAMINHOES:{sheet:'CAMINHOES',fields:{PLACA:'placa',RENAVAM:'renavam',MARCA:'marca',MODELO:'modelo',ANO:'ano',TIPO:'tipo',CAPACIDADE_TONELADAS:'capacidade',SITUACAO_DOCUMENTAL:'documento',OBSERVACOES:'observacoes'}},
-    CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}},
+    CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_MAX_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}},
     CARRETAS:{sheet:'CARRETAS',fields:{PLACA:'placa',TIPO:'tipo',TARA_TONELADAS:'tara',CAPACIDADE_CARGA_TONELADAS:'capacidade',PBTC_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}}
   };
   const cfg=allowed[entidade]; if(!cfg)throw new Error('Entidade não permite edição por esta rotina.');
