@@ -38,13 +38,20 @@ function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
   sets.slice(1).forEach(r=>{
     const setId=String(r[0]||''),driverId=String(r[3]||''),driver=driverById[driverId];
     const capacity=Number(r[10]||0), condition=String(r[8]||'').toUpperCase();
-    const trailerIds=[String(r[5]||''),String(r[6]||'')].filter(Boolean), trailerTypes=trailerIds.map(id=>trailerById[id]).filter(Boolean).map(t=>String(t[4]||'').toUpperCase());
+    const trailerIds=[String(r[5]||''),String(r[6]||'')].filter(Boolean), trailerRows=trailerIds.map(id=>trailerById[id]).filter(Boolean);
+    const trailerTypes=trailerRows.map(t=>String(t[4]||'').toUpperCase());
+    const horseSh=getSheet_('CAVALOS'), horseRows=horseSh.getDataRange().getValues(), horseMap=ftHeaderMapViagens_(horseSh);
+    const horseRow=horseRows.slice(1).find(x=>String(x[horseMap.ID]||'')===String(r[4]||''));
+    const horseCapacity=Number(horseRow&&horseRow[horseMap.CAPACIDADEUTILTONELADAS]||0);
+    const trailerCapacity=trailerRows.reduce((sum,t)=>sum+Number(t[6]||0),0);
+    const componentLimit=trailerIds.length?Math.min(horseCapacity,trailerCapacity):horseCapacity;
     const reasons=[];
     if(String(r[2]||'').toUpperCase()!=='ATIVO')reasons.push('Conjunto inativo');
     if(!driver||String(driver[2]||'').toUpperCase()!=='ATIVO')reasons.push('Motorista inativo');
     if(condition!=='APTO')reasons.push('Conjunto não está apto');
     if(busySets.has(setId))reasons.push('Conjunto já comprometido');
     if(!(capacity>0)||capacity<min||capacity>max)reasons.push('Capacidade útil fora do limite');
+    if(!(componentLimit>0)||capacity>componentLimit+0.000001)reasons.push('Capacidade do conjunto excede o limite conservador dos componentes');
     if(!trailerTypes.length||!trailerTypes.some(t=>allowed.includes(t)))reasons.push('Tipo de carreta incompatível');
     if(availabilityByDriver[driverId]!=='DISPONIVEL')reasons.push('Motorista sem disponibilidade confirmada para hoje');
     if(requireDocs){
