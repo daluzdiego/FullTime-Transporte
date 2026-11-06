@@ -232,7 +232,7 @@ function loginFullTime(login, senha) {
 function criarAcessoMotoristaFullTime(token, motoristaId, login) {
   const admin=obterSessao_(token); exigirAdmin_(admin);
   motoristaId=String(motoristaId||'').trim(); login=String(login||'').trim().toLowerCase();
-  if(!motoristaId||!login||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(login))throw new Error('Informe o ID do motorista e um e-mail válido para login.');
+  if(!motoristaId||!login||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login))throw new Error('Informe o ID do motorista e um e-mail válido para login.');
   const lock=LockService.getScriptLock();lock.waitLock(10000);
   try{
     const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
@@ -800,8 +800,8 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
   const allowed={
     MOTORISTAS:{sheet:'MOTORISTAS',fields:{NOME_COMPLETO:'nome',CPF:'cpf',TELEFONE:'telefone',EMAIL:'email',CNH_NUMERO:'cnh',CNH_CATEGORIA:'categoria',CNH_VALIDADE:'validade',CIDADE_UF:'cidade',OBSERVACOES:'observacoes'}},
     CAMINHOES:{sheet:'CAMINHOES',fields:{PLACA:'placa',RENAVAM:'renavam',MARCA:'marca',MODELO:'modelo',ANO:'ano',TIPO:'tipo',CAPACIDADE_TONELADAS:'capacidade',SITUACAO_DOCUMENTAL:'documento',OBSERVACOES:'observacoes'}},
-    CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_MAX_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}},
-    CARRETAS:{sheet:'CARRETAS',fields:{PLACA:'placa',TIPO:'tipo',TARA_TONELADAS:'tara',CAPACIDADE_CARGA_TONELADAS:'capacidade',PBTC_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}}
+    CAVALOS:{sheet:'CAVALOS',fields:{PLACA:'placa',MARCA:'marca',MODELO:'modelo',ANO:'ano',TARA_TONELADAS:'tara',PBTC_MAX_TONELADAS:'pbtc',CAPACIDADE_UTIL_TONELADAS:'capacidadeUtil',OBSERVACOES:'observacoes'}}, 
+    CARRETAS:{sheet:'CARRETAS',fields:{PLACA:'placa',TIPO_CARRETA:'tipo',TARA_TONELADAS:'tara',CAPACIDADE_CARGA_TONELADAS:'capacidade',PBTC_MAX_TONELADAS:'pbtc',OBSERVACOES:'observacoes'}}
   };
   const cfg=allowed[entidade]; if(!cfg)throw new Error('Entidade não permite edição por esta rotina.');
   const lock=LockService.getScriptLock();lock.waitLock(10000);
@@ -816,11 +816,11 @@ function atualizarCadastroFullTime(token, entidade, id, data) {
       let value=data[key];
       if(['CPF','TELEFONE','RENAVAM'].includes(field))value=digitos_(value);
       if(field==='PLACA')value=normalizarPlaca_(value);
-      if(['TARA_TONELADAS','PBTC_TONELADAS','CAPACIDADE_CARGA_TONELADAS','CAPACIDADE_TONELADAS'].includes(field)){
+      if(['TARA_TONELADAS','PBTC_TONELADAS','PBTC_MAX_TONELADAS','CAPACIDADE_CARGA_TONELADAS','CAPACIDADE_TONELADAS','CAPACIDADE_UTIL_TONELADAS'].includes(field)){
         value=Number(String(value==null?'':value).replace(',','.'));
         if(!isFinite(value)||value<0)throw new Error('Valor numérico inválido para '+field+'.');
       }
-      if(field==='CPF'&&value&&(!/^\\d{11}$/.test(value)||!cpfValido_(value)))throw new Error('CPF inválido.');
+      if(field==='CPF'&&value&&(!/^\d{11}$/.test(value)||!cpfValido_(value)))throw new Error('CPF inválido.');
       if(field==='PLACA'&&value&&value.length!==7)throw new Error('A placa deve conter 7 caracteres.');
       row[col]=value; changed.push(field);
     });
