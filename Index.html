@@ -448,18 +448,16 @@
 
   function renderConjuntos(){
     const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO');
-    const horseMap=new Map();
-    // CAMINHOES é a fonte primária: contém status aprovado e CAPACIDADE_TONELADAS.
-    (dashboard?.caminhoes||[]).filter(x=>(x.status==='ATIVO'||x.status==='PENDENTE_REVISAO') && String(x.campos[5]||'').toLowerCase().includes('cavalo')).forEach(x=>{
-      const plate=String(x.campos[0]||'').toUpperCase();
-      horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[2],x.campos[3]].filter(Boolean).join(' '),capacity:Number(x.campos[6]||0),status:x.status});
-    });
-    // CAVALOS é usado apenas para placas que ainda não existem em CAMINHOES.
-    (dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').forEach(x=>{
-      const plate=String(x.campos[0]||'').toUpperCase();
-      if(!horseMap.has(plate)) horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),capacity:Number(x.capacidadeUtil||0),status:x.status});
-    });
-    const horses=Array.from(horseMap.values());
+    // CAVALOS é a única fonte de verdade para cavalo mecânico.
+    const horses=(dashboard?.cavalos||[])
+      .filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO')
+      .map(x=>({
+        id:x.id,
+        plate:String(x.campos[0]||'').toUpperCase(),
+        detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),
+        capacity:Number(x.capacidadeUtil||0),
+        status:x.status
+      }));
     // Cadastros pendentes podem ser selecionados para montar um conjunto em revisão.
     // INATIVOS continuam bloqueados e o conjunto nunca é ativado automaticamente.
     const trailers=(dashboard?.carretas||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').map(x=>({
@@ -485,7 +483,7 @@
       <div class="panel form-panel"><div class="panel-head"><h2>Novo conjunto</h2><span class="badge badge-pending">Pendente de revisão</span></div><div class="panel-body">
         <form onsubmit="saveConjunto(event)"><div class="form-grid">
           <div class="field"><label>Motorista (ativo ou em revisão) *</label><select name="motoristaId" required>${simpleOpt(drivers,'Selecione o motorista')}</select><small class="muted">Motoristas: ${drivers.length} ativos</small></div>
-          <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade obtida da guia CAMINHOES pela placa do cavalo</small></div>
+          <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade útil cadastrada diretamente em CAVALOS</small></div>
           <div class="field"><label>Carreta do meio (opcional)</label><select name="carretaMeioId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta do meio')}</select></div>
           <div class="field"><label>Carreta final (opcional)</label><select name="carretaFinalId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta final')}</select></div>
           <div class="field"><label>Capacidade somada do conjunto (t)</label><input name="capacidadeUtil" id="capacidadeConjunto" type="number" min="0.1" step="0.1" readonly required placeholder="Calculada automaticamente"><small id="capacidadeConjuntoDetalhe" class="muted">Selecione o cavalo e, se necessário, as carretas.</small></div>
@@ -510,7 +508,7 @@
           <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.carretas||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+((Number(x.capacidadeUtil||x.campos[3]||0)>0)?Number(x.capacidadeUtil||x.campos[3]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma carreta cadastrada.</td></tr>'}</tbody></table></div>
         </div></div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=(dashboard?.cavalos||[]).find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
   }
   function calcularCapacidadeConjunto(){
     const form=document.querySelector('form[onsubmit="saveConjunto(event)"]');
