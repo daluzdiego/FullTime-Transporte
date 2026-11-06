@@ -106,7 +106,7 @@
       {id:'conjuntos',label:'CONJUNTO',icon:'⛓',title:'Conjuntos'}
     ]},
     {id:'escalas',label:'ESCALAS',icon:'▦',title:'Escalas'},
-    {id:'viagens',label:'LOCALIZAÇÃO',icon:'⌖',title:'Localização'},
+    {id:'viagens',label:'VIAGENS',icon:'⇄',title:'Viagens'},
     {id:'relatorios',label:'RELATÓRIOS',icon:'▥',title:'Relatórios'},
     {id:'configuracoes',label:'CONFIGURAÇÃO',icon:'⚙',title:'Configuração'}
   ];
@@ -228,7 +228,7 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
+    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Viagens',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
@@ -238,6 +238,7 @@
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
     else if(page==='escalas') c.innerHTML=renderEscalas();
+    else if(page==='viagens') c.innerHTML=renderViagens();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -592,6 +593,27 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
   }
 
+  function renderViagens(){
+    const trips=dashboard?.viagens||[];
+    const drivers=dashboard?.motoristas||[],sets=dashboard?.conjuntos||[],ops=dashboard?.operacoes||[];
+    return `
+      <div class="page-head"><div><h1>Viagens</h1><p>Consulta centralizada do ciclo de execução de cada viagem, por operação, motorista e conjunto.</p></div></div>
+      <div class="panel"><div class="panel-body">
+        <div class="table-tools"><div class="search"><span>⌕</span><input id="tripFilter" placeholder="Buscar operação, motorista, conjunto ou sequência…" oninput="filterTrips()"></div>
+        <select id="tripStatusFilter" onchange="filterTrips()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todos os status</option><option>PLANEJADA</option><option>A_CAMINHO_ORIGEM</option><option>NO_LOCAL_ORIGEM</option><option>CARREGANDO</option><option>CARREGADA</option><option>EM_TRANSITO</option><option>NO_LOCAL_DESTINO</option><option>DESCARREGANDO</option><option>INTERROMPIDA</option><option>CONCLUIDA</option><option>CANCELADA</option></select></div>
+        <div class="table-wrap"><table><thead><tr><th>Operação</th><th>Viagem</th><th>Motorista</th><th>Conjunto</th><th>Origem → Destino</th><th>Peso previsto</th><th>Peso real</th><th>Status</th></tr></thead><tbody id="tripTableBody">
+        ${trips.map(v=>{
+          const f=v.campos||[],driver=drivers.find(d=>d.id===v.motoristaId),set=sets.find(x=>x.id===v.conjuntoId),op=ops.find(x=>x.id===v.operacaoId);
+          const label=[op?.campos[2]||v.operacaoId,'#'+(f[1]||v.sequencia||'') ,driver?.campos[0]||v.motoristaId,set?.campos[0]||v.conjuntoId,f[6]+' → '+f[7],f[8],f[9],v.status].join(' ').toLowerCase();
+          return '<tr data-trip-search="'+esc(label)+'" data-trip-status="'+esc(v.status)+'"><td>'+esc(op?.campos[2]||v.operacaoId)+'</td><td>#'+esc(f[1]||v.sequencia||'')+'</td><td>'+esc(driver?.campos[0]||v.motoristaId||'—')+'</td><td>'+esc(set?.id||v.conjuntoId||'—')+'</td><td>'+esc(f[6]||'')+' → '+esc(f[7]||'')+'</td><td>'+esc(f[8]||'—')+' t</td><td>'+esc(f[9]||'—')+' t</td><td>'+statusBadge(v.status)+'</td></tr>';
+        }).join('')||'<tr><td colspan="8">Nenhuma viagem registrada.</td></tr>'}
+        </tbody></table></div>
+      </div></div>`;
+  }
+  function filterTrips(){
+    const q=(document.getElementById('tripFilter')?.value||'').toLowerCase(),status=document.getElementById('tripStatusFilter')?.value||'';
+    document.querySelectorAll('#tripTableBody tr[data-trip-search]').forEach(tr=>tr.classList.toggle('hidden',!(tr.dataset.tripSearch.includes(q)&&(!status||tr.dataset.tripStatus===status))));
+  }
   function renderOperacoes(){
     const ops=dashboard?.operacoes||[];
     const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
@@ -619,8 +641,8 @@
           <div class="field span-2"><label>Observações e requisitos operacionais</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
-      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Gerenciar viagens" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Concluídas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Gerenciar viagens" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
