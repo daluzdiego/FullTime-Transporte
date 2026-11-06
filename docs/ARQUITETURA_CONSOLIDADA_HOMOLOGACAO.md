@@ -146,7 +146,23 @@ O esquema de `OPERACOES` já representa o volume/saldo da operação, enquanto `
 - Substituição de Google Sheets por outro banco durante esta janela.
 - Qualquer limpeza/apagamento de dados reais antes de backup, ambiente de teste e autorização operacional.
 
-## 10. Próximas verificações da etapa 1
+## ## 11. Implementações incorporadas à branch de consolidação em 06/11
+
+- Painel de escalas: registro diário de disponibilidade por motorista ativo, com motivo obrigatório para indisponibilidade.
+- Backend: gravação idempotente por motorista/data, atualizando o registro do dia em vez de criar uma segunda linha; duplicidades preexistentes são reportadas e não sobrescritas.
+- Entrada IA: parser de rota ficou mais conservador; não interpreta "300 toneladas para 5 viagens" como origem/destino.
+- Cargas: formulário de nova viagem agora exige a operação-pai; cada viagem recebe seu próprio peso previsto.
+- Cargas: tela permite corrigir o peso previsto de cada viagem ainda não atribuída.
+- Motor de ofertas: não cria oferta se não houver viagens, se a quantidade cadastrada divergir, se faltar peso previsto ou se a soma dos pesos das viagens divergir do volume da operação em mais de 0,05 t.
+- Aceite: repete as validações de quantidade e peso antes de gravar a atribuição.
+- Monitor de expiração: criada a função `instalarMonitoramentoOfertasEscalaFullTime()`, que instala um gatilho a cada 5 minutos após execução manual única no editor do Apps Script. O gatilho ainda não foi instalado.
+- Suíte read-only: ampliada para verificar endpoints de disponibilidade, peso por viagem, monitor de expiração e regressão de rota.
+
+**Validação executada fora do Apps Script:** sintaxe V8 dos quatro arquivos `.gs`, da suíte read-only e do script da interface aprovada; chamadas de backend identificadas na interface sem endpoints ausentes; 14/14 testes de extração e 4/4 testes de pesos aprovados. Essas verificações não substituem o runtime do Apps Script nem a leitura/escrita real das duas planilhas.
+
+**Estado da integração:** as alterações estão na branch `planejamento/controle-18-11-2026`. A `main` não foi alterada, não houve merge e nenhum dado real foi modificado. A branch ainda precisa passar pela execução da suíte read-only e pelos testes ponta a ponta em cópias/ambiente de homologação.
+
+10. Próximas verificações da etapa 1
 
 - [ ] Comparar os patches completos dos PRs #1 e #4 e registrar os trechos conflitantes.
 - [ ] Inventariar todos os cabeçalhos reais/esperados e IDs de origem/destino sem expor dados pessoais.
