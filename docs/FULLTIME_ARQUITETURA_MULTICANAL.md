@@ -42,7 +42,7 @@ A indisponibilidade de um canal não pode bloquear os outros. O operador deve co
 7. Agente de interpretação extrai os campos e aponta ambiguidades/lacunas.
 8. Motor determinístico valida campos, regras, permissões e consistência.
 9. Solicitação segue para coleta de informações, revisão ou aprovação, conforme política.
-10. Somente após aprovação explícita e validação é convertida em operação/carga.
+10. Somente após aprovação explícita e validação é convertida em OPERAÇÃO.
 11. Cada transição gera evento de auditoria.
 
 Estados mínimos sugeridos para a entrada: RECEBIDA, ARMAZENADA, AGUARDANDO_PROCESSAMENTO, EM_PROCESSAMENTO, EM_COLETA, AGUARDANDO_REVISAO, AGUARDANDO_APROVACAO, APROVADA, CONVERTIDA, RECUSADA, ERRO_REPROCESSAVEL e ERRO_FINAL.
@@ -77,9 +77,9 @@ Estados mínimos sugeridos para a entrada: RECEBIDA, ARMAZENADA, AGUARDANDO_PROC
 - FILA_PROCESSAMENTO: tentativas, prioridade, próxima execução, lease, erro e estado.
 - SOLICITACOES: dados estruturados, campos pendentes, ambiguidades, revisão e aprovação.
 - CLIENTES e CONTATOS_AUTORIZADOS: identidade, canais e permissões.
-- OPERACOES: entidade operacional aprovada.
-- MOTORISTAS, VEICULOS, CAVALOS, CARRETAS e CONJUNTOS: cadastros geridos pelo próprio Full Time.
-- ALOCACOES_OPERACAO: volume/capacidade atribuídos a cada conjunto.
+- OPERACOES: entidade operacional aprovada, com volume, rota, prazo e meta de viagens.
+- MOTORISTAS, CAVALOS, CARRETAS e CONJUNTOS: cadastros geridos pelo próprio Full Time.
+- PARTICIPACAO_OPERACOES: meta de viagens e volume atribuídos a cada motorista/conjunto.
 - VIAGENS: ciclos individuais de transporte.
 - EVENTOS_VIAGEM e COMPROVANTES: carregamento, trânsito, descarga e evidências.
 - AUDITORIA: trilha imutável de ações e transições.
@@ -104,8 +104,8 @@ Os nomes são conceituais. Antes de criar guias/tabelas, comparar com o inventá
 
 ### TRANSPORTE
 - Entrada de solicitações
-- Cargas
-- Escalas
+- Operações
+- Viagens
 - Localização
 
 ### CADASTROS
@@ -126,8 +126,8 @@ A tela Entrada de solicitações deve apresentar a saúde dos três canais, fila
 
 ## 8. Regras de operação e segurança
 
-- A entrada de solicitação não cria automaticamente operação, carga ou escala.
-- A conversão exige campos obrigatórios completos, revisão e aprovação conforme perfil.
+- A entrada de solicitação não cria automaticamente uma operação nem designa motorista/conjunto.
+- A conversão exige campos obrigatórios completos, meta de viagens, categoria operacional, revisão e aprovação conforme perfil.
 - Reprocessar não significa aprovar.
 - Mensagens duplicadas são vinculadas à solicitação existente e preservadas no histórico.
 - Um remetente só pode consultar/alterar dados autorizados.
@@ -192,3 +192,8 @@ K. Homologação: testes de falha isolada de cada canal, duplicidade cruzada, in
 ## Cadastro inicial e manutenção em lote
 
 A autonomia operacional não significa obrigar o usuário a cadastrar cada motorista, cavalo, carreta, cliente ou local individualmente. O Full Time terá um módulo de **Importação em lote** com planilha-modelo versionada e abas por entidade. O arquivo será uma interface de entrada, nunca o banco operacional. O sistema validará relações entre clientes, endereços, locais, frota, conjuntos, rotas e operações; mostrará prévia e erros por linha; e só gravará após confirmação autorizada. Importações repetidas serão idempotentes e atualizações terão comparação explícita. A especificação detalhada e o dicionário inicial estão em `docs/FULLTIME_CADASTRO_EM_LOTE_MODELO_DADOS.md`.
+
+
+## Modelo operacional vigente — supersede referências históricas a CARGAS
+
+A entidade CARGAS não integra o produto. A unidade é OPERAÇÃO e a execução é VIAGEM. Cada operação recebe metas de viagens e volume; cada PARTICIPACAO_OPERACOES define a quantidade de viagens e toneladas daquele motorista/conjunto; cada VIAGEM registra o ciclo individual. CAMINHOES também não integra o cadastro de frota: usar MOTORISTAS, CAVALOS, CARRETAS e CONJUNTOS. Ver o contrato normativo em `docs/FULLTIME_MODELO_OPERACIONAL_OPERACOES_VIAGENS.md`.
