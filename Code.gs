@@ -938,11 +938,16 @@ function validarPlanejamentoOperacaoFullTime(token,operacaoId) {
   if(!active.length)errors.push('Nenhum motorista/conjunto foi designado.');
   if(trips!==targetTrips)errors.push('Viagens distribuídas: '+trips+'; meta da operação: '+targetTrips+'.');
   if(Math.abs(tons-targetTons)>0.000001)errors.push('Volume distribuído: '+tons+' t; volume da operação: '+targetTons+' t.');
+  const capRows=getSheet_('CONJUNTOS').getDataRange().getValues();
+  const driverRows=getSheet_('MOTORISTAS').getDataRange().getValues();
   active.forEach(r=>{
-    const capRows=getSheet_('CONJUNTOS').getDataRange().getValues(),set=capRows.find((x,i)=>i>0&&String(x[0])===String(r[pm.CONJUNTOID]));
+    const set=capRows.find((x,i)=>i>0&&String(x[0])===String(r[pm.CONJUNTOID]));
+    const driver=driverRows.find((x,i)=>i>0&&String(x[0])===String(r[pm.MOTORISTAID]));
     const cap=set?Number(set[10]||0):0;
+    if(!set||String(set[2])!=='ATIVO'||!(cap>0))errors.push('Uma participação utiliza conjunto inativo ou sem capacidade útil.');
+    if(!driver||String(driver[2])!=='ATIVO')errors.push('Uma participação utiliza motorista inativo.');
     if(!(Number(r[pm.VIAGENSPREVISTAS])>0))errors.push('Uma participação não possui meta de viagens.');
-    if(!(Number(r[pm.TONELADASPREVISTAS])>0)||Number(r[pm.TONELADASPREVISTAS])>cap*Number(r[pm.VIAGENSPREVISTAS])+0.000001)errors.push('Volume previsto excede a capacidade multiplicada pelas viagens de uma participação.');
+    if(!(Number(r[pm.TONELADASPREVISTAS])>0)||!validarMetaViagensFullTime(Number(r[pm.TONELADASPREVISTAS]),cap,Number(r[pm.VIAGENSPREVISTAS])).ok)errors.push('Meta de viagens insuficiente para o volume atribuído a uma participação.');
   });
   return {ok:errors.length===0,operacaoId:id,participacoes:active.length,viagensDistribuidas:trips,viagensPrevistas:targetTrips,toneladasDistribuidas:tons,volumePrevisto:targetTons,errors:errors,message:errors.length?errors.join(' '):'Plano consistente: metas de viagens e volume distribuídas corretamente.'};
 }
