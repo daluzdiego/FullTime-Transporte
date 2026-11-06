@@ -93,3 +93,57 @@ function gerarOfertasCandidatosOperacaoFullTime(token, operacaoId) {
     return {ok:true,ofertas:candidates.length,candidatos:candidates.map(c=>({motorista:c.driverName,motoristaId:c.driverId,conjuntoId:c.id,capacidade:c.capacity,posicao:c.posicao})),expiraEm:expiry,message:candidates.length+' convites criados nos portais individuais. Nenhuma mensagem externa foi enviada.'};
   } finally {lock.releaseLock();}
 }
+
+
+/**
+ * Resposta individual a convite. O motorista é obtido exclusivamente da sessão.
+ * A aceitação registra compromisso; a criação/alocação das viagens é etapa posterior.
+ */
+function responderConviteOperacaoFullTime(token, ofertaId, decisao, motivo) {
+  const session=obterSessao_(token);
+  if(!session||session.perfil!=='MOTORISTA'||!session.motoristaId)throw new Error('Ação permitida somente ao motorista autenticado.');
+  const action=String(decisao||'').trim().toUpperCase();
+  if(!['ACEITAR','RECUSAR'].includes(action))throw new Error('Decisão inválida.');
+  const why=String(motivo||'').trim().slice(0,500);
+  if(action==='RECUSAR'&&!why)throw new Error('Informe um motivo para recusar o convite.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try{
+    const offerSh=getSheet_('OFERTAS_OPERACOES'), offerRows=offerSh.getDataRange().getValues(), om=ftHeaderMapViagens_(offerSh);
+    const idx=offerRows.findIndex((r,i)=>i>0&&String(r[om.ID]||'')===String(ofertaId||'')&&String(r[om.MOTORISTAID]||'')===String(session.motoristaId));
+    if(idx<1)throw new Error('Convite não encontrado para este motorista.');
+    const row=offerRows[idx], current=String(row[om.STATUSOFERTA]||'').toUpperCase();
+    if(!['PENDENTE','PENDENTE_HOMOLOGACAO'].includes(current))throw new Error('Este convite já foi respondido ou não está disponível.');
+    const now=new Date(), expiry=row[om.EXPIREM] instanceof Date?row[om.EXPIREM]:new Date(row[om.EXPIREM]);
+    if(row[om.EXPIREM]&&isFinite(expiry.getTime())&&expiry.getTime()<=now.getTime()){
+      offerSh.getRange(idx+1,om.STATUSOFERTA+1).setValue('EXPIRADA');
+      throw new Error('O prazo deste convite terminou.');
+    }
+    const opSh=getSheet_('OPERACOES'), opRows=opSh.getDataRange().getValues(), opm=ftHeaderMapViagens_(opSh);
+    const op=opRows.slice(1).find(x=>String(x[opm.ID])===String(row[om.OPERACAOID]));
+    if(!op)throw new Error('A operação vinculada ao convite não existe mais.');
+    const test=current==='PENDENTE_HOMOLOGACAO';
+    if(action==='ACEITAR'){
+      const setSh=getSheet_('CONJUNTOS'), sets=setSh.getDataRange().getValues(), sm=ftHeaderMapViagens_(setSh);
+      const set=sets.slice(1).find(x=>String(x[sm.ID])===String(row[om.CONJUNTOID])&&String(x[sm.MOTORISTAID])===String(session.motoristaId));
+      if(!set||String(set[sm.STATUS]||'').toUpperCase()!=='ATIVO'||String(set[sm.ESTADOCONSERVACAO]||'').toUpperCase()!=='APTO')throw new Error('Seu conjunto vinculado não está ativo e apto. Procure a administração.');
+      const ruleSh=getSheet_('REGRAS_OPERACIONAIS'), rules=ruleSh.getDataRange().getValues(), rm=ftHeaderMapViagens_(ruleSh);
+      const rule=rules.slice(1).find(x=>String(x[rm.LOCALID]||'')===String(op[opm.LOCALORIGEMID]||'')&&String(x[rm.STATUS]||'').toUpperCase()==='ATIVO');
+      if(!rule)throw new Error('A operação está sem regra operacional ativa; aceite bloqueado.');
+      let criteria={};try{criteria=JSON.parse(String(rule[rm.EXIGENCIAS]||'{}'));}catch(e){}
+      const cap=Number(set[sm.CAPACIDADEUTILTONELADAS]||0), min=Number(criteria.minCapacityT||rule[rm.PESOMINTONELADAS]||0), max=Number(criteria.maxCapacityT||rule[rm.PESOMAXTONELADAS]||Number.MAX_SAFE_INTEGER);
+      if(!(cap>0)||cap<min||cap>max)throw new Error('Seu conjunto não atende à faixa de capacidade desta operação ('+min+'–'+max+' t).');
+      const existing=offerRows.slice(1).filter(x=>String(x[om.MOTORISTAID])===String(session.motoristaId)&&String(x[om.ID])!==String(ofertaId)&&['ACEITA','ACEITA_HOMOLOGACAO'].includes(String(x[om.STATUSOFERTA]||'').toUpperCase()));
+      const acceptedOpIds=existing.map(x=>String(x[om.OPERACAOID]||''));
+      const dateKey=v=>v instanceof Date?Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(v||'').slice(0,10);
+      const sameDay=opRows.slice(1).filter(x=>acceptedOpIds.includes(String(x[opm.ID]))&&dateKey(x[opm.DATAOPERACAO])===dateKey(op[opm.DATAOPERACAO]));
+      if(sameDay.length)throw new Error('Você já aceitou outra operação para a mesma data. Conflito de agenda bloqueado.');
+    }
+    const status=action==='ACEITAR'?(test?'ACEITA_HOMOLOGACAO':'ACEITA'):(test?'RECUSADA_HOMOLOGACAO':'RECUSADA');
+    offerSh.getRange(idx+1,om.STATUSOFERTA+1).setValue(status);
+    offerSh.getRange(idx+1,om.RESPONDIDOEM+1).setValue(now);
+    offerSh.getRange(idx+1,om.MOTIVO+1).setValue(action==='RECUSAR'?why:(test?'Aceite registrado em ambiente de homologação.':'Aceite registrado pelo motorista.'));
+    const eventSh=getSheet_('EVENTOS_OPERACAO');
+    eventSh.appendRow([Utilities.getUuid(),now,action==='ACEITAR'?'CONVITE_ACEITO':'CONVITE_RECUSADO',String(row[om.OPERACAOID]||''),'',String(session.motoristaId),String(row[om.CONJUNTOID]||''),action==='RECUSAR'?why:(test?'Aceite de homologação; viagens ainda não alocadas.':'Aceite; viagens ainda não alocadas.'),String(session.login||'MOTORISTA')]);
+    return {ok:true,status:status,mensagem:action==='ACEITAR'?'Aceite registrado. A alocação das viagens ainda será feita pela administração.':'Recusa registrada com sucesso.'};
+  }finally{lock.releaseLock();}
+}
