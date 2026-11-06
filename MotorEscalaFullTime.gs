@@ -71,7 +71,7 @@ function gerarOfertasCandidatosOperacaoFullTime(token, operacaoId) {
     const candidates=ftSelecionarCandidatosCompativeis_(id,10);
     if(!candidates.length)throw new Error('Nenhum motorista/conjunto atende a todos os requisitos desta operação.');
     const sh=getSheet_('OFERTAS_OPERACOES'), rows=sh.getDataRange().getValues(), m=ftHeaderMapViagens_(sh);
-    const existing=rows.slice(1).filter(r=>String(r[m.OPERACAOID])===id&&String(r[m.STATUSOFERTA]).toUpperCase()==='PENDENTE');
+    const existing=rows.slice(1).filter(r=>String(r[m.OPERACAOID])===id&&['PENDENTE','PENDENTE_HOMOLOGACAO'].includes(String(r[m.STATUSOFERTA]).toUpperCase()));
     if(existing.length)return {ok:true,jaExistiam:true,ofertas:existing.length,message:'Esta operação já possui ofertas pendentes; não foram criadas duplicatas.'};
     const now=new Date(), expiry=new Date(now.getTime()+2*60*60*1000);
     const events=getSheet_('EVENTOS_OPERACAO');
