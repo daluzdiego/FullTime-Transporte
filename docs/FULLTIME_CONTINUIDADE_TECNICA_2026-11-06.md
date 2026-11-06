@@ -33,7 +33,7 @@ Foi incluída a função manual `testarRegressaoStatusPorCabecalhoFullTime()`, q
 - VIAGENS → STATUS no índice 8.
 - OPERACOES → STATUS no índice 2.
 
-**Execução pendente:** rodar a função no editor do Apps Script e registrar o resultado do log. O teste foi incluído no código, mas não foi executado pelo GitHub.
+Também foi incluída `testarRegressaoEscopoPortalMotoristaFullTime()`, com dados sintéticos, para provar que um motorista não recebe participações, operações ou viagens de outro motorista.\n\n**Execução pendente:** rodar as duas funções no editor do Apps Script e registrar os resultados. Os testes foram incluídos no código, mas não foram executados pelo GitHub.
 
 ### 3. Escopo do portal do motorista — `Code.gs` e `Index.html`
 
@@ -49,7 +49,7 @@ Foi incluída a função manual `testarRegressaoStatusPorCabecalhoFullTime()`, q
 - `32b73b119c0990df844d11376143e73c07ae0a28` — dados próprios no backend do portal.
 - `86797e609053199e02bd36b367375f3d0ddfe838` — apresentação de operações e viagens no portal.
 - `fbf9468422d6930c1d3ffa31aeaf6cc1a361125b` — ajuste de alinhamento do portal.
-- `27c2f7d8cf0953e1680855fc6e30eb2451e4408f` — helper e teste de regressão de status.
+- `27c2f7d8cf0953e1680855fc6e30eb2451e4408f` — helper e teste de regressão de status.\n- `a4d3d0eda843410e2ff4cc358cba5c0975d292a6` — filtro puro e teste sintético de isolamento do portal.
 
 ## Validação e implantação
 
