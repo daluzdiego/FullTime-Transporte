@@ -13,9 +13,10 @@ function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
   const rule=ruleRows.slice(1).find(r=>String(r[rm.LOCALID]||'')===originId&&String(r[rm.STATUS]||'').toUpperCase()==='ATIVO');
   if(!rule) throw new Error('A operação não possui regras operacionais ativas vinculadas ao local de origem.');
   let criteria={};
-  try { criteria=JSON.parse(String(rule[rm.EXIGENCIAS]||'{}')); } catch(e) { throw new Error('EXIGENCIAS da regra operacional precisa conter JSON válido.'); }
+  try { criteria=JSON.parse(String(rule[rm.EXIGENCIAS]||'{}')); } catch(e) { criteria={}; }
   const min=Number(criteria.minCapacityT||0), max=Number(criteria.maxCapacityT||Number.MAX_SAFE_INTEGER);
-  const allowed=(criteria.allowedTrailerTypes||String(rule[rm.TIPOCARRETA]||'').split('|').filter(Boolean)).map(x=>String(x).trim().toUpperCase());
+  const allowedRaw=criteria.allowedTrailerTypes||String(rule[rm.TIPOCARRETA]||'').split('|').filter(Boolean);
+  const allowed=(Array.isArray(allowedRaw)?allowedRaw:[allowedRaw]).map(x=>String(x).trim().toUpperCase()).filter(Boolean);
   const preference=String(criteria.capacityPreference||'BALANCED').toUpperCase();
   const drivers=getSheet_('MOTORISTAS').getDataRange().getValues(), driverById={};
   drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
@@ -25,9 +26,10 @@ function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
   const partSh=getSheet_('PARTICIPACAO_OPERACOES'), partRows=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
   const busySets=new Set(partRows.slice(1).filter(r=>String(r[pm.STATUSPARTICIPACAO]||'').toUpperCase()==='ATIVO').map(r=>String(r[pm.CONJUNTOID])));
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const dayKey=v=>{if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');const d=new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(v||'').slice(0,10);};
   const availSh=getSheet_('DISPONIBILIDADE_DIARIA'), availRows=availSh.getDataRange().getValues(), am=ftHeaderMapViagens_(availSh);
   const availabilityByDriver={};
-  availRows.slice(1).forEach(r=>{if(String(r[am.DATAOPERACAO]||'')===today)availabilityByDriver[String(r[am.MOTORISTAID]||'')]=String(r[am.STATUSDISPONIBILIDADE]||'').toUpperCase();});
+  availRows.slice(1).forEach(r=>{if(dayKey(r[am.DATAOPERACAO])===today)availabilityByDriver[String(r[am.MOTORISTAID]||'')]=String(r[am.STATUSDISPONIBILIDADE]||'').toUpperCase();});
   const docsSh=getSheet_('CONTROLE_DOCUMENTAL'), docs=docsSh.getDataRange().getValues(), dm=ftHeaderMapViagens_(docsSh);
   const docsByEntity={};
   docs.slice(1).forEach(r=>{const k=String(r[dm.IDEXTERNOREGISTRO]||'');(docsByEntity[k]||(docsByEntity[k]=[])).push(String(r[dm.STATUSDOCUMENTO]||'').toUpperCase());});
