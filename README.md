@@ -54,3 +54,14 @@ No editor do Apps Script, execute `verificarAmbienteHomologacaoFullTime()`. Essa
 ## Instalação
 
 As instruções históricas de bootstrap em [docs/INSTALACAO.md](docs/INSTALACAO.md) precisam ser lidas junto com a arquitetura consolidada. **Para a implantação existente Bruno → Full Time, não execute `configurarSistemaFullTime()` sem confirmar que a intenção é criar uma base nova.** O projeto deve continuar usando as planilhas existentes e seus IDs já configurados.
+
+
+## Consolidação e homologação
+
+Para acompanhar a implementação e a validação da versão de homologação, consulte:
+
+- [Controle de progresso até 18/11/2026](docs/CONTROLE_PROJETO_HOMOLOGACAO_2026-11-18.md)
+- [Arquitetura consolidada](docs/ARQUITETURA_CONSOLIDADA_HOMOLOGACAO.md)
+- [Roteiro de execução da homologação no Apps Script](docs/EXECUCAO_HOMOLOGACAO_APPS_SCRIPT.md)
+
+A branch de trabalho é `planejamento/controle-18-11-2026`. A `main` permanece preservada até a conclusão dos testes no runtime do Apps Script e da homologação com dados fictícios.
