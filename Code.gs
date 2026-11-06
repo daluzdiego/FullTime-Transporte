@@ -864,6 +864,25 @@ function atualizarComposicaoConjuntoFullTime(token, dados) {
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 /**
+ * Testes unitários puros e não destrutivos.
+ * Não abre planilhas, não lê dados reais e não grava nada.
+ * Execute manualmente no Apps Script para validar normalizações básicas.
+ */
+function testarFuncoesPurasFullTime() {
+  const cases = [
+    {nome:'CPF válido conhecido', esperado:true, obtido:cpfValido_('52998224725')},
+    {nome:'CPF repetido inválido', esperado:false, obtido:cpfValido_('11111111111')},
+    {nome:'CPF com tamanho incorreto', esperado:false, obtido:cpfValido_('12345')},
+    {nome:'Placa Mercosul normalizada', esperado:'ABC1D23', obtido:normalizarPlaca_('abc-1d23')},
+    {nome:'Cabeçalho normalizado', esperado:'CAPACIDADEUTILTONELADAS', obtido:ftDriveNormHeader_('Capacidade útil toneladas')}
+  ];
+  const results=cases.map(test=>({teste:test.nome,sucesso:test.obtido===test.esperado,esperado:test.esperado,obtido:test.obtido}));
+  const failed=results.filter(x=>!x.sucesso);
+  return {suite:'TESTES_PUROS_FULLTIME',total:results.length,aprovados:results.length-failed.length,falhas:failed.length,sucesso:failed.length===0,resultados:results};
+}
+
+
+/**
  * Guarda decisões administrativas fora das guias espelhadas do Bruno.
  * Assim, a aprovação não depende de o registro existir fisicamente na guia local.
  */
