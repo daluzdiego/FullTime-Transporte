@@ -196,6 +196,30 @@ function obterPainelFullTime(token) {
   };
 }
 
+function ftGetOrCreateLocalOperacao_(clienteId,nome,tipo,session) {
+  const clean=texto_(nome,160);if(!clean)throw new Error('Nome do local obrigatório.');
+  const sh=getSheet_('LOCAIS'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),key=clean.toUpperCase();
+  const found=rows.slice(1).find(r=>String(r[m.CLIENTEID]||'')===String(clienteId)&&String(r[m.NOMELOCAL]||'').trim().toUpperCase()===key&&String(r[m.TIPOLOCAL]||'')===tipo);
+  if(found)return String(found[m.ID]);
+  const id=Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
+  const put=(k,v)=>{const col=m[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
+  put('ID',id);put('CRIADO_EM',new Date());put('STATUS','ATIVO');put('NOME_LOCAL',clean);put('CLIENTE_ID',clienteId);
+  put('TIPO_LOCAL',tipo);put('ENDERECO',clean);put('CLIENTE','');
+  sh.appendRow(row);auditar_(session,'CRIAR','LOCAL',id,tipo+' — '+clean);
+  return id;
+}
+function ftGetOrCreateClienteSolicitacao_(nome,contato,session) {
+  const clean=texto_(nome,160);if(!clean)throw new Error('Cliente da solicitação não informado.');
+  const sh=getSheet_('CLIENTES'),rows=sh.getDataRange().getValues(),m=ftHeaderMapViagens_(sh),key=clean.toUpperCase();
+  const found=rows.slice(1).find(r=>String(r[m.NOMEFANTASIA]||r[m.RAZAOSOCIAL]||'').trim().toUpperCase()===key);
+  if(found)return String(found[m.ID]);
+  const id=Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
+  const put=(k,v)=>{const col=m[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
+  put('ID',id);put('CRIADO_EM',new Date());put('STATUS','ATIVO');put('RAZAO_SOCIAL',clean);put('NOME_FANTASIA',clean);put('CONTATO_PRINCIPAL',texto_(contato,120));put('OBSERVACOES','Criado a partir de solicitação aprovada.');
+  sh.appendRow(row);auditar_(session,'CRIAR','CLIENTE',id,'Criado por conversão de solicitação aprovada.');
+  return id;
+}
+
 function salvarClienteFullTime(token,data) {
   const session=obterSessao_(token);exigirAdmin_(session);data=data||{};
   const razao=texto_(data.razaoSocial,160),fantasia=texto_(data.nomeFantasia,160),cnpj=digitos_(data.cnpj);
@@ -928,7 +952,8 @@ function salvarOperacaoFullTime(token, data) {
   if(janelaInicio&&janelaFim&&janelaFim<janelaInicio)throw new Error('A janela final não pode ser anterior à inicial.');
   if(!['BAIXA','NORMAL','ALTA','URGENTE'].includes(prioridade))throw new Error('Prioridade inválida.');
   const id=Utilities.getUuid(), now=new Date();
-  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagens,volume,observacoes,session.login,'',0,0,dataFim,janelaInicio,janelaFim,prioridade,produto,tipoOperacao,contato,clienteId,'','']);
+  const origemId=ftGetOrCreateLocalOperacao_(clienteId,origem,'ORIGEM',session),destinoId=ftGetOrCreateLocalOperacao_(clienteId,destino,'DESTINO',session);
+  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagens,volume,observacoes,session.login,'',0,0,dataFim,janelaInicio,janelaFim,prioridade,produto,tipoOperacao,contato,clienteId,origemId,destinoId]);
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagens);
   return {ok:true,id:id,message:'Operação criada com '+viagens+' viagens previstas. Saldo inicial: '+volume+' t.'};
 }
