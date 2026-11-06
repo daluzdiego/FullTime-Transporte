@@ -487,7 +487,13 @@ function salvarCavaloFullTime(token, data) {
   if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
   const lock=LockService.getScriptLock();lock.waitLock(10000);let id;
   try{ftExigirUnicidadeCadastro_('CAVALOS',placa,'');id=Utilities.getUuid();
-    getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
+    const horseSheet=getSheet_('CAVALOS');
+    const horseHeaders=horseSheet.getRange(1,1,1,horseSheet.getLastColumn()).getDisplayValues()[0].map(ftDriveNormHeader_);
+    const horseRow=new Array(horseSheet.getLastColumn()).fill('');
+    const horseValues={ID:id,CRIADO_EM:new Date(),STATUS:'PENDENTE_REVISAO',PLACA:placa,MARCA:marca,MODELO:modelo,ANO:ano,TARA_TONELADAS:tara,PBTC_MAX_TONELADAS:pbtc,CAPACIDADE_UTIL_TONELADAS:Number(String(data.capacidadeUtil||'').replace(',','.')),OBSERVACOES:texto_(data.observacoes,1000)};
+    Object.keys(horseValues).forEach(k=>{const col=horseHeaders.indexOf(k);if(col>=0)horseRow[col]=horseValues[k];});
+    if(!(horseValues.CAPACIDADE_UTIL_TONELADAS>0&&horseValues.CAPACIDADE_UTIL_TONELADAS<=pbtc-tara+0.000001))throw new Error('Informe a capacidade útil do cavalo maior que zero e não superior ao PBTC menos a tara.');
+    horseSheet.appendRow(horseRow);
   }finally{lock.releaseLock();}
   auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
   return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
