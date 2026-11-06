@@ -186,3 +186,28 @@ O próximo passo é executar apenas essa função no editor Apps Script e revisa
 - Foi criado `GatilhosFullTime.gs` com instalação/removal explícitas do gatilho de expiração a cada 5 minutos. O gatilho **não foi instalado**; a instalação exige confirmação literal e deve ocorrer somente após homologação.
 
 - A elegibilidade agora também exige `VINCULO_FIXO = SIM` e status ativo de motorista/equipamentos; conjuntos sem vínculo fixo explícito não entram na escala.
+
+
+## Atualização de progresso — 06/11/2026
+
+**Estado:** consolidação em validação; ainda não homologado no runtime do Apps Script.
+
+Entregas de código/documentação nesta branch:
+- [x] Registro de disponibilidade diária por motorista ativo e painel administrativo.
+- [x] Correção do falso positivo de rota no interpretador e inclusão de regressões.
+- [x] Formulário de nova viagem vinculado a uma operação existente.
+- [x] Edição do peso previsto por viagem antes da atribuição.
+- [x] Bloqueio de ofertas quando faltam pesos, quando a quantidade de viagens diverge ou quando a soma dos pesos não fecha com o volume da operação (tolerância 0,05 t).
+- [x] Revalidação dos pesos no aceite da oferta.
+- [x] Instalador do monitor de expiração a cada 5 minutos (função criada; gatilho ainda não instalado).
+- [x] Suíte read-only ampliada para cobrir disponibilidade, pesos e rota.
+- [x] Sintaxe estática dos arquivos Apps Script, do script da interface e da suíte de testes aprovada.
+- [x] 14/14 testes de extração e 4/4 testes de validação de pesos aprovados em execução V8 isolada.
+
+**Ainda não concluído:** executar a suíte no Apps Script; verificar propriedades e permissões reais; comparar os cabeçalhos atuais das planilhas; testar sincronização Bruno → Full Time; testar uma operação fictícia ponta a ponta; instalar o gatilho de expiração após homologação; publicar uma implantação de teste.
+
+**Horas:** não foram cronometradas automaticamente nesta sessão; preencher horas reais no fechamento do dia, sem estimar com base em commits.
+
+| Data | Horas | Entrega/evidência | Bloqueios | Próxima ação |
+|---|---:|---|---|---|
+| 06/11 | A apurar | Painel de disponibilidade, vínculo de viagem, edição de peso, validação de pesos e regressões adicionados; sintaxe e testes puros aprovados | Runtime Apps Script e planilhas reais ainda não verificados | Executar suíte read-only no projeto Apps Script e corrigir qualquer falha antes de dados fictícios |
