@@ -564,8 +564,16 @@ function salvarConjuntoVeicularFullTime(token, data) {
     selectedTrailers.push({id:pair[0],capacity:capacity,label:pair[1]});
   });
 
-  const capacidadeUtil=cavaloCapacity+selectedTrailers.reduce((sum,x)=>sum+x.capacity,0);
-  if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Não foi possível calcular a capacidade do conjunto.');
+  // A capacidade operacional do conjunto é informada e aprovada pelo responsável.
+  // Nunca somamos automaticamente a capacidade do cavalo à das carretas:
+  // isso pode superestimar a carga útil e ignorar os limites técnicos/legais do conjunto.
+  const limiteComponentes=selectedTrailers.length
+    ? Math.min(cavaloCapacity,selectedTrailers.reduce((sum,x)=>sum+x.capacity,0))
+    : cavaloCapacity;
+  const capacidadeUtil=Number(String(data.capacidadeUtil||'').replace(',','.'));
+  if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Informe a capacidade útil operacional aprovada do conjunto.');
+  if (capacidadeUtil>limiteComponentes+0.000001) throw new Error('A capacidade informada ('+capacidadeUtil+' t) excede o limite conservador dos componentes ('+limiteComponentes+' t). Confira os dados técnicos e a capacidade homologada do conjunto.');
+
 
   const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
   // Evita reutilizar motorista, cavalo ou carreta em outro conjunto ainda vigente.
@@ -579,8 +587,8 @@ function salvarConjuntoVeicularFullTime(token, data) {
   const id=Utilities.getUuid();
   const conjuntoStatus=pending?'PENDENTE_REVISAO':'PENDENTE_REVISAO';
   sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
-  auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
-  return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
+  auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade operacional informada e limitada pelos componentes: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
+  return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade operacional registrada: '+capacidadeUtil+' t. Revise a documentação e os limites técnicos antes de aprovar.'};
 }
 
 /** Verificação final de unicidade; chamar sob ScriptLock. */
