@@ -461,10 +461,13 @@ function prepararBaseOperacionalFullTime() {
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
-    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR'],
+    MOTORISTAS: ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES','ID_EXTERNO','RG','DATA_NASCIMENTO','WHATSAPP','ENDERECO','CIDADE','UF','CEP','CNH_PRIMEIRA_HABILITACAO','CNH_EAR','EXAME_TOXICOLOGICO_VALIDADE','STATUS_DOCUMENTACAO','LINK_CNH','LINK_EXAME_TOXICOLOGICO'],
+    CAMINHOES: ['ID','CRIADO_EM','STATUS','PLACA','RENAVAM','MARCA','MODELO','ANO','TIPO_VEICULO','CAPACIDADE_TONELADAS','SITUACAO_DOCUMENTAL','OBSERVACOES'],
+    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','ID_EXTERNO','RENAVAM','CHASSI','NUMERO_MOTOR','VERSAO','ANO_FABRICACAO','ANO_MODELO','TIPO_VEICULO','ESPECIE','CARROCERIA','COR','COMBUSTIVEL','NUMERO_EIXOS','LOTACAO_TONELADAS','CAPACIDADE_UTIL_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','ANTT_RNTRC','ANTT_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA'],
+    CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','ID_EXTERNO','RENAVAM','CHASSI','ANO_FABRICACAO','ANO_MODELO','ESPECIE','CARROCERIA','COR','NUMERO_EIXOS','LOTACAO_TONELADAS','PROPRIETARIO_DOCUMENTO','PROPRIETARIO_NOME','CRLV_ANO_EXERCICIO','LICENCIAMENTO_STATUS','CRLV_LINK','AET_NUMERO','AET_VALIDADE','STATUS_DOCUMENTACAO','DATA_ULTIMA_CONFERENCIA','MARCA','MODELO'],
+    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR','ID_EXTERNO','MOTORISTA_ID_EXTERNO','MOTORISTA_CPF','MOTORISTA_NOME','CAVALO_ID_EXTERNO','CAVALO_PLACA','CARRETA_MEIO_ID_EXTERNO','CARRETA_MEIO_PLACA','CARRETA_FINAL_ID_EXTERNO','CARRETA_FINAL_PLACA','QUANTIDADE_CARRETAS','VINCULO_FIXO','DATA_INICIO_VINCULO','DATA_FIM_VINCULO','STATUS_VINCULO','AUTORIZADO_POR','DATA_AUTORIZACAO'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','ID_EXTERNO'],
+    CONTROLE_DOCUMENTAL: ['ID_DOCUMENTO','TIPO_REGISTRO','ID_EXTERNO_REGISTRO','PLACA_OU_CPF','TIPO_DOCUMENTO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','STATUS_DOCUMENTO','LINK_ARQUIVO','DATA_CONFERENCIA','CONFERIDO_POR','PENDENCIA','OBSERVACOES'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
@@ -835,7 +838,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
@@ -844,76 +847,27 @@ function getSheet_(name) {
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
 function listarRegistros_(name) {
-  const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  const localSetIds = new Set();
-
-  // MOTORISTAS: combina o espelho recebido do Bruno com as decisões locais.
-  // O registro local prevalece pelo ID, preservando ATIVO/INATIVO após novas sincronizações.
-  if (name === 'MOTORISTAS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]), r); });
-    const local = getSheet_('MOTORISTAS');
-    if (local.getLastRow() > 1) {
-      local.getRange(2,1,local.getLastRow()-1,Math.max(12,local.getLastColumn())).getValues().forEach(r => {
-        if (r[0]) byId.set(String(r[0]), r.slice(0,12));
-      });
-    }
-    rows = Array.from(byId.values());
-  }
-
-  // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
-  if (name === 'MOTORISTAS') {
-    const overrides = ftReadStatusOverrides_('MOTORISTAS');
-    rows.forEach(r => {
-      const id = String(r[0] || '').trim();
-      if (id && overrides[id]) r[2] = overrides[id];
-    });
-  }
-
-  // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
-  // conjuntos criados dentro do sistema. Exibe ambos sem duplicar IDs.
-  if (name === 'CONJUNTOS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]),r); });
-    const localSheet = getSheet_('CONJUNTOS');
-    if (localSheet.getLastRow() > 1) {
-      localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
-        if (!r[0]) return;
-        localSetIds.add(String(r[0]));
-        byId.set(String(r[0]),r.slice(0,12));
-      });
-    }
-    rows = Array.from(byId.values());
-  }
+  // A base operacional FullTime é a fonte de verdade. Espelhos legados não são consultados.
+  const sh = getSheet_(name);
+  const values = sh.getDataRange().getValues();
+  const rows = values.length < 2 ? [] : values.slice(1);
   if (!rows.length) return [];
 
-  const mapped = rows.map(r => ({
+  const mapped = rows.filter(r => r[0]).map(r => ({
     id: String(r[0] || ''),
     criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-    ...(name === 'CONJUNTOS' ? {origem: localSetIds.has(String(r[0]||'')) ? 'SISTEMA' : 'BRUNO'} : {})
+    ...(name === 'CONJUNTOS' ? {origem:'SISTEMA'} : {})
   }));
 
-  // A capacidade cadastrada originalmente em CAMINHOES é a fonte para os
-  // cavalos sincronizados em CAVALOS. O vínculo é feito pela placa normalizada.
+  // Capacidade de cavalo e carreta vem do próprio cadastro canônico, não de CAMINHOES/placa.
   if (name === 'CAVALOS') {
-    const truckSheet = getSheet_('CAMINHOES');
-    const truckRows = truckSheet.getLastRow() > 1
-      ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-      : [];
-    const capacityByPlate = {};
-    truckRows.forEach(r => {
-      const plate = normalizarPlaca_(r[3]);
-      const capacity = Number(String(r[9] == null ? '' : r[9]).replace(',','.'));
-      if (plate && capacity > 0) capacityByPlate[plate] = capacity;
-    });
     mapped.forEach(item => {
-      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || 0;
+      const capacity = Number(String(item.campos[21] || '').replace(',','.'));
+      item.capacidadeUtil = capacity > 0 ? capacity : 0;
     });
   } else if (name === 'CARRETAS') {
-    // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
     mapped.forEach(item => {
       const capacity = Number(String(item.campos[3] || '').replace(',','.'));
       item.capacidadeUtil = capacity > 0 ? capacity : 0;
@@ -923,14 +877,12 @@ function listarRegistros_(name) {
 }
 
 function contarAtivos_(name) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
+  const sh = getSheet_(name), values = sh.getDataRange().getValues();
+  return values.slice(1).filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
 }
 function contarStatus_(name, status) {
-  const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
-  return rows.filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
+  const sh = getSheet_(name), values = sh.getDataRange().getValues();
+  return values.slice(1).filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
 }
 function duplicado_(name, col, value) {
   const sh = getSheet_(name), last = sh.getLastRow();
