@@ -642,7 +642,7 @@
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Concluídas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Gerenciar viagens" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Gerenciar viagens" onclick="showMovimentacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
@@ -671,6 +671,17 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Não foi possível designar.',true)).designarConjuntoOperacaoFullTime(authToken,{operacaoId:operacaoId,conjuntoId:conjuntoId,viagensPrevistas:viagensPrevistas,toneladasPrevistas:toneladasPrevistas,motivo:motivo});
   }
   let activeTripOperationId='';
+  function replanejarOperacaoUI(operacaoId){
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>p.operacaoId===operacaoId&&p.campos[2]==='ATIVO');
+    if(!parts.length){toast('Não há participação ativa para receber viagens adicionais.',true);return;}
+    const labels=parts.map((p,i)=>{const d=(dashboard?.motoristas||[]).find(x=>x.id===p.campos[1]);return (i+1)+'. '+(d?.campos[0]||p.campos[1])+' — '+Number(p.campos[10]||0)+' viagens';}).join('\n');
+    const choice=Number(prompt('Escolha a participação para replanejar:\n'+labels));
+    if(!(choice>=1&&choice<=parts.length))return;
+    const extra=Math.floor(Number(prompt('Quantas viagens adicionais?')));
+    if(!(extra>0)){toast('Informe uma quantidade maior que zero.',true);return;}
+    if(!confirm('Adicionar '+extra+' viagens à meta deste motorista/conjunto?'))return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Falha no replanejamento.',true)).replanejarOperacaoFullTime(authToken,{operacaoId:operacaoId,participacaoId:parts[choice-1].id,viagensAdicionais:extra});
+  }
   function showMovimentacao(id){
     activeTripOperationId=id;
     const op=(dashboard?.operacoes||[]).find(o=>o.id===id);
