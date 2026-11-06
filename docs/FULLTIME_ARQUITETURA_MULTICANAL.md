@@ -187,3 +187,8 @@ K. Homologação: testes de falha isolada de cada canal, duplicidade cruzada, in
 - Política de aprovação automática ou sempre humana para converter solicitação em operação.
 
 **Regra final:** três portas de entrada independentes, um único núcleo confiável, uma única fonte de verdade e nenhum canal com poder de paralisar a operação sozinho.
+
+
+## Cadastro inicial e manutenção em lote
+
+A autonomia operacional não significa obrigar o usuário a cadastrar cada motorista, cavalo, carreta, cliente ou local individualmente. O Full Time terá um módulo de **Importação em lote** com planilha-modelo versionada e abas por entidade. O arquivo será uma interface de entrada, nunca o banco operacional. O sistema validará relações entre clientes, endereços, locais, frota, conjuntos, rotas e operações; mostrará prévia e erros por linha; e só gravará após confirmação autorizada. Importações repetidas serão idempotentes e atualizações terão comparação explícita. A especificação detalhada e o dicionário inicial estão em `docs/FULLTIME_CADASTRO_EM_LOTE_MODELO_DADOS.md`.
