@@ -152,6 +152,8 @@ function gerarMassaFicticiaHomologacaoFullTime() {
     const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID');
     if(!registryId||!authId) throw new Error('Configure FT_REGISTRY_DATABASE_ID e FT_DATABASE_ID.');
     const ss=SpreadsheetApp.openById(registryId), auth=SpreadsheetApp.openById(authId);
+    const dirty=Object.keys(FT_HOMOLOGACAO_GUIAS).filter(name=>{const sh=ss.getSheetByName(name);return sh&&sh.getLastRow()>1;});
+    if(dirty.length) throw new Error('A base ainda contém registros nas guias: '+dirty.join(', ')+'. Execute limparBaseParaHomologacaoFullTime() antes de gerar a massa.');
     const now=new Date(), today=Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyy-MM-dd');
     const future=new Date(now.getTime()+86400000*14);
     const iso=d=>Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd');
