@@ -106,7 +106,6 @@
       {id:'conjuntos',label:'CONJUNTO',icon:'⛓',title:'Conjuntos'}
     ]},
     {id:'clientes',label:'CLIENTES',icon:'⌂',title:'Clientes'},
-    {id:'escalas',label:'ESCALAS',icon:'▦',title:'Escalas'},
     {id:'viagens',label:'VIAGENS',icon:'⇄',title:'Viagens'},
     {id:'relatorios',label:'RELATÓRIOS',icon:'▥',title:'Relatórios'},
     {id:'configuracoes',label:'CONFIGURAÇÃO',icon:'⚙',title:'Configuração'}
@@ -229,7 +228,7 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Viagens',clientes:'Clientes',relatorios:'Relatórios',configuracoes:'Configuração'};
+    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',viagens:'Viagens',clientes:'Clientes',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastro de cavalos mecânicos.':page==='carretas'?'Cadastro e situação das carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
@@ -238,7 +237,6 @@
     
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
-    else if(page==='escalas') c.innerHTML=renderEscalas();
     else if(page==='viagens') c.innerHTML=renderViagens();
     else if(page==='clientes') c.innerHTML=renderClientes();
     else c.innerHTML=renderDevelopment(titles[page]||page);
