@@ -17,7 +17,7 @@ Criar um ambiente de homologação integralmente sintético para testar integrid
 | Entidade | Quantidade inicial | Observação |
 |---|---:|---|
 | MOTORISTAS | 100 | Perfis fictícios variados, documentos e estados |
-| CAVALOS | 100 | Capacidades e especificações variadas |
+| CLIENTES | 100 | Empresas fictícias com CNPJ/email e contatos |\n| CAVALOS | 100 | Capacidades e especificações variadas |
 | CARRETAS | 100 | Tipos, capacidades e combinações variadas |
 | CONJUNTOS | 100 | Relacionamentos válidos e capacidades úteis |
 | LOCAIS | 100 | Pátios, terminais, clientes e destinos fictícios |
