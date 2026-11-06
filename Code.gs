@@ -947,7 +947,7 @@ function validarPlanejamentoOperacaoFullTime(token,operacaoId) {
     if(!set||String(set[2])!=='ATIVO'||!(cap>0))errors.push('Uma participação utiliza conjunto inativo ou sem capacidade útil.');
     if(!driver||String(driver[2])!=='ATIVO')errors.push('Uma participação utiliza motorista inativo.');
     if(!(Number(r[pm.VIAGENSPREVISTAS])>0))errors.push('Uma participação não possui meta de viagens.');
-    if(!(Number(r[pm.TONELADASPREVISTAS])>0)||!validarMetaViagensFullTime(Number(r[pm.TONELADASPREVISTAS]),cap,Number(r[pm.VIAGENSPREVISTAS])).ok)errors.push('Meta de viagens insuficiente para o volume atribuído a uma participação.');
+    if(!(Number(r[pm.TONELADASPREVISTAS])>0)||!(cap>0)||!validarMetaViagensFullTime(Number(r[pm.TONELADASPREVISTAS]),cap,Number(r[pm.VIAGENSPREVISTAS])).ok)errors.push('Meta de viagens insuficiente para o volume atribuído a uma participação.');
   });
   return {ok:errors.length===0,operacaoId:id,participacoes:active.length,viagensDistribuidas:trips,viagensPrevistas:targetTrips,toneladasDistribuidas:tons,volumePrevisto:targetTons,errors:errors,message:errors.length?errors.join(' '):'Plano consistente: metas de viagens e volume distribuídas corretamente.'};
 }
