@@ -886,6 +886,12 @@ function atualizarComposicaoConjuntoFullTime(token, dados) {
   } finally {lock.releaseLock();}
 }
 
+function calcularViagensMinimasFullTime(volumeToneladas,capacidadeUtilToneladas) {
+  const volume=Number(volumeToneladas),capacidade=Number(capacidadeUtilToneladas);
+  if(!(volume>0&&isFinite(volume)))throw new Error('Volume deve ser maior que zero.');
+  if(!(capacidade>0&&isFinite(capacidade)))throw new Error('Capacidade útil deve ser maior que zero.');
+  return Math.ceil((volume-0.000001)/capacidade);
+}
 function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 
 /**
@@ -899,7 +905,9 @@ function testarFuncoesPurasFullTime() {
     {nome:'CPF repetido inválido', esperado:false, obtido:cpfValido_('11111111111')},
     {nome:'CPF com tamanho incorreto', esperado:false, obtido:cpfValido_('12345')},
     {nome:'Placa Mercosul normalizada', esperado:'ABC1D23', obtido:normalizarPlaca_('abc-1d23')},
-    {nome:'Cabeçalho normalizado', esperado:'CAPACIDADEUTILTONELADAS', obtido:ftDriveNormHeader_('Capacidade útil toneladas')}
+    {nome:'Cabeçalho normalizado', esperado:'CAPACIDADEUTILTONELADAS', obtido:ftDriveNormHeader_('Capacidade útil toneladas')},
+    {nome:'Viagens exatas por capacidade', esperado:20, obtido:calcularViagensMinimasFullTime(500,25)},
+    {nome:'Viagem parcial arredondada para cima', esperado:21, obtido:calcularViagensMinimasFullTime(501,25)}
   ];
   const results=cases.map(test=>({teste:test.nome,sucesso:test.obtido===test.esperado,esperado:test.esperado,obtido:test.obtido}));
   const failed=results.filter(x=>!x.sucesso);
@@ -1461,7 +1469,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
   const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
+  if(rows.some((r,i)=>i>0&&String(r[5])==='ATIVO'&&(String(r[3])===conjuntoId||String(r[4])===String(set[3])))) throw new Error('Este conjunto ou motorista já participa de outra operação em andamento.');
   const viagensPrevistas=Math.floor(Number(data.viagensPrevistas||0));
   const toneladasPrevistas=Number(String(data.toneladasPrevistas||'').replace(',','.'));
   const capacidade=Number(set[10]||0);
