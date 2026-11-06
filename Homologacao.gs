@@ -247,6 +247,58 @@ function ftCriarUsuariosHomologacao_(auth,drivers) {
   return creds;
 }
 
+/**
+ * Recupera somente as contas ausentes da homologação, sem recriar a massa operacional.
+ * Preserva administradores e contas existentes; não altera credenciais já cadastradas.
+ */
+function repararUsuariosHomologacaoFullTime() {
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID');
+    if(!registryId||!authId)throw new Error('FT_REGISTRY_DATABASE_ID ou FT_DATABASE_ID não configurado.');
+    const operational=SpreadsheetApp.openById(registryId);
+    const driverSheet=operational.getSheetByName('MOTORISTAS');
+    if(!driverSheet)throw new Error('Guia MOTORISTAS não encontrada.');
+    const driverValues=driverSheet.getDataRange().getValues();
+    const driverHeaders=driverValues[0].map(h=>String(h||'').trim().toUpperCase());
+    const driverCol={};driverHeaders.forEach((h,i)=>driverCol[h]=i);
+    if(driverCol.ID==null||driverCol.NOME_COMPLETO==null||driverCol.EMAIL==null)
+      throw new Error('Colunas ID, NOME_COMPLETO ou EMAIL ausentes em MOTORISTAS.');
+    const drivers=driverValues.slice(1).filter(r=>/^FTTEST-MOT-\\d{4}$/.test(String(r[driverCol.ID]||'')))
+      .map(r=>({ID:String(r[driverCol.ID]),NOME_COMPLETO:String(r[driverCol.NOME_COMPLETO]||''),EMAIL:String(r[driverCol.EMAIL]||'').trim()}));
+    if(drivers.length!==40)throw new Error('Esperados 40 motoristas fictícios; encontrados '+drivers.length+'. Nenhuma conta criada.');
+    const auth=SpreadsheetApp.openById(authId), users=auth.getSheetByName('USUARIOS');
+    if(!users)throw new Error('Guia USUARIOS não encontrada na base interna.');
+    const headers=users.getRange(1,1,1,users.getLastColumn()).getDisplayValues()[0].map(h=>String(h||'').trim().toUpperCase());
+    const col={};headers.forEach((h,i)=>{if(h)col[h]=i;});
+    const required=['ID','LOGIN','NOME','PERFIL','SALT','HASH_SENHA','ATIVO','TROCAR_SENHA','CRIADO_EM','MOTORISTA_ID','PERMISSOES_JSON'];
+    required.forEach((key,i)=>{if(col[key]==null){users.getRange(1,users.getLastColumn()+1).setValue(key);col[key]=users.getLastColumn()-1;}});
+    const values=users.getDataRange().getValues(), existingByDriver={}, loginOwners={};
+    values.slice(1).forEach((row,i)=>{
+      const driverId=String(row[col.MOTORISTA_ID]||'').trim(),login=String(row[col.LOGIN]||'').trim().toLowerCase();
+      if(driverId)existingByDriver[driverId]={rowIndex:i+2,profile:String(row[col.PERFIL]||'').toUpperCase(),login:login};
+      if(login)loginOwners[login]=String(row[col.MOTORISTA_ID]||'');
+    });
+    const missing=drivers.filter(d=>!existingByDriver[d.ID]);
+    const conflicts=drivers.filter(d=>existingByDriver[d.ID]&&existingByDriver[d.ID].profile!=='MOTORISTA');
+    if(conflicts.length)throw new Error('Há vínculos de teste associados a perfil diferente de MOTORISTA: '+conflicts.map(x=>x.ID).join(', ')+'. Nenhuma conta criada.');
+    const collisions=missing.filter(d=>loginOwners[d.EMAIL.toLowerCase()]&&loginOwners[d.EMAIL.toLowerCase()]!==d.ID);
+    if(collisions.length)throw new Error('Login de teste já pertence a outro usuário: '+collisions.map(x=>x.EMAIL).join(', ')+'. Nenhuma conta criada.');
+    const created=[];
+    missing.forEach(d=>{
+      const login=d.EMAIL,password=Utilities.getUuid().replace(/-/g,'').slice(0,16)+'aA1!',salt=Utilities.getUuid();
+      const row=new Array(users.getLastColumn()).fill('');
+      const data={ID:Utilities.getUuid(),LOGIN:login,NOME:d.NOME_COMPLETO,PERFIL:'MOTORISTA',SALT:salt,HASH_SENHA:hashSenha_(salt,password),ATIVO:true,TROCAR_SENHA:true,CRIADO_EM:new Date(),MOTORISTA_ID:d.ID,PERMISSOES_JSON:JSON.stringify({portal:true,perfil:'MOTORISTA',acoes:['VER_PROPRIO_PERFIL','VER_PROPRIO_CONJUNTO','INFORMAR_DISPONIBILIDADE','VER_PROPRIAS_VIAGENS']})};
+      Object.keys(data).forEach(k=>row[col[k]]=data[k]);
+      users.appendRow(row);created.push({motoristaId:d.ID,login:login});
+    });
+    const result={sucesso:true,ambiente:'HOMOLOGACAO',motoristasVerificados:drivers.length,contasExistentesPreservadas:drivers.length-missing.length,contasCriadas:created.length,loginsCriados:created.map(x=>x.login),administradoresPreservados:true,baseOperacionalPreservada:true,senhaTemporaria:'Gerada individualmente e armazenada somente como hash; execute padronizarCredenciaisMotoristasHomologacaoFullTime() para definir a senha de teste.'};
+    Logger.log('REPARO USUARIOS HOMOLOGACAO: '+JSON.stringify(result));
+    return result;
+  } finally {lock.releaseLock();}
+}
+
 /** Validação estrutural e de integridade da massa fictícia. */
 function validarMassaHomologacaoFullTime() {
   const id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
@@ -290,9 +342,18 @@ function validarMassaHomologacaoFullTime() {
   const opIds=new Set(ops.slice(1).map(r=>String(r[0]))), partIds=new Set(parts.slice(1).map(r=>String(r[0])));
   parts.slice(1).forEach(r=>{if(!opIds.has(String(r[2])))errors.push('Participação sem operação: '+r[0]);if(!driverIds.has(String(r[4])))errors.push('Participação sem motorista: '+r[0]);});
   trips.slice(1).forEach(r=>{if(!opIds.has(String(r[2]))||!partIds.has(String(r[3])))errors.push('Viagem sem operação/participação: '+r[0]);});
-  const auth=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')), users=auth.getSheetByName('USUARIOS').getDataRange().getValues();
-  const testUsers=users.slice(1).filter(r=>String(r[1]||'').toLowerCase().endsWith('@fulltime.test')&&String(r[3]).toUpperCase()==='MOTORISTA');
-  if(testUsers.length!==40)errors.push('Esperados 40 logins fictícios; encontrados '+testUsers.length+'.');
+  const auth=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID'));
+  const userSheet=auth.getSheetByName('USUARIOS');
+  if(!userSheet) throw new Error('Guia USUARIOS não encontrada na base interna.');
+  const userValues=userSheet.getDataRange().getValues();
+  const userHeaders=userValues[0].map(h=>String(h||'').trim().toUpperCase());
+  const userCol={};userHeaders.forEach((h,i)=>{if(h)userCol[h]=i;});
+  const testUsers=userValues.slice(1).filter(r=>
+    String(r[userCol.PERFIL]||'').toUpperCase()==='MOTORISTA' &&
+    /^FTTEST-MOT-\\d{4}$/.test(String(r[userCol.MOTORISTA_ID]||'')) &&
+    String(r[userCol.LOGIN]||'').trim()!==''
+  );
+  if(testUsers.length!==40)errors.push('Esperados 40 logins fictícios vinculados por MOTORISTA_ID; encontrados '+testUsers.length+'.');
   const result={sucesso:errors.length===0,erros:errors,contagens:{motoristas:count('MOTORISTAS'),cavalos:count('CAVALOS'),carretas:count('CARRETAS'),conjuntos:count('CONJUNTOS'),clientes:count('CLIENTES'),operacoes:count('OPERACOES'),participacoes:count('PARTICIPACAO_OPERACOES'),viagens:count('VIAGENS'),ofertas:count('OFERTAS_OPERACOES'),disponibilidades:count('DISPONIBILIDADE_DIARIA'),usuariosTeste:testUsers.length}};
   Logger.log('VALIDACAO HOMOLOGACAO: '+JSON.stringify(result));
   if(errors.length)throw new Error('Homologação inconsistente: '+errors.join(' | '));
