@@ -599,8 +599,8 @@
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
-      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
@@ -656,7 +656,7 @@
     if(!panel)return;
     const trips=(dashboard?.viagens||[]).filter(v=>v.operacaoId===id);
     const rows=trips.map(v=>{
-      const f=v.campos,seq=f[1]||'—',status=f[5]||'—',weight=f[10]||'';
+      const f=v.campos,seq=f[1]||'—',status=f[5]||'—',weight=f[8]||'';const driver=(dashboard?.motoristas||[]).find(d=>d.id===f[3]);
       let actions='';
       if(status==='A_CAMINHO_ORIGEM')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_ORIGEM\')">Chegou à origem</button>';
       else if(status==='NO_LOCAL_ORIGEM')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_CARREGAMENTO\')">Iniciar carga</button>';
@@ -665,7 +665,7 @@
       else if(status==='EM_TRANSITO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'CHEGADA_DESTINO\')">Chegou ao destino</button>';
       else if(status==='NO_LOCAL_DESTINO')actions='<button class="icon-btn" onclick="tripEvent(\''+v.id+'\',\'INICIO_DESCARGA\')">Iniciar descarga</button>';
       else if(status==='DESCARREGANDO')actions='<button class="icon-btn" onclick="completeTrip(\''+v.id+'\')">Concluir viagem</button>';
-      return '<tr><td>'+esc(seq)+'</td><td>'+esc(f[3]||'')+'</td><td>'+esc(f[4]||'')+'</td><td>'+esc(status)+'</td><td>'+esc(weight)+' t</td><td>'+actions+'</td></tr>';
+      return '<tr><td>'+esc(seq)+'</td><td>'+esc(driver?.campos[0]||f[3]||'')+'</td><td>'+esc(f[4]||'')+'</td><td>'+esc(status)+'</td><td>'+esc(weight)+' t</td><td>'+actions+'</td></tr>';
     }).join('');
     panel.innerHTML += '<div class="panel"><div class="panel-head"><h2>Viagens da operação</h2><span class="muted small">'+trips.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Sequência</th><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Peso previsto</th><th>Ação</th></tr></thead><tbody>'+ (rows||'<tr><td colspan="6">Nenhuma viagem iniciada.</td></tr>')+'</tbody></table></div></div></div>';
   }
