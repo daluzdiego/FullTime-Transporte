@@ -308,7 +308,7 @@ function prepararBaseOperacionalFullTime() {
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','ID_EXTERNO','TOTAL_VIAGENS_CONCLUIDAS','TOTAL_TONELADAS_REALIZADAS','DATA_FIM_LIMITE','JANELA_INICIO','JANELA_FIM','PRIORIDADE','PRODUTO_SERVICO','TIPO_OPERACAO','CONTATO_CLIENTE'],
     CONTROLE_DOCUMENTAL: ['ID_DOCUMENTO','TIPO_REGISTRO','ID_EXTERNO_REGISTRO','PLACA_OU_CPF','TIPO_DOCUMENTO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','STATUS_DOCUMENTO','LINK_ARQUIVO','DATA_CONFERENCIA','CONFERIDO_POR','PENDENCIA','OBSERVACOES'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR','VIAGENS_PREVISTAS','TONELADAS_PREVISTAS','VIAGENS_INICIADAS','INICIO_PREVISTO','FIM_PREVISTO','ATUALIZADO_EM','ATUALIZADO_POR'],
-    VIAGENS: ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','SEQUENCIA_OPERACAO','SEQUENCIA_MOTORISTA','MOTORISTA_ID','CONJUNTO_ID','STATUS','ORIGEM_DESCRICAO','DESTINO_DESCRICAO','PESO_PREVISTO_TONELADAS','PESO_REAL_TONELADAS','PREVISTA_INICIO','PREVISTA_CHEGADA','INICIO_REAL','CHEGADA_ORIGEM_REAL','SAIDA_ORIGEM_REAL','CHEGADA_DESTINO_REAL','FIM_REAL','DISTANCIA_PREVISTA_KM','DISTANCIA_REAL_KM','MOTIVO_CANCELAMENTO','OBSERVACOES','ATUALIZADA_EM','ATUALIZADA_POR'],
+    VIAGENS: ['ID','CRIADO_EM','OPERACAO_ID','PARTICIPACAO_ID','SEQUENCIA_OPERACAO','SEQUENCIA_MOTORISTA','MOTORISTA_ID','CONJUNTO_ID','STATUS','ORIGEM_DESCRICAO','DESTINO_DESCRICAO','PESO_PREVISTO_TONELADAS','PESO_REAL_TONELADAS','PREVISTA_INICIO','PREVISTA_CHEGADA','INICIO_REAL','CHEGADA_ORIGEM_REAL','SAIDA_ORIGEM_REAL','CHEGADA_DESTINO_REAL','FIM_REAL','DISTANCIA_PREVISTA_KM','DISTANCIA_REAL_KM','MOTIVO_CANCELAMENTO','OBSERVACOES','ATUALIZADA_EM','ATUALIZADA_POR','STATUS_ANTES_INTERRUPCAO','INTERRUPPIDA_EM','MOTIVO_INTERRUPCAO','RETOMADA_EM'],
     EVENTOS_VIAGEM: ['ID','VIAGEM_ID','TIPO_EVENTO','DATA_HORA_EVENTO','DATA_HORA_RECEBIMENTO','LOCAL_ID','LATITUDE','LONGITUDE','RESPONSAVEL_ID','ORIGEM_REGISTRO','DESCRICAO','OBSERVACOES','IDEMPOTENCIA'],
     DOCUMENTOS_VIAGEM: ['ID','VIAGEM_ID','EVENTO_VIAGEM_ID','TIPO_DOCUMENTO','DRIVE_FILE_ID','URL','NOME_ARQUIVO','MIME_TYPE','HASH_ARQUIVO','RECEBIDO_EM','RECEBIDO_POR','STATUS_VALIDACAO','OBSERVACOES'],
     TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','VIAGEM_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
@@ -1004,16 +1004,17 @@ function iniciarViagemFullTime(token,dados) {
     if(!set||String(set[2])!=='ATIVO')throw new Error('Conjunto não está ativo.');
     const cap=Number(set[10]||0); if(!(cap>0))throw new Error('Conjunto sem capacidade útil aprovada.');
     const op=opRows[oi], remaining=Number(op[om.SALDOTONELADAS]||0);
-    if(!(remaining>0))throw new Error('Operação sem saldo de toneladas.');
+    const partRemaining=Number(part[pm.TONELADASPREVISTAS]||0)-Number(part[pm.TONELADASMOVIMENTADAS]||0);
+    if(!(remaining>0&&partRemaining>0))throw new Error('Operação ou participação sem saldo de toneladas.');
     const seqOp=tripRows.slice(1).filter(r=>String(r[tm.OPERACAOID])===operacaoId).reduce((m,r)=>Math.max(m,Number(r[tm.SEQUENCIAOPERACAO]||0)),0)+1;
-    const seqDriver=counted.length+1;
+    const seqDriver=belonging.reduce((m,r)=>Math.max(m,Number(r[tm.SEQUENCIAMOTORISTA]||0)),0)+1;
     const id=Utilities.getUuid(), now=new Date();
     const row=new Array(tripSh.getLastColumn()).fill('');
     const setv=(k,v)=>{const col=tm[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
     setv('ID',id);setv('CRIADO_EM',now);setv('OPERACAO_ID',operacaoId);setv('PARTICIPACAO_ID',participacaoId);
     setv('SEQUENCIA_OPERACAO',seqOp);setv('SEQUENCIA_MOTORISTA',seqDriver);setv('MOTORISTA_ID',part[pm.MOTORISTAID]);setv('CONJUNTO_ID',part[pm.CONJUNTOID]);
     setv('STATUS','A_CAMINHO_ORIGEM');setv('ORIGEM_DESCRICAO',op[om.ORIGEM]);setv('DESTINO_DESCRICAO',op[om.DESTINO]);
-    setv('PESO_PREVISTO_TONELADAS',Math.min(cap,remaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
+    setv('PESO_PREVISTO_TONELADAS',Math.min(cap,remaining,partRemaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
     const totalOp=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0);
     if(totalOp>0&&seqOp>totalOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
     tripSh.appendRow(row);
@@ -1065,6 +1066,10 @@ function concluirViagemFullTime(token,dados) {
     const op=ops[oi],saldo=Number(op[om.SALDOTONELADAS]||0);if(peso>saldo+0.000001)throw new Error('Peso excede saldo da operação ('+saldo+' t).');
     const partSh=getSheet_('PARTICIPACAO_OPERACOES'),parts=partSh.getDataRange().getValues(),pm=ftHeaderMapViagens_(partSh),pi=parts.findIndex((r,i)=>i>0&&String(r[pm.ID])===String(trip[tm.PARTICIPACAOID]));
     if(pi<1)throw new Error('Participação da viagem não encontrada.');
+    const partTargetTrips=Number(parts[pi][pm.VIAGENSPREVISTAS]||0),partDoneTrips=Number(parts[pi][pm.VIAGENSCONCLUIDAS]||0);
+    const partTargetTons=Number(parts[pi][pm.TONELADASPREVISTAS]||0),partDoneTons=Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0);
+    if(partDoneTrips>=partTargetTrips)throw new Error('O motorista já atingiu a meta de viagens desta participação.');
+    if(peso>partTargetTons-partDoneTons+0.000001)throw new Error('O peso excede o volume previsto para esta participação.');
     const now=new Date(),newBalance=Math.max(0,saldo-peso);
     tripSh.getRange(ti+1,tm.STATUS+1).setValue('CONCLUIDA');tripSh.getRange(ti+1,tm.PESOREALTONELADAS+1).setValue(peso);tripSh.getRange(ti+1,tm.FIMREAL+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADAEM+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADAPOR+1).setValue(session.login);
     opSh.getRange(oi+1,om.SALDOTONELADAS+1).setValue(newBalance);
