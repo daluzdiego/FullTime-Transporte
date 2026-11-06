@@ -49,7 +49,7 @@ Também foi incluída `testarRegressaoEscopoPortalMotoristaFullTime()`, com dado
 - `32b73b119c0990df844d11376143e73c07ae0a28` — dados próprios no backend do portal.
 - `86797e609053199e02bd36b367375f3d0ddfe838` — apresentação de operações e viagens no portal.
 - `fbf9468422d6930c1d3ffa31aeaf6cc1a361125b` — ajuste de alinhamento do portal.
-- `27c2f7d8cf0953e1680855fc6e30eb2451e4408f` — helper e teste de regressão de status.\n- `a4d3d0eda843410e2ff4cc358cba5c0975d292a6` — filtro puro e teste sintético de isolamento do portal.
+- `27c2f7d8cf0953e1680855fc6e30eb2451e4408f` — helper e teste de regressão de status.\n- `a4d3d0eda843410e2ff4cc358cba5c0975d292a6` — filtro puro e teste sintético de isolamento do portal.\n- `d4d105cdcb51c15f1ebf194d7adba30a617a058f` — corrige o alinhamento dos cartões de viagens no portal.
 
 ## Validação e implantação
 
