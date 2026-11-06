@@ -265,7 +265,7 @@ function repararUsuariosHomologacaoFullTime() {
     const driverCol={};driverHeaders.forEach((h,i)=>driverCol[h]=i);
     if(driverCol.ID==null||driverCol.NOME_COMPLETO==null||driverCol.EMAIL==null)
       throw new Error('Colunas ID, NOME_COMPLETO ou EMAIL ausentes em MOTORISTAS.');
-    const drivers=driverValues.slice(1).filter(r=>/^FTTEST-MOT-\\d{4}$/.test(String(r[driverCol.ID]||'')))
+    const drivers=driverValues.slice(1).filter(r=>/^FTTEST-MOT-\d{4}$/.test(String(r[driverCol.ID]||'')))
       .map(r=>({ID:String(r[driverCol.ID]),NOME_COMPLETO:String(r[driverCol.NOME_COMPLETO]||''),EMAIL:String(r[driverCol.EMAIL]||'').trim()}));
     if(drivers.length!==40)throw new Error('Esperados 40 motoristas fictícios; encontrados '+drivers.length+'. Nenhuma conta criada.');
     const auth=SpreadsheetApp.openById(authId), users=auth.getSheetByName('USUARIOS');
@@ -350,7 +350,7 @@ function validarMassaHomologacaoFullTime() {
   const userCol={};userHeaders.forEach((h,i)=>{if(h)userCol[h]=i;});
   const testUsers=userValues.slice(1).filter(r=>
     String(r[userCol.PERFIL]||'').toUpperCase()==='MOTORISTA' &&
-    /^FTTEST-MOT-\\d{4}$/.test(String(r[userCol.MOTORISTA_ID]||'')) &&
+    /^FTTEST-MOT-\d{4}$/.test(String(r[userCol.MOTORISTA_ID]||'')) &&
     String(r[userCol.LOGIN]||'').trim()!==''
   );
   if(testUsers.length!==40)errors.push('Esperados 40 logins fictícios vinculados por MOTORISTA_ID; encontrados '+testUsers.length+'.');
