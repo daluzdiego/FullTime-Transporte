@@ -1,12 +1,12 @@
 /**
  * FULL TIME - Núcleo central de solicitações multicanal
- * Recebe solicitações sem criar OPERACOES/CARGAS definitivas.
+ * Recebe solicitações e cria OPERAÇÕES somente após aprovação explícita.
  * Usa somente ENTRADA_OPERACOES_IA na base operacional.
  * Não acessa nem enumera guias da planilha do Bruno.
  */
 const FT_SOL_REQUESTS_CFG = {
   SHEET: 'ENTRADA_OPERACOES_IA',
-  HEADERS: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA','ATUALIZADO_EM','HISTORICO_JSON'],
+  HEADERS: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA','ATUALIZADO_EM','HISTORICO_JSON','ID_OPERACAO_GERADA'],
   CHANNELS: ['WHATSAPP_OFICIAL','WHATSAPP_PESSOAL_ENCAMINHADO','PAINEL','EMAIL','TELEFONE','OUTRO'],
   STATUSES: ['RECEBIDA','EM_COLETA','AGUARDANDO_IA','AGUARDANDO_APROVACAO','APROVADA','RECUSADA','AJUSTE_SOLICITADO']
 };
@@ -124,7 +124,7 @@ function listarSolicitacoesFullTime(token,limite) {
       if(value instanceof Date) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss');
       return value==null?'':value;
     }
-    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),idCargaGerada:v('ID_CARGA_GERADA'),atualizadoEm:v('ATUALIZADO_EM')};
+    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),idOperacaoGerada:v('ID_OPERACAO_GERADA'),atualizadoEm:v('ATUALIZADO_EM')};
   });
 }
 
@@ -222,7 +222,13 @@ function ftSolValidateForApproval_(sh,c,row){
   if(!ftSolText_(d.cliente,120))missing.push('cliente');
   if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
   if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
-  if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total numérico');
+  var volume=Number(String(d.volume||'').replace(',','.'));
+  if(!(volume>0&&isFinite(volume)))missing.push('peso/volume total numérico');
+  var trips=Math.floor(Number(d.viagensPrevistas||d.quantidadeViagens||d.totalViagens||0));
+  var perTrip=Number(String(d.volumePorViagem||'').replace(',','.'));
+  if(!(trips>0)&&volume>0&&perTrip>0)trips=Math.ceil(volume/perTrip);
+  if(!(trips>0))missing.push('quantidade prevista de viagens ou volume por viagem');
+  if(['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].indexOf(String(d.categoria||'').toUpperCase())<0)missing.push('categoria operacional validada');
   var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
   if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('unidade do peso confirmada em toneladas (t)');
   var date=ftSolText_(d.dataColeta,10), parsedDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00'):null;
@@ -233,38 +239,42 @@ function ftSolValidateForApproval_(sh,c,row){
   return d;
 }
 
-/** Converte uma solicitação aprovada em carga, com trava de duplicidade e vínculo de origem. */
-function converterSolicitacaoEmCargaFullTime(token,id){
+/** Converte uma solicitação aprovada em OPERAÇÃO, com vínculo idempotente. */
+function converterSolicitacaoEmOperacaoFullTime(token,id){
   var session=obterSessao_(token);exigirAdmin_(session);id=ftSolText_(id,180);
   var sh=ftSolSheet_(),c=ftSolCols_(sh),lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     var row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
     var status=String(sh.getRange(row,c.STATUS_ENTRADA).getValue()||'');
-    if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma carga.');
-    var existing=String(sh.getRange(row,c.ID_CARGA_GERADA).getValue()||'');
-    if(existing)return {ok:true,duplicada:true,idCarga:existing,message:'Esta solicitação já gerou a carga '+existing+'. Nenhuma duplicata foi criada.'};
+    if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma operação.');
+    var existing=String(sh.getRange(row,c.ID_OPERACAO_GERADA).getValue()||'');
+    if(existing)return {ok:true,duplicada:true,idOperacao:existing,message:'Esta solicitação já gerou a operação '+existing+'. Nenhuma duplicata foi criada.'};
     var d=ftSolValidateForApproval_(sh,c,row);
-    var date=ftSolText_(d.dataColeta,10),time=ftSolText_(d.horarioColeta,5),weight=Number(String(d.volume).replace(',','.'));
-    if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw new Error('Horário de coleta inválido. Use HH:MM.');
-    var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
-    var type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
-    var cargoId='',cargo=getSheet_('CARGAS');
-    if(cargo.getLastColumn()<20)throw new Error('A guia CARGAS não possui as 20 colunas esperadas. Execute prepararBaseOperacionalFullTime().');
-    var marker='[SOLICITACAO_ORIGEM:'+id+']';
-    if(cargo.getLastRow()>1){
-      var notes=cargo.getRange(2,15,cargo.getLastRow()-1,1).getDisplayValues();
-      for(var z=0;z<notes.length;z++)if(String(notes[z][0]||'').indexOf(marker)>=0){cargoId=String(cargo.getRange(z+2,1).getDisplayValue()||'');break;}
+    var date=ftSolText_(d.dataColeta,10),weight=Number(String(d.volume).replace(',','.'));
+    var trips=Math.floor(Number(d.viagensPrevistas||d.quantidadeViagens||d.totalViagens||0));
+    var perTrip=Number(String(d.volumePorViagem||'').replace(',','.'));
+    if(!(trips>0)&&perTrip>0)trips=Math.ceil(weight/perTrip);
+    if(!(trips>0))throw new Error('Informe a quantidade prevista de viagens ou o volume por viagem.');
+    var category=String(d.categoria||'').toUpperCase();
+    if(['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].indexOf(category)<0)throw new Error('A categoria operacional precisa ser validada antes de criar a operação.');
+    var operationId='',ops=getSheet_('OPERACOES'),marker='[SOLICITACAO_ORIGEM:'+id+']';
+    var obs=(marker+' '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
+    if(ops.getLastRow()>1){
+      var notes=ops.getRange(2,13,ops.getLastRow()-1,1).getDisplayValues();
+      for(var z=0;z<notes.length;z++)if(String(notes[z][0]||'').indexOf(marker)>=0){operationId=String(ops.getRange(z+2,1).getDisplayValue()||'');break;}
     }
-    if(!cargoId){
-      cargoId=Utilities.getUuid();
-      var description=[d.produto,d.tipoCarga,d.volumePorViagem].filter(Boolean).join(' | ').slice(0,300);
-      var observations=(marker+' '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
-      cargo.appendRow([cargoId,new Date(),'A_ESCALAR',date,time,d.cliente,String(d.origemDetalhada||d.origem),String(d.destinoDetalhado||d.destino),weight,description,'','','','',observations,session.login||session.nome||'ADMIN',type,'','','']);
+    if(!operationId){
+      operationId=Utilities.getUuid();
+      var operationName=ftSolText_(d.nomeOperacao||d.nome,160)||('Operação da solicitação '+id);
+      var endDate=ftSolText_(d.dataFimLimite,10),startWindow=ftSolText_(d.janelaInicio,5),endWindow=ftSolText_(d.janelaFim,5);
+      var priority=String(d.prioridade||'NORMAL').toUpperCase();
+      if(['BAIXA','NORMAL','ALTA','URGENTE'].indexOf(priority)<0)priority='NORMAL';
+      ops.appendRow([operationId,new Date(),'ABERTA',date,ftSolText_(d.cliente,120),operationName,ftSolText_(d.origemDetalhada||d.origem,160),ftSolText_(d.destinoDetalhado||d.destino,160),category,weight,trips,weight,obs,session.login||session.nome||'ADMIN','',0,0,endDate,startWindow,endWindow,priority,ftSolText_(d.produto||d.tipoCarga,120),ftSolText_(d.tipoOperacao,60),ftSolText_(d.contato,120)]);
     }
-    sh.getRange(row,c.ID_CARGA_GERADA).setValue(cargoId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
+    sh.getRange(row,c.ID_OPERACAO_GERADA).setValue(operationId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
-    hist.push(ftSolEvent_('CARGA_GERADA',session.login,'Carga '+cargoId+' criada a partir da solicitação aprovada.'));
+    hist.push(ftSolEvent_('OPERACAO_GERADA',session.login,'Operação '+operationId+' criada a partir da solicitação aprovada.'));
     sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
-    return {ok:true,duplicada:false,idCarga:cargoId,message:'Carga criada com vínculo à solicitação '+id+'.'};
+    return {ok:true,duplicada:false,idOperacao:operationId,message:'Operação criada com '+trips+' viagens previstas e vínculo à solicitação '+id+'.'};
   }finally{lock.releaseLock();}
 }
