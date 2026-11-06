@@ -1247,6 +1247,30 @@ function ftAppendEventoViagem_(viagemId,tipo,session,detalhes) {
   sh.appendRow([Utilities.getUuid(),viagemId,tipo,now,now,'','','',session.id||session.login||'', 'PAINEL_ADMIN',tipo, texto_(detalhes,1000), Utilities.getUuid()]);
 }
 
+/** Confere se as metas de todas as participações fecham o plano da operação. */
+function validarPlanejamentoOperacaoFullTime(token,operacaoId) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const id=texto_(operacaoId,100); if(!id)throw new Error('Informe a operação.');
+  const opSh=getSheet_('OPERACOES'),ops=opSh.getDataRange().getValues(),om=ftHeaderMapViagens_(opSh);
+  const op=ops.find((r,i)=>i>0&&String(r[om.ID])===id);if(!op)throw new Error('Operação não encontrada.');
+  const partSh=getSheet_('PARTICIPACAO_OPERACOES'),parts=partSh.getDataRange().getValues(),pm=ftHeaderMapViagens_(partSh);
+  const active=parts.slice(1).filter(r=>String(r[pm.OPERACAOID])===id&&String(r[pm.STATUSPARTICIPACAO])==='ATIVO');
+  const trips=active.reduce((n,r)=>n+Number(r[pm.VIAGENSPREVISTAS]||0),0);
+  const tons=active.reduce((n,r)=>n+Number(r[pm.TONELADASPREVISTAS]||0),0);
+  const targetTrips=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0), targetTons=Number(op[om.VOLUMETOTALTONELADAS]||op[9]||0);
+  const errors=[];
+  if(!active.length)errors.push('Nenhum motorista/conjunto foi designado.');
+  if(trips!==targetTrips)errors.push('Viagens distribuídas: '+trips+'; meta da operação: '+targetTrips+'.');
+  if(Math.abs(tons-targetTons)>0.000001)errors.push('Volume distribuído: '+tons+' t; volume da operação: '+targetTons+' t.');
+  active.forEach(r=>{
+    const capRows=getSheet_('CONJUNTOS').getDataRange().getValues(),set=capRows.find((x,i)=>i>0&&String(x[0])===String(r[pm.CONJUNTOID]));
+    const cap=set?Number(set[10]||0):0;
+    if(!(Number(r[pm.VIAGENSPREVISTAS])>0))errors.push('Uma participação não possui meta de viagens.');
+    if(!(Number(r[pm.TONELADASPREVISTAS])>0)||Number(r[pm.TONELADASPREVISTAS])>cap*Number(r[pm.VIAGENSPREVISTAS])+0.000001)errors.push('Volume previsto excede a capacidade multiplicada pelas viagens de uma participação.');
+  });
+  return {ok:errors.length===0,operacaoId:id,participacoes:active.length,viagensDistribuidas:trips,viagensPrevistas:targetTrips,toneladasDistribuidas:tons,volumePrevisto:targetTons,errors:errors,message:errors.length?errors.join(' '):'Plano consistente: metas de viagens e volume distribuídas corretamente.'};
+}
+
 /** Inicia uma viagem individual dentro de uma participação já designada. */
 function iniciarViagemFullTime(token,dados) {
   const session=obterSessao_(token); exigirAdmin_(session); dados=dados||{};
@@ -1258,6 +1282,7 @@ function iniciarViagemFullTime(token,dados) {
     const oi=opRows.findIndex((r,i)=>i>0&&String(r[om.ID])===operacaoId);
     if(oi<1)throw new Error('Operação não encontrada.');
     if(!['ABERTA','EM_ANDAMENTO'].includes(String(opRows[oi][om.STATUS])))throw new Error('Operação não está aberta.');
+    const plano=validarPlanejamentoOperacaoFullTime(token,operacaoId);if(!plano.ok)throw new Error('Plano da operação incompleto ou inconsistente: '+plano.message);
     const partSh=getSheet_('PARTICIPACAO_OPERACOES'), partRows=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
     const pi=partRows.findIndex((r,i)=>i>0&&String(r[pm.ID])===participacaoId&&String(r[pm.OPERACAOID])===operacaoId);
     if(pi<1)throw new Error('Participação não encontrada nesta operação.');
