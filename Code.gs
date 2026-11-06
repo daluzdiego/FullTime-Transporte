@@ -1133,7 +1133,7 @@ function designarConjuntoOperacaoFullTime(token, data) {
   if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
   if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
   if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
+  const driverRows=getSheet_('MOTORISTAS').getDataRange().getValues();
   const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
   if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
   const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
@@ -1151,8 +1151,8 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftBrunoRowsAsLegacy_('CONJUNTOS'));
-  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
+  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
+  const drivers=getSheet_('MOTORISTAS').getDataRange().getValues();
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
   const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
