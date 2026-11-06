@@ -661,7 +661,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
