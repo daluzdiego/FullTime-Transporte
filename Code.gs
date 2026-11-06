@@ -143,13 +143,22 @@ function obterPainelMotoristaFullTime(token) {
   const escopo=ftFiltrarDadosPortalMotorista_(session, listarRegistros_('PARTICIPACAO_OPERACOES'),
     listarRegistros_('OPERACOES'), listarRegistros_('VIAGENS'));
   const participacoes=escopo.participacoes, operacoes=escopo.operacoes, viagens=escopo.viagens;
+  // Notificações de oferta são filtradas no servidor pelo motorista autenticado.
+  const offerSh=getSheet_('OFERTAS_OPERACOES'), offerValues=offerSh.getDataRange().getValues(), offerMap=ftHeaderMapViagens_(offerSh);
+  const opSh=getSheet_('OPERACOES'), opValues=opSh.getDataRange().getValues(), opMap=ftHeaderMapViagens_(opSh);
+  const opById={}; opValues.slice(1).forEach(r=>opById[String(r[opMap.ID])]=r);
+  const ofertas=offerValues.slice(1).filter(r=>String(r[offerMap.MOTORISTAID]||'')===String(session.motoristaId)&&['PENDENTE_HOMOLOGACAO','PENDENTE'].includes(String(r[offerMap.STATUSOFERTA]||''))).map(r=>{
+    const op=opById[String(r[offerMap.OPERACAOID])]||[];
+    return {id:String(r[offerMap.ID]||''),status:String(r[offerMap.STATUSOFERTA]||''),expiraEm:r[offerMap.EXPIREM]||'',operacaoId:String(r[offerMap.OPERACAOID]||''),nomeOperacao:String(op[opMap.NOMEOPERACAO]||''),origem:String(op[opMap.ORIGEM]||''),destino:String(op[opMap.DESTINO]||''),volume:Number(op[opMap.VOLUMETOTALTONELADAS]||0),viagens:Number(op[opMap.TOTALVIAGENSPREVISTAS]||0),prioridade:String(op[opMap.PRIORIDADE]||''),detalhes:String(r[offerMap.MOTIVO]||op[opMap.OBSERVACOES]||'')};
+  });
   return {
     user:{nome:session.nome,perfil:session.perfil},
     motorista:{id:String(driver[0]),nome:String(driver[3]||''),telefone:String(driver[5]||''),email:String(driver[6]||''),cidade:String(driver[10]||'')},
     conjuntos:ownSet,
     participacoes:participacoes,
     operacoes:operacoes,
-    viagens:viagens
+    viagens:viagens,
+    ofertas:ofertas
   };
 }
 
