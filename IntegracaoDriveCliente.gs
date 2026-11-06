@@ -194,7 +194,8 @@ function validarUnicidadeCadastroFullTime(token, entidade, dados) {
   const rules={
     MOTORISTAS:{field:'CPF',sheet:'MOTORISTAS',message:'Este CPF já está cadastrado como motorista.'},
     CAVALOS:{field:'PLACA',sheet:'CAVALOS',message:'Esta placa já está cadastrada como cavalo.'},
-    CARRETAS:{field:'PLACA',sheet:'CARRETAS',message:'Esta placa já está cadastrada como carreta.'}
+    CARRETAS:{field:'PLACA',sheet:'CARRETAS',message:'Esta placa já está cadastrada como carreta.'},
+    CAMINHOES:{field:'PLACA',sheet:'CAMINHOES',message:'Esta placa já está cadastrada como caminhão.'}
   };
   const rule=rules[entidade]; if(!rule) throw new Error('Entidade inválida.');
   const raw=String(dados[rule.field]||dados[rule.field.toLowerCase()]||'');
