@@ -1,85 +1,106 @@
-# FullTime — Plano de massa fictícia e testes de carga
+# FullTime — Plano de massa fictícia e testes de desempenho
 
 ## Objetivo
-Preparar um ambiente de homologação com dados inteiramente sintéticos para testar consistência, concorrência, desempenho e limites operacionais. Nenhum dado real deve ser misturado à massa.
+Criar um ambiente de homologação integralmente sintético para testar integridade, concorrência, escalabilidade, experiência de uso e limites do Apps Script/Google Sheets. A massa deve representar operações reais de transporte sem misturar dados pessoais ou operacionais verdadeiros.
 
-## Regra de segurança
-- Não executar limpeza nem carga em produção.
-- Antes de qualquer limpeza: identificar explicitamente a planilha operacional autorizada, gerar cópia de segurança, apresentar inventário de guias e contagens e exigir confirmação explícita.
-- A guia `CAVALOS-BRUNO` é permanentemente protegida: não listar, ler, limpar, alterar, copiar, migrar ou usar em rotinas de carga.
-- Não apagar abas nem cabeçalhos. A limpeza de homologação deve apagar apenas linhas de dados de uma allowlist aprovada, preservando estrutura, fórmulas, validações e formatação.
-- A planilha de Bruno não é a base oficial. Não importar nem gravar dados nela durante o teste de carga sem plano de integração específico.
+## Regras inegociáveis
+- Não executar limpeza ou carga em produção.
+- Antes de qualquer reset: identificar a base de homologação autorizada, backup, inventário somente leitura, dry-run e confirmação explícita.
+- A guia `CAVALOS-BRUNO` é protegida: não listar, ler, copiar, limpar, alterar, migrar ou usar em rotinas de teste.
+- Não apagar guias nem cabeçalhos. Limpar apenas linhas de dados em allowlist revisada.
+- Não gravar massa fictícia na planilha do Bruno. A base nativa FullTime é o ambiente de homologação.
+- IDs determinísticos por seed; toda linha marcada como TESTE; domínio de e-mail reservado `example.test`; endereços fictícios.
+- Nunca gerar dados pessoais reais. CPFs e placas de teste devem ser sintéticos, identificados e restritos ao ambiente de homologação.
 
-## Massa alvo inicial
-A meta é aproximadamente 100 registros por entidade, não 100 valores arbitrários em cada coluna. Cada linha deve ser completa conforme o esquema, com relacionamentos válidos e IDs estáveis.
+## Modelo de dados canônico
 
-| Entidade | Quantidade inicial |
-|---|---:|
-| MOTORISTAS | 100 |
-| CAVALOS | 100 |
-| CAVALOS | 100 |
-| CARRETAS | 100 |
-| CONJUNTOS | 100 |
-| LOCAIS | 100 |
-| REGRAS_OPERACIONAIS | 100 |
-| OPERACOES | 100 |
-| VIAGENS | 100 |
-| ESCALAS | 100 |
-| PARTICIPACAO_OPERACOES | 100 |
-| MOVIMENTACOES_OPERACAO | 100 |
-| CONTROLE_DOCUMENTAL | 100 |
-| DISPONIBILIDADE_DIARIA | 100 |
-| FILA_MOTORISTAS | 100 |
-| OFERTAS_VIAGENS | 100 |
-| EVENTOS_ESCALA | 100 |
-| TICKETS | 100 |
+| Entidade | Quantidade inicial | Observação |
+|---|---:|---|
+| MOTORISTAS | 100 | Perfis fictícios variados, documentos e estados |
+| CAVALOS | 100 | Capacidades e especificações variadas |
+| CARRETAS | 100 | Tipos, capacidades e combinações variadas |
+| CONJUNTOS | 100 | Relacionamentos válidos e capacidades úteis |
+| LOCAIS | 100 | Pátios, terminais, clientes e destinos fictícios |
+| REGRAS_OPERACIONAIS | 100 | Restrições por local, veículo, peso e janela |
+| OPERACOES | 100 | Clientes, rotas, volume, prazo, prioridade e total de viagens |
+| PARTICIPACAO_OPERACOES | 100 | Metas individuais de viagens e toneladas por motorista/conjunto |
+| VIAGENS | 500 | Ciclos individuais, sequências, estados e pesos |
+| EVENTOS_VIAGEM | 1.500 | Marcos cronológicos e eventos fora de ordem para teste |
+| DOCUMENTOS_VIAGEM | 300 | Comprovantes e evidências sintéticas |
+| CONTROLE_DOCUMENTAL | 300 | Validade, pendências e estados documentais |
+| DISPONIBILIDADE_DIARIA | 300 | Disponibilidade em datas variadas |
+| FILA_MOTORISTAS | 100 | Posições e históricos sintéticos |
+| OFERTAS_OPERACOES | 200 | Ofertas, respostas, expiração e recusas |
+| EVENTOS_OPERACAO | 300 | Designações, substituições, alterações e auditoria |
+| TICKETS | 100 | Metadados de mensagens e comprovantes sintéticos vinculáveis a VIAGENS |
 
-A massa será gerada com prefixo identificável `TESTE-`, e-mails em domínio reservado `example.test`, CPFs sintéticos válidos apenas para testes, placas sintéticas, endereços fictícios e datas distribuídas. Não usar dados pessoais reais.
+**Não criar:** CAMINHOES, CARGAS, MOVIMENTACOES_OPERACAO ou ESCALAS como entidades de execução. A execução é registrada em VIAGENS; as metas ficam em PARTICIPACAO_OPERACOES.
 
-## Integridade referencial
-- Cada conjunto aponta para um motorista e um cavalo existentes; carretas opcionais devem existir.
-- Cada carga aponta para uma operação/local/cliente coerentes quando o esquema oferecer essas chaves.
-- Escalas e participações referenciam cargas/operações e conjuntos existentes.
-- Movimentações não podem ultrapassar o saldo da operação.
-- Documentos e eventos referenciam o cadastro correto.
-- A geração deve ser determinística por seed, para reproduzir falhas.
+## Regras de integridade para a massa
 
-## Etapas obrigatórias
-1. **Inventário somente leitura:** planilha, guias permitidas, cabeçalhos, fórmulas, linhas e dependências.
-2. **Backup:** cópia integral das planilhas autorizadas e registro dos IDs/horários.
-3. **Dry-run:** apresentar contagem a limpar e contagem a inserir por guia; não gravar.
-4. **Limpeza controlada:** apenas após confirmação explícita, somente em ambiente de homologação e allowlist aprovada.
-5. **Carga em lotes:** lotes configuráveis (ex.: 25/50/100), com checkpoint, idempotência e log por lote.
-6. **Validação pós-carga:** contagem, duplicidade, chaves órfãs, saldos, estados e integridade referencial.
-7. **Testes de carga graduais:** 100, 250, 500, 1.000 e 2.500 registros por entidade selecionada, sem saltar direto para volume extremo.
-8. **Medição:** tempo de leitura, escrita, renderização, chamadas Apps Script, uso de cache, falhas, quotas e tamanho de payload.
-9. **Relatório:** p50/p95, taxa de erro, maior gargalo, guias e funções mais lentas, recomendações.
+1. Cada CONJUNTO referencia exatamente um motorista e um cavalo ativos; carretas opcionais devem existir e não podem estar vinculadas a outro conjunto ativo.
+2. Cada OPERAÇÃO tem cliente, origem, destino, volume total, prazo/janela, prioridade e total previsto de viagens.
+3. Cada PARTICIPAÇÃO pertence a uma operação e referencia motorista e conjunto válidos.
+4. A soma de `VIAGENS_PREVISTAS` das participações ativas deve ser exatamente igual a `TOTAL_VIAGENS_PREVISTAS` da operação.
+5. A soma de `TONELADAS_PREVISTAS` das participações ativas deve ser exatamente igual ao volume total da operação.
+6. Em cada participação, `TONELADAS_PREVISTAS <= VIAGENS_PREVISTAS × CAPACIDADE_UTIL_TONELADAS`.
+7. Cada VIAGEM referencia uma única operação, participação, motorista e conjunto; sequência de operação e sequência do motorista não se repetem.
+8. O peso real de uma viagem não ultrapassa capacidade útil do conjunto nem saldo da operação.
+9. Um motorista ou conjunto não pode ter duas viagens simultâneas.
+10. Eventos têm timestamp de ocorrência e recebimento, responsável, origem do registro e chave de idempotência.
+11. Viagens concluídas não são apagadas. Cancelamentos, interrupções, substituições e replanejamentos preservam histórico.
 
-## Cenários de desempenho
-- Abrir painel com todas as entidades populadas.
-- Filtrar e pesquisar motoristas, frota, operações e cargas.
-- Abrir listas grandes e alternar páginas.
-- Criar e editar cadastros em sequência.
-- Concorrência de gravações simultâneas e colisão de CPF/placa.
-- Montar e alterar conjuntos.
-- Criar operações com múltiplas cargas.
-- Designar, remanejar e concluir viagens.
-- Sincronização Drive com alterações repetidas, eventos fora de ordem e falhas temporárias.
-- Login/logout e carregamento simultâneo de vários motoristas.
+## Diversidade de cenários
+
+A massa deve incluir:
+- Operações com um motorista/conjunto e com múltiplas participações.
+- Operações com viagem única, 2–5 viagens, 6–20 viagens e mais de 20 viagens.
+- Viagens parciais na última execução, volumes próximos do limite e operação com saldo zero.
+- Prazos curtos e longos, janelas de horário, prioridades baixa/normal/alta/urgente.
+- Rotas curtas, médias e longas; locais com restrições diferentes.
+- Conjuntos com capacidades distintas e carretas opcionais.
+- Motoristas disponíveis, indisponíveis, em descanso, com documento vencendo e com restrições.
+- Viagens planejadas, em deslocamento, no carregamento, em trânsito, no destino, descarregando, concluídas, interrompidas e canceladas.
+- Eventos duplicados, atrasados, fora de ordem e recebidos offline.
+- Comprovantes ausentes, inválidos, duplicados e aceitos.
+
+## Execução obrigatória
+
+1. Inventário somente leitura das guias permitidas, cabeçalhos, fórmulas, contagens e dependências.
+2. Backup integral da base de homologação autorizada.
+3. Dry-run mostrando exatamente quais guias e quantas linhas seriam limpas e inseridas.
+4. Aprovação explícita do usuário.
+5. Reset controlado apenas da allowlist; preservar cabeçalhos, fórmulas, validações e formatação.
+6. Gerar em lotes de 25/50/100, com seed, checkpoint, idempotência e log.
+7. Validar contagens, duplicidades, chaves órfãs, metas, capacidade, saldos e transições.
+8. Testar em degraus: 100, 250, 500, 1.000 e 2.500 registros por entidade selecionada.
+9. Medir tempo de leitura/escrita, renderização, payload, chamadas Apps Script, cache, quotas e erros.
+10. Produzir relatório p50/p95, gargalos e recomendações.
+
+## Cenários de teste de desempenho e segurança
+
+- Abrir painel com todas as entidades carregadas.
+- Listar, pesquisar, filtrar e paginar motoristas, frota, operações e viagens.
+- Designar 1, 2, 5 e 10 conjuntos à mesma operação.
+- Distribuir e validar metas individuais de viagens/toneladas.
+- Iniciar, atualizar eventos e concluir viagens em sequência.
+- Concorrência na mesma operação, no mesmo motorista e no mesmo conjunto.
+- Tentativas de peso acima da capacidade ou do saldo.
+- Reenvio duplicado de evento e webhook.
+- Replanejamento, substituição e cancelamento com auditoria.
+- Login simultâneo de administradores e motoristas; isolamento de dados por usuário.
+- Falhas temporárias, timeout, retry e retomada de lote.
 
 ## Critérios de aceite
-- Zero registros órfãos.
-- Zero duplicidades de CPF/placa.
-- Nenhuma operação de limpeza fora da allowlist.
+- Zero registros órfãos ou duplicados.
+- Zero divergência entre metas individuais e total da operação.
+- Zero viagens acima da capacidade ou saldo.
+- Zero sobreposição de viagens por motorista/conjunto.
+- Nenhuma leitura/escrita fora da allowlist.
 - Nenhuma leitura/escrita na guia protegida.
-- Nenhuma permissão de motorista para acessar dados de terceiros ou funções administrativas.
-- Todas as cargas reproduzíveis por seed e registradas em log.
-- Relatório de desempenho produzido antes de qualquer liberação.
+- Nenhum acesso de motorista a dados de terceiros ou funções administrativas.
+- Massa reproduzível pelo mesmo seed.
+- Relatório de desempenho produzido antes da liberação controlada.
 
 ## Estado
-Este documento define o plano. A limpeza, a geração de massa e os testes reais ainda não foram executados.
-
-
-## Modelo atualizado
-
-A massa fictícia deverá popular OPERAÇÕES, PARTICIPACAO_OPERACOES, VIAGENS, EVENTOS_VIAGEM e DOCUMENTOS_VIAGEM. Não gerar entidades CAMINHOES ou CARGAS. Para cada operação, garantir volume planejado, meta total de viagens e distribuição por motorista/conjunto. A soma das viagens previstas por participação deve ser igual ao total da operação; a soma dos volumes previstos deve ser igual ao volume contratado. Preservar todas as regras de segurança e exclusão da guia protegida CAVALOS-BRUNO.
+Este plano foi atualizado para o modelo OPERAÇÃO → PARTICIPAÇÃO → VIAGEM. O gerador relacional definitivo, o reset controlado e os testes de carga ainda não foram executados.
