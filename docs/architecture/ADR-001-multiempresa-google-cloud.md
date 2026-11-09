@@ -22,7 +22,7 @@ A empresa do Bruno será o primeiro tenant operacional/homologador. Ela não ser
 6. Dados reais do Bruno não serão usados em testes de arquitetura; testes usam tenants e dados inteiramente fictícios.
 7. Não apagar, sobrescrever nem migrar dados operacionais existentes sem backup, prévia, plano de reversão e autorização específica.
 8. Google Sheets e Apps Script podem permanecer como adaptadores de integração/transição, mas não serão o banco central do SaaS multiempresa.
-9. A implantação e a tarifa por viagem são independentes da assinatura por motoristas.
+9. A implantação e a tarifa por viagem são independentes da mensalidade da plataforma.
 10. Medição de custo e consumo por tenant será parte da plataforma desde o início.
 
 ## 3. Arquitetura Google proposta
@@ -48,8 +48,8 @@ Entidades de plataforma:
 - users: identidade global do usuário.
 - tenant_memberships: user_id, tenant_id, papel, status, permissões e validade.
 - tenant_integrations: tenant_id, provedor, referência do segredo no Secret Manager, escopos e status.
-- tenant_usage_daily: tenant_id, data, motoristas ativos, operações, viagens concluídas, armazenamento, processamento e métricas de uso.
-- subscriptions: tenant_id, plano, valor fixo, preço por motorista, vigência e status.
+- tenant_usage_daily: tenant_id, data, operações, viagens concluídas, armazenamento, processamento e métricas de uso.
+- subscriptions: tenant_id, valor fixo, vigência e status.
 - billing_periods / invoices / invoice_items / billing_events: fechamento, snapshot, itens e trilha de auditoria.
 
 Entidades operacionais:
@@ -68,21 +68,20 @@ Entidades operacionais:
 - Administradores Feeds terão acesso de suporte controlado, justificado, temporário e auditado; não haverá acesso irrestrito implícito aos dados operacionais.
 - Testes automatizados tentarão acesso cruzado por IDs, URLs, payloads, exports, arquivos, jobs e consultas.
 
-## 6. Política comercial atual (proposta inicial, não tarifário definitivo)
+## 6. Política comercial aprovada até aqui
 
-- Implantação: R$ 15.000,00 por cliente, escopo contratual definido.
-- Plataforma: R$ 199,00 por mês, incluindo até 20 motoristas ativos.
-- Motorista ativo adicional: R$ 7,90 por motorista/mês.
+- Implantação: R$ 15.000,00 por cliente, conforme escopo contratado.
+- Plataforma: R$ 199,00 por mês.
 - Viagem concluída elegível: R$ 1,00 por evento faturável.
+- Não há cobrança por motorista definida como aprovada neste modelo.
 - Fechamento: primeiro dia do mês seguinte.
 - Contestação: 10 dias; o contrato deverá definir precisamente o marco inicial.
 - Reabertura de viagem concluída: mantém o evento original, sem cobrança duplicada.
 - Homologação/teste: isenta.
-- Motorista faturável: habilitado e disponível para participar das operações no período, mesmo sem viagem realizada; desligado, bloqueado ou somente histórico não é cobrado.
-- A contagem e os valores são congelados no fechamento e auditáveis.
-- Os R$ 199 e R$ 7,90 são preços comerciais preliminares. Não representam custo Google comprovado; devem ser validados com medição real de consumo, suporte e margem.
+- A definição exata de viagem concluída elegível, cancelamentos, ajustes, vencimento e forma de pagamento deverá constar no contrato e nas regras de faturamento.
+- Os valores comerciais não representam custo Google comprovado; devem ser validados com medição real de consumo, suporte, tributos e margem.
 
-## 7. Auditoria do código existente
+## 7. Auditoria inicial do código existente
 
 Auditoria inicial da branch feat/arquitetura-multicanal-sem-planilha-bruno em 2026-11-09:
 
@@ -122,7 +121,6 @@ Auditoria inicial da branch feat/arquitetura-multicanal-sem-planilha-bruno em 20
 - Manter Sheets como origem legada apenas durante a transição controlada; estabelecer fonte única de verdade por módulo e data de corte.
 
 ### Fase 4 — billing e medição
-- Registrar snapshots mensais de motoristas ativos.
 - Registrar eventos únicos de viagem concluída, excluindo homologação e cancelamentos não concluídos.
 - Medir custo de infraestrutura por tenant e por unidade de uso.
 - Fechamento idempotente e trilha de contestação/ajustes.
