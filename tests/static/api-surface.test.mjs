@@ -50,6 +50,8 @@ test('superfície pública sem token permanece explicitamente inventariada', () 
     'calcularAssiduidadeMotoristaFullTime',
     'calcularViagensMinimasFullTime',
     'configurarSistemaFullTime',
+    'conectarPlanilhaOperacionalFullTime',
+    'criarGuiasMotoristasECaminhoesNaPlanilhaInformada',
     'contarOperacoesDistintasUltimos30DiasFullTime',
     'doGet',
     'importarCaminhoesCsvFullTime',
