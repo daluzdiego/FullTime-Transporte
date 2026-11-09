@@ -58,7 +58,7 @@ Classificações:
 | `motoristasSemConfirmacaoDiariaFullTime` | 1193 | Não | Não | Cálculo em memória | Não | C — mover para módulo privado/testes |
 | `listarOperacoesFullTime` | 1211 | Sim | Sim | Lê OPERACOES | Não | A — tenant + permissão; não usado diretamente pela UI |
 | `salvarOperacaoFullTime` | 1218 | Sim | Sim | Lê CLIENTES; grava OPERACOES | Sim | A — tenant + validação de dados relacionados |
-| `registrarMovimentacaoOperacaoFullTime` | 1246 | Não | Não | Corpo atual é stub/lança erro? | Não | B/D — confirmar corpo integral e retirar de exposição se legado |
+| `registrarMovimentacaoOperacaoFullTime` | 1246 | Não | Não | Stub que lança erro; movimentações agregadas foram removidas | Não | D — remover após busca de consumidores |
 | `validarPlanejamentoOperacaoFullTime` | 1258 | Sim | Sim | Lê operação, participações, conjuntos e motoristas | Sim | A — tenant em todas as leituras |
 | `iniciarViagemFullTime` | 1287 | Sim | Sim | Lê e grava operações, participações, viagens e conjuntos | Sim | A — tenant + transação/idempotência |
 | `replanejarOperacaoFullTime` | 1343 | Sim | Sim | Lê e atualiza operação/participação/conjunto | Sim | A — tenant + auditoria |
