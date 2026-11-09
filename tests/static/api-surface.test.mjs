@@ -5,18 +5,18 @@ import { readFileSync } from 'node:fs';
 const code = readFileSync(new URL('../../Code.gs', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../../Index.html', import.meta.url), 'utf8');
 
-const declarations = [...code.matchAll(/^function\\s+([A-Za-z_$][\\w$]*)\\s*\\(([^)]*)\\)/gm)]
+const declarations = [...code.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/gm)]
   .map(match => ({ name: match[1], args: match[2].trim(), index: match.index }));
 
 const declaredNames = new Set(declarations.map(item => item.name));
 
 function uiRemoteCalls(source) {
   const names = new Set();
-  const pattern = /google\\.script\\.run/g;
+  const pattern = /google\.script\.run/g;
   for (const match of source.matchAll(pattern)) {
     const end = source.indexOf(';', match.index);
     const segment = source.slice(match.index, end < 0 ? match.index + 1800 : end);
-    const chain = [...segment.matchAll(/\\.([A-Za-z_$][\\w$]*)\\s*\\(/g)]
+    const chain = [...segment.matchAll(/\.([A-Za-z_$][\w$]*)\s*\(/g)]
       .map(item => item[1])
       .filter(name => !['withSuccessHandler', 'withFailureHandler', 'withUserObject'].includes(name));
     if (chain.length) names.add(chain.at(-1));
@@ -75,7 +75,7 @@ test('superfície pública sem token permanece explicitamente inventariada', () 
 });
 
 test('o código ainda não deve ser confundido com implementação multi-tenant', () => {
-  assert.match(code, /DB_PROPERTY:\\s*'FT_DATABASE_ID'/);
-  assert.match(code, /function\\s+getSheet_\\s*\\(\\s*name\\s*\\)/);
-  assert.doesNotMatch(code, /function\\s+getSheet_\\s*\\(\\s*tenantId\\s*,/);
+  assert.match(code, /DB_PROPERTY:\s*'FT_DATABASE_ID'/);
+  assert.match(code, /function\s+getSheet_\s*\(\s*name\s*\)/);
+  assert.doesNotMatch(code, /function\s+getSheet_\s*\(\s*tenantId\s*,/);
 });
