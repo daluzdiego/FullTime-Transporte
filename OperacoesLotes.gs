@@ -45,16 +45,6 @@ function prepararEstruturaLotesFullTime(token, confirmar) {
       ? {guia:name,acao:'INCOMPATIVEL',motivo:'Cabeçalhos divergentes; colunas ausentes: '+missing.join(', ')}
       : {guia:name,acao:'EXISTENTE_COMPATIVEL',colunas:current.length};
   });
-  const participation=getSheet_('PARTICIPACAO_OPERACOES');
-  const participationWidth=participation.getLastColumn();
-  const participationHeaders=participationWidth?participation.getRange(1,1,1,participationWidth).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
-  if(!participationHeaders.length||participationHeaders.every(v=>!v)){
-    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'INCOMPATIVEL',motivo:'Guia existente sem cabeçalho; a migração de LOTE_ID foi bloqueada.'});
-  } else if(participationHeaders.indexOf('LOTE_ID')<0){
-    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'ADICIONAR_COLUNA',coluna:'LOTE_ID',preservaDados:true});
-  } else {
-    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'EXISTENTE_COMPATIVEL',coluna:'LOTE_ID'});
-  }
   ['PARTICIPACAO_OPERACOES','VIAGENS'].forEach(function(name){
     const sh=getSheet_(name),width=sh.getLastColumn();
     const headers=width?sh.getRange(1,1,1,width).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
