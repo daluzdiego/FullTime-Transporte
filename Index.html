@@ -383,84 +383,20 @@
   function filterTable(){const q=(document.getElementById('filterInput')?.value||'').toLowerCase();const s=document.getElementById('statusFilter')?.value||'';document.querySelectorAll('#tableBody tr[data-search]').forEach(tr=>{tr.classList.toggle('hidden',!(tr.dataset.search.includes(q)&&(!s||tr.dataset.status===s)));});}
 
   function renderConjuntos(){
-    const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO');
-    const horseMap=new Map();
-    // Cavalos mecânicos vêm exclusivamente do cadastro sincronizado do Bruno.
-    // A capacidade de carga é lida do campo CAPACIDADE_CARGA_TONELADAS.
-    (dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').forEach(x=>{
-      const plate=String(x.campos[0]||'').toUpperCase();
-      if(!horseMap.has(plate)) horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),capacity:Number(x.capacidadeUtil||0),status:x.status});
-    });
-    const horses=Array.from(horseMap.values());
-    // Cadastros pendentes podem ser selecionados para montar um conjunto em revisão.
-    // INATIVOS continuam bloqueados e o conjunto nunca é ativado automaticamente.
-    const trailers=(dashboard?.carretas||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').map(x=>({
-      id:x.id,plate:String(x.campos[0]||''),detail:String(x.campos[1]||''),capacity:Number(x.capacidadeUtil||x.campos[3]||0),status:x.status
-    }));
-    const sets=dashboard?.conjuntos||[];
-    const status=(s)=>statusBadge(s);
-    const setAction=(x)=>{
-      if(x.origem==='BRUNO') return '<span class="muted small">Sincronizado — revisar no cadastro de origem</span>';
-      return x.status!=='ATIVO'
-        ? "<button class=\"icon-btn\" onclick=\"setStatus('CONJUNTOS','"+esc(x.id)+"','ATIVO')\">✓</button>"
-        : "<button class=\"icon-btn\" onclick=\"setStatus('CONJUNTOS','"+esc(x.id)+"','INATIVO')\">⊘</button>";
-    };
-    const simpleOpt=(arr,placeholder)=>'<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.campos[0]||x.id)+(x.status==='PENDENTE_REVISAO'?' — Pendente de revisão':'')+'</option>').join('');
-    const assetOpt=(arr,placeholder)=>'<option value="">'+esc(placeholder)+'</option>'+arr.map(x=>{
-      const cap=Number(x.capacity||0), capLabel=cap>0?cap.toLocaleString('pt-BR',{maximumFractionDigits:1})+' t':'capacidade não informada';
-      const review=x.status==='PENDENTE_REVISAO'?' — Pendente de revisão':'';
-      return '<option value="'+esc(x.id)+'" data-capacity="'+(cap>0?cap:0)+'">'+esc(x.plate)+' — '+esc(x.detail||'')+' — '+capLabel+review+'</option>';
-    }).join('');
+    const drivers=dashboard?.motoristas||[],horses=dashboard?.cavalos||[],trailers=dashboard?.carretas||[],sets=dashboard?.conjuntos||[];
+    const action=(entity,x)=>x.status==='ATIVO'
+      ? '<button class="icon-btn" title="Inativar" onclick="setStatus(\''+entity+'\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>'
+      : '<button class="icon-btn" title="Aprovar" onclick="setStatus(\''+entity+'\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>';
+    const find=(arr,id)=>arr.find(x=>String(x.id)===String(id));
     return `
-      <div class="page-head"><div><h1>Conjuntos veiculares</h1><p>Associe um motorista ao seu cavalo mecânico e às carretas autorizadas.</p></div></div>
-      <div class="notice">Os cadastros ATIVOS e PENDENTES aparecem para montagem e teste. Registros pendentes ficam identificados e o conjunto salvo permanece em revisão; somente veículos aprovados podem ser usados na escala.</div>
-      <div class="panel form-panel"><div class="panel-head"><h2>Novo conjunto</h2><span class="badge badge-pending">Pendente de revisão</span></div><div class="panel-body">
-        <form onsubmit="saveConjunto(event)"><div class="form-grid">
-          <div class="field"><label>Motorista (ativo ou em revisão) *</label><select name="motoristaId" required>${simpleOpt(drivers,'Selecione o motorista')}</select><small class="muted">Motoristas: ${drivers.length} ativos</small></div>
-          <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade informada no cadastro sincronizado do cavalo</small></div>
-          <div class="field"><label>Carreta do meio (opcional)</label><select name="carretaMeioId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta do meio')}</select></div>
-          <div class="field"><label>Carreta final (opcional)</label><select name="carretaFinalId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta final')}</select></div>
-          <div class="field"><label>Capacidade somada do conjunto (t)</label><input name="capacidadeUtil" id="capacidadeConjunto" type="number" min="0.1" step="0.1" readonly required placeholder="Calculada automaticamente"><small id="capacidadeConjuntoDetalhe" class="muted">Selecione o cavalo e, se necessário, as carretas.</small></div>
-          <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000" placeholder="Ex.: conjunto fixo; substituição somente com autorização do gestor"></textarea></div>
-        </div><div id="conjuntoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" id="saveConjuntoButton" type="submit">Salvar conjunto</button></div></form>
-      </div></div>
+      <div class="page-head"><div><h1>Frota e conjuntos veiculares</h1><p>Consulta e aprovação dos cadastros sincronizados da planilha do Bruno.</p></div></div>
+      <div class="notice"><strong>Fonte única de cadastro:</strong> motoristas, cavalos, carretas e associações entre eles são cadastrados na planilha do Bruno e sincronizados para o sistema. Aqui ficam apenas consulta, aprovação operacional e utilização nas operações. Nenhum cadastro duplicado é criado nesta tela.</div>
       <div class="grid-two">
-        <div class="panel"><div class="panel-head"><h2>Cavalos mecânicos</h2><span class="muted small">${(dashboard?.cavalos||[]).length} cadastro(s)</span></div><div class="panel-body">
-          <div class="notice">Cadastros de cavalos mecânicos são mantidos na planilha de origem do Bruno e sincronizados automaticamente para esta tela. A aprovação operacional é controlada aqui.</div>
-          <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Marca / modelo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.cavalos||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1]+' '+x.campos[2])+'</td><td>'+((Number(x.capacidadeUtil||0)>0)?Number(x.capacidadeUtil).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhum cavalo cadastrado.</td></tr>'}</tbody></table></div>
-        </div></div>
-        <div class="panel"><div class="panel-head"><h2>Carretas</h2><span class="muted small">${(dashboard?.carretas||[]).length} cadastro(s)</span></div><div class="panel-body">
-          <div class="notice">Cadastros de carretas são mantidos na planilha de origem do Bruno e sincronizados automaticamente para esta tela. A aprovação operacional é controlada aqui.</div>
-          <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.carretas||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+((Number(x.capacidadeUtil||x.campos[3]||0)>0)?Number(x.capacidadeUtil||x.campos[3]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma carreta cadastrada.</td></tr>'}</tbody></table></div>
-        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Cavalos mecânicos</h2><span class="muted small">${horses.length} cadastro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Placa</th><th>Marca / modelo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${horses.map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1]+' '+x.campos[2])+'</td><td>'+((Number(x.capacidadeUtil||0)>0)?Number(x.capacidadeUtil).toLocaleString('pt-BR')+' t':'Não informada')+'</td><td>'+statusBadge(x.status)+'</td><td>'+action('CAVALOS',x)+'</td></tr>').join('')||'<tr><td colspan="5">Nenhum cavalo sincronizado.</td></tr>'}</tbody></table></div></div></div>
+        <div class="panel"><div class="panel-head"><h2>Carretas</h2><span class="muted small">${trailers.length} cadastro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${trailers.map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+((Number(x.capacidadeUtil||x.campos[3]||0)>0)?Number(x.capacidadeUtil||x.campos[3]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+statusBadge(x.status)+'</td><td>'+action('CARRETAS',x)+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma carreta sincronizada.</td></tr>'}</tbody></table></div></div></div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade útil</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const f=x.campos||[],d=find(drivers,f[0]),h=find(horses,f[1]),m=find(trailers,f[2]),t=find(trailers,f[3]);return '<tr><td>'+esc(d?.campos[0]||f[0]||'—')+'</td><td>'+esc(h?.campos[0]||f[1]||'—')+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(t?.campos[0]||'—')+'</td><td>'+((Number(f[7]||0)>0)?Number(f[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+statusBadge(x.status)+'</td><td>'+action('CONJUNTOS',x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto sincronizado.</td></tr>'}</tbody></table></div></div></div>`;
   }
-  function calcularCapacidadeConjunto(){
-    const form=document.querySelector('form[onsubmit="saveConjunto(event)"]');
-    if(!form)return;
-    const ids=['cavaloId','carretaMeioId','carretaFinalId'];
-    const values=ids.map(name=>{
-      const select=form.elements[name], option=select&&select.selectedOptions[0];
-      return option&&option.value?Number(option.dataset.capacity||0):0;
-    });
-    const input=document.getElementById('capacidadeConjunto');
-    const detail=document.getElementById('capacidadeConjuntoDetalhe');
-    const invalidTrailer=ids.slice(1).some((name,i)=>form.elements[name].value && values[i+1]<=0);
-    if(!form.elements.cavaloId.value||values[0]<=0||invalidTrailer){
-      input.value='';
-      detail.textContent='Não foi possível calcular: confira a capacidade do cavalo e das carretas selecionadas.';
-      return;
-    }
-    const total=values.reduce((sum,v)=>sum+v,0);
-    input.value=total.toFixed(1);
-    detail.textContent='Cavalo '+values[0].toLocaleString('pt-BR')+' t + carretas '+values.slice(1).filter(v=>v>0).map(v=>v.toLocaleString('pt-BR')+' t').join(' + ')+' = '+total.toLocaleString('pt-BR')+' t (soma nominal para teste; validar limites legais do conjunto).';
-  }
-
-  function saveConjunto(ev){ev.preventDefault();const form=ev.currentTarget;const data=Object.fromEntries(new FormData(form).entries());const btn=document.getElementById('saveConjuntoButton');const err=document.getElementById('conjuntoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('conjuntos');}).withFailureHandler(e=>toast(e.message||'Não foi possível atualizar a tela.',true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar conjunto';err.textContent=e.message||'Não foi possível salvar o conjunto.';}).salvarConjuntoVeicularFullTime(authToken,data);}
-
-
-
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.nome||o.campos[2]||o.id):id;};
