@@ -219,3 +219,98 @@ function obterDetalhesOperacaoComLotesFullTime(token, operacaoId) {
     lotes:read('LOTES_OPERACAO')
   };
 }
+
+
+/**
+ * Designa um motorista/conjunto para um lote específico.
+ * O mesmo motorista/conjunto pode assumir lotes diferentes da mesma operação,
+ * mas nunca duas operações incompatíveis ou duas vezes o mesmo lote.
+ */
+function designarConjuntoLoteOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const operacaoId=texto_(data.operacaoId,100), loteId=texto_(data.loteId,100), conjuntoId=texto_(data.conjuntoId,100);
+  if(!operacaoId||!loteId||!conjuntoId) throw new Error('Informe operação, lote e conjunto.');
+  const toneladas=Number(String(data.toneladasPrevistas||'').replace(',','.'));
+  if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe o volume que ficará sob responsabilidade deste motorista.');
+  const lock=LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const opSh=getSheet_('OPERACOES'), ops=opSh.getDataRange().getValues(), om=ftHeaderMapViagens_(opSh);
+    const oi=ops.findIndex((r,i)=>i>0&&String(r[om.ID])===operacaoId);
+    if(oi<1) throw new Error('Operação não encontrada.');
+    const op=ops[oi];
+    if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]||''))) throw new Error('A operação não está aberta para novas designações.');
+    const lotSh=getSheet_('LOTES_OPERACAO'), lots=lotSh.getDataRange().getValues(), lm=ftHeaderMapViagens_(lotSh);
+    const li=lots.findIndex((r,i)=>i>0&&String(r[lm.ID])===loteId&&String(r[lm.OPERACAOID])===operacaoId);
+    if(li<1) throw new Error('Lote não encontrado nesta operação.');
+    const lot=lots[li];
+    if(['CONCLUIDO','CANCELADO','ENCERRADO'].includes(String(lot[lm.STATUS]||'').toUpperCase())) throw new Error('Este lote já está encerrado.');
+    const setSh=getSheet_('CONJUNTOS'), sets=setSh.getDataRange().getValues(), sm=ftHeaderMapViagens_(setSh);
+    const si=sets.findIndex((r,i)=>i>0&&String(r[sm.ID])===conjuntoId);
+    if(si<1) throw new Error('Conjunto não encontrado.');
+    const set=sets[si], driverId=String(set[sm.MOTORISTAID]||'');
+    if(String(set[sm.STATUS]||'').toUpperCase()!=='ATIVO') throw new Error('Conjunto não está ativo.');
+    if(String(set[sm.ESTADOCONSERVACAO]||'APTO').toUpperCase()!=='APTO') throw new Error('Conjunto não está apto para escala.');
+    const capacity=Number(set[sm.CAPACIDADEUTILTONELADAS]||0);
+    if(!(capacity>0)) throw new Error('Conjunto sem capacidade útil aprovada.');
+    const driverSh=getSheet_('MOTORISTAS'), drivers=driverSh.getDataRange().getValues(), dm=ftHeaderMapViagens_(driverSh);
+    const driver=drivers.find((r,i)=>i>0&&String(r[dm.ID])===driverId);
+    if(!driver||String(driver[dm.STATUS]||'').toUpperCase()!=='ATIVO') throw new Error('Motorista associado ao conjunto não está ativo.');
+    const minimumTrips=Math.ceil((toneladas-0.000001)/capacity);
+    const trips=Math.floor(Number(data.viagensPrevistas||minimumTrips));
+    if(!(trips>=minimumTrips&&trips<=100000)) throw new Error('A meta deve prever pelo menos '+minimumTrips+' viagem(ns), considerando a capacidade útil de '+capacity+' t.');
+    const targetTrips=Number(op[om.TOTALVIAGENSPREVISTAS]||0);
+    const partSh=getSheet_('PARTICIPACAO_OPERACOES'), parts=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
+    if(pm.LOTEID==null) throw new Error('A coluna LOTE_ID ainda não foi preparada. Execute Preparar guias de lotes.');
+    const active=parts.slice(1).filter(r=>String(r[pm.STATUSPARTICIPACAO]||'').toUpperCase()==='ATIVO');
+    const sameLot=active.filter(r=>String(r[pm.OPERACAOID])===operacaoId&&String(r[pm.LOTEID]||'')===loteId);
+    if(sameLot.some(r=>String(r[pm.CONJUNTOID])===conjuntoId)) throw new Error('Este conjunto já foi designado para o mesmo lote.');
+    if(sameLot.some(r=>String(r[pm.MOTORISTAID])===driverId)) throw new Error('Este motorista já possui participação neste lote.');
+    const conflict=active.find(r=>
+      (String(r[pm.OPERACAOID])!==operacaoId)&&
+      (String(r[pm.MOTORISTAID])===driverId||String(r[pm.CONJUNTOID])===conjuntoId)
+    );
+    if(conflict) throw new Error('Motorista ou conjunto já está comprometido em outra operação.');
+    const sameOperationDriver=sameLot.concat(active.filter(r=>String(r[pm.OPERACAOID])===operacaoId&&String(r[pm.MOTORISTAID])===driverId));
+    if(sameOperationDriver.some(r=>String(r[pm.CONJUNTOID])!==conjuntoId)) throw new Error('O motorista já está vinculado a outro conjunto nesta operação.');
+    const lotTarget=Number(lot[lm.VOLUMEPREVISTOTONELADAS]||0);
+    const lotAssigned=sameLot.reduce((sum,r)=>sum+Number(r[pm.TONELADASPREVISTAS]||0),0);
+    if(toneladas+lotAssigned>lotTarget+0.000001) throw new Error('A distribuição ultrapassaria o volume previsto do lote ('+lotTarget+' t).');
+    const maxDrivers=Math.floor(Number(lot[lm.MOTORISTASPLANEJADOS]||0));
+    if(maxDrivers>0&&sameLot.length>=maxDrivers) throw new Error('O limite de motoristas planejados para este lote já foi atingido.');
+    const id=Utilities.getUuid(), now=new Date(), row=new Array(partSh.getLastColumn()).fill('');
+    const values={ID:id,CRIADOEM:now,OPERACAOID:operacaoId,CONJUNTOID:conjuntoId,MOTORISTAID:driverId,
+      STATUSPARTICIPACAO:'ATIVO',INICIOEM:now,TONELADASMOVIMENTADAS:0,VIAGENSCONCLUIDAS:0,
+      MOTIVO:texto_(data.motivo,500),REGISTRADOPOR:session.login,VIAGENSPREVISTAS:trips,
+      TONELADASPREVISTAS:toneladas,VIAGENSINICIADAS:0,ATUALIZADOEM:now,ATUALIZADOPOR:session.login,LOTEID:loteId};
+    Object.keys(values).forEach(k=>{if(pm[k]!=null)row[pm[k]]=values[k];});
+    partSh.appendRow(row);
+    const assignedAfter=lotAssigned+toneladas;
+    if(lm.STATUS!=null) lotSh.getRange(li+1,lm.STATUS+1).setValue(assignedAfter>=lotTarget-0.000001?'DISTRIBUIDO':'EM_DISTRIBUICAO');
+    if(lm.ATUALIZADOEM!=null) lotSh.getRange(li+1,lm.ATUALIZADOEM+1).setValue(now);
+    if(lm.ATUALIZADOPOR!=null) lotSh.getRange(li+1,lm.ATUALIZADOPOR+1).setValue(session.login);
+    const allActive=active.concat([row]);
+    const plannedTrips=allActive.filter(r=>String(r[pm.OPERACAOID])===operacaoId).reduce((sum,r)=>sum+Number(r[pm.VIAGENSPREVISTAS]||0),0);
+    if(om.TOTALVIAGENSPREVISTAS!=null) opSh.getRange(oi+1,om.TOTALVIAGENSPREVISTAS+1).setValue(plannedTrips);
+    if(String(op[om.STATUS])==='ABERTA') opSh.getRange(oi+1,om.STATUS+1).setValue('EM_ANDAMENTO');
+    const eventSh=getSheet_('EVENTOS_OPERACAO');
+    eventSh.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO_LOTE',operacaoId,id,driverId,conjuntoId,'Lote '+String(lot[lm.CODIGOLOTE]||loteId)+'; '+toneladas+' t; '+trips+' viagem(ns).',session.login]);
+    auditar_(session,'DESIGNAR_CONJUNTO_LOTE','LOTE',loteId,'Conjunto '+conjuntoId+'; '+toneladas+' t; '+trips+' viagem(ns).');
+    return {ok:true,id:id,loteId:loteId,viagensPrevistas:trips,toneladasPrevistas:toneladas,capacidade:capacity,message:'Conjunto designado ao lote com meta de '+trips+' viagem(ns) e '+toneladas+' t.'};
+  } finally { lock.releaseLock(); }
+}
+
+/** Retorna lotes e respectivas metas de motoristas para a tela administrativa. */
+function obterAlocacoesLotesOperacaoFullTime(token, operacaoId) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const id=texto_(operacaoId,100); if(!id) throw new Error('Informe a operação.');
+  const lotSh=getSheet_('LOTES_OPERACAO'), lotRows=lotSh.getDataRange().getValues(), lm=ftHeaderMapViagens_(lotSh);
+  const partSh=getSheet_('PARTICIPACAO_OPERACOES'), partRows=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
+  const driverSh=getSheet_('MOTORISTAS'), drivers=driverSh.getDataRange().getValues(), dm=ftHeaderMapViagens_(driverSh);
+  const setSh=getSheet_('CONJUNTOS'), sets=setSh.getDataRange().getValues(), sm=ftHeaderMapViagens_(setSh);
+  const byId=(rows,map,id)=>rows.slice(1).find(r=>String(r[map.ID])===String(id));
+  return lotRows.slice(1).filter(r=>String(r[lm.OPERACAOID])===id).map(lot=>{
+    const lotId=String(lot[lm.ID]);
+    const allocations=partRows.slice(1).filter(p=>String(p[pm.OPERACAOID])===id&&String(p[pm.LOTEID]||'')===lotId);
+    return {id:lotId,codigo:String(lot[lm.CODIGOLOTE]||''),nome:String(lot[lm.NOMELOTE]||''),clienteId:String(lot[lm.CLIENTEID]||''),origem:String(lot[lm.ORIGEM]||''),destino:String(lot[lm.DESTINO]||''),volume:Number(lot[lm.VOLUMEPREVISTOTONELADAS]||0),volumeDistribuido:allocations.reduce((n,p)=>n+Number(p[pm.TONELADASPREVISTAS]||0),0),status:String(lot[lm.STATUS]||''),participacoes:allocations.map(p=>{const d=byId(drivers,dm,p[pm.MOTORISTAID]),set=byId(sets,sm,p[pm.CONJUNTOID]);return {id:String(p[pm.ID]),motorista:String(d?.[dm.NOMECOMPLETO]||''),conjuntoId:String(p[pm.CONJUNTOID]||''),capacidade:Number(set?.[sm.CAPACIDADEUTILTONELADAS]||0),viagens:Number(p[pm.VIAGENSPREVISTAS]||0),toneladas:Number(p[pm.TONELADASPREVISTAS]||0),status:String(p[pm.STATUSPARTICIPACAO]||'')};})};
+  });
+}
