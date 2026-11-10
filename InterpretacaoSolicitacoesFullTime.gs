@@ -89,6 +89,8 @@ function analisarSolicitacaoIAFullTime(token, id) {
   }
 
   var pending = result.camposPendentes.map(function(x){ return ftSolText_(x,100); }).filter(Boolean);
+  // A IA nunca libera aprovação se um requisito operacional estiver vazio ou inválido.
+  ftSolComputeMissingFields_(result.dados).forEach(function(x){if(pending.indexOf(x)<0)pending.push(x);});
   var questions = result.perguntas.map(function(x){ return ftSolText_(x,500); }).filter(Boolean);
   var analysis = {
     resumo: ftSolText_(result.resumo,1500),
