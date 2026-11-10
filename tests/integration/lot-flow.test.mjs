@@ -32,6 +32,7 @@ class FakeBook {
 const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const code=read('../../Code.gs');
 const lots=read('../../OperacoesLotes.gs');
+const drive=read('../../IntegracaoDriveCliente.gs');
 const makeRuntime=()=>{
   const book=new FakeBook();
   book.add('CLIENTES',['ID','CRIADO_EM','STATUS','RAZAO_SOCIAL','NOME_FANTASIA','CNPJ','TELEFONE','EMAIL','CONTATO_PRINCIPAL','OBSERVACOES','ID_EXTERNO'],[
@@ -58,7 +59,6 @@ const makeRuntime=()=>{
   context.exigirAdmin_=session=>{if(session.perfil!=='ADMIN')throw new Error('admin required');};
   context.auditar_=()=>{};
   context.texto_=(value,max)=>String(value??'').trim().slice(0,max);
-  context.ftDriveNormHeader_=value=>String(value??'').trim().toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
   return {context,book};
 };
 
