@@ -762,7 +762,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(listarRegistros_('MOTORISTAS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
   const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
   const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
-  const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
+  const activeParts=new Set(parts.slice(1).filter(r=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[5]||'').toUpperCase())).map(r=>String(r[3])));
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
   const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
