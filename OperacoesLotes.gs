@@ -45,9 +45,19 @@ function prepararEstruturaLotesFullTime(token, confirmar) {
       ? {guia:name,acao:'INCOMPATIVEL',motivo:'Cabeçalhos divergentes; colunas ausentes: '+missing.join(', ')}
       : {guia:name,acao:'EXISTENTE_COMPATIVEL',colunas:current.length};
   });
+  const participation=getSheet_('PARTICIPACAO_OPERACOES');
+  const participationWidth=participation.getLastColumn();
+  const participationHeaders=participationWidth?participation.getRange(1,1,1,participationWidth).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+  if(!participationHeaders.length||participationHeaders.every(v=>!v)){
+    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'INCOMPATIVEL',motivo:'Guia existente sem cabeçalho; a migração de LOTE_ID foi bloqueada.'});
+  } else if(participationHeaders.indexOf('LOTE_ID')<0){
+    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'ADICIONAR_COLUNA',coluna:'LOTE_ID',preservaDados:true});
+  } else {
+    resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'EXISTENTE_COMPATIVEL',coluna:'LOTE_ID'});
+  }
   const bloqueios = resultado.filter(x=>x.acao==='INCOMPATIVEL');
   if (bloqueios.length) return {ok:false,previa:true,alterado:false,guias:resultado,bloqueios:bloqueios};
-  if (confirmar !== true) return {ok:true,previa:true,alterado:false,guias:resultado,message:'Prévia concluída. Nenhuma guia foi criada.'};
+  if (confirmar !== true) return {ok:true,previa:true,alterado:false,guias:resultado,message:'Prévia concluída. Nenhuma guia ou coluna foi criada.'};
   const criadas=[];
   resultado.filter(x=>x.acao==='CRIAR').forEach(function(item) {
     const sh=ss.insertSheet(item.guia), headers=FT_LOTES_SCHEMAS_[item.guia];
@@ -56,8 +66,14 @@ function prepararEstruturaLotesFullTime(token, confirmar) {
     sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
     criadas.push(item.guia);
   });
-  auditar_(session,'PREPARAR_ESTRUTURA_LOTES','SISTEMA','', 'Guias criadas: '+(criadas.join(', ')||'nenhuma'));
-  return {ok:true,previa:false,alterado:criadas.length>0,criadas:criadas,guias:resultado,message:'Estrutura preparada sem excluir ou reescrever dados existentes.'};
+  let colunaAdicionada=false;
+  if(resultado.some(x=>x.guia==='PARTICIPACAO_OPERACOES'&&x.acao==='ADICIONAR_COLUNA')){
+    participation.insertColumnAfter(participationWidth);
+    participation.getRange(1,participationWidth+1).setValue('LOTE_ID');
+    colunaAdicionada=true;
+  }
+  auditar_(session,'PREPARAR_ESTRUTURA_LOTES','SISTEMA','', 'Guias criadas: '+(criadas.join(', ')||'nenhuma')+'; LOTE_ID adicionado: '+colunaAdicionada);
+  return {ok:true,previa:false,alterado:criadas.length>0||colunaAdicionada,criadas:criadas,colunaAdicionada:colunaAdicionada,guias:resultado,message:'Estrutura preparada sem excluir ou reescrever dados existentes. A coluna LOTE_ID, quando necessária, foi adicionada ao final.'};
 }
 
 function ftLotesParseJson_(value, label) {
