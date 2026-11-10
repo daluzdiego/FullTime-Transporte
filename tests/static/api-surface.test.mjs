@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const code = readFileSync(new URL('../../Code.gs', import.meta.url), 'utf8');
 const lots = readFileSync(new URL('../../OperacoesLotes.gs', import.meta.url), 'utf8');
-const backend = code + '\\n' + lots;
+const motor = readFileSync(new URL('../../MotorEscalaFullTime.gs', import.meta.url), 'utf8');
+const backend = code + '\\n' + lots + '\\n' + motor;
 const html = readFileSync(new URL('../../Index.html', import.meta.url), 'utf8');
 
 const declarations = [...backend.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/gm)]
