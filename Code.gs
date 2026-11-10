@@ -771,13 +771,16 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
   // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
   if (['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(entidade) !== -1) {
-    const local = getSheet_('MOTORISTAS');
-    const localRows = local.getDataRange().getValues();
-    const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-    if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
+    if (entidade === 'MOTORISTAS') {
+      const local = getSheet_('MOTORISTAS');
+      const localRows = local.getDataRange().getValues();
+      const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
+      if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
+    }
     ftSaveStatusOverride_(entidade, id, status, session);
     auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-    return {ok:true, message: status === 'ATIVO' ? 'Motorista aprovado com sucesso.' : status === 'INATIVO' ? 'Motorista inativado.' : 'Motorista voltou para revisão.'};
+    const entityLabel = entidade === 'MOTORISTAS' ? 'Motorista' : entidade === 'CAVALOS' ? 'Cavalo mecânico' : 'Carreta';
+    return {ok:true, message: entityLabel + (status === 'ATIVO' ? ' aprovado(a) com sucesso.' : status === 'INATIVO' ? ' inativado(a).' : ' voltou para revisão.')};
   }
 
   const sh = getSheet_(entidade);
