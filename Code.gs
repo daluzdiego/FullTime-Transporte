@@ -17,12 +17,6 @@ function conectarPlanilhaOperacionalFullTime() {
   ['FT_CADASTRO_BRUNO_MOTORISTAS','FT_CADASTRO_BRUNO_CAVALOS','FT_CADASTRO_BRUNO_CARRETAS','FT_CADASTRO_BRUNO_CONJUNTOS','FT_CADASTRO_BRUNO_DOCUMENTOS'].forEach(function(name) {
     if (!ss.getSheetByName(name)) throw new Error('Não encontrei a guia sincronizada ' + name + '. Confira a sincronização da planilha do Bruno.');
   });
-  const headers=['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'];
-  let local=ss.getSheetByName('MOTORISTAS'); if(!local)local=ss.insertSheet('MOTORISTAS');
-  const current=local.getLastColumn()?local.getRange(1,1,1,local.getLastColumn()).getDisplayValues()[0].map(String):[];
-  if(!current.some(function(v){return String(v||'').trim();}))local.getRange(1,1,1,headers.length).setValues([headers]);
-  else if(headers.some(function(h,i){return String(current[i]||'').trim()!==h;}))throw new Error('Cabeçalhos incompatíveis na guia local MOTORISTAS. Nenhum dado foi alterado.');
-  local.setFrozenRows(1);
   PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID',spreadsheetId);
   console.log('Planilha conectada: '+ss.getUrl());
   console.log('Cadastros lidos das guias FT_CADASTRO_BRUNO_*. Não serão criadas guias CAMINHOES ou CARGAS.');
@@ -207,8 +201,6 @@ function prepararBaseOperacionalFullTime() {
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
-    MOTORISTAS: ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
@@ -248,153 +240,29 @@ function prepararBaseOperacionalFullTime() {
   return ss.getUrl();
 }
 
-function salvarConjuntoVeicularFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
-  const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
-  if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
-  if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
-
-  function findById(name,id) {
-    if (!id) return null;
-    const rows = listarRegistros_(name);
-    const item = rows.find(function(r){ return String(r.id) === String(id); });
-    return item ? [item.id,item.criado,item.status].concat(item.campos || []) : null;
-  }
-  function statusValid(row, label, allowPending) {
-    if (!row) throw new Error(label+' não encontrado no cadastro.');
-    const status=String(row[2]||'').toUpperCase();
-    if (status!=='ATIVO' && !(allowPending && status==='PENDENTE_REVISAO')) {
-      throw new Error(label+' está '+(status||'sem status')+'. Ative ou revise o cadastro antes de utilizá-lo.');
-    }
-    return status;
-  }
-
-  const motorista=findById('MOTORISTAS',motoristaId);
-  const cavalo=findById('CAVALOS',cavaloId);
-  statusValid(motorista,'O motorista',false);
-  const cavaloStatus=statusValid(cavalo,'O cavalo mecânico',true);
-  if (!cavalo) throw new Error('O cavalo mecânico não foi encontrado no cadastro sincronizado do Bruno.');
-  const cavaloPlate=normalizarPlaca_(cavalo[3]);
-  const cavaloCapacity=Number(String(cavalo[10] || '').replace(',','.'));
-  if (!(cavaloCapacity>0)) throw new Error('O cavalo '+cavaloPlate+' está sem CAPACIDADE_CARGA_TONELADAS. Atualize o cadastro de origem do Bruno e sincronize novamente.');
-
-  let pending=cavaloStatus==='PENDENTE_REVISAO';
-  const selectedTrailers=[];
-  [[carretaMeioId,'Carreta do meio'],[carretaFinalId,'Carreta final']].forEach(pair=>{
-    if (!pair[0]) return;
-    const row=findById('CARRETAS',pair[0]);
-    const st=statusValid(row,pair[1],true);
-    const capacity=Number(String(row[6]||'').replace(',','.'));
-    if (!(capacity>0)) throw new Error(pair[1]+' está sem CAPACIDADE_CARGA_TONELADAS cadastrada.');
-    if (st==='PENDENTE_REVISAO') pending=true;
-    selectedTrailers.push({id:pair[0],capacity:capacity,label:pair[1]});
-  });
-
-  const capacidadeUtil=cavaloCapacity+selectedTrailers.reduce((sum,x)=>sum+x.capacity,0);
-  if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Não foi possível calcular a capacidade do conjunto.');
-
-  const sh=getSheet_('CONJUNTOS'), values=listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[]));
-  // Evita reutilizar motorista, cavalo ou carreta em outro conjunto ainda vigente.
-  for(let i=1;i<values.length;i++) {
-    if (['ATIVO','PENDENTE_REVISAO'].indexOf(String(values[i][2]))===-1) continue;
-    const ids=[String(values[i][3]||''),String(values[i][4]||''),String(values[i][5]||''),String(values[i][6]||'')];
-    const requested=[motoristaId,cavaloId,carretaMeioId,carretaFinalId].filter(Boolean);
-    if (requested.some(id=>ids.indexOf(id)!==-1)) throw new Error('Um dos veículos ou o motorista já está vinculado a outro conjunto ativo ou pendente. Revise o conjunto existente antes de continuar.');
-  }
-
-  const id=Utilities.getUuid();
-  const conjuntoStatus=pending?'PENDENTE_REVISAO':'PENDENTE_REVISAO';
-  sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
-  auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
-  return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
-}
-
-function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
-
-/**
- * Guarda decisões administrativas fora das guias espelhadas do Bruno.
- * Assim, a aprovação não depende de o registro existir fisicamente na guia local.
- */
-function ftGetStatusControlSheet_() {
-  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
-  const ss = SpreadsheetApp.openById(registryId);
-  let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
-  if (!sh) {
-    sh = ss.insertSheet('FT_STATUS_CADASTROS');
-    sh.getRange(1,1,1,5).setValues([['ENTIDADE','REGISTRO_ID','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-
-function ftSaveStatusOverride_(entity, id, status, session) {
-  const sh = ftGetStatusControlSheet_();
-  const last = sh.getLastRow();
-  const values = last > 1 ? sh.getRange(2,1,last-1,5).getDisplayValues() : [];
-  const keyEntity = String(entity).trim().toUpperCase();
-  const keyId = String(id).trim();
-  const index = values.findIndex(r => String(r[0]).trim().toUpperCase() === keyEntity && String(r[1]).trim() === keyId);
-  const row = [keyEntity,keyId,status,new Date(),session && session.login || 'ADMIN'];
-  if (index >= 0) sh.getRange(index+2,1,1,5).setValues([row]);
-  else sh.appendRow(row);
-}
-
-function ftReadStatusOverrides_(entity) {
-  const sh = ftGetStatusControlSheet_();
-  const last = sh.getLastRow();
-  if (last < 2) return {};
-  const values = sh.getRange(2,1,last-1,5).getDisplayValues();
-  const out = {};
-  values.forEach(r => {
-    if (String(r[0]).trim().toUpperCase() === String(entity).trim().toUpperCase() && r[1]) {
-      out[String(r[1]).trim()] = String(r[2] || '');
-    }
-  });
-  return out;
-}
-
 function atualizarStatusFullTime(token, entidade, id, status) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  const mapa = { CONJUNTOS: 3 };
-  if (!mapa[entidade] && ['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(entidade) === -1) throw new Error('Tipo de cadastro inválido.');
-  if (!id) throw new Error('Identificador do cadastro não informado.');
-  if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
-
-  // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
-  // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
-  if (['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(entidade) !== -1) {
-    if (entidade === 'MOTORISTAS') {
-      const local = getSheet_('MOTORISTAS');
-      const localRows = local.getDataRange().getValues();
-      const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-      if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
-    }
-    ftSaveStatusOverride_(entidade, id, status, session);
-    auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-    const entityLabel = entidade === 'MOTORISTAS' ? 'Motorista' : entidade === 'CAVALOS' ? 'Cavalo mecânico' : 'Carreta';
-    return {ok:true, message: entityLabel + (status === 'ATIVO' ? ' aprovado(a) com sucesso.' : status === 'INATIVO' ? ' inativado(a).' : ' voltou para revisão.')};
-  }
-
-  const sh = getSheet_(entidade);
-  const rows = sh.getDataRange().getValues();
-  const idx = rows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-  if (idx < 1) throw new Error('Registro não encontrado na guia ' + entidade + '.');
-  if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
-    const conjunto = rows[idx];
-    const required = [['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
-    if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
-    if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
-    required.forEach(item => {
-      const asset = listarRegistros_(item[0]).find(r => String(r.id) === String(item[1]));
-      if (!asset || String(asset.status) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const entidades=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'];
+  if(entidades.indexOf(entidade)===-1)throw new Error('Tipo de cadastro inválido.');
+  if(!id)throw new Error('Identificador do cadastro não informado.');
+  if(['PENDENTE_REVISAO','ATIVO','INATIVO'].indexOf(status)===-1)throw new Error('Status inválido.');
+  const registro=listarRegistros_(entidade).find(function(r){return String(r.id)===String(id);});
+  if(!registro)throw new Error('Registro não encontrado no cadastro sincronizado do Bruno.');
+  if(entidade==='CONJUNTOS' && status==='ATIVO'){
+    const fields=registro.campos||[];
+    const required=[['MOTORISTAS',fields[0],'motorista'],['CAVALOS',fields[1],'cavalo']];
+    if(fields[2])required.push(['CARRETAS',fields[2],'carreta do meio']);
+    if(fields[3])required.push(['CARRETAS',fields[3],'carreta final']);
+    required.forEach(function(item){
+      const asset=listarRegistros_(item[0]).find(function(r){return String(r.id)===String(item[1]);});
+      if(!asset||String(asset.status)!=='ATIVO')throw new Error('Não é possível ativar o conjunto: '+item[2]+' precisa estar ATIVO e aprovado.');
     });
+    if(!(Number(fields[7])>0))throw new Error('Não é possível ativar o conjunto: informe a capacidade útil total no cadastro do Bruno.');
   }
-  sh.getRange(idx + 1, mapa[entidade]).setValue(status);
-  auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-  return {ok:true, message:'Status atualizado.'};
+  ftSaveStatusOverride_(entidade,id,status,session);
+  auditar_(session,'ALTERAR_STATUS',entidade,id,status);
+  const labels={MOTORISTAS:'Motorista',CAVALOS:'Cavalo mecânico',CARRETAS:'Carreta',CONJUNTOS:'Conjunto veicular'};
+  return {ok:true,message:labels[entidade]+(status==='ATIVO'?' aprovado(a) com sucesso.':status==='INATIVO'?' inativado(a).':' voltou para revisão.')};
 }
 
 function obterSessao_(token) {
@@ -416,7 +284,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
@@ -714,17 +582,6 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
     return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:Math.max(0,Math.floor(Number(op[14]||0)))+viagens,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
-}
-function alterarEstadoConjuntoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const id=texto_(data.conjuntoId,100), estado=texto_(data.estado,40).toUpperCase(), restricoes=texto_(data.restricoes,1000);
-  if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado)) throw new Error('Selecione um conjunto e um estado válido.');
-  if(estado==='APTO_COM_RESTRICAO'&&!restricoes) throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
-  const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
-  if(idx<1) throw new Error('Conjunto não encontrado.');
-  sh.getRange(idx+1,9).setValue(estado); sh.getRange(idx+1,10).setValue(restricoes); sh.getRange(idx+1,11).setValue(Number(data.capacidadeUtil||0)); sh.getRange(idx+1,12).setValue(session.login);
-  auditar_(session,'ALTERAR_CONSERVACAO','CONJUNTO',id,estado+'; '+restricoes);
-  return {ok:true,message:'Estado de conservação atualizado.'};
 }
 function remanejarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
