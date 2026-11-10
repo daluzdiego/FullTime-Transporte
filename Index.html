@@ -395,12 +395,8 @@
   function renderConjuntos(){
     const drivers=(dashboard?.motoristas||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO');
     const horseMap=new Map();
-    // CAMINHOES é a fonte primária: contém status aprovado e CAPACIDADE_TONELADAS.
-    (dashboard?.caminhoes||[]).filter(x=>(x.status==='ATIVO'||x.status==='PENDENTE_REVISAO') && String(x.campos[5]||'').toLowerCase().includes('cavalo')).forEach(x=>{
-      const plate=String(x.campos[0]||'').toUpperCase();
-      horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[2],x.campos[3]].filter(Boolean).join(' '),capacity:Number(x.campos[6]||0),status:x.status});
-    });
-    // CAVALOS é usado apenas para placas que ainda não existem em CAMINHOES.
+    // Cavalos mecânicos vêm exclusivamente do cadastro sincronizado do Bruno.
+    // A capacidade de carga é lida do campo CAPACIDADE_CARGA_TONELADAS.
     (dashboard?.cavalos||[]).filter(x=>x.status==='ATIVO'||x.status==='PENDENTE_REVISAO').forEach(x=>{
       const plate=String(x.campos[0]||'').toUpperCase();
       if(!horseMap.has(plate)) horseMap.set(plate,{id:x.id,plate:plate,detail:[x.campos[1],x.campos[2]].filter(Boolean).join(' '),capacity:Number(x.capacidadeUtil||0),status:x.status});
@@ -431,7 +427,7 @@
       <div class="panel form-panel"><div class="panel-head"><h2>Novo conjunto</h2><span class="badge badge-pending">Pendente de revisão</span></div><div class="panel-body">
         <form onsubmit="saveConjunto(event)"><div class="form-grid">
           <div class="field"><label>Motorista (ativo ou em revisão) *</label><select name="motoristaId" required>${simpleOpt(drivers,'Selecione o motorista')}</select><small class="muted">Motoristas: ${drivers.length} ativos</small></div>
-          <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade obtida da guia CAMINHOES pela placa do cavalo</small></div>
+          <div class="field"><label>Cavalo mecânico *</label><select name="cavaloId" required onchange="calcularCapacidadeConjunto()">${assetOpt(horses,'Selecione o cavalo')}</select><small class="muted">Capacidade informada no cadastro sincronizado do cavalo</small></div>
           <div class="field"><label>Carreta do meio (opcional)</label><select name="carretaMeioId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta do meio')}</select></div>
           <div class="field"><label>Carreta final (opcional)</label><select name="carretaFinalId" onchange="calcularCapacidadeConjunto()">${assetOpt(trailers,'Sem carreta final')}</select></div>
           <div class="field"><label>Capacidade somada do conjunto (t)</label><input name="capacidadeUtil" id="capacidadeConjunto" type="number" min="0.1" step="0.1" readonly required placeholder="Calculada automaticamente"><small id="capacidadeConjuntoDetalhe" class="muted">Selecione o cavalo e, se necessário, as carretas.</small></div>
@@ -440,23 +436,15 @@
       </div></div>
       <div class="grid-two">
         <div class="panel"><div class="panel-head"><h2>Cavalos mecânicos</h2><span class="muted small">${(dashboard?.cavalos||[]).length} cadastro(s)</span></div><div class="panel-body">
-          <form onsubmit="saveAsset(event,'cavalo')"><div class="form-grid">
-            <div class="field"><label>Placa *</label><input name="placa" maxlength="8" required placeholder="ABC1D23"></div><div class="field"><label>Marca *</label><input name="marca" required></div>
-            <div class="field"><label>Modelo *</label><input name="modelo" required></div><div class="field"><label>Ano *</label><input name="ano" maxlength="4" inputmode="numeric" required></div>
-            <div class="field"><label>Tara (t) *</label><input name="tara" type="number" min="0" max="100" step="0.1" required></div><div class="field"><label>PBTC máximo (t) *</label><input name="pbtc" type="number" min="0.1" max="200" step="0.1" required></div>
-          </div><button class="btn btn-secondary" type="submit">Cadastrar cavalo</button></form>
+          <div class="notice">Cadastros de cavalos mecânicos são mantidos na planilha de origem do Bruno e sincronizados automaticamente para esta tela. A aprovação operacional é controlada aqui.</div>
           <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Marca / modelo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.cavalos||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1]+' '+x.campos[2])+'</td><td>'+((Number(x.capacidadeUtil||0)>0)?Number(x.capacidadeUtil).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CAVALOS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhum cavalo cadastrado.</td></tr>'}</tbody></table></div>
         </div></div>
         <div class="panel"><div class="panel-head"><h2>Carretas</h2><span class="muted small">${(dashboard?.carretas||[]).length} cadastro(s)</span></div><div class="panel-body">
-          <form onsubmit="saveAsset(event,'carreta')"><div class="form-grid">
-            <div class="field"><label>Placa *</label><input name="placa" maxlength="8" required placeholder="ABC1D23"></div><div class="field"><label>Tipo *</label><select name="tipo" required><option value="">Selecione</option><option>Carreta</option><option>Bitrem</option><option>Rodotrem</option><option>Semirreboque</option><option>Outro</option></select></div>
-            <div class="field"><label>Tara (t) *</label><input name="tara" type="number" min="0" max="100" step="0.1" required></div><div class="field"><label>Capacidade de carga (t) *</label><input name="capacidade" type="number" min="0.1" max="100" step="0.1" required></div>
-            <div class="field"><label>PBTC máximo (t) *</label><input name="pbtc" type="number" min="0.1" max="200" step="0.1" required></div>
-          </div><button class="btn btn-secondary" type="submit">Cadastrar carreta</button></form>
+          <div class="notice">Cadastros de carretas são mantidos na planilha de origem do Bruno e sincronizados automaticamente para esta tela. A aprovação operacional é controlada aqui.</div>
           <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidade</th><th>Status</th><th>Ação</th></tr></thead><tbody>${(dashboard?.carretas||[]).map(x=>'<tr><td>'+esc(x.campos[0])+'</td><td>'+esc(x.campos[1])+'</td><td>'+((Number(x.capacidadeUtil||x.campos[3]||0)>0)?Number(x.capacidadeUtil||x.campos[3]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+ (x.status!=='ATIVO'?'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'ATIVO\')">✓</button>':'<button class="icon-btn" onclick="setStatus(\'CARRETAS\',\''+esc(x.id)+'\',\'INATIVO\')">⊘</button>')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma carreta cadastrada.</td></tr>'}</tbody></table></div>
         </div></div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[]),...(dashboard?.caminhoes||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
+      <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade somada</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const d=(dashboard?.motoristas||[]).find(y=>y.id===x.campos[0]);const h=[...(dashboard?.cavalos||[])].find(y=>y.id===x.campos[1]);const m=(dashboard?.carretas||[]).find(y=>y.id===x.campos[2]);const f=(dashboard?.carretas||[]).find(y=>y.id===x.campos[3]);return '<tr><td>'+esc(d?.campos[0]||x.campos[0])+'</td><td>'+esc(h?.campos[0]||x.campos[1])+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(f?.campos[0]||'—')+'</td><td>'+((Number(x.campos[7]||0)>0)?Number(x.campos[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+status(x.status)+'</td><td>'+setAction(x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto cadastrado.</td></tr>'}</tbody></table></div></div></div>`;
   }
   function calcularCapacidadeConjunto(){
     const form=document.querySelector('form[onsubmit="saveConjunto(event)"]');
