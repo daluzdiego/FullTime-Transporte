@@ -154,22 +154,25 @@ function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
   ];
   if(!PLANILHABRUNO_headersV2_(so).some(Boolean)||!PLANILHABRUNO_headersV2_(sd).some(Boolean))
     throw new Error('Cabeçalhos ausentes em '+nome+'. Nenhuma alteração foi feita.');
-  // Acrescenta apenas campos ausentes ao final de cada guia. Nunca reordena ou remove colunas.
+  // Acrescenta somente campos ausentes ao final de cada guia. Preserva a ordem e os dados existentes.
+  const antesOrigem=PLANILHABRUNO_headersV2_(so);
+  const antesCentral=PLANILHABRUNO_headersV2_(sd);
   const hs=PLANILHABRUNO_prepareHeadersV2_(so,obrigatorios);
   const hd=PLANILHABRUNO_prepareHeadersV2_(sd,obrigatorios);
   const normSet=a=>new Set(a.map(PLANILHABRUNO_normV2_).filter(Boolean));
   const setS=normSet(hs), setD=normSet(hd);
   const faltamNaOrigem=obrigatorios.filter(h=>!setS.has(PLANILHABRUNO_normV2_(h)));
   const faltamNaCentral=obrigatorios.filter(h=>!setD.has(PLANILHABRUNO_normV2_(h)));
-  const extrasOrigem=hs.filter(h=>h&&!setD.has(PLANILHABRUNO_normV2_(h)));
-  const extrasCentral=hd.filter(h=>h&&!setS.has(PLANILHABRUNO_normV2_(h)));
-  if(faltamNaOrigem.length||faltamNaCentral.length||extrasOrigem.length||extrasCentral.length) {
-    throw new Error('Os campos de '+nome+' ainda não estão equivalentes. Faltam na origem: '+faltamNaOrigem.join(', ')+'; faltam na central: '+faltamNaCentral.join(', ')+'. Campos extras na origem: '+extrasOrigem.join(', ')+'. Campos extras na central: '+extrasCentral.join(', ')+'. Nenhuma coluna foi movida ou excluída.');
+  if(faltamNaOrigem.length||faltamNaCentral.length) {
+    throw new Error('Ainda faltam campos obrigatórios em '+nome+'. Origem: '+faltamNaOrigem.join(', ')+'; central: '+faltamNaCentral.join(', ')+'. Nenhuma coluna foi movida ou excluída.');
   }
   const resultado={
-    ok:true,guia:nome,cabecalhosEquivalentes:true,mesmaOrdem:JSON.stringify(hs.map(PLANILHABRUNO_normV2_))===JSON.stringify(hd.map(PLANILHABRUNO_normV2_)),
+    ok:true,guia:nome,cabecalhosEquivalentes:true,
+    mesmaOrdem:JSON.stringify(hs.map(PLANILHABRUNO_normV2_))===JSON.stringify(hd.map(PLANILHABRUNO_normV2_)),
     colunasOrigem:hs.length,colunasCentral:hd.length,
-    camposAcrescentadosNaOrigem:obrigatorios.filter(h=>!PLANILHABRUNO_headersV2_(so).slice(0,hs.length-0).map(PLANILHABRUNO_normV2_).includes(PLANILHABRUNO_normV2_(h)) && false)
+    camposAcrescentadosNaOrigem:obrigatorios.filter(h=>!normSet(antesOrigem).has(PLANILHABRUNO_normV2_(h))),
+    camposAcrescentadosNaCentral:obrigatorios.filter(h=>!normSet(antesCentral).has(PLANILHABRUNO_normV2_(h))),
+    observacao:'A equivalência é por nome de campo; a ordem original das colunas foi preservada.'
   };
   Logger.log('FULL TIME — CABEÇALHOS ENTRADA_OPERACOES_IA: '+JSON.stringify(resultado));
   return resultado;
