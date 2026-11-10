@@ -6,7 +6,7 @@
  */
 const FT_SOL_REQUESTS_CFG = {
   SHEET: 'ENTRADA_OPERACOES_IA',
-  HEADERS: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA','ATUALIZADO_EM','HISTORICO_JSON'],
+  HEADERS: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA','ATUALIZADO_EM','HISTORICO_JSON','ID_OPERACAO_GERADA'],
   CHANNELS: ['WHATSAPP_OFICIAL','WHATSAPP_PESSOAL_ENCAMINHADO','PAINEL','EMAIL','TELEFONE','OUTRO'],
   STATUSES: ['RECEBIDA','EM_COLETA','AGUARDANDO_IA','AGUARDANDO_APROVACAO','APROVADA','RECUSADA','AJUSTE_SOLICITADO']
 };
@@ -124,7 +124,7 @@ function listarSolicitacoesFullTime(token,limite) {
       if(value instanceof Date) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss');
       return value==null?'':value;
     }
-    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),idCargaGerada:v('ID_CARGA_GERADA'),atualizadoEm:v('ATUALIZADO_EM')};
+    return {id:v('ID'),criadoEm:v('CRIADO_EM'),criadoPor:v('CRIADO_POR'),status:v('STATUS_ENTRADA'),textoOriginal:v('TEXTO_ORIGINAL'),dadosExtraidos:v('DADOS_EXTRAIDOS_JSON'),camposPendentes:v('CAMPOS_PENDENTES_JSON'),perguntas:v('PERGUNTAS_IA'),canal:v('CANAL_ORIGEM'),identificadorOrigem:v('IDENTIFICADOR_ORIGEM'),idCargaGerada:v('ID_CARGA_GERADA'),idOperacaoGerada:v('ID_OPERACAO_GERADA'),atualizadoEm:v('ATUALIZADO_EM')};
   });
 }
 
@@ -185,7 +185,7 @@ function diagnosticarNucleoSolicitacoesFullTime() {
 function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas) {
   var session=obterSessao_(token); exigirAdmin_(session);
   id=ftSolText_(id,180); dados=dados||{};
-  var allowed=['cliente','contato','produto','tipoCarga','volume','unidadeVolume','volumePorViagem','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'];
+  var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'];
   var clean={}; allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
   if(!Array.isArray(pendentes)) throw new Error('A lista de pendências é inválida.');
   var pending=pendentes.map(function(v){return ftSolText_(v,120);}).filter(Boolean);
@@ -222,7 +222,11 @@ function ftSolValidateForApproval_(sh,c,row){
   if(!ftSolText_(d.cliente,120))missing.push('cliente');
   if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
   if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
-  if(!(Number(String(d.volume||'').replace(',','.'))>0))missing.push('peso/volume total numérico');
+  var total=Number(String(d.volume||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+  if(!(total>0))missing.push('peso/volume total numérico');
+  var perTrip=Number(String(d.volumePorViagem||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+  var planned=Number(String(d.viagensPrevistas||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+  if(!(perTrip>0)&&!(planned>0))missing.push('volume por viagem ou quantidade prevista de viagens');
   var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
   if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('unidade do peso confirmada em toneladas (t)');
   var date=ftSolText_(d.dataColeta,10), parsedDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00'):null;
@@ -234,37 +238,43 @@ function ftSolValidateForApproval_(sh,c,row){
 }
 
 /** Converte uma solicitação aprovada em carga, com trava de duplicidade e vínculo de origem. */
-function converterSolicitacaoEmCargaFullTime(token,id){
+function converterSolicitacaoEmOperacaoFullTime(token,id){
   var session=obterSessao_(token);exigirAdmin_(session);id=ftSolText_(id,180);
   var sh=ftSolSheet_(),c=ftSolCols_(sh),lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     var row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
     var status=String(sh.getRange(row,c.STATUS_ENTRADA).getValue()||'');
-    if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma carga.');
-    var existing=String(sh.getRange(row,c.ID_CARGA_GERADA).getValue()||'');
-    if(existing)return {ok:true,duplicada:true,idCarga:existing,message:'Esta solicitação já gerou a carga '+existing+'. Nenhuma duplicata foi criada.'};
+    if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma operação.');
+    var existing=String(sh.getRange(row,c.ID_OPERACAO_GERADA).getValue()||'');
+    if(existing)return {ok:true,duplicada:true,idOperacao:existing,message:'Esta solicitação já gerou a operação '+existing+'. Nenhuma duplicata foi criada.'};
+    var legacy=String(sh.getRange(row,c.ID_CARGA_GERADA).getValue()||'');
+    if(legacy)throw new Error('Esta solicitação possui um registro legado de carga ('+legacy+'). Faça a conferência desse registro antes de gerar uma operação, para evitar duplicidade.');
     var d=ftSolValidateForApproval_(sh,c,row);
-    var date=ftSolText_(d.dataColeta,10),time=ftSolText_(d.horarioColeta,5),weight=Number(String(d.volume).replace(',','.'));
-    if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw new Error('Horário de coleta inválido. Use HH:MM.');
+    var date=ftSolText_(d.dataColeta,10);
+    var weight=Number(String(d.volume||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+    var perTrip=Number(String(d.volumePorViagem||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+    var planned=Number(String(d.viagensPrevistas||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+    if(!(planned>0)&&perTrip>0)planned=Math.ceil(weight/perTrip);
+    planned=Math.floor(planned);
+    if(!(planned>0&&planned<=100000))throw new Error('Não foi possível calcular as viagens previstas. Informe a quantidade de viagens ou o volume por viagem.');
     var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
     var type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
-    var cargoId='',cargo=getSheet_('CARGAS');
-    if(cargo.getLastColumn()<20)throw new Error('A guia CARGAS não possui as 20 colunas esperadas. Execute prepararBaseOperacionalFullTime().');
-    var marker='[SOLICITACAO_ORIGEM:'+id+']';
-    if(cargo.getLastRow()>1){
-      var notes=cargo.getRange(2,15,cargo.getLastRow()-1,1).getDisplayValues();
-      for(var z=0;z<notes.length;z++)if(String(notes[z][0]||'').indexOf(marker)>=0){cargoId=String(cargo.getRange(z+2,1).getDisplayValue()||'');break;}
-    }
-    if(!cargoId){
-      cargoId=Utilities.getUuid();
-      var description=[d.produto,d.tipoCarga,d.volumePorViagem].filter(Boolean).join(' | ').slice(0,300);
-      var observations=(marker+' '+[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ')).slice(0,1000);
-      cargo.appendRow([cargoId,new Date(),'A_ESCALAR',date,time,d.cliente,String(d.origemDetalhada||d.origem),String(d.destinoDetalhado||d.destino),weight,description,'','','','',observations,session.login||session.nome||'ADMIN',type,'','','']);
-    }
-    sh.getRange(row,c.ID_CARGA_GERADA).setValue(cargoId);sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
+    var categories=['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'];
+    var category=String(d.categoria||'PADRAO').toUpperCase();if(categories.indexOf(category)<0)category='PADRAO';
+    var client=ftSolText_(d.cliente,120);
+    var origin=ftSolText_(d.origemDetalhada||d.origem,160);
+    var destination=ftSolText_(d.destinoDetalhado||d.destino,160);
+    var operationName=ftSolText_(d.nomeOperacao,160)||[ftSolText_(d.produto,60),client,origin+' → '+destination].filter(Boolean).join(' — ').slice(0,160);
+    var observations=['[SOLICITACAO_ORIGEM:'+id+']',d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado'),d.dataEntregaTexto?'Entrega: '+d.dataEntregaTexto:''].filter(Boolean).join(' | ').slice(0,1000);
+    var operations=getSheet_('OPERACOES');
+    if(operations.getLastColumn()<16)throw new Error('A guia OPERACOES não possui as colunas atualizadas. Execute prepararBaseOperacionalFullTime().');
+    var operationId=Utilities.getUuid(),now=new Date();
+    operations.appendRow([operationId,now,'ABERTA',date,client,operationName,origin,destination,category,weight,planned,weight,observations,session.login||session.nome||'ADMIN',0,type]);
+    sh.getRange(row,c.ID_OPERACAO_GERADA).setValue(operationId);
+    sh.getRange(row,c.ATUALIZADO_EM).setValue(now);
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
-    hist.push(ftSolEvent_('CARGA_GERADA',session.login,'Carga '+cargoId+' criada a partir da solicitação aprovada.'));
+    hist.push(ftSolEvent_('OPERACAO_GERADA',session.login,'Operação '+operationId+' criada; '+planned+' viagem(ns) previstas.'));
     sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
-    return {ok:true,duplicada:false,idCarga:cargoId,message:'Carga criada com vínculo à solicitação '+id+'.'};
+    return {ok:true,duplicada:false,idOperacao:operationId,message:'Operação criada com vínculo à solicitação '+id+'; '+planned+' viagem(ns) previstas.'};
   }finally{lock.releaseLock();}
 }
