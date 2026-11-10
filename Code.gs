@@ -287,7 +287,7 @@ function arquivarGuiasLegadasFullTime() {
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não está configurado. Execute conectarPlanilhaOperacionalFullTime().');
   const ss=SpreadsheetApp.openById(registryId);
-  const names=['CAMINHOES','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','OFERTAS_CARGAS'];
+  const names=['CAMINHOES','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','OFERTAS_CARGAS','MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'];
   const archived=[];
   names.forEach(function(name){
     const sh=ss.getSheetByName(name);
