@@ -87,6 +87,25 @@ function PLANILHABRUNO_validarSincronizacaoV2() {
   Logger.log('FULL TIME — PLANILHABRUNO VALIDAÇÃO V2.2: '+JSON.stringify(out));
   return out;
 }
+/**
+ * Mantém a guia de entrada de solicitações com cabeçalhos idênticos nas duas planilhas.
+ * Apenas acrescenta ID_OPERACAO_GERADA ao fim; não move nem apaga colunas ou registros.
+ */
+function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
+  const origem=SpreadsheetApp.getActiveSpreadsheet();
+  const destino=SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
+  const nome='ENTRADA_OPERACOES_IA';
+  const so=origem.getSheetByName(nome), sd=destino.getSheetByName(nome);
+  if(!so||!sd)throw new Error('A guia '+nome+' precisa existir nas duas planilhas antes da atualização.');
+  if(!PLANILHABRUNO_headersV2_(so).some(Boolean)||!PLANILHABRUNO_headersV2_(sd).some(Boolean))throw new Error('Cabeçalhos ausentes em '+nome+'. Nenhuma alteração foi feita.');
+  const hs=PLANILHABRUNO_prepareHeadersV2_(so,PLANILHABRUNO_headersV2_(so).concat(['ID_OPERACAO_GERADA']));
+  const hd=PLANILHABRUNO_prepareHeadersV2_(sd,PLANILHABRUNO_headersV2_(sd).concat(['ID_OPERACAO_GERADA']));
+  const norm=a=>a.map(PLANILHABRUNO_normV2_);
+  const same=JSON.stringify(norm(hs))===JSON.stringify(norm(hd));
+  if(!same)throw new Error('As guias '+nome+' ainda têm cabeçalhos diferentes. O campo foi acrescentado sem excluir dados; revise a ordem antes de sincronizar solicitações.');
+  return {ok:true,guia:nome,colunas:hs.length,campoAdicionado:'ID_OPERACAO_GERADA',cabecalhosIdenticos:true};
+}
+
 function PLANILHABRUNO_sincronizarLoteTesteV2() {
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(30000))throw new Error('Já existe uma sincronização em andamento.');
@@ -158,7 +177,7 @@ function PLANILHABRUNO_sincronizarLoteTesteV2() {
       resumo.porGuia.push({origem:cfg.origem,destino:cfg.destino,registrosLote: p.source.length,inseridos:inserted,atualizados:updated,semAlteracao:unchanged,erros:errors});
     });
     resumo.sucesso=resumo.erros.length===0;
-    Logger.log('FULL TIME — PLANILHABRUNO SINCRONIZAÇÃO V2.1: '+JSON.stringify(resumo));
+    Logger.log('FULL TIME — PLANILHABRUNO SINCRONIZAÇÃO V2.2: '+JSON.stringify(resumo));
     return resumo;
   } finally { lock.releaseLock(); }
 }
