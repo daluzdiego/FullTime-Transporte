@@ -68,4 +68,4 @@ A rotina deve ser exercitada primeiro em uma cópia de homologação com dados f
 Executar localmente com Node.js 20 ou no GitHub Actions:
 `npm test`
 
-A suíte [0m não consome APIs pagas nem depende de dados reais. O teste de integração usa uma implementação simulada de planilhas e valida criação, vínculo de clientes, alocação entre lotes e bloqueio de duplicidade. Para a próxima etapa, criar uma cópia vazia de homologação, carregar massa fictícia e testar o fluxo completo no Apps Script antes de qualquer liberação.
+A suíte não consome APIs pagas nem depende de dados reais. O teste de integração usa uma implementação simulada de planilhas e valida criação, vínculo de clientes, alocação entre lotes e bloqueio de duplicidade. Para a próxima etapa, criar uma cópia vazia de homologação, carregar massa fictícia e testar o fluxo completo no Apps Script antes de qualquer liberação.
