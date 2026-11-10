@@ -4,16 +4,29 @@
  * EXIGENCIAS aceita JSON com minCapacityT, maxCapacityT, allowedTrailerTypes,
  * capacityPreference e requireValidatedDocuments.
  */
-function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
+function ftSelecionarCandidatosCompativeis_(operacaoId, limite, loteId) {
   const opSh=getSheet_('OPERACOES'), opRows=opSh.getDataRange().getValues(), om=ftHeaderMapViagens_(opSh);
   const op=opRows.slice(1).find(r=>String(r[om.ID])===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const originId=String(op[om.LOCALORIGEMID]||'');
+  let lot=null,lotMap=null,originId=String(op[om.LOCALORIGEMID]||'');
+  if(loteId){
+    const lotSh=getSheet_('LOTES_OPERACAO'),lotRows=lotSh.getDataRange().getValues();lotMap=ftHeaderMapViagens_(lotSh);
+    lot=lotRows.slice(1).find(r=>String(r[lotMap.ID])===String(loteId)&&String(r[lotMap.OPERACAOID])===String(operacaoId));
+    if(!lot)throw new Error('Lote não encontrado nesta operação.');
+    const localSh=getSheet_('LOCAIS'),localRows=localSh.getDataRange().getValues(),localMap=ftHeaderMapViagens_(localSh);
+    const local=localRows.slice(1).find(r=>String(r[localMap.CLIENTEID]||'')===String(lot[lotMap.CLIENTEID]||'')&&String(r[localMap.NOMELOCAL]||'').trim().toUpperCase()===String(lot[lotMap.ORIGEM]||'').trim().toUpperCase()&&String(r[localMap.STATUS]||'').toUpperCase()==='ATIVO');
+    if(!local)throw new Error('Cadastre e ative o local de origem deste lote antes de selecionar candidatos.');
+    originId=String(local[localMap.ID]||'');
+  }
   const ruleSh=getSheet_('REGRAS_OPERACIONAIS'), ruleRows=ruleSh.getDataRange().getValues(), rm=ftHeaderMapViagens_(ruleSh);
   const rule=ruleRows.slice(1).find(r=>String(r[rm.LOCALID]||'')===originId&&String(r[rm.STATUS]||'').toUpperCase()==='ATIVO');
-  if(!rule) throw new Error('A operação não possui regras operacionais ativas vinculadas ao local de origem.');
+  if(!rule) throw new Error('Não existe regra operacional ativa vinculada ao local de origem.');
   let criteria={};
   try { criteria=JSON.parse(String(rule[rm.EXIGENCIAS]||'{}')); } catch(e) { criteria={}; }
+  if(lot){
+    let lotCriteria={};try{lotCriteria=JSON.parse(String(lot[lotMap.PARTICULARIDADESJSON]||'{}'));}catch(e){}
+    criteria=Object.assign({},criteria,lotCriteria);
+  }
   const min=Number(criteria.minCapacityT||0), max=Number(criteria.maxCapacityT||Number.MAX_SAFE_INTEGER);
   const allowedRaw=criteria.allowedTrailerTypes||String(rule[rm.TIPOCARRETA]||'').split('|').filter(Boolean);
   const allowed=(Array.isArray(allowedRaw)?allowedRaw:[allowedRaw]).map(x=>String(x).trim().toUpperCase()).filter(Boolean);
@@ -24,12 +37,12 @@ function ftSelecionarCandidatosCompativeis_(operacaoId, limite) {
   trailers.slice(1).forEach(r=>trailerById[String(r[0])]=r);
   const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
   const partSh=getSheet_('PARTICIPACAO_OPERACOES'), partRows=partSh.getDataRange().getValues(), pm=ftHeaderMapViagens_(partSh);
-  const busySets=new Set(partRows.slice(1).filter(r=>String(r[pm.STATUSPARTICIPACAO]||'').toUpperCase()==='ATIVO').map(r=>String(r[pm.CONJUNTOID])));
-  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const busySets=new Set(partRows.slice(1).filter(r=>String(r[pm.STATUSPARTICIPACAO]||'').toUpperCase()==='ATIVO'&&(!loteId||String(r[pm.OPERACAOID])!==String(operacaoId)||String(r[pm.LOTEID]||'')===String(loteId))).map(r=>String(r[pm.CONJUNTOID])));
+  const operationDay=op[om.DATAOPERACAO] instanceof Date?Utilities.formatDate(op[om.DATAOPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op[om.DATAOPERACAO]||'').slice(0,10);
   const dayKey=v=>{if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');const d=new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(v||'').slice(0,10);};
   const availSh=getSheet_('DISPONIBILIDADE_DIARIA'), availRows=availSh.getDataRange().getValues(), am=ftHeaderMapViagens_(availSh);
   const availabilityByDriver={};
-  availRows.slice(1).forEach(r=>{if(dayKey(r[am.DATAOPERACAO])===today)availabilityByDriver[String(r[am.MOTORISTAID]||'')]=String(r[am.STATUSDISPONIBILIDADE]||'').toUpperCase();});
+  availRows.slice(1).forEach(r=>{if(dayKey(r[am.DATAOPERACAO])===operationDay)availabilityByDriver[String(r[am.MOTORISTAID]||'')]=String(r[am.STATUSDISPONIBILIDADE]||'').toUpperCase();});
   const docsSh=getSheet_('CONTROLE_DOCUMENTAL'), docs=docsSh.getDataRange().getValues(), dm=ftHeaderMapViagens_(docsSh);
   const docsByEntity={};
   docs.slice(1).forEach(r=>{const k=String(r[dm.IDEXTERNOREGISTRO]||'');(docsByEntity[k]||(docsByEntity[k]=[])).push(String(r[dm.STATUSDOCUMENTO]||'').toUpperCase());});
@@ -146,4 +159,11 @@ function responderConviteOperacaoFullTime(token, ofertaId, decisao, motivo) {
     eventSh.appendRow([Utilities.getUuid(),now,action==='ACEITAR'?'CONVITE_ACEITO':'CONVITE_RECUSADO',String(row[om.OPERACAOID]||''),'',String(session.motoristaId),String(row[om.CONJUNTOID]||''),action==='RECUSAR'?why:(test?'Aceite de homologação; viagens ainda não alocadas.':'Aceite; viagens ainda não alocadas.'),String(session.login||'MOTORISTA')]);
     return {ok:true,status:status,mensagem:action==='ACEITAR'?'Aceite registrado. A alocação das viagens ainda será feita pela administração.':'Recusa registrada com sucesso.'};
   }finally{lock.releaseLock();}
+}
+
+
+function ordenarCandidatosLoteOperacaoFullTime(token, operacaoId, loteId) {
+  const session=obterSessao_(token); exigirAdmin_(session);
+  if(!loteId)throw new Error('Informe o lote para selecionar candidatos.');
+  return ftSelecionarCandidatosCompativeis_(String(operacaoId||''),10,String(loteId));
 }
