@@ -359,7 +359,7 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
   const mapa = { CONJUNTOS: 3 };
-  if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
+  if (!mapa[entidade] && ['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(entidade) === -1) throw new Error('Tipo de cadastro inválido.');
   if (!id) throw new Error('Identificador do cadastro não informado.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
 
