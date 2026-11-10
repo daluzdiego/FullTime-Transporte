@@ -277,7 +277,7 @@
         const dt=x.criadoEm?new Date(x.criadoEm):null,dateLabel=dt&&isFinite(dt.getTime())?dt.toLocaleString('pt-BR'):'—';
         const status=String(x.status||'RECEBIDA'),labels={RECEBIDA:'Recebida',AGUARDANDO_IA:'Aguardando IA',EM_COLETA:'Em coleta',AGUARDANDO_APROVACAO:'Aguardando aprovação',APROVADA:'Aprovada',RECUSADA:'Recusada',AJUSTE_SOLICITADO:'Ajuste solicitado'};
         const msg=String(x.textoOriginal||''),preview=msg.length>150?msg.slice(0,150)+'…':msg;
-        return '<tr><td>'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:220px;white-space:normal">'+esc(preview)+'</td><td>'+esc(labels[status]||status)+'</td><td><button class="btn btn-secondary" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(x.id)+'\')">Revisar</button> <button class="btn btn-secondary" onclick="analisarSolicitacaoIAFullTime(\''+esc(x.id)+'\')">IA</button>'+(status==='APROVADA'&&!x.idCargaGerada?' <button class="btn btn-primary" onclick="converterSolicitacaoFullTime(\''+esc(x.id)+'\')">Gerar carga</button>':'')+(x.idCargaGerada?' <span class="muted small">Carga '+esc(x.idCargaGerada)+'</span>':'')+'</td></tr>';
+        return '<tr><td>'+esc(dateLabel)+'</td><td>'+esc(String(x.canal||'—').replace(/_/g,' '))+'</td><td style="min-width:220px;white-space:normal">'+esc(preview)+'</td><td>'+esc(labels[status]||status)+'</td><td><button class="btn btn-secondary" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(x.id)+'\')">Revisar</button> <button class="btn btn-secondary" onclick="analisarSolicitacaoIAFullTime(\''+esc(x.id)+'\')">IA</button>'+(status==='APROVADA'&&!(x.idOperacaoGerada||x.idCargaGerada)?' <button class="btn btn-primary" onclick="converterSolicitacaoFullTime(\''+esc(x.id)+'\')">Gerar operação</button>':'')+(x.idCargaGerada?' <span class="muted small">Registro '+esc(x.idOperacaoGerada||x.idCargaGerada)+'</span>':'')+'</td></tr>';
       }).join('')+'</tbody></table></div>';
   }
   function carregarSolicitacoesFullTime(){
@@ -316,8 +316,8 @@
     const obs=prompt('Observação (opcional):')||'';
     google.script.run.withSuccessHandler(res=>{toast(res.message||'Status atualizado.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Não foi possível alterar o status.',true)).atualizarStatusSolicitacaoFullTime(authToken,id,status,obs);
   }
-  function aprovarSolicitacaoUI(id){if(!confirm('Aprovar esta solicitação? Isso não cria uma carga automaticamente.'))return;alterarStatusSolicitacaoUI(id,'APROVADA');}
-  function converterSolicitacaoFullTime(id){if(!confirm('Gerar carga definitiva com os dados aprovados?'))return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Carga gerada.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao gerar carga.',true)).converterSolicitacaoEmCargaFullTime(authToken,id);}
+  function aprovarSolicitacaoUI(id){if(!confirm('Aprovar esta solicitação? A operação só será criada quando você confirmar “Gerar operação”.'))return;alterarStatusSolicitacaoUI(id,'APROVADA');}
+  function converterSolicitacaoFullTime(id){if(!confirm('Gerar operação definitiva com os dados aprovados?'))return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação gerada.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao gerar operação.',true)).converterSolicitacaoEmOperacaoFullTime(authToken,id);}
 
   function analisarSolicitacaoIAFullTime(id){
     const host=document.getElementById('solAnaliseResultado');
@@ -537,7 +537,7 @@
           <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
           <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
-          <div class="field"><label>Categoria *</label><select name="categoria" required><option value="">Selecione</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
+          <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
           <div class="field"><label>Número previsto de viagens *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
