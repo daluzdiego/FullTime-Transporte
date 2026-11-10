@@ -617,16 +617,14 @@ function listarOperacoesFullTime(token) {
     const legado = String(r[6] || '').toUpperCase() === 'SIM' ? 1 : 0;
     viagensPorOperacao[id] = (viagensPorOperacao[id] || 0) + (quantidade > 0 ? quantidade : legado);
   });
-  return listarRegistros_('OPERACOES').map(function(r) {
-    const f = r.campos;
-    const previstas = Math.max(0, Math.floor(Number(f[7] || 0)));
-    const realizadas = Math.max(0, Math.floor(Number(f[11] || viagensPorOperacao[r.id] || 0)));
-    return Object.assign({}, r, {
-      data:f[0]||'', cliente:f[1]||'', nome:f[2]||'', origem:f[3]||'', destino:f[4]||'',
-      categoria:f[5]||'', volumeTotal:Number(f[6]||0), viagensPrevistas:previstas, tipoOperacao:f[12]||'OUTRA',
-      viagensRealizadas:realizadas, viagensRestantes:Math.max(0,previstas-realizadas),
-      saldo:Number(f[8]||0), observacoes:f[9]||'', criadoPor:f[10]||''
-    });
+  const sh=getSheet_('OPERACOES'), grid=sh.getDataRange().getValues(), headers=grid[0].map(h=>String(h||'').trim().toUpperCase()), ix={};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  const val=(row,key)=>ix[key]===undefined?'':row[ix[key]];
+  return grid.slice(1).filter(row=>String(val(row,'ID')||'').trim()).map(row=>{
+    const id=String(val(row,'ID')),legacy=listarRegistros_('OPERACOES').find(x=>String(x.id)===id)||{id,campos:[],status:String(val(row,'STATUS')||'')};
+    const previstas=Math.max(0,Math.floor(Number(val(row,'TOTAL_VIAGENS_PREVISTAS')||0)));
+    const realizadas=Math.max(0,Math.floor(Number(val(row,'VIAGENS_REALIZADAS')||val(row,'TOTAL_VIAGENS_CONCLUIDAS')||viagensPorOperacao[id]||0)));
+    return Object.assign({},legacy,{data:val(row,'DATA_OPERACAO'),cliente:val(row,'CLIENTE'),nome:val(row,'NOME_OPERACAO'),origem:val(row,'ORIGEM'),destino:val(row,'DESTINO'),categoria:val(row,'CATEGORIA'),volumeTotal:Number(val(row,'VOLUME_TOTAL_TONELADAS')||0),viagensPrevistas:previstas,tipoOperacao:val(row,'TIPO_OPERACAO')||'OUTRA',viagensRealizadas:realizadas,viagensRestantes:Math.max(0,previstas-realizadas),saldo:Number(val(row,'SALDO_TONELADAS')||0),observacoes:val(row,'OBSERVACOES'),criadoPor:val(row,'CRIADO_POR'),produto:val(row,'PRODUTO_SERVICO'),distanciaKm:Number(val(row,'DISTANCIA_KM')||0),prazoEntrega:val(row,'DATA_ENTREGA'),janelaInicio:val(row,'JANELA_INICIO'),janelaFim:val(row,'JANELA_FIM'),tempoEstimadoHoras:Number(val(row,'TEMPO_ESTIMADO_HORAS')||0)});
   });
 }
 function salvarOperacaoFullTime(token, data) {
@@ -635,6 +633,14 @@ function salvarOperacaoFullTime(token, data) {
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
   const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
+  const produto=texto_(data.produto,160), distanciaKm=Number(String(data.distanciaKm||'').replace(',','.'));
+  const dataEntrega=texto_(data.dataEntrega,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
+  const tempoEstimadoHoras=Number(String(data.tempoEstimadoHoras||'').replace(',','.'));
+  if(data.distanciaKm!=='' && data.distanciaKm!=null && !(distanciaKm>0&&isFinite(distanciaKm))) throw new Error('A distância deve ser informada em quilômetros e ser maior que zero.');
+  if(dataEntrega && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dataEntrega)) throw new Error('Informe uma data de entrega válida.');
+  if(janelaInicio && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaInicio)) throw new Error('Horário inicial inválido.');
+  if(janelaFim && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaFim)) throw new Error('Horário final inválido.');
+  if(data.tempoEstimadoHoras!=='' && data.tempoEstimadoHoras!=null && !(tempoEstimadoHoras>0&&isFinite(tempoEstimadoHoras))) throw new Error('O tempo estimado deve ser maior que zero.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
   if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
   if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
@@ -644,7 +650,7 @@ function salvarOperacaoFullTime(token, data) {
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
   if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
-  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao});
+  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
   return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
