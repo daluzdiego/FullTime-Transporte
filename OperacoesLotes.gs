@@ -55,6 +55,18 @@ function prepararEstruturaLotesFullTime(token, confirmar) {
   } else {
     resultado.push({guia:'PARTICIPACAO_OPERACOES',acao:'EXISTENTE_COMPATIVEL',coluna:'LOTE_ID'});
   }
+  ['PARTICIPACAO_OPERACOES','VIAGENS'].forEach(function(name){
+    const sh=getSheet_(name),width=sh.getLastColumn();
+    const headers=width?sh.getRange(1,1,1,width).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+    const field='LOTE_ID';
+    if(!headers.length||headers.every(v=>!v)){
+      resultado.push({guia:name,acao:'INCOMPATIVEL',motivo:'Guia sem cabeçalho; não foi possível migrar '+field+'.'});
+    } else if(headers.indexOf(field)<0) {
+      resultado.push({guia:name,acao:'ADICIONAR_COLUNA',coluna:field,preservaDados:true});
+    } else {
+      resultado.push({guia:name,acao:'EXISTENTE_COMPATIVEL',coluna:field});
+    }
+  });
   const bloqueios = resultado.filter(x=>x.acao==='INCOMPATIVEL');
   if (bloqueios.length) return {ok:false,previa:true,alterado:false,guias:resultado,bloqueios:bloqueios};
   if (confirmar !== true) return {ok:true,previa:true,alterado:false,guias:resultado,message:'Prévia concluída. Nenhuma guia ou coluna foi criada.'};
@@ -66,14 +78,17 @@ function prepararEstruturaLotesFullTime(token, confirmar) {
     sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
     criadas.push(item.guia);
   });
-  let colunaAdicionada=false;
-  if(resultado.some(x=>x.guia==='PARTICIPACAO_OPERACOES'&&x.acao==='ADICIONAR_COLUNA')){
-    participation.insertColumnAfter(participationWidth);
-    participation.getRange(1,participationWidth+1).setValue('LOTE_ID');
-    colunaAdicionada=true;
-  }
-  auditar_(session,'PREPARAR_ESTRUTURA_LOTES','SISTEMA','', 'Guias criadas: '+(criadas.join(', ')||'nenhuma')+'; LOTE_ID adicionado: '+colunaAdicionada);
-  return {ok:true,previa:false,alterado:criadas.length>0||colunaAdicionada,criadas:criadas,colunaAdicionada:colunaAdicionada,guias:resultado,message:'Estrutura preparada sem excluir ou reescrever dados existentes. A coluna LOTE_ID, quando necessária, foi adicionada ao final.'};
+  const colunasAdicionadas=[];
+  ['PARTICIPACAO_OPERACOES','VIAGENS'].forEach(function(name){
+    const item=resultado.find(x=>x.guia===name&&x.acao==='ADICIONAR_COLUNA');
+    if(!item)return;
+    const sh=getSheet_(name),width=sh.getLastColumn();
+    sh.insertColumnAfter(width);
+    sh.getRange(1,width+1).setValue('LOTE_ID');
+    colunasAdicionadas.push(name+'.LOTE_ID');
+  });
+  auditar_(session,'PREPARAR_ESTRUTURA_LOTES','SISTEMA','', 'Guias criadas: '+(criadas.join(', ')||'nenhuma')+'; colunas adicionadas: '+(colunasAdicionadas.join(', ')||'nenhuma'));
+  return {ok:true,previa:false,alterado:criadas.length>0||colunasAdicionadas.length>0,criadas:criadas,colunasAdicionadas:colunasAdicionadas,guias:resultado,message:'Estrutura preparada sem excluir ou reescrever dados existentes. As colunas relacionais foram adicionadas ao final.'};
 }
 
 function ftLotesParseJson_(value, label) {
