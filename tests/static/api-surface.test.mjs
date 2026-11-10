@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const code = readFileSync(new URL('../../Code.gs', import.meta.url), 'utf8');
+const lots = readFileSync(new URL('../../OperacoesLotes.gs', import.meta.url), 'utf8');
+const backend = code + '\\n' + lots;
 const html = readFileSync(new URL('../../Index.html', import.meta.url), 'utf8');
 
-const declarations = [...code.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/gm)]
+const declarations = [...backend.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/gm)]
   .map(match => ({ name: match[1], args: match[2].trim(), index: match.index }));
 
 const declaredNames = new Set(declarations.map(item => item.name));
