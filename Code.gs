@@ -251,28 +251,22 @@ function trocarSenhaInicial(token, novaSenha) {
 function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
-  const cargas = listarCargasFullTime_();
-  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
     documentos: ftBrunoRowsAsLegacy_('DOCUMENTOS').map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))})),
-    caminhoes: listarRegistros_('CAMINHOES'),
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
     conjuntos: listarRegistros_('CONJUNTOS'),
-    operacoes: listarRegistros_('OPERACOES'),
+    operacoes: listarOperacoesFullTime(token),
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
-    cargas: cargas,
     locais: listarRegistros_('LOCAIS'),
     counts: {
       motoristas: contarAtivos_('MOTORISTAS'),
-      caminhoes: contarAtivos_('CAMINHOES'),
-      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAMINHOES', 'PENDENTE_REVISAO'),
-      cargasFuturas: cargas.filter(c => c.data >= hoje && ['PROGRAMADA','A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length,
-      aCarregar: cargas.filter(c => c.status === 'AGUARDANDO_CARREGAMENTO').length,
-      emAndamento: cargas.filter(c => ['CARREGADA','EM_TRANSITO','AGUARDANDO_DESCARGA'].indexOf(c.status) !== -1).length,
-      semEscala: cargas.filter(c => ['A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length
+      cavalos: contarAtivos_('CAVALOS'),
+      carretas: contarAtivos_('CARRETAS'),
+      conjuntos: contarAtivos_('CONJUNTOS'),
+      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAVALOS', 'PENDENTE_REVISAO') + contarStatus_('CARRETAS', 'PENDENTE_REVISAO')
     }
   };
 }
@@ -464,9 +458,9 @@ function prepararBaseOperacionalFullTime() {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
-    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR'],
+    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],
@@ -484,6 +478,10 @@ function prepararBaseOperacionalFullTime() {
     const headers = schemas[name];
     const oldWidth = sh.getLastColumn();
     const row = oldWidth ? sh.getRange(1,1,1,oldWidth).getDisplayValues()[0].map(v => String(v || '').trim()) : [];
+    if (name === 'OPERACOES' && row[10] === 'TOTAL_CARGAS_PREVISTAS') {
+      sh.getRange(1,11).setValue('TOTAL_VIAGENS_PREVISTAS');
+      row[10] = 'TOTAL_VIAGENS_PREVISTAS';
+    }
     if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
@@ -1062,35 +1060,54 @@ function motoristasSemConfirmacaoDiariaFullTime(motoristas, confirmacoes, dataIS
  */
 function listarOperacoesFullTime(token) {
   const session = obterSessao_(token); exigirAdmin_(session);
+  const movimentos = getSheet_('MOVIMENTACOES_OPERACAO').getDataRange().getValues();
+  const viagensPorOperacao = {};
+  movimentos.slice(1).forEach(function(r) {
+    const id = String(r[2] || '');
+    if (!id) return;
+    const quantidade = Math.floor(Number(r[9] || 0));
+    const legado = String(r[6] || '').toUpperCase() === 'SIM' ? 1 : 0;
+    viagensPorOperacao[id] = (viagensPorOperacao[id] || 0) + (quantidade > 0 ? quantidade : legado);
+  });
   return listarRegistros_('OPERACOES').map(function(r) {
     const f = r.campos;
-    return {id:r.id,criado:r.criado,status:r.status,data:f[0]||'',cliente:f[1]||'',nome:f[2]||'',origem:f[3]||'',destino:f[4]||'',categoria:f[5]||'',volumeTotal:Number(f[6]||0),cargasPrevistas:Number(f[7]||0),saldo:Number(f[8]||0),observacoes:f[9]||'',criadoPor:f[10]||''};
+    const previstas = Math.max(0, Math.floor(Number(f[7] || 0)));
+    const realizadas = Math.max(0, Math.floor(Number(f[11] || viagensPorOperacao[r.id] || 0)));
+    return Object.assign({}, r, {
+      data:f[0]||'', cliente:f[1]||'', nome:f[2]||'', origem:f[3]||'', destino:f[4]||'',
+      categoria:f[5]||'', volumeTotal:Number(f[6]||0), viagensPrevistas:previstas,
+      viagensRealizadas:realizadas, viagensRestantes:Math.max(0,previstas-realizadas),
+      saldo:Number(f[8]||0), observacoes:f[9]||'', criadoPor:f[10]||''
+    });
   });
 }
 function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), cargas=Math.floor(Number(data.cargasPrevistas));
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
   if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
   if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(cargas>0&&cargas<=100000)) throw new Error('Informe a quantidade prevista de cargas.');
+  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
-  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,cargas,volume,observacoes,session.login]);
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; cargas='+cargas);
-  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t.'};
+  const sh=getSheet_('OPERACOES');
+  if(sh.getLastColumn()<15) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
+  sh.appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagensPrevistas,volume,observacoes,session.login,0]);
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
+  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
-  const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
-  const viagemConcluida=data.viagemConcluida===true||String(data.viagemConcluida)==='true';
+  const toneladas=Number(String(data.toneladas||'').replace(',','.'));
+  const viagens=Math.floor(Number(data.viagens||0));
   const observacoes=texto_(data.observacoes,1000);
   if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
   if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
+  if(!(viagens>0&&viagens<=10000)) throw new Error('Informe a quantidade de viagens concluídas nesta movimentação.');
   const lock=LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
@@ -1109,16 +1126,19 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
     const partId=String(part[0]);
     const moveId=Utilities.getUuid();
-    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
+    const movimentos=getSheet_('MOVIMENTACOES_OPERACAO');
+    if(movimentos.getLastColumn()<10 || ops.getLastColumn()<15) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
+    movimentos.appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,'SIM',observacoes,session.login,viagens]);
     const novoSaldo=Math.max(0,saldo-toneladas);
     ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
     ops.getRange(idx+1,12).setValue(novoSaldo);
     const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
     const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
     parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
-    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+(viagemConcluida?1:0));
-    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
+    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+viagens);
+    ops.getRange(idx+1,15).setValue(Math.max(0,Math.floor(Number(op[14]||0)))+viagens);
+    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
+    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:Math.max(0,Math.floor(Number(op[14]||0)))+viagens,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
 }
 function alterarEstadoConjuntoFullTime(token, data) {
