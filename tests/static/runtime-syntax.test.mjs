@@ -29,9 +29,7 @@ test('scripts inline da interface compilam sem erro de sintaxe', () => {
     .filter(source => source.trim());
   assert.ok(scripts.length > 0, 'Nenhum script inline encontrado na interface.');
   for (let i = 0; i < scripts.length; i++) {
-    assert.doesNotThrow(
-      () => new vm.Script(scripts[i], { filename: 'Index-inline-' + i + '.js' }),
-      'Erro de sintaxe no script inline ' + i
-    );
+    try { new vm.Script(scripts[i], { filename: 'Index-inline-' + i + '.js' }); }
+    catch (error) { throw new Error('Erro de sintaxe no script inline ' + i + ': ' + error.stack); }
   }
 });
