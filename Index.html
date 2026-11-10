@@ -723,10 +723,84 @@
           <div class="field span-2"><label>Observações e requisitos operacionais</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
+      <div class="panel form-panel"><div class="panel-head"><div><h2>Operação avançada — clientes e lotes</h2><p class="muted small">Uma operação pode reunir vários clientes e vários lotes, cada um com suas próprias condições.</p></div><button type="button" class="btn btn-secondary" onclick="prepararEstruturaLotesUI()">Preparar guias de lotes</button></div><div class="panel-body">
+        <form id="operacaoLotesForm" onsubmit="saveOperacaoComLotesUI(event)">
+          <div class="form-grid">
+            <div class="field"><label>Data de início *</label><input name="data" type="date" required></div>
+            <div class="field span-2"><label>Nome da operação *</label><input name="nome" maxlength="160" required placeholder="Nome próprio desta operação"></div>
+            <div class="field span-2"><label>Particularidades gerais (JSON opcional)</label><textarea name="particularidades" rows="2" placeholder='{"liberacao":"conforme terminal"}'></textarea></div>
+          </div>
+          <div class="field"><label>Clientes participantes *</label><div class="form-grid">\${(dashboard?.clientes||[]).filter(x=>x.status==='ATIVO').map(x=>'<label class="check-row"><input type="checkbox" name="clientesSelecionados" value="'+esc(x.id)+'"> '+esc(x.campos[1]||x.campos[0])+'</label>').join('')||'<span class="muted">Cadastre clientes ativos antes de criar a operação.</span>'}</div></div>
+          <div class="panel-head" style="margin-top:18px"><h3>Lotes</h3><button type="button" class="btn btn-secondary" onclick="adicionarLoteOperacaoUI()">+ Adicionar lote</button></div>
+          <div id="operacaoLotesRows">\${renderLoteOperacaoUI(0)}</div>
+          <div id="operacaoLotesError" class="error"></div>
+          <div class="form-actions"><button id="saveOperacaoLotesButton" class="btn btn-primary" type="submit">Salvar operação com lotes</button></div>
+        </form>
+      </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Concluídas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
       ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="btn btn-primary" onclick="notificarCandidatosOperacao('${esc(o.id)}')">Notificar 10 candidatos</button> <button class="icon-btn" title="Abrir viagens da operação" onclick="showViagensOperacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
+  }
+  function renderLoteOperacaoUI(index){
+    const clients=(dashboard?.clientes||[]).filter(x=>x.status==='ATIVO');
+    const options=clients.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.campos[1]||x.campos[0])+'</option>').join('');
+    return '<div class="panel" data-lote-row="'+index+'"><div class="panel-head"><strong>Lote '+(index+1)+'</strong><button type="button" class="btn btn-secondary" onclick="this.closest(\\'[data-lote-row]\\').remove()">Remover</button></div><div class="panel-body"><div class="form-grid">'+
+      '<div class="field"><label>Código</label><input data-field="codigo" maxlength="60"></div>'+
+      '<div class="field"><label>Cliente responsável *</label><select data-field="clienteId" required><option value="">Selecione</option>'+options+'</select></div>'+
+      '<div class="field"><label>Nome do lote</label><input data-field="nome" maxlength="120"></div>'+
+      '<div class="field"><label>Produto / material</label><input data-field="produtoServico" maxlength="120"></div>'+
+      '<div class="field"><label>Origem *</label><input data-field="origem" maxlength="160" required></div>'+
+      '<div class="field"><label>Destino *</label><input data-field="destino" maxlength="160" required></div>'+
+      '<div class="field"><label>Volume previsto (t) *</label><input data-field="volumePrevisto" type="number" min="0.01" step="0.01" required></div>'+
+      '<div class="field"><label>Vagas ofertadas</label><input data-field="vagasOfertadas" type="number" min="0" step="1" value="0"></div>'+
+      '<div class="field"><label>Motoristas planejados</label><input data-field="motoristasPlanejados" type="number" min="0" step="1" value="0"></div>'+
+      '<div class="field"><label>Janela inicial</label><input data-field="janelaInicio" type="time"></div>'+
+      '<div class="field"><label>Janela final</label><input data-field="janelaFim" type="time"></div>'+
+      '<div class="field span-2"><label>Particularidades do lote (JSON opcional)</label><textarea data-field="particularidades" rows="2" placeholder="{}"></textarea></div>'+
+      '</div></div></div>';
+  }
+  function adicionarLoteOperacaoUI(){
+    const root=document.getElementById('operacaoLotesRows');
+    root.insertAdjacentHTML('beforeend',renderLoteOperacaoUI(root.querySelectorAll('[data-lote-row]').length));
+  }
+  function prepararEstruturaLotesUI(){
+    if(!confirm('Verificar e criar somente as guias ausentes? Guias existentes e seus dados serão preservados.'))return;
+    toast('Verificando estrutura das guias...');
+    google.script.run.withSuccessHandler(res=>{
+      if(!res.ok){toast((res.bloqueios||[]).map(x=>x.guia+': '+x.motivo).join(' | ')||res.message,true);return;}
+      toast(res.message||'Estrutura preparada.');
+    }).withFailureHandler(e=>toast(e.message||'Falha ao preparar guias.',true)).prepararEstruturaLotesFullTime(authToken,true);
+  }
+  function saveOperacaoComLotesUI(ev){
+    ev.preventDefault();
+    const form=ev.currentTarget,btn=document.getElementById('saveOperacaoLotesButton'),err=document.getElementById('operacaoLotesError');
+    const selected=[...form.querySelectorAll('[name="clientesSelecionados"]:checked')].map(x=>x.value);
+    const rows=[...form.querySelectorAll('[data-lote-row]')];
+    if(!selected.length){err.textContent='Selecione ao menos um cliente participante.';return;}
+    if(!rows.length){err.textContent='Adicione ao menos um lote.';return;}
+    const readJson=(value,label)=>{
+      if(!value.trim())return {};
+      let parsed;try{parsed=JSON.parse(value);}catch(e){throw new Error(label+' deve ser um JSON válido.');}
+      if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw new Error(label+' deve ser um objeto JSON.');
+      return parsed;
+    };
+    try{
+      const data=Object.fromEntries(new FormData(form).entries());
+      data.clientes=selected;
+      data.particularidades=readJson(data.particularidades||'','Particularidades gerais');
+      data.lotes=rows.map((row,i)=>{
+        const value=key=>row.querySelector('[data-field="'+key+'"]')?.value||'';
+        const clienteId=value('clienteId');
+        if(!selected.includes(clienteId))throw new Error('O cliente do lote '+(i+1)+' precisa estar marcado como participante.');
+        return {codigo:value('codigo'),clienteId,nome:value('nome'),produtoServico:value('produtoServico'),origem:value('origem'),destino:value('destino'),volumePrevisto:value('volumePrevisto'),vagasOfertadas:value('vagasOfertadas'),motoristasPlanejados:value('motoristasPlanejados'),janelaInicio:value('janelaInicio'),janelaFim:value('janelaFim'),particularidades:readJson(value('particularidades'),'Particularidades do lote '+(i+1))};
+      });
+      btn.disabled=true;btn.textContent='Salvando operação...';err.textContent='';
+      google.script.run.withSuccessHandler(res=>{
+        toast(res.message||'Operação criada.');
+        google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
+      }).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Salvar operação com lotes';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoComLotesFullTime(authToken,data);
+    }catch(e){err.textContent=e.message||'Revise os dados informados.';}
   }
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
