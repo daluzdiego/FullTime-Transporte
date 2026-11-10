@@ -4,7 +4,7 @@
  * Usa somente ENTRADA_OPERACOES_IA na base operacional.
  * Não acessa nem enumera guias da planilha do Bruno.
  */
-const FT_SOL_REQUESTS_CFG = {
+const FT_SOLICITACOES_CFG_V20261110 = {
   SHEET: 'ENTRADA_OPERACOES_IA',
   HEADERS: ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO','CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA','ATUALIZADO_EM','HISTORICO_JSON','ID_OPERACAO_GERADA'],
   CHANNELS: ['WHATSAPP_OFICIAL','WHATSAPP_PESSOAL_ENCAMINHADO','PAINEL','EMAIL','TELEFONE','OUTRO'],
@@ -14,14 +14,14 @@ const FT_SOL_REQUESTS_CFG = {
 function ftSolSheet_() {
   var id = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if (!id) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
-  var sh = SpreadsheetApp.openById(id).getSheetByName(FT_SOL_REQUESTS_CFG.SHEET);
+  var sh = SpreadsheetApp.openById(id).getSheetByName(FT_SOLICITACOES_CFG_V20261110.SHEET);
   if (!sh) throw new Error('A guia ENTRADA_OPERACOES_IA não existe na base operacional.');
   ftSolEnsureHeaders_(sh);
   return sh;
 }
 
 function ftSolEnsureHeaders_(sh) {
-  var h = FT_SOL_REQUESTS_CFG.HEADERS, width = Math.max(sh.getLastColumn(), 1);
+  var h = FT_SOLICITACOES_CFG_V20261110.HEADERS, width = Math.max(sh.getLastColumn(), 1);
   var current = sh.getRange(1,1,1,width).getDisplayValues()[0];
   if (!current.some(function(v){return String(v || '').trim();})) {
     sh.getRange(1,1,1,h.length).setValues([h]); sh.setFrozenRows(1); return;
@@ -64,7 +64,7 @@ function ftSolCreate_(payload,author) {
   var original=ftSolText_(payload.texto,12000);
   if(!original) throw new Error('O texto original da solicitação é obrigatório.');
   var channel=ftSolText_(payload.canal || 'PAINEL',50).toUpperCase();
-  if(FT_SOL_REQUESTS_CFG.CHANNELS.indexOf(channel)<0) channel='OUTRO';
+  if(FT_SOLICITACOES_CFG_V20261110.CHANNELS.indexOf(channel)<0) channel='OUTRO';
   var source=ftSolText_(payload.identificadorOrigem,180);
   var key=ftSolText_(payload.chaveIdempotencia,180);
   if(!key) {
@@ -153,7 +153,7 @@ function adicionarMensagemSolicitacaoFullTime(token,id,mensagem,canal) {
 /** Atualiza triagem/aprovação. Não cria OPERACOES nem CARGAS nesta fase. */
 function atualizarStatusSolicitacaoFullTime(token,id,status,observacao) {
   var session=obterSessao_(token); exigirAdmin_(session);
-  if(FT_SOL_REQUESTS_CFG.STATUSES.indexOf(status)<0 || status==='RECEBIDA') throw new Error('Status de destino inválido.');
+  if(FT_SOLICITACOES_CFG_V20261110.STATUSES.indexOf(status)<0 || status==='RECEBIDA') throw new Error('Status de destino inválido.');
   var sh=ftSolSheet_(), c=ftSolCols_(sh), lock=LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -178,7 +178,7 @@ function atualizarStatusSolicitacaoFullTime(token,id,status,observacao) {
 
 function diagnosticarNucleoSolicitacoesFullTime() {
   var sh=ftSolSheet_();
-  return {ok:true,guia:FT_SOL_REQUESTS_CFG.SHEET,colunas:sh.getLastColumn(),registros:Math.max(0,sh.getLastRow()-1),canaisPreparados:FT_SOL_REQUESTS_CFG.CHANNELS.slice(),webhookAtivo:false,criaOperacaoDefinitiva:false};
+  return {ok:true,guia:FT_SOLICITACOES_CFG_V20261110.SHEET,colunas:sh.getLastColumn(),registros:Math.max(0,sh.getLastRow()-1),canaisPreparados:FT_SOLICITACOES_CFG_V20261110.CHANNELS.slice(),webhookAtivo:false,criaOperacaoDefinitiva:false};
 }
 
 /** Salva a revisão humana dos dados extraídos sem alterar a mensagem original. */
