@@ -39,6 +39,22 @@ function PLANILHABRUNO_rowsV2_(sh) {
   return !sh || sh.getLastRow()<2 || sh.getLastColumn()<1 ? [] :
     sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();
 }
+
+/**
+ * IDs canônicos do lote 40x4. Registros antigos com o mesmo prefixo,
+ * mas fora desta lista, permanecem intactos e não entram nesta sincronização.
+ */
+function PLANILHABRUNO_idsEsperadosLoteV2_(cfg) {
+  const p=PLANILHABRUNO_SYNC_V2.LOTE;
+  const ids=[];
+  const add=(tipo,n)=>ids.push(p+tipo+'-'+String(n).padStart(3,'0'));
+  if(cfg.origem==='MOTORISTAS')for(let n=1;n<=40;n++)add('MOT',n);
+  else if(cfg.origem==='CAVALOS')for(let n=1;n<=40;n++)add('CAV',n);
+  else if(cfg.origem==='CARRETAS')for(let n=1;n<=40;n++)add('CAR',n);
+  else if(cfg.origem==='CONJUNTOS')for(let n=1;n<=40;n++)add('CJT',n);
+  else if(cfg.origem==='CONTROLE_DOCUMENTAL')for(let n=1;n<=40;n++){add('DOC-MOT',n);add('DOC-CAV',n);add('DOC-CAR',n);}
+  return ids;
+}
 function PLANILHABRUNO_prepareHeadersV2_(sh, required) {
   let headers=PLANILHABRUNO_headersV2_(sh);
   if (!headers.some(Boolean)) {
@@ -63,34 +79,51 @@ function PLANILHABRUNO_auditV2_(ss) {
 function PLANILHABRUNO_validarSincronizacaoV2() {
   const origem=SpreadsheetApp.getActiveSpreadsheet();
   const destino=SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
-  const out={sucesso:true,modo:'VALIDACAO_SEM_ESCRITA',origem:origem.getName(),origemId:origem.getId(),destino:destino.getName(),destinoId:destino.getId(),lote:PLANILHABRUNO_SYNC_V2.LOTE,guias:[],erros:[]};
+  const out={sucesso:true,modo:'VALIDACAO_SEM_ESCRITA',origem:origem.getName(),origemId:origem.getId(),destino:destino.getName(),destinoId:destino.getId(),lote:PLANILHABRUNO_SYNC_V2.LOTE,guias:[],erros:[],avisos:[]};
   PLANILHABRUNO_SYNC_V2.GUIAS.forEach(cfg=>{
     const so=origem.getSheetByName(cfg.origem), sd=destino.getSheetByName(cfg.destino);
     if(!so||!sd){const e='Guia ausente: '+(!so?('origem '+cfg.origem):('destino '+cfg.destino));out.erros.push(e);out.guias.push({origem:cfg.origem,destino:cfg.destino,erro:e});return;}
     const ho=PLANILHABRUNO_headersV2_(so), hd=PLANILHABRUNO_headersV2_(sd), io=PLANILHABRUNO_indexV2_(ho), id=PLANILHABRUNO_indexV2_(hd);
     const ix=io[PLANILHABRUNO_normV2_(cfg.chave)];
     if(ix===undefined){const e=cfg.origem+': falta chave '+cfg.chave;out.erros.push(e);out.guias.push({origem:cfg.origem,destino:cfg.destino,erro:e});return;}
-    const source=PLANILHABRUNO_rowsV2_(so).map((r,i)=>({r:r,n:i+2,id:String(r[ix]||'').trim()})).filter(x=>x.id.startsWith(PLANILHABRUNO_SYNC_V2.LOTE));
-    const counts={};source.forEach(x=>counts[x.id]=(counts[x.id]||0)+1);
-    const dupSource=Object.keys(counts).filter(k=>counts[k]>1);
+    const expected=PLANILHABRUNO_idsEsperadosLoteV2_(cfg), expectedSet=new Set(expected);
+    const sourceAll=PLANILHABRUNO_rowsV2_(so).map((r,i)=>({r:r,n:i+2,id:String(r[ix]||'').trim()})).filter(x=>x.id.startsWith(PLANILHABRUNO_SYNC_V2.LOTE));
+    const source=sourceAll.filter(x=>expectedSet.has(x.id));
+    const unexpectedSource=sourceAll.filter(x=>!expectedSet.has(x.id)).map(x=>x.id);
+    const sourceCounts={};source.forEach(x=>sourceCounts[x.id]=(sourceCounts[x.id]||0)+1);
+    const dupSource=Object.keys(sourceCounts).filter(k=>sourceCounts[k]>1);
+    const missingExpected=expected.filter(k=>!sourceCounts[k]);
     const destKey=id[PLANILHABRUNO_normV2_(cfg.chave)];
     const destRows=PLANILHABRUNO_rowsV2_(sd);
-    const destIds=destKey===undefined?[]:destRows.map(r=>String(r[destKey]||'').trim()).filter(x=>x.startsWith(PLANILHABRUNO_SYNC_V2.LOTE));
+    const destAll=destKey===undefined?[]:destRows.map(r=>String(r[destKey]||'').trim()).filter(x=>x.startsWith(PLANILHABRUNO_SYNC_V2.LOTE));
+    const destIds=destAll.filter(x=>expectedSet.has(x));
+    const unexpectedDest=destAll.filter(x=>!expectedSet.has(x));
     const dc={};destIds.forEach(x=>dc[x]=(dc[x]||0)+1);
     const dupDest=Object.keys(dc).filter(k=>dc[k]>1);
     const missing=ho.filter(h=>h&&id[PLANILHABRUNO_normV2_(h)]===undefined);
-    out.guias.push({origem:cfg.origem,destino:cfg.destino,chave:cfg.chave,registrosLoteOrigem:source.length,registrosLoteDestino:destIds.length,cabecalhosAusentesNoDestino:missing,idsDuplicadosOrigem:dupSource,idsDuplicadosDestino:dupDest});
-    if(dupSource.length)out.erros.push(cfg.origem+': IDs duplicados na origem.');
-    if(dupDest.length)out.erros.push(cfg.destino+': IDs duplicados no destino.');
+    out.guias.push({
+      origem:cfg.origem,destino:cfg.destino,chave:cfg.chave,
+      registrosEsperados:expected.length,registrosLoteOrigem:source.length,
+      registrosLoteDestino:destIds.length,
+      registrosLegadosMesmoPrefixoOrigemIgnorados:unexpectedSource.length,
+      registrosLegadosMesmoPrefixoDestinoIgnorados:unexpectedDest.length,
+      idsLegadosOrigem:unexpectedSource,idsLegadosDestino:unexpectedDest,
+      idsEsperadosAusentesNaOrigem:missingExpected,
+      cabecalhosAusentesNoDestino:missing,
+      idsDuplicadosOrigem:dupSource,idsDuplicadosDestino:dupDest
+    });
+    if(missing.length)out.avisos.push(cfg.destino+': serão acrescentadas colunas ausentes ao final durante a sincronização: '+missing.join(', '));
+    if(unexpectedSource.length)out.avisos.push(cfg.origem+': '+unexpectedSource.length+' registro(s) com prefixo antigo serão preservados e ignorados.');
+    if(unexpectedDest.length)out.avisos.push(cfg.destino+': '+unexpectedDest.length+' registro(s) com prefixo antigo serão preservados e ignorados.');
+    if(missingExpected.length)out.erros.push(cfg.origem+': faltam IDs canônicos do lote: '+missingExpected.join(', '));
+    if(dupSource.length)out.erros.push(cfg.origem+': IDs canônicos duplicados na origem.');
+    if(dupDest.length)out.erros.push(cfg.destino+': IDs canônicos duplicados no destino.');
   });
   out.sucesso=out.erros.length===0;
-  Logger.log('FULL TIME — PLANILHABRUNO VALIDAÇÃO V2.2: '+JSON.stringify(out));
+  Logger.log('FULL TIME — PLANILHABRUNO VALIDAÇÃO V2.3: '+JSON.stringify(out));
   return out;
 }
-/**
- * Mantém a guia de entrada de solicitações com cabeçalhos idênticos nas duas planilhas.
- * Apenas acrescenta ID_OPERACAO_GERADA ao fim; não move nem apaga colunas ou registros.
- */
+
 /**
  * Diagnóstico somente leitura dos cabeçalhos da entrada de operações.
  * Não grava, não move e não exclui colunas ou registros.
@@ -192,7 +225,8 @@ function PLANILHABRUNO_sincronizarLoteTesteV2() {
       if(!so||!sd){resumo.erros.push('Guia ausente: '+cfg.origem+' -> '+cfg.destino);return;}
       const ho=PLANILHABRUNO_headersV2_(so), io=PLANILHABRUNO_indexV2_(ho), ix=io[PLANILHABRUNO_normV2_(cfg.chave)];
       if(ix===undefined){resumo.erros.push(cfg.origem+': falta coluna '+cfg.chave);return;}
-      const source=PLANILHABRUNO_rowsV2_(so).map((r,i)=>({r:r,n:i+2,id:String(r[ix]||'').trim()})).filter(x=>x.id.startsWith(lote));
+      const expectedSet=new Set(PLANILHABRUNO_idsEsperadosLoteV2_(cfg));
+      const source=PLANILHABRUNO_rowsV2_(so).map((r,i)=>({r:r,n:i+2,id:String(r[ix]||'').trim()})).filter(x=>expectedSet.has(x.id));
       const sc={};source.forEach(x=>sc[x.id]=(sc[x.id]||0)+1);
       const dHeaders=PLANILHABRUNO_headersV2_(sd), di=PLANILHABRUNO_indexV2_(dHeaders), dx=di[PLANILHABRUNO_normV2_(cfg.chave)];
       const destRows=PLANILHABRUNO_rowsV2_(sd), dc={};
