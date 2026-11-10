@@ -738,7 +738,7 @@
         </form>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Viagens previstas</th><th>Concluídas</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="btn btn-primary" onclick="notificarCandidatosOperacao('${esc(o.id)}')">Notificar 10 candidatos</button> <button class="icon-btn" title="Abrir viagens da operação" onclick="showViagensOperacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.viagensPrevistas||o.campos[7]||0)}</strong></td><td>${esc(o.campos[12]||0)}</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="btn btn-secondary" onclick="showLotesOperacaoUI(\'${esc(o.id)}\')">Gerenciar lotes</button> <button class="btn btn-primary" onclick="notificarCandidatosOperacao('${esc(o.id)}')">Notificar 10 candidatos</button> <button class="icon-btn" title="Abrir viagens da operação" onclick="showViagensOperacao('${esc(o.id)}')">＋</button> ${o.status==='PENDENTE_REPLANEJAMENTO'?'<button class="btn btn-primary" onclick="replanejarOperacaoUI(\''+esc(o.id)+'\')">Replanejar</button>':''}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
@@ -771,6 +771,43 @@
       if(!res.ok){toast((res.bloqueios||[]).map(x=>x.guia+': '+x.motivo).join(' | ')||res.message,true);return;}
       toast(res.message||'Estrutura preparada.');
     }).withFailureHandler(e=>toast(e.message||'Falha ao preparar guias.',true)).prepararEstruturaLotesFullTime(authToken,true);
+  }
+  function showLotesOperacaoUI(operacaoId){
+    const panel=document.getElementById('operacaoActionPanel');
+    panel.innerHTML='<div class="panel"><div class="panel-body">Carregando lotes e distribuição...</div></div>';
+    google.script.run.withSuccessHandler(lots=>{
+      if(!lots.length){panel.innerHTML='<div class="panel"><div class="panel-body">Esta operação ainda não possui lotes.</div></div>';return;}
+      panel.innerHTML='<div class="panel"><div class="panel-head"><h2>Lotes e distribuição de motoristas</h2><span class="muted small">'+lots.length+' lote(s)</span></div><div class="panel-body">'+lots.map(l=>{
+        const remaining=Math.max(0,Number(l.volume||0)-Number(l.volumeDistribuido||0));
+        return '<section class="panel" style="margin-bottom:12px"><div class="panel-head"><div><strong>'+esc(l.codigo||l.nome||l.id)+'</strong><div class="secondary-cell">'+esc(l.origem)+' → '+esc(l.destino)+'</div></div><span class="badge">'+esc(l.status)+'</span></div><div class="panel-body"><p>Volume: <strong>'+Number(l.volume||0).toFixed(2)+' t</strong> · Distribuído: '+Number(l.volumeDistribuido||0).toFixed(2)+' t · Restante: <strong>'+remaining.toFixed(2)+' t</strong></p>'+
+        '<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Conjunto</th><th>Capacidade</th><th>Viagens</th><th>Volume</th></tr></thead><tbody>'+(l.participacoes||[]).map(p=>'<tr><td>'+esc(p.motorista)+'</td><td>'+esc(p.conjuntoId)+'</td><td>'+esc(p.capacidade)+' t</td><td>'+esc(p.viagens)+'</td><td>'+esc(p.toneladas)+' t</td></tr>').join('')+'</tbody></table></div>'+
+        (remaining>0?'<button class="btn btn-primary" onclick="carregarCandidatosLoteUI(\\''+esc(operacaoId)+'\\',\\''+esc(l.id)+'\\','+remaining+')">Selecionar motorista/conjunto</button>':'<span class="muted">Volume integralmente distribuído.</span>')+
+        '<div id="candidatos-lote-'+esc(l.id)+'"></div></div></section>';
+      }).join('')+'</div></div>';
+    }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao carregar lotes.')+'</div></div>';}).obterAlocacoesLotesOperacaoFullTime(authToken,operacaoId);
+  }
+  function carregarCandidatosLoteUI(operacaoId,loteId,volumeRestante){
+    const host=document.getElementById('candidatos-lote-'+loteId);
+    if(!host)return;
+    host.innerHTML='<p class="muted">Verificando motoristas e conjuntos para a origem e regras deste lote...</p>';
+    google.script.run.withSuccessHandler(rows=>{
+      if(!rows.length){host.innerHTML='<p class="error">Nenhum conjunto elegível para este lote. Confira disponibilidade, documentação, local de origem e regras operacionais.</p>';return;}
+      host.innerHTML='<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Capacidade útil</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.restrictions||'—')+'</td><td><button class="btn btn-primary" onclick="designarCandidatoLoteUI(\\''+esc(operacaoId)+'\\',\\''+esc(loteId)+'\\',\\''+esc(r.id)+'\\','+Number(r.capacity||0)+','+Number(volumeRestante||0)+')">Designar</button></td></tr>').join('')+'</tbody></table></div>';
+    }).withFailureHandler(e=>{host.innerHTML='<p class="error">'+esc(e.message||'Falha ao buscar candidatos.')+'</p>';}).ordenarCandidatosLoteOperacaoFullTime(authToken,operacaoId,loteId);
+  }
+  function designarCandidatoLoteUI(operacaoId,loteId,conjuntoId,capacidade,volumeRestante){
+    const sugestao=Math.min(Number(volumeRestante||0),Number(capacidade||0));
+    const volume=prompt('Quantas toneladas ficarão sob responsabilidade deste motorista? Volume restante do lote: '+volumeRestante+' t.',String(sugestao));
+    if(volume===null)return;
+    const toneladas=Number(String(volume).replace(',','.'));
+    if(!(toneladas>0&&toneladas<=volumeRestante+0.000001)){toast('Informe um volume válido dentro do saldo do lote.',true);return;}
+    const minimo=Math.ceil(toneladas/capacidade);
+    const trips=prompt('Quantas viagens este motorista deverá realizar? Mínimo pela capacidade: '+minimo+'.',String(minimo));
+    if(trips===null)return;
+    const viagensPrevistas=Math.floor(Number(trips));
+    if(!(viagensPrevistas>=minimo)){toast('A meta precisa cobrir o volume pela capacidade útil do conjunto.',true);return;}
+    if(!confirm('Confirmar designação de '+toneladas+' t em '+viagensPrevistas+' viagem(ns) para este lote?'))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Designação registrada.');showLotesOperacaoUI(operacaoId);}).withFailureHandler(e=>toast(e.message||'Falha ao designar conjunto.',true)).designarConjuntoLoteOperacaoFullTime(authToken,{operacaoId,loteId,conjuntoId,toneladasPrevistas:toneladas,viagensPrevistas});
   }
   function saveOperacaoComLotesUI(ev){
     ev.preventDefault();
