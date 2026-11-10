@@ -25,3 +25,19 @@ test('cadastro multi-lote não inventa quantidade de viagens a partir do volume'
   assert.match(source, /const totalViagens=0/);
   assert.match(source, /dependem da capacidade útil dos conjuntos/);
 });
+
+test('as guias relacionais são lidas na mesma base operacional oficial', () => {
+  const code = readFileSync(new URL('../../Code.gs', import.meta.url), 'utf8');
+  const match = code.match(/const operationalTabs = \[([^\]]+)\]/);
+  assert.ok(match, 'Lista de guias operacionais não encontrada.');
+  for (const tab of ['OPERACAO_CONFIGURACOES', 'OPERACAO_CLIENTES', 'LOTES_OPERACAO']) {
+    assert.match(match[1], new RegExp("'" + tab + "'"));
+  }
+  assert.match(source, /PropertiesService\.getScriptProperties\(\)\.getProperty\('FT_REGISTRY_DATABASE_ID'\)/);
+});
+
+test('a estrutura relacional mantém identificadores de operação, cliente e lote', () => {
+  assert.match(source, /OPERACAO_CONFIGURACOES:[\s\S]*?'OPERACAO_ID'/);
+  assert.match(source, /OPERACAO_CLIENTES:[\s\S]*?'CLIENTE_ID'/);
+  assert.match(source, /LOTES_OPERACAO:[\s\S]*?'OPERACAO_ID'[\s\S]*?'CLIENTE_ID'/);
+});
