@@ -7,7 +7,7 @@ const FT_CONFIG = {
 
 
 /**
- * Cria SOMENTE as guias MOTORISTAS e CAMINHOES na planilha indicada pelo responsável.
+ * Conecta a base operacional e valida os espelhos sincronizados da planilha do Bruno.
  * Não cria outra planilha, não apaga guias existentes e não altera FT_DATABASE_ID.
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
@@ -157,84 +157,6 @@ function obterPainelFullTime(token) {
   };
 }
 
-function salvarMotoristaFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  data = data || {};
-  const nome = texto_(data.nome, 120);
-  const cpf = digitos_(data.cpf);
-  const telefone = digitos_(data.telefone);
-  const cnh = texto_(data.cnh, 40);
-  const categoria = texto_(data.categoria, 5).toUpperCase();
-  if (!nome) throw new Error('Informe o nome completo.');
-  if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) throw new Error('O CPF informado não é válido.');
-  if (!telefone || telefone.length < 10) throw new Error('Informe um telefone com DDD.');
-  if (!cnh) throw new Error('Informe o número da CNH.');
-  if (!['C','D','E'].includes(categoria)) throw new Error('Selecione a categoria da CNH.');
-  if (!data.validade) throw new Error('Informe a validade da CNH.');
-  if (cpf && duplicado_('MOTORISTAS', 5, cpf)) throw new Error('Já existe um motorista cadastrado com este CPF.');
-
-  const id = Utilities.getUuid();
-  getSheet_('MOTORISTAS').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', nome, cpf, telefone,
-    texto_(data.email, 150), cnh, categoria, data.validade,
-    texto_(data.cidade, 120), texto_(data.observacoes, 1000)
-  ]);
-  auditar_(session, 'CRIAR', 'MOTORISTA', id, nome);
-  return { ok: true, id: id, message: 'Motorista cadastrado e enviado para revisão.' };
-}
-
-/** Importação em lote via CSV UTF-8 delimitado por ponto e vírgula. */
-function importarMotoristasCsvFullTime(token, csvText) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  const rows = parseImportCsv_(csvText, [
-    'nome','cpf','telefone','email','cnh','categoria','validade','cidade','observacoes'
-  ]);
-  const sh = getSheet_('MOTORISTAS');
-  const existingCpf = new Set(sh.getLastRow() > 1 ? sh.getRange(2,5,sh.getLastRow()-1,1).getDisplayValues().flat().map(digitos_).filter(Boolean) : []);
-  const seenCpf = new Set();
-  const output = [], errors = [];
-  rows.forEach(function(row, idx) {
-    const line = idx + 2;
-    const nome = texto_(row.nome,120), cpf = digitos_(row.cpf), telefone = digitos_(row.telefone);
-    const cnh = texto_(row.cnh,40), categoria = texto_(row.categoria,5).toUpperCase();
-    if (!nome) { errors.push('Linha ' + line + ': nome obrigatório.'); return; }
-    if (!telefone || telefone.length < 10) { errors.push('Linha ' + line + ': telefone com DDD obrigatório.'); return; }
-    if (!cnh) { errors.push('Linha ' + line + ': número da CNH obrigatório.'); return; }
-    if (!['C','D','E'].includes(categoria)) { errors.push('Linha ' + line + ': categoria deve ser C, D ou E.'); return; }
-    if (!row.validade || !/^\d{4}-\d{2}-\d{2}$/.test(row.validade)) { errors.push('Linha ' + line + ': validade deve estar no formato AAAA-MM-DD.'); return; }
-    if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) { errors.push('Linha ' + line + ': CPF inválido.'); return; }
-    if (cpf && (existingCpf.has(cpf) || seenCpf.has(cpf))) { errors.push('Linha ' + line + ': CPF duplicado.'); return; }
-    if (cpf) seenCpf.add(cpf);
-    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',nome,cpf,telefone,texto_(row.email,150),cnh,categoria,row.validade,texto_(row.cidade,120),texto_(row.observacoes,1000)]);
-  });
-  if (output.length) {
-    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
-    auditar_(session,'IMPORTAR_LOTE','MOTORISTAS','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
-  }
-  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' motorista(s) importado(s); '+errors.length+' linha(s) precisam de correção.'};
-}
-
-function parseImportCsv_(csvText, requiredHeaders) {
-  const text = String(csvText || '').replace(/^\uFEFF/, '').trim();
-  if (!text) throw new Error('O arquivo está vazio.');
-  if (text.length > 1500000) throw new Error('Arquivo muito grande. Divida em arquivos menores (limite de 1,5 MB).');
-  const delimiter = text.split(/\r?\n/)[0].includes(';') ? ';' : ',';
-  const matrix = Utilities.parseCsv(text, delimiter);
-  if (matrix.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalhos e pelo menos um registro.');
-  const normalize = function(v) { return String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); };
-  const headers = matrix[0].map(normalize);
-  const indexes = {};
-  requiredHeaders.forEach(function(h) {
-    const i = headers.indexOf(normalize(h));
-    if (i < 0) throw new Error('Cabeçalho obrigatório ausente: ' + h + '. Baixe o modelo e mantenha os nomes das colunas.');
-    indexes[h] = i;
-  });
-  return matrix.slice(1).filter(function(r) { return r.some(function(v){return String(v||'').trim();}); }).map(function(r) {
-    const obj = {};
-    requiredHeaders.forEach(function(h) { obj[h] = String(r[indexes[h]] == null ? '' : r[indexes[h]]).trim(); });
-    return obj;
-  });
-}
 /**
  * Prepara as guias operacionais na planilha oficial já conectada.
  * Não apaga nem renomeia guias existentes e não altera os cadastros atuais.
