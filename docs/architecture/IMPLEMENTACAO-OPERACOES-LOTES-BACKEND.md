@@ -1,6 +1,6 @@
 # FullTime — operações multi-cliente, lotes e alocação
 
-**Status:** implementação vertical inicial no branch de desenvolvimento; suíte gratuita de sintaxe e testes estáticos/domínio aprovada. Ainda exige homologação funcional em cópia isolada do Apps Script com massa fictícia.
+**Status:** implementação vertical inicial no branch de desenvolvimento; suíte gratuita estática, de sintaxe, domínio e integração simulada aprovada. Ainda exige homologação funcional em cópia isolada do Apps Script com massa fictícia.
 
 ## Componentes alterados
 
@@ -22,8 +22,8 @@
   - Formulário avançado multi-cliente/lotes.
   - Gestão dos lotes, consulta de candidatos por lote e designação com volume e meta de viagens.
   - O formulário legado continua disponível para operações antigas.
-- `tests/static` e `tests/domain`
-  - Verificação de superfície de API, sintaxe do bundle Apps Script e scripts inline, migração aditiva e regras de domínio.
+- `tests/static`, `tests/domain` e `tests/integration/lot-flow.test.mjs`
+  - Verificação de superfície de API, sintaxe do bundle Apps Script e scripts inline, migração aditiva, regras de domínio e fluxo multi-cliente/lotes em planilhas simuladas.
 
 ## Estrutura relacional
 
@@ -68,4 +68,4 @@ A rotina deve ser exercitada primeiro em uma cópia de homologação com dados f
 Executar localmente com Node.js 20 ou no GitHub Actions:
 `npm test`
 
-A suíte não consome APIs pagas nem depende de dados reais. Para a próxima etapa, criar uma cópia vazia de homologação, carregar massa fictícia e testar o fluxo completo no Apps Script antes de qualquer liberação.
+A suíte [0m não consome APIs pagas nem depende de dados reais. O teste de integração usa uma implementação simulada de planilhas e valida criação, vínculo de clientes, alocação entre lotes e bloqueio de duplicidade. Para a próxima etapa, criar uma cópia vazia de homologação, carregar massa fictícia e testar o fluxo completo no Apps Script antes de qualquer liberação.
