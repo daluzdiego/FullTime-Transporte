@@ -458,7 +458,7 @@ function prepararBaseOperacionalFullTime() {
     CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
@@ -1075,7 +1075,7 @@ function listarOperacoesFullTime(token) {
     const realizadas = Math.max(0, Math.floor(Number(f[11] || viagensPorOperacao[r.id] || 0)));
     return Object.assign({}, r, {
       data:f[0]||'', cliente:f[1]||'', nome:f[2]||'', origem:f[3]||'', destino:f[4]||'',
-      categoria:f[5]||'', volumeTotal:Number(f[6]||0), viagensPrevistas:previstas,
+      categoria:f[5]||'', volumeTotal:Number(f[6]||0), viagensPrevistas:previstas, tipoOperacao:f[12]||'OUTRA',
       viagensRealizadas:realizadas, viagensRestantes:Math.max(0,previstas-realizadas),
       saldo:Number(f[8]||0), observacoes:f[9]||'', criadoPor:f[10]||''
     });
@@ -1084,18 +1084,19 @@ function listarOperacoesFullTime(token) {
 function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
-  const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
+  const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
   const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
   if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
-  if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
+  if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
+  if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipoOperacao)) throw new Error('Tipo de operação inválido.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
   if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
-  if(sh.getLastColumn()<15) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
-  sh.appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagensPrevistas,volume,observacoes,session.login,0]);
+  if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
+  sh.appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagensPrevistas,volume,observacoes,session.login,0,tipoOperacao]);
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
   return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
