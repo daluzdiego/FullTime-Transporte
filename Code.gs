@@ -56,7 +56,6 @@ function configurarSistemaFullTime() {
   const ss = SpreadsheetApp.create('FULL TIME — Base Operacional');
   const schemas = {
     USUARIOS: ['ID', 'LOGIN', 'NOME', 'PERFIL', 'SALT', 'HASH_SENHA', 'ATIVO', 'TROCAR_SENHA', 'CRIADO_EM'],
-    MOTORISTAS: ['ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE', 'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE', 'CIDADE_UF', 'OBSERVACOES'],
     AUDITORIA: ['DATA_HORA', 'LOGIN', 'ACAO', 'ENTIDADE', 'REGISTRO_ID', 'DETALHES']
   };
 
@@ -186,6 +185,8 @@ function prepararGuiasEscalaFullTime() {
     const headers = schemas[name];
     const width = sh.getLastColumn();
     const row = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(function(v) { return String(v || '').trim(); }) : [];
+    if (name === 'FILA_MOTORISTAS' && row[6] === 'ULTIMA_CARGA_CONCLUIDA_EM') { sh.getRange(1,7).setValue('ULTIMA_OPERACAO_CONCLUIDA_EM'); row[6] = 'ULTIMA_OPERACAO_CONCLUIDA_EM'; }
+    if (name === 'EVENTOS_ESCALA' && row[3] === 'CARGA_ID') { sh.getRange(1,4).setValue('OPERACAO_ID'); row[3] = 'OPERACAO_ID'; }
     if (row.every(function(v) { return !v; })) {
       sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     } else if (row.length !== headers.length || headers.some(function(h, i) { return row[i] !== h; })) {
@@ -227,6 +228,8 @@ function prepararBaseOperacionalFullTime() {
       sh.getRange(1,11).setValue('TOTAL_VIAGENS_PREVISTAS');
       row[10] = 'TOTAL_VIAGENS_PREVISTAS';
     }
+    if (name === 'FILA_MOTORISTAS' && row[6] === 'ULTIMA_CARGA_CONCLUIDA_EM') { sh.getRange(1,7).setValue('ULTIMA_OPERACAO_CONCLUIDA_EM'); row[6] = 'ULTIMA_OPERACAO_CONCLUIDA_EM'; }
+    if (name === 'EVENTOS_ESCALA' && row[3] === 'CARGA_ID') { sh.getRange(1,4).setValue('OPERACAO_ID'); row[3] = 'OPERACAO_ID'; }
     if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
@@ -698,7 +701,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const partId=String(part[0]);
     const moveId=Utilities.getUuid();
     const movimentos=getSheet_('MOVIMENTACOES_OPERACAO');
-    if(movimentos.getLastColumn()<10 || ops.getLastColumn()<15) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
+    if(movimentos.getLastColumn()<10 || ops.getLastColumn()<16) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
     movimentos.appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,'SIM',observacoes,session.login,viagens]);
     const novoSaldo=Math.max(0,saldo-toneladas);
     ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
