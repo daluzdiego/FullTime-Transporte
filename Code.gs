@@ -222,7 +222,22 @@ function prepararBaseOperacionalFullTime() {
     }
     if (name === 'FILA_MOTORISTAS' && row[6] === 'ULTIMA_CARGA_CONCLUIDA_EM') { sh.getRange(1,7).setValue('ULTIMA_OPERACAO_CONCLUIDA_EM'); row[6] = 'ULTIMA_OPERACAO_CONCLUIDA_EM'; }
     if (name === 'EVENTOS_ESCALA' && row[3] === 'CARGA_ID') { sh.getRange(1,4).setValue('OPERACAO_ID'); row[3] = 'OPERACAO_ID'; }
-    if (row.every(v => !v)) {
+    if (name === 'OPERACOES') {
+      // OPERACOES pode ter colunas adicionais e ordem ampliada. Preservar tudo;
+      // TOTAL_VIAGENS_CONCLUIDAS é alias compatível de VIAGENS_REALIZADAS.
+      const norm = v => String(v || '').trim().toUpperCase();
+      const existing = row.map(norm);
+      const aliases = { VIAGENS_REALIZADAS: ['VIAGENS_REALIZADAS','TOTAL_VIAGENS_CONCLUIDAS'] };
+      const missing = headers.filter(h => {
+        const alternatives = aliases[h] || [h];
+        return !alternatives.some(a => existing.indexOf(norm(a)) !== -1);
+      });
+      if (row.every(v => !v)) {
+        sh.getRange(1,1,1,headers.length).setValues([headers]);
+      } else if (missing.length) {
+        sh.getRange(1,sh.getLastColumn()+1,1,missing.length).setValues([missing]);
+      }
+    } else if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
       const prefix = row.every((v,i) => headers[i] === v);
@@ -233,8 +248,9 @@ function prepararBaseOperacionalFullTime() {
       }
     }
     sh.setFrozenRows(1);
-    sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
-    sh.autoResizeColumns(1,headers.length);
+    const formatWidth = Math.max(sh.getLastColumn(), headers.length);
+    sh.getRange(1,1,1,formatWidth).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
+    sh.autoResizeColumns(1,formatWidth);
   });
   console.log('Guias operacionais verificadas/criadas na planilha: ' + ss.getUrl());
   return ss.getUrl();
@@ -314,7 +330,49 @@ function getSheet_(name) {
   }
   return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
 }
+function ftOperationHeaderMap_(sh) {
+  const headers = sh.getLastColumn() ? sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0] : [];
+  const map = {};
+  headers.forEach((h,i) => {
+    const key = String(h || '').trim().toUpperCase();
+    if (key && map[key] === undefined) map[key] = i;
+  });
+  if (map.VIAGENS_REALIZADAS === undefined && map.TOTAL_VIAGENS_CONCLUIDAS !== undefined) {
+    map.VIAGENS_REALIZADAS = map.TOTAL_VIAGENS_CONCLUIDAS;
+  }
+  return map;
+}
+function ftOperationAppendFullTime_(sh, data) {
+  const map = ftOperationHeaderMap_(sh);
+  const width = sh.getLastColumn();
+  const row = new Array(width).fill('');
+  Object.keys(data || {}).forEach(key => {
+    const col = map[String(key).toUpperCase()];
+    if (col !== undefined) row[col] = data[key];
+  });
+  ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'].forEach(key => {
+    if (map[key] === undefined) throw new Error('A guia OPERACOES não possui a coluna necessária: '+key);
+  });
+  sh.appendRow(row);
+}
 function listarRegistros_(name) {
+  if (name === 'OPERACOES') {
+    const sh = getSheet_('OPERACOES');
+    const values = sh.getDataRange().getValues();
+    if (values.length < 2) return [];
+    const map = ftOperationHeaderMap_(sh);
+    const get = (r,key) => map[key] === undefined ? '' : r[map[key]];
+    const fields = ['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
+    return values.slice(1).map(r => ({
+      id: String(get(r,'ID') || ''),
+      criado: get(r,'CRIADO_EM') instanceof Date ? get(r,'CRIADO_EM').toISOString() : String(get(r,'CRIADO_EM') || ''),
+      status: String(get(r,'STATUS') || ''),
+      campos: fields.map(key => {
+        const value = get(r,key);
+        return value instanceof Date ? value.toISOString().slice(0,10) : String(value == null ? '' : value);
+      })
+    })).reverse();
+  }
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
   // Cadastros e conjuntos vêm exclusivamente dos espelhos sincronizados do Bruno.
@@ -527,7 +585,7 @@ function salvarOperacaoFullTime(token, data) {
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
   if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
-  sh.appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,viagensPrevistas,volume,observacoes,session.login,0,tipoOperacao]);
+  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao});
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
   return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
@@ -568,9 +626,13 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
     parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
     parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+viagens);
-    ops.getRange(idx+1,15).setValue(Math.max(0,Math.floor(Number(op[14]||0)))+viagens);
+    const operationMap=ftOperationHeaderMap_(ops);
+    const tripsCol=operationMap.VIAGENS_REALIZADAS;
+    if(tripsCol===undefined) throw new Error('A guia OPERACOES não possui coluna de viagens realizadas/concluídas.');
+    const totalTrips=Math.max(0,Math.floor(Number(op[tripsCol]||0)))+viagens;
+    ops.getRange(idx+1,tripsCol+1).setValue(totalTrips);
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:Math.max(0,Math.floor(Number(op[14]||0)))+viagens,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
+    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
 }
 function remanejarConjuntoOperacaoFullTime(token, data) {
