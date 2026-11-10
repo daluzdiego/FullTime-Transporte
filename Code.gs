@@ -872,7 +872,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','CLIENTES','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','TICKETS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM','HISTORICO_ASSIDUIDADE'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONTROLE_DOCUMENTAL','CLIENTES','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','TICKETS','OFERTAS_OPERACOES','EVENTOS_OPERACAO','OPERACOES','PARTICIPACAO_OPERACOES','VIAGENS','EVENTOS_VIAGEM','DOCUMENTOS_VIAGEM','HISTORICO_ASSIDUIDADE','OPERACAO_CONFIGURACOES','OPERACAO_CLIENTES','LOTES_OPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
