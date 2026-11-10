@@ -105,8 +105,8 @@ function salvarOperacaoComLotesFullTime(token, data) {
     const clienteId=texto_(lot.clienteId,100);
     if(clientes.indexOf(clienteId)<0) throw new Error('O lote '+(index+1)+' está associado a um cliente que não participa da operação.');
     const volume=Number(String(lot.volumePrevisto||'').replace(',','.'));
-    const vagas=Math.floor(Number(lot.vagasOfertadas));
-    const motoristas=Math.floor(Number(lot.motoristasPlanejados));
+    const vagas=Math.floor(Number(lot.vagasOfertadas==null||lot.vagasOfertadas===''?0:lot.vagasOfertadas));
+    const motoristas=Math.floor(Number(lot.motoristasPlanejados==null||lot.motoristasPlanejados===''?0:lot.motoristasPlanejados));
     const origem=texto_(lot.origem,160), destino=texto_(lot.destino,160);
     const codigo=texto_(lot.codigo||('LOTE-'+String(index+1).padStart(2,'0')),60);
     const inicio=texto_(lot.janelaInicio,5), fim=texto_(lot.janelaFim,5);
@@ -122,6 +122,8 @@ function salvarOperacaoComLotesFullTime(token, data) {
       vagas:vagas,motoristas:motoristas,inicio:inicio,fim:fim,
       particularidades:ftLotesValidateParticularidades_(lot.particularidades)};
   });
+  const lotCodes=normalizedLots.map(l=>l.codigo.toUpperCase());
+  if(new Set(lotCodes).size!==lotCodes.length) throw new Error('Existem códigos de lote duplicados nesta operação.');
   const totalVolume=normalizedLots.reduce((sum,l)=>sum+l.volume,0);
   // Viagens não são estimadas a partir de toneladas: dependem da capacidade útil dos conjuntos.\n  // O plano de viagens será calculado na etapa de distribuição, antes da aprovação.\n  const totalViagens=0;
   const opSh=getSheet_('OPERACOES'), opHeaders=ftHeaderMapViagens_(opSh);
@@ -129,6 +131,11 @@ function salvarOperacaoComLotesFullTime(token, data) {
   const missing=required.filter(k=>opHeaders[k]==null);
   if(missing.length) throw new Error('A guia OPERACOES não possui os campos esperados: '+missing.join(', '));
   const cfgSh=getSheet_('OPERACAO_CONFIGURACOES'), relSh=getSheet_('OPERACAO_CLIENTES'), lotSh=getSheet_('LOTES_OPERACAO');
+  const cfgMap=ftHeaderMapViagens_(cfgSh), relMap=ftHeaderMapViagens_(relSh), lotMap=ftHeaderMapViagens_(lotSh);
+  const requireColumns=(map,keys,label)=>{const missing=keys.filter(k=>map[k]==null);if(missing.length)throw new Error('A guia '+label+' não possui os campos necessários: '+missing.join(', '));};
+  requireColumns(cfgMap,['ID','OPERACAOID','PARTICULARIDADESJSON','VERSAOCONFIGURACAO','CRIADOEM','CRIADOPOR'],'OPERACAO_CONFIGURACOES');
+  requireColumns(relMap,['ID','OPERACAOID','CLIENTEID','PAPEL','STATUS','CRIADOEM','CRIADOPOR'],'OPERACAO_CLIENTES');
+  requireColumns(lotMap,['ID','OPERACAOID','CLIENTEID','CODIGOLOTE','NOMELOTE','PRODUTOSERVICO','ORIGEM','DESTINO','VOLUMEPREVISTOTONELADAS','VOLUMEREALIZADOTONELADAS','VAGASOFERTADAS','MOTORISTASPLANEJADOS','JANELAINICIO','JANELAFIM','PARTICULARIDADESJSON','STATUS','CRIADOEM','CRIADOPOR'],'LOTES_OPERACAO');
   const opId=Utilities.getUuid(), now=new Date(), createdRows=[];
   const lock=LockService.getScriptLock(); lock.waitLock(10000);
   try {
@@ -143,15 +150,16 @@ function salvarOperacaoComLotesFullTime(token, data) {
     put(opHeaders,opRow,'SALDOTONELADAS',totalVolume);put(opHeaders,opRow,'OBSERVACOES','Operação configurável com '+normalizedLots.length+' lote(s). Viagens aguardam distribuição por capacidade dos conjuntos.');
     put(opHeaders,opRow,'CRIADOPOR',session.login);put(opHeaders,opRow,'CLIENTEID',primary.id);
     opSh.appendRow(opRow);createdRows.push({sheet:opSh,row:opSh.getLastRow()});
-    const cfgMap=ftHeaderMapViagens_(cfgSh), cfgRow=new Array(cfgSh.getLastColumn()).fill('');
+    const cfgRow=new Array(cfgSh.getLastColumn()).fill('');
     cfgRow[cfgMap.ID]=Utilities.getUuid();cfgRow[cfgMap.OPERACAOID]=opId;
     cfgRow[cfgMap.PARTICULARIDADESJSON]=particularidades;cfgRow[cfgMap.VERSAOCONFIGURACAO]=1;
     cfgRow[cfgMap.CRIADOEM]=now;cfgRow[cfgMap.CRIADOPOR]=session.login;
     cfgSh.appendRow(cfgRow);createdRows.push({sheet:cfgSh,row:cfgSh.getLastRow()});
     activeClients.forEach(c=>{
       const row=new Array(relSh.getLastColumn()).fill('');
-      row[0]=Utilities.getUuid();row[1]=opId;row[2]=c.id;row[3]=c.id===primary.id?'SOLICITANTE':'PARTICIPANTE';
-      row[4]='ATIVO';row[5]=now;row[6]=session.login;
+      row[relMap.ID]=Utilities.getUuid();row[relMap.OPERACAOID]=opId;row[relMap.CLIENTEID]=c.id;
+      row[relMap.PAPEL]=c.id===primary.id?'SOLICITANTE':'PARTICIPANTE';
+      row[relMap.STATUS]='ATIVO';row[relMap.CRIADOEM]=now;row[relMap.CRIADOPOR]=session.login;
       relSh.appendRow(row);createdRows.push({sheet:relSh,row:relSh.getLastRow()});
     });
     normalizedLots.forEach(l=>{
@@ -161,7 +169,7 @@ function salvarOperacaoComLotesFullTime(token, data) {
         VOLUMEPREVISTOTONELADAS:l.volume,VOLUMEREALIZADOTONELADAS:0,VAGASOFERTADAS:l.vagas,
         MOTORISTASPLANEJADOS:l.motoristas,JANELAINICIO:l.inicio,JANELAFIM:l.fim,
         PARTICULARIDADESJSON:l.particularidades,STATUS:'ABERTO',CRIADOEM:now,CRIADOPOR:session.login};
-      Object.keys(values).forEach(k=>{if(ftHeaderMapViagens_(lotSh)[k]!=null)row[ftHeaderMapViagens_(lotSh)[k]]=values[k];});
+      Object.keys(values).forEach(k=>{if(lotMap[k]!=null)row[lotMap[k]]=values[k];});
       lotSh.appendRow(row);createdRows.push({sheet:lotSh,row:lotSh.getLastRow()});
     });
     auditar_(session,'CRIAR','OPERACAO',opId,nome+'; '+activeClients.length+' cliente(s); '+normalizedLots.length+' lote(s)');
