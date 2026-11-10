@@ -123,7 +123,7 @@ function salvarOperacaoComLotesFullTime(token, data) {
       particularidades:ftLotesValidateParticularidades_(lot.particularidades)};
   });
   const totalVolume=normalizedLots.reduce((sum,l)=>sum+l.volume,0);
-  const totalViagens=Math.max(1,Math.ceil(normalizedLots.reduce((sum,l)=>sum+l.volume,0)));
+  // Viagens não são estimadas a partir de toneladas: dependem da capacidade útil dos conjuntos.\n  // O plano de viagens será calculado na etapa de distribuição, antes da aprovação.\n  const totalViagens=0;
   const opSh=getSheet_('OPERACOES'), opHeaders=ftHeaderMapViagens_(opSh);
   const required=['ID','CRIADOEM','STATUS','DATAOPERACAO','CLIENTE','NOMEOPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUMETOTALTONELADAS','TOTALVIAGENSPREVISTAS','SALDOTONELADAS','OBSERVACOES','CRIADOPOR','CLIENTEID'];
   const missing=required.filter(k=>opHeaders[k]==null);
@@ -140,7 +140,7 @@ function salvarOperacaoComLotesFullTime(token, data) {
     put(opHeaders,opRow,'NOMEOPERACAO',nome);put(opHeaders,opRow,'ORIGEM',firstLot.origem);
     put(opHeaders,opRow,'DESTINO',firstLot.destino);put(opHeaders,opRow,'CATEGORIA','NORMAL');
     put(opHeaders,opRow,'VOLUMETOTALTONELADAS',totalVolume);put(opHeaders,opRow,'TOTALVIAGENSPREVISTAS',totalViagens);
-    put(opHeaders,opRow,'SALDOTONELADAS',totalVolume);put(opHeaders,opRow,'OBSERVACOES','Operação configurável com '+normalizedLots.length+' lote(s).');
+    put(opHeaders,opRow,'SALDOTONELADAS',totalVolume);put(opHeaders,opRow,'OBSERVACOES','Operação configurável com '+normalizedLots.length+' lote(s). Viagens aguardam distribuição por capacidade dos conjuntos.');
     put(opHeaders,opRow,'CRIADOPOR',session.login);put(opHeaders,opRow,'CLIENTEID',primary.id);
     opSh.appendRow(opRow);createdRows.push({sheet:opSh,row:opSh.getLastRow()});
     const cfgMap=ftHeaderMapViagens_(cfgSh), cfgRow=new Array(cfgSh.getLastColumn()).fill('');
