@@ -58,6 +58,7 @@ const makeRuntime=()=>{
   context.exigirAdmin_=session=>{if(session.perfil!=='ADMIN')throw new Error('admin required');};
   context.auditar_=()=>{};
   context.texto_=(value,max)=>String(value??'').trim().slice(0,max);
+  context.ftDriveNormHeader_=value=>String(value??'').trim().toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
   return {context,book};
 };
 
