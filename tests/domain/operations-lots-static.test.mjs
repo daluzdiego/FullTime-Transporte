@@ -20,3 +20,8 @@ test('cadastro multi-cliente valida relação cliente-lote e particularidades JS
 test('detalhe da operação exige sessão administrativa', () => {
   assert.match(source, /function obterDetalhesOperacaoComLotesFullTime\(token, operacaoId\)[\s\S]*?obterSessao_\(token\); exigirAdmin_\(session\)/);
 });
+
+test('cadastro multi-lote não inventa quantidade de viagens a partir do volume', () => {
+  assert.match(source, /const totalViagens=0/);
+  assert.match(source, /dependem da capacidade útil dos conjuntos/);
+});
