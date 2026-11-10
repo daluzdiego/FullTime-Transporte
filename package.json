@@ -2,9 +2,11 @@
   "name": "fulltime-transport-tests",
   "private": true,
   "version": "0.1.0",
-  "description": "Suíte gratuita de verificações estáticas do FullTime",
+  "description": "Suíte gratuita de verificações do FullTime",
   "scripts": {
-    "test:static": "node --test tests/static/*.test.mjs"
+    "test:static": "node --test tests/static/*.test.mjs",
+    "test:domain": "node --test tests/domain/*.test.mjs",
+    "test": "npm run test:static && npm run test:domain"
   },
   "engines": {
     "node": ">=20"
