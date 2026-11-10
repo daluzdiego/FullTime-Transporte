@@ -11,136 +11,23 @@ const FT_CONFIG = {
  * Não cria outra planilha, não apaga guias existentes e não altera FT_DATABASE_ID.
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
-function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
-  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  const schemas = {
-    MOTORISTAS: [
-      'ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE',
-      'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE',
-      'CIDADE_UF', 'OBSERVACOES'
-    ],
-    CAMINHOES: [
-      'ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA',
-      'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS',
-      'SITUACAO_DOCUMENTAL', 'OBSERVACOES'
-    ]
-  };
-
-  Object.keys(schemas).forEach(function(name) {
-    let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-
-    const headers = schemas[name];
-    const firstRow = sh.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
-    const rowIsBlank = firstRow.every(function(value) { return !String(value).trim(); });
-
-    if (rowIsBlank) {
-      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    } else {
-      const matches = headers.every(function(header, i) {
-        return String(firstRow[i] || '').trim() === header;
-      });
-      if (!matches) {
-        throw new Error('A guia "' + name + '" já contém cabeçalhos diferentes. Nenhum cabeçalho foi sobrescrito. Verifique a guia antes de continuar.');
-      }
-    }
-
-    sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#eaf2ff')
-      .setFontColor('#16345c')
-      .setWrap(true);
-    sh.autoResizeColumns(1, headers.length);
-    sh.setTabColor(name === 'MOTORISTAS' ? '#1769e8' : '#168354');
-  });
-
-  // Remove apenas a guia padrão se estiver vazia e não for uma das duas guias-alvo.
-  // Nunca apaga guias com conteúdo nem guias com nomes diferentes do padrão.
-  ss.getSheets().slice().forEach(function(sh) {
-    const name = sh.getName();
-    const isDefaultName = name === 'Sheet1' || name === 'Planilha1';
-    const isTarget = Object.prototype.hasOwnProperty.call(schemas, name);
-    if (isDefaultName && !isTarget && sh.getLastRow() <= 1 && sh.getLastColumn() <= 1 &&
-        !String(sh.getRange(1, 1).getDisplayValue()).trim() && ss.getSheets().length > 2) {
-      ss.deleteSheet(sh);
-    }
-  });
-
-  console.log('Guias verificadas/criadas em: ' + ss.getUrl());
-  console.log('Guias processadas: MOTORISTAS, CAMINHOES. Somente uma guia padrão vazia pode ser removida.');
-  return ss.getUrl();
-}
-
-
-/**
- * Configura a planilha operacional externa para os cadastros.
- * Executar manualmente uma vez. Não altera a base interna de login/auditoria.
- */
 function conectarPlanilhaOperacionalFullTime() {
   const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  const expected = {
-    MOTORISTAS: ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
-    CAMINHOES: ['ID','CRIADO_EM','STATUS','PLACA','RENAVAM','MARCA','MODELO','ANO','TIPO_VEICULO','CAPACIDADE_TONELADAS','SITUACAO_DOCUMENTAL','OBSERVACOES']
-  };
-  Object.keys(expected).forEach(function(name) {
-    const sh = ss.getSheetByName(name);
-    if (!sh) throw new Error('Não encontrei a guia ' + name + ' na planilha operacional.');
-    const actual = sh.getRange(1,1,1,expected[name].length).getDisplayValues()[0];
-    if (expected[name].some(function(h,i){ return actual[i] !== h; })) {
-      throw new Error('Os cabeçalhos da guia ' + name + ' não correspondem ao formato esperado. Nenhuma conexão foi salva.');
-    }
+  ['FT_CADASTRO_BRUNO_MOTORISTAS','FT_CADASTRO_BRUNO_CAVALOS','FT_CADASTRO_BRUNO_CARRETAS','FT_CADASTRO_BRUNO_CONJUNTOS','FT_CADASTRO_BRUNO_DOCUMENTOS'].forEach(function(name) {
+    if (!ss.getSheetByName(name)) throw new Error('Não encontrei a guia sincronizada ' + name + '. Confira a sincronização da planilha do Bruno.');
   });
-  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
-  console.log('Planilha operacional conectada: ' + ss.getUrl());
-  console.log('Somente MOTORISTAS e CAMINHOES serão lidos/escritos nesta planilha; login e auditoria permanecem na base interna.');
+  const headers=['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'];
+  let local=ss.getSheetByName('MOTORISTAS'); if(!local)local=ss.insertSheet('MOTORISTAS');
+  const current=local.getLastColumn()?local.getRange(1,1,1,local.getLastColumn()).getDisplayValues()[0].map(String):[];
+  if(!current.some(function(v){return String(v||'').trim();}))local.getRange(1,1,1,headers.length).setValues([headers]);
+  else if(headers.some(function(h,i){return String(current[i]||'').trim()!==h;}))throw new Error('Cabeçalhos incompatíveis na guia local MOTORISTAS. Nenhum dado foi alterado.');
+  local.setFrozenRows(1);
+  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID',spreadsheetId);
+  console.log('Planilha conectada: '+ss.getUrl());
+  console.log('Cadastros lidos das guias FT_CADASTRO_BRUNO_*. Não serão criadas guias CAMINHOES ou CARGAS.');
+  console.log('Adicionar CAPACIDADE_CARGA_TONELADAS ao cadastro de cavalos na planilha do Bruno e à rotina de sincronização.');
   return ss.getUrl();
-}
-
-/**
- * Adiciona exatamente cinco motoristas e cinco caminhões claramente fictícios.
- * É idempotente: se já existirem registros com ID TESTE-FT-*, não duplica a carga.
- * Execute apenas em ambiente de teste; os dados são marcados como TESTE.
- */
-function inserirDadosFakeFullTime() {
-  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if (!registryId) throw new Error('Execute primeiro conectarPlanilhaOperacionalFullTime().');
-  const ss = SpreadsheetApp.openById(registryId);
-  const drivers = [
-    ['TESTE-FT-MOT-001','MOTORISTA TESTE 01','','(00) 90000-0001','motorista01@example.invalid','CNH-TESTE-001','C','2030-01-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-002','MOTORISTA TESTE 02','','(00) 90000-0002','motorista02@example.invalid','CNH-TESTE-002','D','2030-02-28','Pelotas / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-003','MOTORISTA TESTE 03','','(00) 90000-0003','motorista03@example.invalid','CNH-TESTE-003','E','2030-03-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-004','MOTORISTA TESTE 04','','(00) 90000-0004','motorista04@example.invalid','CNH-TESTE-004','C','2030-04-30','São José do Norte / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-005','MOTORISTA TESTE 05','','(00) 90000-0005','motorista05@example.invalid','CNH-TESTE-005','D','2030-05-31','Pelotas / RS','DADO FICTÍCIO — não usar em operação']
-  ];
-  const trucks = [
-    ['TESTE-FT-CAM-001','TST0001','','Volvo','FH 460 TESTE','2022','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-002','TST0002','','Scania','R 450 TESTE','2021','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-003','TST0003','','Mercedes-Benz','Actros TESTE','2023','Cavalo mecânico',26,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-004','TST0004','','Volvo','VM TESTE','2020','Truck',14,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-005','TST0005','','Iveco','Hi-Way TESTE','2022','Carreta',27,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação']
-  ];
-  const driverSheet = ss.getSheetByName('MOTORISTAS');
-  const truckSheet = ss.getSheetByName('CAMINHOES');
-  const existingDriverIds = driverSheet.getLastRow() > 1 ? driverSheet.getRange(2,1,driverSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
-  const existingTruckIds = truckSheet.getLastRow() > 1 ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
-  const now = new Date();
-  let driverCount = 0, truckCount = 0;
-  drivers.forEach(function(d) {
-    if (existingDriverIds.indexOf(d[0]) !== -1) return;
-    driverSheet.appendRow([d[0],now,'PENDENTE_REVISAO',d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9]]);
-    driverCount++;
-  });
-  trucks.forEach(function(t) {
-    if (existingTruckIds.indexOf(t[0]) !== -1) return;
-    truckSheet.appendRow([t[0],now,'PENDENTE_REVISAO',t[1],t[2],t[3],t[4],t[5],t[6],t[7],t[8],t[9]]);
-    truckCount++;
-  });
-  console.log('Dados fictícios inseridos: ' + driverCount + ' motoristas, ' + truckCount + ' caminhões.');
-  console.log('Todos estão marcados como PENDENTE_REVISAO e possuem IDs TESTE-FT-*. Remova-os antes da produção.');
-  return {motoristas:driverCount,caminhoes:truckCount};
 }
 
 function doGet(e) {
@@ -170,7 +57,6 @@ function configurarSistemaFullTime() {
   const schemas = {
     USUARIOS: ['ID', 'LOGIN', 'NOME', 'PERFIL', 'SALT', 'HASH_SENHA', 'ATIVO', 'TROCAR_SENHA', 'CRIADO_EM'],
     MOTORISTAS: ['ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE', 'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE', 'CIDADE_UF', 'OBSERVACOES'],
-    CAMINHOES: ['ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA', 'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS', 'SITUACAO_DOCUMENTAL', 'OBSERVACOES'],
     AUDITORIA: ['DATA_HORA', 'LOGIN', 'ACAO', 'ENTIDADE', 'REGISTRO_ID', 'DETALHES']
   };
 
@@ -297,33 +183,6 @@ function salvarMotoristaFullTime(token, data) {
   return { ok: true, id: id, message: 'Motorista cadastrado e enviado para revisão.' };
 }
 
-function salvarCaminhaoFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  data = data || {};
-  const placa = texto_(data.placa, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const marca = texto_(data.marca, 80);
-  const modelo = texto_(data.modelo, 80);
-  const ano = texto_(data.ano, 10);
-  const tipo = texto_(data.tipo, 50);
-  const capacidade = Number(data.capacidade);
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já está cadastrada.');
-  if (!marca || !modelo) throw new Error('Informe marca e modelo.');
-  if (!ano || !/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
-  if (!tipo) throw new Error('Selecione o tipo de veículo.');
-  if (!(capacidade > 0 && capacidade <= 200)) throw new Error('Informe uma capacidade em toneladas válida.');
-
-  const id = Utilities.getUuid();
-  getSheet_('CAMINHOES').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', placa,
-    digitos_(data.renavam), marca, modelo, ano, tipo, capacidade,
-    texto_(data.documento, 80), texto_(data.observacoes, 1000)
-  ]);
-  auditar_(session, 'CRIAR', 'CAMINHAO', id, placa + ' — ' + marca + ' ' + modelo);
-  return { ok: true, id: id, message: 'Caminhão cadastrado e enviado para revisão.' };
-}
-
-
 /** Importação em lote via CSV UTF-8 delimitado por ponto e vírgula. */
 function importarMotoristasCsvFullTime(token, csvText) {
   const session = obterSessao_(token); exigirAdmin_(session);
@@ -353,35 +212,6 @@ function importarMotoristasCsvFullTime(token, csvText) {
     auditar_(session,'IMPORTAR_LOTE','MOTORISTAS','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
   }
   return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' motorista(s) importado(s); '+errors.length+' linha(s) precisam de correção.'};
-}
-
-function importarCaminhoesCsvFullTime(token, csvText) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  const rows = parseImportCsv_(csvText, [
-    'placa','renavam','marca','modelo','ano','tipo','capacidade','documento','observacoes'
-  ]);
-  const sh = getSheet_('CAMINHOES');
-  const existingPlates = new Set(sh.getLastRow() > 1 ? sh.getRange(2,4,sh.getLastRow()-1,1).getDisplayValues().flat().map(normalizarPlaca_).filter(Boolean) : []);
-  const seenPlates = new Set();
-  const output = [], errors = [];
-  rows.forEach(function(row, idx) {
-    const line = idx + 2;
-    const placa = normalizarPlaca_(row.placa), marca = texto_(row.marca,80), modelo = texto_(row.modelo,80);
-    const ano = texto_(row.ano,10), tipo = texto_(row.tipo,50), capacidade = Number(String(row.capacidade||'').replace(',','.'));
-    if (!placa || placa.length !== 7) { errors.push('Linha ' + line + ': placa deve ter 7 caracteres.'); return; }
-    if (existingPlates.has(placa) || seenPlates.has(placa)) { errors.push('Linha ' + line + ': placa duplicada.'); return; }
-    if (!marca || !modelo) { errors.push('Linha ' + line + ': marca e modelo obrigatórios.'); return; }
-    if (!/^\d{4}$/.test(ano)) { errors.push('Linha ' + line + ': ano deve ter quatro dígitos.'); return; }
-    if (!tipo) { errors.push('Linha ' + line + ': tipo de veículo obrigatório.'); return; }
-    if (!(capacidade > 0 && capacidade <= 200)) { errors.push('Linha ' + line + ': capacidade deve estar entre 0,1 e 200 toneladas.'); return; }
-    seenPlates.add(placa);
-    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',placa,digitos_(row.renavam),marca,modelo,ano,tipo,capacidade,texto_(row.documento,80),texto_(row.observacoes,1000)]);
-  });
-  if (output.length) {
-    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
-    auditar_(session,'IMPORTAR_LOTE','CAMINHOES','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
-  }
-  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' caminhão(ões) importado(s); '+errors.length+' linha(s) precisam de correção.'};
 }
 
 function parseImportCsv_(csvText, requiredHeaders) {
@@ -420,9 +250,8 @@ function prepararGuiasEscalaFullTime() {
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
-    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -463,14 +292,9 @@ function prepararBaseOperacionalFullTime() {
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
-    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],
-    ESCALAS: ['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES'],
-    HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR'],
-    TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','CARGA_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
-    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   Object.keys(schemas).forEach(function(name) {
     let sh = ss.getSheetByName(name);
@@ -500,159 +324,6 @@ function prepararBaseOperacionalFullTime() {
   return ss.getUrl();
 }
 
-function listarCargasFullTime_() {
-  const sh = getSheet_('CARGAS');
-  if (sh.getLastRow() < 2) return [];
-  // Ler pela largura real evita perder os campos novos e tolera versões antigas da guia.
-  const width = Math.max(sh.getLastColumn(), 19);
-  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
-  const motoristas = listarRegistros_('MOTORISTAS');
-  const caminhoes = listarRegistros_('CAMINHOES');
-  const byId = function(list) { const out = {}; list.forEach(x => out[x.id] = x); return out; };
-  const driversById = byId(motoristas);
-  const trucksById = byId(caminhoes);
-  const safeList = function(name) { try { return listarRegistros_(name); } catch (e) { return []; } };
-  const cavalosById = byId(safeList('CAVALOS'));
-  const carretasById = byId(safeList('CARRETAS'));
-  const field = function(map, id, index, fallback) {
-    if (!id) return '';
-    const item = map[id];
-    return item && item.campos ? String(item.campos[index] || '') : (fallback || '');
-  };
-  return rows.map(function(r) {
-    const motoristaId = String(r[10] || '');
-    const cavaloId = String(r[11] || '');
-    const carretaMeioId = String(r[12] || '');
-    const carretaFinalId = String(r[13] || '');
-    const horaValue = r[4];
-    let horario = '';
-    if (horaValue instanceof Date) horario = Utilities.formatDate(horaValue, Session.getScriptTimeZone(), 'HH:mm');
-    else if (typeof horaValue === 'number' && isFinite(horaValue)) {
-      const mins = Math.round(horaValue * 24 * 60) % (24 * 60);
-      horario = ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2);
-    } else {
-      const raw = String(horaValue || '').trim();
-      const match = raw.match(/(?:T|\s)(\d{2}:\d{2})/);
-      horario = match ? match[1] : (/^\d{1,2}:\d{2}$/.test(raw) ? raw : '');
-    }
-    return {
-      id: String(r[0] || ''),
-      criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-      status: String(r[2] || 'A_ESCALAR'),
-      data: r[3] instanceof Date ? Utilities.formatDate(r[3], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[3] || '').slice(0,10),
-      horario: horario,
-      cliente: String(r[5] || ''),
-      origem: String(r[6] || ''),
-      destino: String(r[7] || ''),
-      peso: Number(r[8] || 0),
-      descricao: String(r[9] || ''),
-      motoristaId: motoristaId,
-      motoristaNome: field(driversById, motoristaId, 0, motoristaId),
-      motoristaCnh: field(driversById, motoristaId, 4, ''),
-      cavaloId: cavaloId,
-      cavaloPlaca: field(cavalosById, cavaloId, 0, field(trucksById, cavaloId, 0, cavaloId)),
-      carretaMeioId: carretaMeioId,
-      carretaMeioPlaca: field(carretasById, carretaMeioId, 0, field(trucksById, carretaMeioId, 0, carretaMeioId)),
-      carretaFinalId: carretaFinalId,
-      carretaFinalPlaca: field(carretasById, carretaFinalId, 0, field(trucksById, carretaFinalId, 0, carretaFinalId)),
-      observacoes: String(r[14] || ''),
-      criadoPor: String(r[15] || ''),
-      tipoOperacao: String(r[16] || 'OUTRA'),
-      ticketCarregamentoUrl: String(r[17] || ''),
-      ticketDescargaUrl: String(r[18] || ''),
-      valorFrete: Number(r[19] || 0)
-    };
-  }).filter(function(c) { return c.id; })
-    .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
-}
-function salvarCargaFullTime(token, data) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  data = data || {};
-  const dataOperacao = texto_(data.data, 10);
-  const horario = texto_(data.horario, 10);
-  const cliente = texto_(data.cliente, 120);
-  const origem = texto_(data.origem, 160);
-  const destino = texto_(data.destino, 160);
-  const peso = Number(String(data.peso == null ? '' : data.peso).replace(',', '.'));
-  const valorFrete = Number(String(data.valorFrete == null ? '' : data.valorFrete).replace(/\s/g, '').replace(',', '.'));
-  const descricao = texto_(data.descricao, 300);
-  const observacoes = texto_(data.observacoes, 1000);
-  const tiposPermitidos = ['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
-  const tipoOperacao = texto_(data.tipoOperacao || 'OUTRA', 40).toUpperCase();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao) || isNaN(new Date(dataOperacao + 'T12:00:00').getTime())) throw new Error('Informe uma data válida para a operação.');
-  if (horario && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horario)) throw new Error('Informe o horário no formato HH:MM.');
-  if (!cliente) throw new Error('Informe o cliente contratante.');
-  if (!origem) throw new Error('Informe a origem da carga.');
-  if (!destino) throw new Error('Informe o destino da carga.');
-  if (!(peso > 0 && isFinite(peso))) throw new Error('Informe um peso total maior que zero, em toneladas. Não há limite fixo de 100 toneladas para a carga total.');
-  if (!tiposPermitidos.includes(tipoOperacao)) throw new Error('Selecione um tipo de operação válido.');
-  if (data.valorFrete != null && String(data.valorFrete).trim() !== '' && !(valorFrete >= 0 && isFinite(valorFrete))) throw new Error('Informe um valor de frete válido.');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const id = Utilities.getUuid();
-    const sh = getSheet_('CARGAS');
-    // O layout oficial tem 20 colunas; colunas novas são adicionadas ao final pela preparação da base.
-    const values = [
-      id, new Date(), 'A_ESCALAR', dataOperacao, horario, cliente, origem, destino,
-      peso, descricao, '', '', '', '', observacoes,
-      session.login || session.nome || 'ADMIN', tipoOperacao, '', '', 
-      (data.valorFrete == null || String(data.valorFrete).trim() === '') ? '' : valorFrete
-    ];
-    if (sh.getLastColumn() < values.length) {
-      throw new Error('A guia CARGAS ainda não tem todas as colunas. Execute prepararBaseOperacionalFullTime() e tente novamente.');
-    }
-    sh.appendRow(values);
-    auditar_(session, 'CRIAR', 'CARGA', id, cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t; frete ' + (values[19] === '' ? 'não informado' : valorFrete) + ')');
-    return {ok:true,id:id,message:'Carga registrada. O valor do frete foi salvo e a escala será feita em etapa própria.'};
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** Cadastro administrativo de cavalos mecânicos. Registros começam pendentes. */
-function salvarCavaloFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
-  const placa = normalizarPlaca_(data.placa);
-  const marca = texto_(data.marca, 80), modelo = texto_(data.modelo, 80);
-  const ano = texto_(data.ano, 4);
-  const tara = Number(String(data.tara || '').replace(',', '.'));
-  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAVALOS', 4, placa) || duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já existe em CAVALOS ou CAMINHOES. Não duplique o veículo.');
-  if (!marca || !modelo) throw new Error('Informe marca e modelo.');
-  if (!/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
-  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
-  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id = Utilities.getUuid();
-  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
-  auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
-  return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
-}
-
-/** Cadastro administrativo de carretas. */
-function salvarCarretaFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
-  const placa = normalizarPlaca_(data.placa);
-  const tipo = texto_(data.tipo,60);
-  const tara = Number(String(data.tara || '').replace(',', '.'));
-  const capacidade = Number(String(data.capacidade || '').replace(',', '.'));
-  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CARRETAS',4,placa) || duplicado_('CAVALOS',4,placa) || duplicado_('CAMINHOES',4,placa)) throw new Error('Esta placa já está cadastrada em outro veículo.');
-  if (!tipo) throw new Error('Selecione o tipo de carreta.');
-  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
-  if (!(capacidade > 0 && capacidade <= 100)) throw new Error('Informe a capacidade de carga em toneladas.');
-  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id=Utilities.getUuid();
-  getSheet_('CARRETAS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,tipo,tara,capacidade,pbtc,texto_(data.observacoes,1000)]);
-  auditar_(session,'CRIAR','CARRETA',id,placa+' — '+tipo);
-  return {ok:true,id:id,message:'Carreta cadastrada e enviada para revisão.'};
-}
-
-/** Associa motorista, cavalo e até duas carretas. Só ativos podem compor conjunto operacional. */
-/** Associa motorista, cavalo e até duas carretas. Capacidade calculada pelos cadastros. */
 function salvarConjuntoVeicularFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
@@ -763,7 +434,7 @@ function ftReadStatusOverrides_(entity) {
 function atualizarStatusFullTime(token, entidade, id, status) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
+  const mapa = { CONJUNTOS: 3 };
   if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
   if (!id) throw new Error('Identificador do cadastro não informado.');
   if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
@@ -821,7 +492,7 @@ function getSheet_(name) {
   // Usuários e auditoria permanecem na base interna de autenticação.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['MOTORISTAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
