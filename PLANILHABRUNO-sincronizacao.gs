@@ -91,6 +91,54 @@ function PLANILHABRUNO_validarSincronizacaoV2() {
  * Mantém a guia de entrada de solicitações com cabeçalhos idênticos nas duas planilhas.
  * Apenas acrescenta ID_OPERACAO_GERADA ao fim; não move nem apaga colunas ou registros.
  */
+/**
+ * Diagnóstico somente leitura dos cabeçalhos da entrada de operações.
+ * Não grava, não move e não exclui colunas ou registros.
+ */
+function PLANILHABRUNO_diagnosticarCabecalhoEntradaOperacoesIA() {
+  const origem = SpreadsheetApp.getActiveSpreadsheet();
+  const destino = SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
+  const nome = 'ENTRADA_OPERACOES_IA';
+  const so = origem.getSheetByName(nome), sd = destino.getSheetByName(nome);
+  if (!so || !sd) throw new Error('A guia ' + nome + ' precisa existir nas duas planilhas.');
+  const ho = PLANILHABRUNO_headersV2_(so);
+  const hd = PLANILHABRUNO_headersV2_(sd);
+  const norm = a => a.map(PLANILHABRUNO_normV2_);
+  const no = norm(ho), nd = norm(hd);
+  const max = Math.max(ho.length, hd.length);
+  const diferencasPorPosicao = [];
+  for (let i = 0; i < max; i++) {
+    if ((no[i] || '') !== (nd[i] || '')) {
+      diferencasPorPosicao.push({
+        coluna: i + 1,
+        origem: ho[i] || '(vazio/ausente)',
+        central: hd[i] || '(vazio/ausente)'
+      });
+    }
+  }
+  const ausentesNaCentral = ho.filter(h => h && !nd.includes(PLANILHABRUNO_normV2_(h)));
+  const ausentesNaOrigem = hd.filter(h => h && !no.includes(PLANILHABRUNO_normV2_(h)));
+  const esperado = ['ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL','DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA','ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO'];
+  const divergenciasPadrao = esperado.map((h,i) => ({
+    coluna: i + 1, esperado: h,
+    origem: ho[i] || '(vazio/ausente)',
+    central: hd[i] || '(vazio/ausente)'
+  })).filter(x => PLANILHABRUNO_normV2_(x.origem) !== PLANILHABRUNO_normV2_(x.esperado) ||
+                  PLANILHABRUNO_normV2_(x.central) !== PLANILHABRUNO_normV2_(x.esperado));
+  const out = {
+    ok: true,
+    somenteLeitura: true,
+    origem: { nome: origem.getName(), id: origem.getId(), totalColunas: ho.length, cabecalhos: ho },
+    central: { nome: destino.getName(), id: destino.getId(), totalColunas: hd.length, cabecalhos: hd },
+    cabecalhosIdenticosNaMesmaOrdem: diferencasPorPosicao.length === 0,
+    diferencasPorPosicao: diferencasPorPosicao,
+    ausentesNaCentral: ausentesNaCentral,
+    ausentesNaOrigem: ausentesNaOrigem,
+    divergenciasNasPrimeiras12ColunasDoPadrao: divergenciasPadrao
+  };
+  Logger.log('FULL TIME — DIAGNÓSTICO CABEÇALHOS ENTRADA_OPERACOES_IA: ' + JSON.stringify(out));
+  return out;
+}
 function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
   const origem=SpreadsheetApp.getActiveSpreadsheet();
   const destino=SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
