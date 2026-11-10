@@ -187,8 +187,8 @@ function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas) {
   id=ftSolText_(id,180); dados=dados||{};
   var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'];
   var clean={}; allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
-  if(!Array.isArray(pendentes)) throw new Error('A lista de pendências é inválida.');
-  var pending=pendentes.map(function(v){return ftSolText_(v,120);}).filter(Boolean);
+  // Pendências são calculadas no servidor; nunca confiar na lista enviada pelo navegador.
+  var pending=[];
   var sh=ftSolSheet_(),c=ftSolCols_(sh),lock=LockService.getScriptLock();lock.waitLock(20000);
   try {
     var last=sh.getLastRow(),ids=last>1?sh.getRange(2,c.ID,last-1,1).getDisplayValues():[],row=-1;
@@ -196,6 +196,7 @@ function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas) {
     if(row<0)throw new Error('Solicitação não encontrada.');
     var previous=String(sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).getValue()||'{}'), old={};
     try{old=JSON.parse(previous)||{};}catch(e){}
+    pending=ftSolComputeMissingFields_(clean);
     var analysis={resumo:old.resumo||'Revisão manual',dados:clean,ambiguidades:old.ambiguidades||[],prontoParaRevisao:pending.length===0,origemRevisao:'HUMANA',revisadoEm:new Date().toISOString()};
     var status=pending.length?'EM_COLETA':'AGUARDANDO_APROVACAO';
     sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).setValue(JSON.stringify(analysis));
@@ -205,7 +206,7 @@ function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas) {
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
     hist.push(ftSolEvent_('REVISAO_MANUAL_SALVA',session.login,'Campos revisados; '+pending.length+' pendência(s).'));
     sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
-    return {ok:true,id:id,status:status,message:pending.length?'Revisão salva. Ainda há campos pendentes.':'Revisão salva; solicitação pronta para aprovação.'};
+    return {ok:true,id:id,status:status,camposPendentes:pending,message:pending.length?'Revisão salva. Ainda há '+pending.length+' pendência(s); aprovação bloqueada.':'Revisão salva e validada; solicitação pronta para aprovação.'};
   } finally {lock.releaseLock();}
 }
 
@@ -225,28 +226,30 @@ function ftSolNumber_(value) {
   return Number.isFinite(n)?n:0;
 }
 
+function ftSolComputeMissingFields_(d){
+  d=d||{};
+  var missing=[];
+  if(!ftSolText_(d.cliente,120))missing.push('Cliente');
+  if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('Origem identificável (local e cidade/UF)');
+  if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('Destino identificável (local e cidade/UF)');
+  if(!(ftSolNumber_(d.volume)>0))missing.push('Peso/volume total numérico maior que zero');
+  if(!(ftSolNumber_(d.volumePorViagem)>0)&&!(ftSolNumber_(d.viagensPrevistas)>0))missing.push('Volume por viagem ou quantidade prevista de viagens');
+  var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
+  if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('Unidade do peso confirmada em toneladas (t)');
+  var date=ftSolText_(d.dataColeta,10),parsedDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00'):null;
+  if(!parsedDate||isNaN(parsedDate.getTime())||Utilities.formatDate(parsedDate,Session.getScriptTimeZone(),'yyyy-MM-dd')!==date)missing.push('Data absoluta válida da coleta (AAAA-MM-DD)');
+  return missing;
+}
+
 function ftSolValidateForApproval_(sh,c,row){
   var raw=String(sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).getValue()||'{}'),a={};
   try{a=JSON.parse(raw)||{};}catch(e){}
-  var d=a.dados||a,missing=[];
-  if(!ftSolText_(d.cliente,120))missing.push('cliente');
-  if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
-  if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
-  var total=ftSolNumber_(d.volume);
-  if(!(total>0))missing.push('peso/volume total numérico');
-  var perTrip=ftSolNumber_(d.volumePorViagem);
-  var planned=ftSolNumber_(d.viagensPrevistas);
-  if(!(perTrip>0)&&!(planned>0))missing.push('volume por viagem ou quantidade prevista de viagens');
-  var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
-  if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('unidade do peso confirmada em toneladas (t)');
-  var date=ftSolText_(d.dataColeta,10), parsedDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00'):null;
-  if(!parsedDate || isNaN(parsedDate.getTime()) || Utilities.formatDate(parsedDate,Session.getScriptTimeZone(),'yyyy-MM-dd')!==date)missing.push('data absoluta válida da coleta');
+  var d=a.dados||a,missing=ftSolComputeMissingFields_(d);
   var pending=[];try{pending=JSON.parse(sh.getRange(row,c.CAMPOS_PENDENTES_JSON).getValue()||'[]');}catch(e){}
-  if(pending.length)missing.push('resolver campos pendentes: '+pending.join(', '));
+  if(pending.length)missing=missing.concat(pending.map(function(v){return 'Resolver: '+v;}));
   if(missing.length)throw new Error('Não é possível aprovar. Complete/valide: '+missing.join('; ')+'.');
   return d;
 }
-
 /** Converte uma solicitação aprovada em carga, com trava de duplicidade e vínculo de origem. */
 function converterSolicitacaoEmOperacaoFullTime(token,id){
   var session=obterSessao_(token);exigirAdmin_(session);id=ftSolText_(id,180);
