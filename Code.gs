@@ -295,6 +295,65 @@ function getDbId_() {
   if (!id) throw new Error('A base ainda não foi configurada. Execute configurarSistemaFullTime().');
   return id;
 }
+
+/**
+ * Armazena decisões de aprovação separadas dos cadastros sincronizados do Bruno.
+ * A guia é criada automaticamente na base interna de autenticação, sem alterar
+ * as planilhas de frota ou os dados originais.
+ */
+function ftStatusOverridesSheet_() {
+  const ss = SpreadsheetApp.openById(getDbId_());
+  let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
+  if (!sh) {
+    sh = ss.insertSheet('FT_STATUS_CADASTROS');
+    sh.getRange(1, 1, 1, 5).setValues([['ENTIDADE','ID_CADASTRO','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c');
+  }
+  return sh;
+}
+
+function ftReadStatusOverrides_(entidade) {
+  const sh = ftStatusOverridesSheet_();
+  const last = sh.getLastRow();
+  const result = {};
+  if (last < 2) return result;
+  const values = sh.getRange(2, 1, last - 1, 5).getValues();
+  values.forEach(function(row) {
+    if (String(row[0] || '').trim().toUpperCase() !== String(entidade || '').trim().toUpperCase()) return;
+    const id = String(row[1] || '').trim();
+    const status = String(row[2] || '').trim().toUpperCase();
+    if (id && ['PENDENTE_REVISAO','ATIVO','INATIVO'].indexOf(status) !== -1) result[id] = status;
+  });
+  return result;
+}
+
+function ftSaveStatusOverride_(entidade, id, status, session) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = ftStatusOverridesSheet_();
+    const entityKey = String(entidade || '').trim().toUpperCase();
+    const idKey = String(id || '').trim();
+    const statusKey = String(status || '').trim().toUpperCase();
+    if (!entityKey || !idKey) throw new Error('Entidade e identificador são obrigatórios para salvar a aprovação.');
+    const last = sh.getLastRow();
+    if (last >= 2) {
+      const rows = sh.getRange(2, 1, last - 1, 2).getDisplayValues();
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (String(rows[i][0]).trim().toUpperCase() === entityKey && String(rows[i][1]).trim() === idKey) {
+          sh.getRange(i + 2, 3, 1, 3).setValues([[statusKey, new Date(), session ? session.login : '']]);
+          return {ok:true, updated:true};
+        }
+      }
+    }
+    sh.appendRow([entityKey, idKey, statusKey, new Date(), session ? session.login : '']);
+    return {ok:true, updated:false};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /**
  * Arquiva, sem excluir dados, as antigas guias que deixaram de fazer parte do fluxo.
  * Execute somente depois de confirmar que os espelhos FT_CADASTRO_BRUNO_* estão atualizados.
