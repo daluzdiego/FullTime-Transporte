@@ -1300,6 +1300,13 @@ function iniciarViagemFullTime(token,dados) {
     if(pi<1)throw new Error('Participação não encontrada nesta operação.');
     const part=partRows[pi];
     if(String(part[pm.STATUSPARTICIPACAO])!=='ATIVO')throw new Error('A participação não está ativa.');
+    const loteId=pm.LOTEID!=null?String(part[pm.LOTEID]||''):'';
+    let lote=null,loteMap=null;
+    if(loteId){
+      const lotSh=getSheet_('LOTES_OPERACAO'),lotRows=lotSh.getDataRange().getValues();loteMap=ftHeaderMapViagens_(lotSh);
+      lote=lotRows.find((r,i)=>i>0&&String(r[loteMap.ID])===loteId&&String(r[loteMap.OPERACAOID])===operacaoId);
+      if(!lote)throw new Error('O lote vinculado à participação não foi encontrado.');
+    }
     const target=Number(part[pm.VIAGENSPREVISTAS]||0);
     if(!(target>0))throw new Error('Defina a meta de viagens desta participação antes de iniciar.');
     const tripSh=getSheet_('VIAGENS'), tripRows=tripSh.getDataRange().getValues(), tm=ftHeaderMapViagens_(tripSh);
@@ -1327,7 +1334,7 @@ function iniciarViagemFullTime(token,dados) {
     const setv=(k,v)=>{const col=tm[ftDriveNormHeader_(k)];if(col!=null)row[col]=v;};
     setv('ID',id);setv('CRIADO_EM',now);setv('OPERACAO_ID',operacaoId);setv('PARTICIPACAO_ID',participacaoId);
     setv('SEQUENCIA_OPERACAO',seqOp);setv('SEQUENCIA_MOTORISTA',seqDriver);setv('MOTORISTA_ID',part[pm.MOTORISTAID]);setv('CONJUNTO_ID',part[pm.CONJUNTOID]);
-    setv('STATUS','A_CAMINHO_ORIGEM');setv('ORIGEM_DESCRICAO',op[om.ORIGEM]);setv('DESTINO_DESCRICAO',op[om.DESTINO]);
+    setv('STATUS','A_CAMINHO_ORIGEM');setv('LOTE_ID',loteId);setv('ORIGEM_DESCRICAO',lote?lote[loteMap.ORIGEM]:op[om.ORIGEM]);setv('DESTINO_DESCRICAO',lote?lote[loteMap.DESTINO]:op[om.DESTINO]);
     setv('PESO_PREVISTO_TONELADAS',Math.min(cap,availableOperation,partRemaining));setv('INICIO_REAL',now);setv('ATUALIZADA_EM',now);setv('ATUALIZADA_POR',session.login);
     const totalOp=Number(op[om.TOTALVIAGENSPREVISTAS]||op[10]||0);
     if(totalOp>0&&seqOp>totalOp)throw new Error('A sequência excede o total de viagens previsto para a operação.');
@@ -1489,6 +1496,18 @@ function concluirViagemFullTime(token,dados) {
     opSh.getRange(oi+1,om.STATUS+1).setValue(nextStatus);
     partSh.getRange(pi+1,pm.VIAGENSCONCLUIDAS+1).setValue(Number(parts[pi][pm.VIAGENSCONCLUIDAS]||0)+1);
     partSh.getRange(pi+1,pm.TONELADASMOVIMENTADAS+1).setValue(Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0)+peso);
+    const loteId=tm.LOTEID!=null?String(trip[tm.LOTEID]||''):'';
+    if(loteId){
+      const lotSh=getSheet_('LOTES_OPERACAO'),lotRows=lotSh.getDataRange().getValues(),lm=ftHeaderMapViagens_(lotSh);
+      const li=lotRows.findIndex((r,i)=>i>0&&String(r[lm.ID])===loteId&&String(r[lm.OPERACAOID])===String(trip[tm.OPERACAOID]));
+      if(li<1)throw new Error('Lote da viagem não encontrado; conclusão bloqueada para preservar o saldo.');
+      const realized=Number(lotRows[li][lm.VOLUMEREALIZADOTONELADAS]||0)+peso;
+      if(realized>Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)+0.000001)throw new Error('Peso real ultrapassaria o volume previsto do lote.');
+      lotSh.getRange(li+1,lm.VOLUMEREALIZADOTONELADAS+1).setValue(realized);
+      if(lm.ATUALIZADOEM!=null)lotSh.getRange(li+1,lm.ATUALIZADOEM+1).setValue(now);
+      if(lm.ATUALIZADOPOR!=null)lotSh.getRange(li+1,lm.ATUALIZADOPOR+1).setValue(session.login);
+      if(realized>=Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)-0.000001&&lm.STATUS!=null)lotSh.getRange(li+1,lm.STATUS+1).setValue('CONCLUIDO');
+    }
     ftAppendEventoViagem_(viagemId,'VIAGEM_CONCLUIDA',session,'Peso real: '+peso+' t.');
     auditar_(session,'CONCLUIR_VIAGEM','VIAGEM',viagemId,'Peso '+peso+' t; saldo operação '+newBalance+' t.');
     return {ok:true,saldoRestante:newBalance,message:'Viagem concluída. Saldo da operação: '+newBalance+' t.'};
