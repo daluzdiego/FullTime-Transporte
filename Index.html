@@ -313,17 +313,21 @@
     const locked=document.getElementById('solApproveLocked');if(locked)locked.textContent='Dados alterados. Salve novamente para validar e liberar a aprovação.';
   }
   function salvarRevisaoSolicitacaoFullTime(ev,id){
-    ev.preventDefault();const dados={};Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
+    ev.preventDefault();
+    const dados={};
+    Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
+    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
     const questions=document.getElementById('solEditQuestions').value;
     google.script.run.withSuccessHandler(res=>{
       const current=solicitacoesFullTime.find(s=>s.id===id);
-      if(current){current.dadosExtraidos=JSON.stringify({resumo:'Revisão manual',dados:dados,ambiguidades:[],prontoParaRevisao:res.camposPendentes.length===0,origemRevisao:'HUMANA'});current.camposPendentes=JSON.stringify(res.camposPendentes||[]);current.status=res.status;current.perguntas=questions;}
-      toast(res.message||'Revisão salva e validada.');abrirRevisaoSolicitacaoFullTime(id);carregarSolicitacoesFullTime();
-    }).withFailureHandler(err=>toast(err.message||'Falha ao salvar revisão.',true)).atualizarDadosSolicitacaoFullTime(authToken,id,dados,[],questions);
-  }(ev,id){
-    ev.preventDefault();const dados={};Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean),questions=document.getElementById('solEditQuestions').value;
-    google.script.run.withSuccessHandler(res=>{toast(res.message||'Revisão salva.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao salvar revisão.',true)).atualizarDadosSolicitacaoFullTime(authToken,id,dados,pending,questions);
+      if(current){
+        current.dadosExtraidos=JSON.stringify({resumo:'Revisão manual',dados:dados,ambiguidades:[],prontoParaRevisao:(res.camposPendentes||[]).length===0,origemRevisao:'HUMANA'});
+        current.camposPendentes=JSON.stringify(res.camposPendentes||[]);
+        current.status=res.status;
+        current.perguntas=questions;
+      }
+      toast(res.message||'Revisão salva.');abrirRevisaoSolicitacaoFullTime(id);carregarSolicitacoesFullTime();
+    }).withFailureHandler(err=>toast(err.message||'Falha ao salvar revisão.',true)).atualizarDadosSolicitacaoFullTime(authToken,id,dados,pending,questions);
   }
   function alterarStatusSolicitacaoUI(id,status){
     const obs=prompt('Observação (opcional):')||'';
