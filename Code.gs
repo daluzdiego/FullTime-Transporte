@@ -279,6 +279,28 @@ function getDbId_() {
   if (!id) throw new Error('A base ainda não foi configurada. Execute configurarSistemaFullTime().');
   return id;
 }
+/**
+ * Arquiva, sem excluir dados, as antigas guias que deixaram de fazer parte do fluxo.
+ * Execute somente depois de confirmar que os espelhos FT_CADASTRO_BRUNO_* estão atualizados.
+ */
+function arquivarGuiasLegadasFullTime() {
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não está configurado. Execute conectarPlanilhaOperacionalFullTime().');
+  const ss=SpreadsheetApp.openById(registryId);
+  const names=['CAMINHOES','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','OFERTAS_CARGAS'];
+  const archived=[];
+  names.forEach(function(name){
+    const sh=ss.getSheetByName(name);
+    if(!sh)return;
+    let target='LEGADO_'+name, suffix=1;
+    while(ss.getSheetByName(target)){target='LEGADO_'+name+'_'+suffix;suffix++;}
+    sh.setName(target);
+    sh.hideSheet();
+    archived.push(target);
+  });
+  return {ok:true,arquivadas:archived,message:archived.length+' guia(s) legada(s) arquivada(s), sem exclusão de dados.'};
+}
+
 function getSheet_(name) {
   // Dados operacionais ficam na planilha oficial compartilhada com a Full Time.
   // Usuários e auditoria permanecem na base interna de autenticação.
