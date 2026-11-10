@@ -51,3 +51,22 @@ function obterCentroOperacoesFullTime(token) {
   const totalTon=currentOps.reduce((n,o)=>n+o.toneladasMovimentadas,0);
   return {user:session,atualizadoEm:new Date().toISOString(),indicadores:{operacoesAtuais:currentOps.length,conjuntosEmOperacao:currentOps.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:currentOps.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},operacoes:currentOps};
 }
+
+
+/**
+ * Migração aditiva dos campos logísticos da operação.
+ * Acrescenta somente cabeçalhos ausentes ao final da guia OPERACOES.
+ * Não limpa, move ou reescreve dados existentes.
+ */
+function FT_prepararCamposLogisticosOperacao20261110() {
+  const sh=getSheet_('OPERACOES');
+  const required=['PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'];
+  const current=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+  const norm=v=>String(v||'').trim().toUpperCase();
+  const have=new Set(current.map(norm).filter(Boolean));
+  const missing=required.filter(h=>!have.has(norm(h)));
+  if(missing.length) sh.getRange(1,sh.getLastColumn()+1,1,missing.length).setValues([missing]);
+  const finalHeaders=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  sh.setFrozenRows(1);
+  return {ok:true,adicionados:missing,preservados:true,totalColunas:finalHeaders.length,message:missing.length?'Campos logísticos adicionados ao final de OPERACOES.':'Todos os campos logísticos já existem.'};
+}
