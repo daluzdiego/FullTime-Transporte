@@ -279,7 +279,7 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
     var operations=getSheet_('OPERACOES');
     if(operations.getLastColumn()<16)throw new Error('A guia OPERACOES não possui as colunas atualizadas. Execute prepararBaseOperacionalFullTime().');
     var operationId=Utilities.getUuid(),now=new Date();
-    operations.appendRow([operationId,now,'ABERTA',date,client,operationName,origin,destination,category,weight,planned,weight,observations,session.login||session.nome||'ADMIN',0,type]);
+    ftOperationAppendFullTime_(operations,{ID:operationId,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:operationName,ORIGEM:origin,DESTINO:destination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:weight,TOTAL_VIAGENS_PREVISTAS:planned,SALDO_TONELADAS:weight,OBSERVACOES:observations,CRIADO_POR:session.login||session.nome||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type});
     sh.getRange(row,c.ID_OPERACAO_GERADA).setValue(operationId);
     sh.getRange(row,c.ATUALIZADO_EM).setValue(now);
     var hist=[];try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
