@@ -1485,6 +1485,15 @@ function concluirViagemFullTime(token,dados) {
     const partTargetTons=Number(parts[pi][pm.TONELADASPREVISTAS]||0),partDoneTons=Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0);
     if(partDoneTrips>=partTargetTrips)throw new Error('O motorista já atingiu a meta de viagens desta participação.');
     if(peso>partTargetTons-partDoneTons+0.000001)throw new Error('O peso excede o volume previsto para esta participação.');
+    const loteId=tm.LOTEID!=null?String(trip[tm.LOTEID]||''):'';
+    let lotSh=null,lotRows=null,lm=null,li=-1,lotRealized=0;
+    if(loteId){
+      lotSh=getSheet_('LOTES_OPERACAO');lotRows=lotSh.getDataRange().getValues();lm=ftHeaderMapViagens_(lotSh);
+      li=lotRows.findIndex((r,i)=>i>0&&String(r[lm.ID])===loteId&&String(r[lm.OPERACAOID])===String(trip[tm.OPERACAOID]));
+      if(li<1)throw new Error('Lote da viagem não encontrado; conclusão bloqueada para preservar o saldo.');
+      lotRealized=Number(lotRows[li][lm.VOLUMEREALIZADOTONELADAS]||0)+peso;
+      if(lotRealized>Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)+0.000001)throw new Error('Peso real ultrapassaria o volume previsto do lote.');
+    }
     const now=new Date(),newBalance=Math.max(0,saldo-peso);
     tripSh.getRange(ti+1,tm.STATUS+1).setValue('CONCLUIDA');tripSh.getRange(ti+1,tm.PESOREALTONELADAS+1).setValue(peso);tripSh.getRange(ti+1,tm.FIMREAL+1).setValue(now);if(tm.FIMDESCARGAREAL!=null)tripSh.getRange(ti+1,tm.FIMDESCARGAREAL+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADAEM+1).setValue(now);tripSh.getRange(ti+1,tm.ATUALIZADAPOR+1).setValue(session.login);
     opSh.getRange(oi+1,om.SALDOTONELADAS+1).setValue(newBalance);
@@ -1496,17 +1505,11 @@ function concluirViagemFullTime(token,dados) {
     opSh.getRange(oi+1,om.STATUS+1).setValue(nextStatus);
     partSh.getRange(pi+1,pm.VIAGENSCONCLUIDAS+1).setValue(Number(parts[pi][pm.VIAGENSCONCLUIDAS]||0)+1);
     partSh.getRange(pi+1,pm.TONELADASMOVIMENTADAS+1).setValue(Number(parts[pi][pm.TONELADASMOVIMENTADAS]||0)+peso);
-    const loteId=tm.LOTEID!=null?String(trip[tm.LOTEID]||''):'';
     if(loteId){
-      const lotSh=getSheet_('LOTES_OPERACAO'),lotRows=lotSh.getDataRange().getValues(),lm=ftHeaderMapViagens_(lotSh);
-      const li=lotRows.findIndex((r,i)=>i>0&&String(r[lm.ID])===loteId&&String(r[lm.OPERACAOID])===String(trip[tm.OPERACAOID]));
-      if(li<1)throw new Error('Lote da viagem não encontrado; conclusão bloqueada para preservar o saldo.');
-      const realized=Number(lotRows[li][lm.VOLUMEREALIZADOTONELADAS]||0)+peso;
-      if(realized>Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)+0.000001)throw new Error('Peso real ultrapassaria o volume previsto do lote.');
-      lotSh.getRange(li+1,lm.VOLUMEREALIZADOTONELADAS+1).setValue(realized);
+      lotSh.getRange(li+1,lm.VOLUMEREALIZADOTONELADAS+1).setValue(lotRealized);
       if(lm.ATUALIZADOEM!=null)lotSh.getRange(li+1,lm.ATUALIZADOEM+1).setValue(now);
       if(lm.ATUALIZADOPOR!=null)lotSh.getRange(li+1,lm.ATUALIZADOPOR+1).setValue(session.login);
-      if(realized>=Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)-0.000001&&lm.STATUS!=null)lotSh.getRange(li+1,lm.STATUS+1).setValue('CONCLUIDO');
+      if(lotRealized>=Number(lotRows[li][lm.VOLUMEPREVISTOTONELADAS]||0)-0.000001&&lm.STATUS!=null)lotSh.getRange(li+1,lm.STATUS+1).setValue('CONCLUIDO');
     }
     ftAppendEventoViagem_(viagemId,'VIAGEM_CONCLUIDA',session,'Peso real: '+peso+' t.');
     auditar_(session,'CONCLUIR_VIAGEM','VIAGEM',viagemId,'Peso '+peso+' t; saldo operação '+newBalance+' t.');
