@@ -64,7 +64,7 @@ function FT_AUTH_criarUsuariosMotoristasTeste() {
   const created=[],skipped=[];
   drivers.filter(d=>String(d.ID).indexOf('FT-TESTE-')===0).forEach(d=>{
     const email=FT_AUTH_email_(d.EMAIL);
-    if(!/@example\\.test$/i.test(email))throw new Error('E-mail do motorista de teste não usa domínio .test: '+email);
+    if(!/@example\.test$/i.test(email))throw new Error('E-mail do motorista de teste não usa domínio .test: '+email);
     if(byEmail[email]){skipped.push(email);return;}
     const salt=Utilities.getUuid(),temp=Utilities.getUuid().replace(/-/g,'')+'A9!';
     const row=new Array(sh.getLastColumn()).fill('');
