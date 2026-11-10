@@ -83,24 +83,27 @@ function abrirBaseFullTime() {
   return SpreadsheetApp.openById(getDbId_()).getUrl();
 }
 
-function loginFullTime(login, senha) {
-  login = String(login || '').trim();
+function loginFullTime(email, senha) {
+  email = String(email || '').trim().toLowerCase();
   senha = String(senha || '');
-  if (!login || !senha) throw new Error('Informe o usuário e a senha.');
-
-  const users = getSheet_('USUARIOS').getDataRange().getValues();
-  const user = users.slice(1).find(r => String(r[1]).toLowerCase() === login.toLowerCase() && r[6] === true);
-  if (!user || hashSenha_(String(user[4]), senha) !== String(user[5])) {
-    throw new Error('Usuário ou senha inválidos.');
+  if (!email || !senha) throw new Error('Informe seu e-mail e sua senha.');
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error('Informe um endereço de e-mail válido.');
+  const sh = getSheet_('USUARIOS');
+  FT_AUTH_ensureUserHeaders_(sh);
+  const values = sh.getDataRange().getValues();
+  const map = FT_AUTH_headerMap_(sh);
+  const user = values.slice(1).find(r => String(r[map.EMAIL] || '').trim().toLowerCase() === email && r[map.ATIVO] === true);
+  if (!user || hashSenha_(String(user[map.SALT]), senha) !== String(user[map.HASH_SENHA])) {
+    throw new Error('E-mail ou senha inválidos.');
   }
-
   const token = Utilities.getUuid() + Utilities.getUuid();
   const session = {
-    id: String(user[0]), login: String(user[1]), nome: String(user[2]),
-    perfil: String(user[3]), trocarSenha: user[7] === true
+    id: String(user[map.ID]), login: email, email: email,
+    nome: String(user[map.NOME]), perfil: String(user[map.PERFIL]),
+    trocarSenha: user[map.TROCAR_SENHA] === true
   };
   CacheService.getScriptCache().put(FT_CONFIG.SESSION_PREFIX + token, JSON.stringify(session), FT_CONFIG.SESSION_TTL_SECONDS);
-  auditar_(session, 'LOGIN', 'SESSAO', '', 'Login efetuado');
+  auditar_(session, 'LOGIN', 'SESSAO', '', 'Login por e-mail efetuado');
   return { token: token, user: session };
 }
 
