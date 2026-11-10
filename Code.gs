@@ -793,13 +793,8 @@ function atualizarStatusFullTime(token, entidade, id, status) {
     if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
     if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
     required.forEach(item => {
-      let assetRows = getSheet_(item[0]).getDataRange().getValues();
-      let asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]));
-      if (!asset && item[0] === 'CAVALOS') {
-        assetRows = getSheet_('CAMINHOES').getDataRange().getValues();
-        asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
-      }
-      if (!asset || String(asset[2]) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
+      const asset = listarRegistros_(item[0]).find(r => String(r.id) === String(item[1]));
+      if (!asset || String(asset.status) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
     });
   }
   sh.getRange(idx + 1, mapa[entidade]).setValue(status);
