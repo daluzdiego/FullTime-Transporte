@@ -486,12 +486,12 @@
 
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
-    const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.campos[2]||o.id):id;};
+    const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.nome||o.campos[2]||o.id):id;};
     const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
     const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
-    const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.campos[2]||o.id)+' — saldo '+esc(o.campos[8]||'0')+' t</option>').join('');
+    const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome||o.campos[2]||o.id)+' — saldo '+esc(o.saldo||o.campos[8]||'0')+' t · '+esc(o.viagensRealizadas||0)+'/'+esc(o.viagensPrevistas||0)+' viagens</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
@@ -528,7 +528,7 @@
     const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
     const categoryLabel={ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Cadastre a operação completa. As cargas/viagens são descontadas do saldo pelas toneladas realmente movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="goPage('cargas')">Abrir programação de cargas</button></div></div>
+      <div class="page-head"><div><h1>Operações</h1><p>Controle o volume, as viagens previstas, as viagens realizadas e o saldo restante de cada operação.</p></div></div>
       <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
       <div class="panel form-panel"><div class="panel-head"><h2>Nova operação</h2><span class="badge badge-pending">Saldo por toneladas</span></div><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
@@ -539,12 +539,12 @@
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
           <div class="field"><label>Categoria *</label><select name="categoria" required><option value="">Selecione</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-          <div class="field"><label>Número previsto de cargas *</label><input name="cargasPrevistas" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Número previsto de viagens *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></div>
-      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
+      <div class="panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria</th><th>Volume inicial</th><th>Saldo</th><th>Viagens previstas</th><th>Realizadas</th><th>Restantes</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${esc(o.viagensPrevistas||0)}</td><td>${esc(o.viagensRealizadas||0)}</td><td>${esc(o.viagensRestantes||0)}</td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="10"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Crie a primeira operação no formulário acima.</div></td></tr>'}
       </tbody></table></div></div></div>
       <div id="operacaoActionPanel"></div>`;
   }
@@ -567,10 +567,10 @@
   function showMovimentacao(id){
     const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id);const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
     const panel=document.getElementById('operacaoActionPanel');
-    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar movimentação</h2><span class="badge badge-pending">Saldo: '+esc(op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><div class="form-grid"><div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas movimentadas *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Viagem concluída?</label><select name="viagemConcluida"><option value="false">Não</option><option value="true">Sim</option></select></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar e descontar do saldo</button></div></form></div></div>';
+    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar movimentação</h2><span class="badge badge-pending">Saldo: '+esc(op?.saldo||op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><div class="form-grid"><div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas movimentadas *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Quantidade de viagens realizadas *</label><input name="viagens" type="number" min="1" max="10000" step="1" required value="1"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar e descontar do saldo</button></div></form></div></div>';
   }
   function saveMovimentacao(ev){
-    ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagemConcluida=data.viagemConcluida==='true';
+    ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagens=Math.floor(Number(data.viagens||0));
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
   }
 
