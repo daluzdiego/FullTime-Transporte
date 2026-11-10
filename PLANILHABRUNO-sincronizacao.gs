@@ -145,13 +145,34 @@ function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
   const nome='ENTRADA_OPERACOES_IA';
   const so=origem.getSheetByName(nome), sd=destino.getSheetByName(nome);
   if(!so||!sd)throw new Error('A guia '+nome+' precisa existir nas duas planilhas antes da atualização.');
-  if(!PLANILHABRUNO_headersV2_(so).some(Boolean)||!PLANILHABRUNO_headersV2_(sd).some(Boolean))throw new Error('Cabeçalhos ausentes em '+nome+'. Nenhuma alteração foi feita.');
-  const hs=PLANILHABRUNO_prepareHeadersV2_(so,PLANILHABRUNO_headersV2_(so).concat(['ID_OPERACAO_GERADA']));
-  const hd=PLANILHABRUNO_prepareHeadersV2_(sd,PLANILHABRUNO_headersV2_(sd).concat(['ID_OPERACAO_GERADA']));
-  const norm=a=>a.map(PLANILHABRUNO_normV2_);
-  const same=JSON.stringify(norm(hs))===JSON.stringify(norm(hd));
-  if(!same)throw new Error('As guias '+nome+' ainda têm cabeçalhos diferentes. O campo foi acrescentado sem excluir dados; revise a ordem antes de sincronizar solicitações.');
-  return {ok:true,guia:nome,colunas:hs.length,campoAdicionado:'ID_OPERACAO_GERADA',cabecalhosIdenticos:true};
+  const obrigatorios=[
+    'ID','CRIADO_EM','CRIADO_POR','STATUS_ENTRADA','TEXTO_ORIGINAL',
+    'DADOS_EXTRAIDOS_JSON','CAMPOS_PENDENTES_JSON','PERGUNTAS_IA',
+    'ID_CARGA_GERADA','CONFIRMADO_EM','CONFIRMADO_POR','ERRO_PROCESSAMENTO',
+    'CANAL_ORIGEM','IDENTIFICADOR_ORIGEM','CHAVE_IDEMPOTENCIA',
+    'ATUALIZADO_EM','HISTORICO_JSON','ID_OPERACAO_GERADA'
+  ];
+  if(!PLANILHABRUNO_headersV2_(so).some(Boolean)||!PLANILHABRUNO_headersV2_(sd).some(Boolean))
+    throw new Error('Cabeçalhos ausentes em '+nome+'. Nenhuma alteração foi feita.');
+  // Acrescenta apenas campos ausentes ao final de cada guia. Nunca reordena ou remove colunas.
+  const hs=PLANILHABRUNO_prepareHeadersV2_(so,obrigatorios);
+  const hd=PLANILHABRUNO_prepareHeadersV2_(sd,obrigatorios);
+  const normSet=a=>new Set(a.map(PLANILHABRUNO_normV2_).filter(Boolean));
+  const setS=normSet(hs), setD=normSet(hd);
+  const faltamNaOrigem=obrigatorios.filter(h=>!setS.has(PLANILHABRUNO_normV2_(h)));
+  const faltamNaCentral=obrigatorios.filter(h=>!setD.has(PLANILHABRUNO_normV2_(h)));
+  const extrasOrigem=hs.filter(h=>h&&!setD.has(PLANILHABRUNO_normV2_(h)));
+  const extrasCentral=hd.filter(h=>h&&!setS.has(PLANILHABRUNO_normV2_(h)));
+  if(faltamNaOrigem.length||faltamNaCentral.length||extrasOrigem.length||extrasCentral.length) {
+    throw new Error('Os campos de '+nome+' ainda não estão equivalentes. Faltam na origem: '+faltamNaOrigem.join(', ')+'; faltam na central: '+faltamNaCentral.join(', ')+'. Campos extras na origem: '+extrasOrigem.join(', ')+'. Campos extras na central: '+extrasCentral.join(', ')+'. Nenhuma coluna foi movida ou excluída.');
+  }
+  const resultado={
+    ok:true,guia:nome,cabecalhosEquivalentes:true,mesmaOrdem:JSON.stringify(hs.map(PLANILHABRUNO_normV2_))===JSON.stringify(hd.map(PLANILHABRUNO_normV2_)),
+    colunasOrigem:hs.length,colunasCentral:hd.length,
+    camposAcrescentadosNaOrigem:obrigatorios.filter(h=>!PLANILHABRUNO_headersV2_(so).slice(0,hs.length-0).map(PLANILHABRUNO_normV2_).includes(PLANILHABRUNO_normV2_(h)) && false)
+  };
+  Logger.log('FULL TIME — CABEÇALHOS ENTRADA_OPERACOES_IA: '+JSON.stringify(resultado));
+  return resultado;
 }
 
 function PLANILHABRUNO_sincronizarLoteTesteV2() {
