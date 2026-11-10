@@ -35,6 +35,7 @@ function doGet(e) {
   }
   const template = HtmlService.createTemplateFromFile('Index');
   template.LOGIN_BG = getLoginBackground_();
+  template.RESET_TOKEN = String(p.reset || '');
   return template.evaluate()
     .setTitle('Full Time | Gestão de Transporte')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
