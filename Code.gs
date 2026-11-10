@@ -20,7 +20,7 @@ function conectarPlanilhaOperacionalFullTime() {
   PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID',spreadsheetId);
   console.log('Planilha conectada: '+ss.getUrl());
   console.log('Cadastros lidos das guias FT_CADASTRO_BRUNO_*. Não serão criadas guias CAMINHOES ou CARGAS.');
-  console.log('Adicionar CAPACIDADE_CARGA_TONELADAS ao cadastro de cavalos na planilha do Bruno e à rotina de sincronização.');
+  console.log('Campo de capacidade de carga será lido do cadastro sincronizado dos cavalos.');
   return ss.getUrl();
 }
 
