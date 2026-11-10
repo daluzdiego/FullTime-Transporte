@@ -1,7 +1,7 @@
 # FullTime — desenho de evolução do modelo operacional para lotes
 
 **Data:** 2026-11-10  
-**Status:** proposta técnica para implementação; não aplicada às planilhas  
+**Status:** modelo-alvo parcialmente implementado no branch de desenvolvimento; nenhuma planilha real foi migrada  
 **Base:** `Code.gs` atual, inventário de guias e respostas operacionais
 
 ## 1. Objetivo
@@ -67,10 +67,10 @@ Manter a guia atual e adicionar:
 
 A mesma pessoa poderá ter participações em lotes diferentes da mesma operação, mas não poderá ter intervalos sobrepostos em operações distintas. Transferência encerra a vigência anterior e cria novo vínculo; não sobrescreve o histórico.
 
-Decisão pendente: se um motorista pode estar em dois lotes simultaneamente na mesma operação ou se pode apenas ser transferido entre eles. A resposta “pode participar de mais de um lote” e “pode ser transferido” não esclarece se a simultaneidade é permitida. Até confirmação, não impor exclusividade entre lotes da mesma operação nem permitir duplicar viagem/veículo em duas participações ativas.
+Regra operacional confirmada: o mesmo motorista/conjunto pode participar de mais de um lote da mesma operação. A implementação permite essa simultaneidade desde que o vínculo de conjunto seja o mesmo e impede compromissos simultâneos em operações diferentes. A transferência entre lotes deve preservar o histórico e ainda requer fluxo específico de transferência.
 
 ### 2.5 VIAGENS
-Manter a relação com `PARTICIPACAO_ID`, que determina lote e cliente. Opcionalmente adicionar `LOTE_ID` redundante para relatórios, sempre validado contra a participação. Não usar redundância sem necessidade.
+Manter a relação com `PARTICIPACAO_ID`, que determina lote e cliente. A implementação inicial adiciona `LOTE_ID` como referência explícita para facilitar o ciclo de viagem e relatórios; o backend valida o vínculo com a participação e o lote antes de usar os dados.
 
 Cada viagem mantém:
 - peso previsto e real;
@@ -146,17 +146,17 @@ A substituição automática após recusa deve selecionar somente candidato eleg
 9. Atualizar interface em etapas, sem reescrever telas não relacionadas.
 10. Adicionar testes de regressão e isolamento.
 
-## 6. Bloqueios antes da alteração de runtime
+## 6. Bloqueios antes da conclusão da homologação
 
 Não implementar como regra fixa até confirmar:
 - identidade principal da operação (pergunta 3);
 - mínimo/máximo de motoristas por lote (11);
-- simultaneidade de um motorista em vários lotes (9 versus 10);
+- critérios finais de convite, aceite, retirada e substituição automática;
 - janelas proibidas e reagendamento por atraso (28 e 29);
 - critérios de elegibilidade por produto/local (34);
 - critério formal de indisponibilidade (41);
-- prazo de convite e desistência pós-aceite (47–48);
+- integração do prazo de convite de duas horas com a fila sequencial por lote;
 - campos do registro de viagem (53);
 - perfis de acesso e canais de notificação (58–61).
 
-**Conclusão:** a estrutura atual não comporta corretamente multi-cliente/lotes sem evolução coordenada. O próximo commit de runtime deve ser uma mudança vertical (modelo + backend + interface + testes) e não apenas a criação isolada de uma guia.
+**Conclusão:** a primeira fatia vertical (modelo + backend + interface + testes gratuitos) está implementada no branch de desenvolvimento e validada com planilhas simuladas. A homologação real em cópia isolada e os fluxos de convite, fila de chegada, liberação após seis horas, transferência, replanejamento aprovado e auditoria operacional continuam como etapas seguintes.
