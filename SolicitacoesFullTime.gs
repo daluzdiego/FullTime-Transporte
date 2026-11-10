@@ -215,6 +215,16 @@ function ftSolFindRow_(sh,c,id){
   for(var i=0;i<ids.length;i++)if(ids[i][0]===id)return i+2;
   return -1;
 }
+function ftSolNumber_(value) {
+  let s=String(value==null?'':value).trim().replace(/[^0-9,.-]/g,'');
+  if(!s)return 0;
+  if(s.indexOf(',')!==-1 && s.indexOf('.')!==-1) s=s.replace(/\./g,'').replace(',','.');
+  else if(s.indexOf(',')!==-1) s=s.replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,'');
+  const n=Number(s);
+  return Number.isFinite(n)?n:0;
+}
+
 function ftSolValidateForApproval_(sh,c,row){
   var raw=String(sh.getRange(row,c.DADOS_EXTRAIDOS_JSON).getValue()||'{}'),a={};
   try{a=JSON.parse(raw)||{};}catch(e){}
@@ -222,10 +232,10 @@ function ftSolValidateForApproval_(sh,c,row){
   if(!ftSolText_(d.cliente,120))missing.push('cliente');
   if(!ftSolText_(d.origemDetalhada||d.origem,160))missing.push('origem identificável');
   if(!ftSolText_(d.destinoDetalhado||d.destino,160))missing.push('destino identificável');
-  var total=Number(String(d.volume||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+  var total=ftSolNumber_(d.volume);
   if(!(total>0))missing.push('peso/volume total numérico');
-  var perTrip=Number(String(d.volumePorViagem||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
-  var planned=Number(String(d.viagensPrevistas||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+  var perTrip=ftSolNumber_(d.volumePorViagem);
+  var planned=ftSolNumber_(d.viagensPrevistas);
   if(!(perTrip>0)&&!(planned>0))missing.push('volume por viagem ou quantidade prevista de viagens');
   var unit=ftSolText_(d.unidadeVolume,30).toLowerCase().trim();
   if(['t','ton','tonelada','toneladas'].indexOf(unit)<0)missing.push('unidade do peso confirmada em toneladas (t)');
@@ -251,9 +261,9 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
     if(legacy)throw new Error('Esta solicitação possui um registro legado de carga ('+legacy+'). Faça a conferência desse registro antes de gerar uma operação, para evitar duplicidade.');
     var d=ftSolValidateForApproval_(sh,c,row);
     var date=ftSolText_(d.dataColeta,10);
-    var weight=Number(String(d.volume||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
-    var perTrip=Number(String(d.volumePorViagem||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
-    var planned=Number(String(d.viagensPrevistas||'').replace(/[^0-9,.-]/g,'').replace(',','.'));
+    var weight=ftSolNumber_(d.volume);
+    var perTrip=ftSolNumber_(d.volumePorViagem);
+    var planned=ftSolNumber_(d.viagensPrevistas);
     if(!(planned>0)&&perTrip>0)planned=Math.ceil(weight/perTrip);
     planned=Math.floor(planned);
     if(!(planned>0&&planned<=100000))throw new Error('Não foi possível calcular as viagens previstas. Informe a quantidade de viagens ou o volume por viagem.');
