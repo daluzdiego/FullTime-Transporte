@@ -1,5 +1,5 @@
 /**
- * FULL TIME — PLANILHA BRUNO: SINCRONIZAÇÃO V2.1
+ * FULL TIME — PLANILHA BRUNO: SINCRONIZAÇÃO V2.2
  * Arquivo oficial: PLANILHABRUNO-sincronizacao.gs
  *
  * Executar primeiro PLANILHABRUNO_validarSincronizacaoV2().
@@ -13,13 +13,12 @@ const PLANILHABRUNO_SYNC_V2 = Object.freeze({
   DESTINO_ID: '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE',
   LOTE: 'FT-TESTE-20261029-',
   AUDITORIA: 'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO',
-  VERSION: 'V2.1',
+  VERSION: 'V2.2',
   GUIAS: [
     { origem: 'MOTORISTAS', destino: 'FT_CADASTRO_BRUNO_MOTORISTAS', chave: 'ID_EXTERNO', extras: ['STATUS'] },
     { origem: 'CAVALOS', destino: 'FT_CADASTRO_BRUNO_CAVALOS', chave: 'ID_EXTERNO', extras: ['STATUS'] },
     { origem: 'CARRETAS', destino: 'FT_CADASTRO_BRUNO_CARRETAS', chave: 'ID_EXTERNO', extras: ['STATUS'] },
     { origem: 'CONJUNTOS', destino: 'FT_CADASTRO_BRUNO_CONJUNTOS', chave: 'ID_EXTERNO', extras: ['STATUS','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'] },
-    { origem: 'OPERACOES', destino: 'OPERACOES', chave: 'ID_EXTERNO', extras: ['ID_EXTERNO'] },
     { origem: 'CONTROLE_DOCUMENTAL', destino: 'FT_CADASTRO_BRUNO_DOCUMENTOS', chave: 'ID_DOCUMENTO', extras: [] }
   ]
 });
@@ -85,7 +84,7 @@ function PLANILHABRUNO_validarSincronizacaoV2() {
     if(dupDest.length)out.erros.push(cfg.destino+': IDs duplicados no destino.');
   });
   out.sucesso=out.erros.length===0;
-  Logger.log('FULL TIME — PLANILHABRUNO VALIDAÇÃO V2.1: '+JSON.stringify(out));
+  Logger.log('FULL TIME — PLANILHABRUNO VALIDAÇÃO V2.2: '+JSON.stringify(out));
   return out;
 }
 function PLANILHABRUNO_sincronizarLoteTesteV2() {
