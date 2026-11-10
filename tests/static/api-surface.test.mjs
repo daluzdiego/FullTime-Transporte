@@ -18,7 +18,7 @@ function uiRemoteCalls(source) {
     const segment = source.slice(match.index, end < 0 ? match.index + 1800 : end);
     const chain = [...segment.matchAll(/\.([A-Za-z_$][\w$]*)\s*\(/g)]
       .map(item => item[1])
-      .filter(name => !['withSuccessHandler', 'withFailureHandler', 'withUserObject'].includes(name));
+      .filter(name => !['withSuccessHandler', 'withFailureHandler', 'withUserObject', 'isArray', 'join'].includes(name));
     if (chain.length) names.add(chain.at(-1));
   }
   return names;
