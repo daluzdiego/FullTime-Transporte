@@ -97,6 +97,7 @@
 
 <script>
   const NAV_ITEMS = [
+    {id:'centro',label:'CENTRO DE OPERAÇÕES',icon:'▦',title:'Centro de Operações'},
     {id:'operacoes',label:'OPERAÇÕES',icon:'⇄',title:'Operações'},
     {id:'solicitacoes',label:'SOLICITAÇÕES',icon:'✉',title:'Solicitações'},
     {id:'frota',label:'FROTA',icon:'▰',title:'Frota',group:true,children:[
@@ -197,11 +198,12 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
-    const titles={motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
+    const titles={centro:'Centro de Operações',motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
-    if(page==='motoristas') c.innerHTML=renderList('motoristas');
+    if(page==='centro') { c.innerHTML=renderCentroOperacoes(); carregarCentroOperacoes(); }
+    else if(page==='motoristas') c.innerHTML=renderList('motoristas');
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
@@ -220,6 +222,22 @@
     }else if(page==='conjuntos'){
       panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Cavalos mecânicos'||h==='Carretas')p.classList.add('hidden');});
     }
+  }
+
+  function renderCentroOperacoes(){
+    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Visão consolidada das operações atuais, conjuntos em atividade e cargas movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+  }
+  function carregarCentroOperacoes(){
+    const host=document.getElementById('centroResumo');if(!host||!authToken)return;
+    host.innerHTML='<div class="empty">Atualizando Centro de Operações…</div>';
+    google.script.run.withSuccessHandler(data=>{
+      if(currentPage!=='centro')return;
+      const k=data.indicadores||{},ops=data.operacoes||[];
+      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
+      const cards=[['Operações atuais',k.operacoesAtuais||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Toneladas movimentadas',num(k.toneladasMovimentadas)+' t']];
+      host.innerHTML='<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
+        (ops.length?ops.map(o=>'<div class="panel" style="margin-bottom:16px"><div class="panel-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente)+' · '+esc(o.status)+'</div></div><span class="badge badge-active">'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+' viagens</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(o.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(o.destino||'—')+'</div></div><div><strong>Distância</strong><div>'+(o.distanciaKm?esc(num(o.distanciaKm))+' km':'Não informada')+'</div></div><div><strong>Produto</strong><div>'+esc(o.produto||'Não informado')+'</div></div><div><strong>Volume total</strong><div>'+esc(num(o.volumeTotal))+' t</div></div><div><strong>Saldo</strong><div>'+esc(num(o.saldo))+' t</div></div></div><div style="margin-top:18px"><strong>Conjuntos vinculados ('+o.conjuntos.length+')</strong>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Tara cavalo</th><th>Carretas</th><th>Tara total</th><th>Capacidade útil</th><th>Carga registrada</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+' · '+esc(num(s.cavaloPbtc))+' t PBTC</td><td>'+esc(num(s.cavaloTara))+' t</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.taraTotal))+' t</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado no momento.</div>')+'</div></div></div>').join(''):'<div class="panel"><div class="empty"><strong>Nenhuma operação atual</strong>As operações abertas ou em andamento aparecerão aqui.</div></div>');
+    }).withFailureHandler(err=>{host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';}).obterCentroOperacoesFullTime(authToken);
   }
 
   function renderSolicitacoes(){
