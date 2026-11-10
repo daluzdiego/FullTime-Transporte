@@ -55,7 +55,7 @@ function FT_CONV_set_(row, map, key, value) {
 
 function FT_CONV_appendEvent_(data) {
   const sh = getSheet_(FT_CONVOCACAO_CFG_20261110.EVENTOS);
-  const map = FT_CONV_headerMap_(sh);
+  const map = FT_CONV_ensureHeaders_(sh, FT_CONVOCACAO_CFG_20261110.EVENT_HEADERS);
   const row = new Array(sh.getLastColumn()).fill('');
   const values = {
     ID: Utilities.getUuid(),
