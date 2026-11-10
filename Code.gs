@@ -455,7 +455,7 @@ function prepararBaseOperacionalFullTime() {
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
-    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
     CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
     CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'],
@@ -662,9 +662,9 @@ function salvarConjuntoVeicularFullTime(token, data) {
 
   function findById(name,id) {
     if (!id) return null;
-    const rows=getSheet_(name).getDataRange().getValues();
-    for(let i=1;i<rows.length;i++) if(String(rows[i][0])===String(id)) return rows[i];
-    return null;
+    const rows = listarRegistros_(name);
+    const item = rows.find(function(r){ return String(r.id) === String(id); });
+    return item ? [item.id,item.criado,item.status].concat(item.campos || []) : null;
   }
   function statusValid(row, label, allowPending) {
     if (!row) throw new Error(label+' não encontrado no cadastro.');
@@ -676,23 +676,13 @@ function salvarConjuntoVeicularFullTime(token, data) {
   }
 
   const motorista=findById('MOTORISTAS',motoristaId);
-  const cavalo=findById('CAVALOS',cavaloId) || findById('CAMINHOES',cavaloId);
+  const cavalo=findById('CAVALOS',cavaloId);
   statusValid(motorista,'O motorista',false);
   const cavaloStatus=statusValid(cavalo,'O cavalo mecânico',true);
-  if (cavalo===null || (String(cavalo[8]||'').toLowerCase().indexOf('cavalo')===-1 && getSheet_('CAVALOS').getDataRange().getValues().slice(1).every(r=>String(r[0])!==cavaloId))) {
-    throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico.');
-  }
-
-  // CAMINHOES.CAPACIDADE_TONELADAS é a capacidade originalmente informada.
-  // Localiza o registro pela placa, sem copiar PBTC para capacidade útil.
+  if (!cavalo) throw new Error('O cavalo mecânico não foi encontrado no cadastro sincronizado do Bruno.');
   const cavaloPlate=normalizarPlaca_(cavalo[3]);
-  const truckSheet=getSheet_('CAMINHOES');
-  const truckRows=truckSheet.getLastRow()>1
-    ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-    : [];
-  const truck=truckRows.find(r=>normalizarPlaca_(r[3])===cavaloPlate);
-  const cavaloCapacity=Number(truck ? String(truck[9]||'').replace(',','.') : 0);
-  if (!(cavaloCapacity>0)) throw new Error('Não encontrei a capacidade do cavalo '+cavaloPlate+' na guia CAMINHOES. Confira a coluna CAPACIDADE_TONELADAS.');
+  const cavaloCapacity=Number(String(cavalo[10] || '').replace(',','.'));
+  if (!(cavaloCapacity>0)) throw new Error('O cavalo '+cavaloPlate+' está sem CAPACIDADE_CARGA_TONELADAS. Atualize o cadastro de origem do Bruno e sincronize novamente.');
 
   let pending=cavaloStatus==='PENDENTE_REVISAO';
   const selectedTrailers=[];
@@ -780,7 +770,7 @@ function atualizarStatusFullTime(token, entidade, id, status) {
 
   // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
   // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
-  if (entidade === 'MOTORISTAS') {
+  if (['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(entidade) !== -1) {
     const local = getSheet_('MOTORISTAS');
     const localRows = local.getDataRange().getValues();
     const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
@@ -861,8 +851,8 @@ function listarRegistros_(name) {
   }
 
   // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
-  if (name === 'MOTORISTAS') {
-    const overrides = ftReadStatusOverrides_('MOTORISTAS');
+  if (['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(name) !== -1) {
+    const overrides = ftReadStatusOverrides_(name);
     rows.forEach(r => {
       const id = String(r[0] || '').trim();
       if (id && overrides[id]) r[2] = overrides[id];
@@ -894,21 +884,11 @@ function listarRegistros_(name) {
     ...(name === 'CONJUNTOS' ? {origem: localSetIds.has(String(r[0]||'')) ? 'SISTEMA' : 'BRUNO'} : {})
   }));
 
-  // A capacidade cadastrada originalmente em CAMINHOES é a fonte para os
-  // cavalos sincronizados em CAVALOS. O vínculo é feito pela placa normalizada.
+  // A capacidade do cavalo vem do próprio cadastro sincronizado do Bruno.
+  // Não depende de uma guia genérica CAMINHOES nem de correspondência por placa.
   if (name === 'CAVALOS') {
-    const truckSheet = getSheet_('CAMINHOES');
-    const truckRows = truckSheet.getLastRow() > 1
-      ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-      : [];
-    const capacityByPlate = {};
-    truckRows.forEach(r => {
-      const plate = normalizarPlaca_(r[3]);
-      const capacity = Number(String(r[9] == null ? '' : r[9]).replace(',','.'));
-      if (plate && capacity > 0) capacityByPlate[plate] = capacity;
-    });
     mapped.forEach(item => {
-      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || 0;
+      item.capacidadeUtil = Number(String(item.campos[7] || '').replace(',','.')) || 0;
     });
   } else if (name === 'CARRETAS') {
     // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
@@ -1254,7 +1234,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
  */
 const FT_BRUNO_CADASTROS = Object.freeze({
   MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS', fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
-  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
+  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS']},
   CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS', fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
   CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS', fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
   DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS', fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
