@@ -728,30 +728,8 @@ function retornarConjuntoOperacaoFullTime(token, data) {
   return {ok:true,message:'Retorno registrado no histórico.'};
 }
 function designarConjuntoOperacaoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
-  if(!operacaoId||!conjuntoId) throw new Error('Selecione operação e conjunto.');
-  const ops=getSheet_('OPERACOES').getDataRange().getValues();
-  const op=ops.find((r,i)=>i>0&&String(r[0])===operacaoId);
-  if(!op) throw new Error('Operação não encontrada.');
-  if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2]))) throw new Error('A operação não está aberta para receber conjuntos.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
-  const set=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
-  if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
-  if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
-  if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(listarRegistros_('MOTORISTAS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
-  const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
-  if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
-  const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
-  const id=Utilities.getUuid(), now=new Date();
-  parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login]);
-  const eventSheet=getSheet_('EVENTOS_ESCALA');
-  eventSheet.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação manual do administrador',session.login]);
-  if(String(op[2])==='ABERTA') getSheet_('OPERACOES').getRange(ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId)+1,3).setValue('EM_ANDAMENTO');
-  auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
-  return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
+  const session = obterSessao_(token); exigirAdmin_(session);
+  throw new Error('A designação direta foi desativada. Envie uma oferta ao motorista e aguarde o aceite para confirmar a participação.');
 }
 
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
