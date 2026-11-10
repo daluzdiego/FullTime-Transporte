@@ -146,7 +146,8 @@ function salvarOperacaoComLotesFullTime(token, data) {
   const lotCodes=normalizedLots.map(l=>l.codigo.toUpperCase());
   if(new Set(lotCodes).size!==lotCodes.length) throw new Error('Existem códigos de lote duplicados nesta operação.');
   const totalVolume=normalizedLots.reduce((sum,l)=>sum+l.volume,0);
-  // Viagens não são estimadas a partir de toneladas: dependem da capacidade útil dos conjuntos.\n  // O plano de viagens será calculado na etapa de distribuição, antes da aprovação.\n  const totalViagens=0;
+  // Viagens não são estimadas a partir de toneladas: dependem da capacidade útil dos conjuntos.
+  // O plano de viagens será calculado na etapa de distribuição, antes da aprovação.\n  const totalViagens=0;
   const opSh=getSheet_('OPERACOES'), opHeaders=ftHeaderMapViagens_(opSh);
   const required=['ID','CRIADOEM','STATUS','DATAOPERACAO','CLIENTE','NOMEOPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUMETOTALTONELADAS','TOTALVIAGENSPREVISTAS','SALDOTONELADAS','OBSERVACOES','CRIADOPOR','CLIENTEID'];
   const missing=required.filter(k=>opHeaders[k]==null);
