@@ -294,46 +294,15 @@ function getSheet_(name) {
 }
 function listarRegistros_(name) {
   const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  const localSetIds = new Set();
-
-  // MOTORISTAS: combina o espelho recebido do Bruno com as decisões locais.
-  // O registro local prevalece pelo ID, preservando ATIVO/INATIVO após novas sincronizações.
-  if (name === 'MOTORISTAS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]), r); });
-    const local = getSheet_('MOTORISTAS');
-    if (local.getLastRow() > 1) {
-      local.getRange(2,1,local.getLastRow()-1,Math.max(12,local.getLastColumn())).getValues().forEach(r => {
-        if (r[0]) byId.set(String(r[0]), r.slice(0,12));
-      });
-    }
-    rows = Array.from(byId.values());
-  }
-
-  // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
-  if (['MOTORISTAS','CAVALOS','CARRETAS'].indexOf(name) !== -1) {
+  const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
+  // Cadastros e conjuntos vêm exclusivamente dos espelhos sincronizados do Bruno.
+  // As decisões de aprovação ficam em FT_STATUS_CADASTROS e não alteram a origem.
+  if (brunoEntity) {
     const overrides = ftReadStatusOverrides_(name);
     rows.forEach(r => {
       const id = String(r[0] || '').trim();
       if (id && overrides[id]) r[2] = overrides[id];
     });
-  }
-
-  // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
-  // conjuntos criados dentro do sistema. Exibe ambos sem duplicar IDs.
-  if (name === 'CONJUNTOS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]),r); });
-    const localSheet = getSheet_('CONJUNTOS');
-    if (localSheet.getLastRow() > 1) {
-      localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
-        if (!r[0]) return;
-        localSetIds.add(String(r[0]));
-        byId.set(String(r[0]),r.slice(0,12));
-      });
-    }
-    rows = Array.from(byId.values());
   }
   if (!rows.length) return [];
 
@@ -342,7 +311,6 @@ function listarRegistros_(name) {
     criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
     status: String(r[2] || ''),
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-    ...(name === 'CONJUNTOS' ? {origem: localSetIds.has(String(r[0]||'')) ? 'SISTEMA' : 'BRUNO'} : {})
   }));
 
   // A capacidade do cavalo vem do próprio cadastro sincronizado do Bruno.
