@@ -54,7 +54,7 @@ const makeRuntime=()=>{
     Utilities:{getUuid:()=> 'uuid-'+(++uuid)},
     LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})}
   });
-  vm.runInContext(code+'\n;\n'+lots,context,{filename:'FullTime-test-bundle.js'});
+  vm.runInContext(code+'\n;\n'+lots+'\n;\n'+drive,context,{filename:'FullTime-test-bundle.js'});
   context.obterSessao_=()=>({id:'ADMIN_TEST',login:'admin-test',perfil:'ADMIN'});
   context.exigirAdmin_=session=>{if(session.perfil!=='ADMIN')throw new Error('admin required');};
   context.auditar_=()=>{};
