@@ -22,7 +22,7 @@ Atualize os projetos Apps Script com os arquivos desta branch antes de executar 
 Execute nesta ordem:
 
 1. `PLANILHABRUNO_gerarLoteTeste40()`
-   - Acrescenta 40 motoristas, 40 cavalos, 40 carretas e 40 conjuntos fictícios.
+   - Acrescenta 40 motoristas, 40 cavalos, 40 carretas e 40 conjuntos fictícios, além de 120 documentos de teste vinculados (CNH/CRLV).
    - Não apaga nem sobrescreve registros existentes.
    - Acrescenta o cabeçalho `CAPACIDADE_CARGA_TONELADAS` na guia `CAVALOS`, se estiver ausente.
    - Não acessa a guia protegida `CAVALOS-BRUNO` e não grava na planilha central.
