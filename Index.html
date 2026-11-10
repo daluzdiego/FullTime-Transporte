@@ -486,6 +486,12 @@
           <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
           <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
           <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
+          <div class="field"><label>Produto / material</label><input name="produto" maxlength="160" placeholder="Ex.: fertilizante, grãos, minério"></div>
+          <div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1" placeholder="Informada/validada"></div>
+          <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div>
+          <div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
+          <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div>
+          <div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
           <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
           <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
           <div class="field"><label>Número previsto de viagens *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
