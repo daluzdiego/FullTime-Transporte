@@ -66,10 +66,11 @@
       <div class="brand login-brand"><div class="brand-mark">▰</div><div>FULL TIME<small>TRANSPORTE E CONSULTORIA</small></div></div>
       <h1 class="login-title">Bem-vindo</h1><p class="login-sub">Sistema de gestão de transporte</p>
       <form id="loginForm" onsubmit="submitLogin(event)">
-        <div class="field"><label for="login">Usuário</label><input id="login" autocomplete="username" placeholder="Digite seu usuário" required></div>
+        <div class="field"><label for="login">E-mail</label><input id="login" type="email" autocomplete="username" placeholder="Digite seu e-mail cadastrado" required></div>
         <div class="field" style="margin-top:16px"><label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required></div>
         <button id="loginButton" class="btn btn-primary full" type="submit">Entrar <span>→</span></button>
         <div id="loginError" class="error" role="alert"></div>
+        <button class="btn btn-secondary full" style="margin-top:10px" type="button" onclick="showForgotPassword()">Esqueci minha senha</button>
       </form>
       <div class="login-foot">Acesso restrito a usuários autorizados · Full Time © <span id="year"></span></div>
     </div>
@@ -92,6 +93,12 @@
   <div id="passwordModal" class="hidden" style="position:fixed;inset:0;z-index:50;background:#10233c88;display:grid;place-items:center;padding:18px">
     <div class="login-card" style="width:min(100%,440px)"><div class="brand" style="margin-bottom:22px"><div class="brand-mark">🔐</div><div>Atualização de senha<small>PRIMEIRO ACESSO</small></div></div><h2 style="margin:0 0 8px;font-size:22px">Crie sua senha pessoal</h2><p class="muted" style="font-size:13px;line-height:1.5;margin:0 0 20px">A senha temporária precisa ser substituída antes de continuar. Use pelo menos 10 caracteres.</p><form onsubmit="changeInitialPassword(event)"><div class="field"><label for="newPassword">Nova senha</label><input id="newPassword" type="password" minlength="10" autocomplete="new-password" required></div><div class="field" style="margin-top:14px"><label for="confirmPassword">Confirmar nova senha</label><input id="confirmPassword" type="password" minlength="10" autocomplete="new-password" required></div><div id="passwordError" class="error"></div><button class="btn btn-primary full" type="submit">Salvar nova senha</button></form></div>
   </div>
+  <div id="forgotPasswordModal" class="hidden" style="position:fixed;inset:0;z-index:60;background:#10233cbb;display:grid;place-items:center;padding:18px">
+    <div class="login-card" style="width:min(100%,440px)"><h2>Recuperar senha</h2><p class="muted">Informe o e-mail cadastrado. Se estiver ativo, enviaremos um link de recuperação.</p><form onsubmit="requestPasswordReset(event)"><div class="field"><label for="recoveryEmail">E-mail</label><input id="recoveryEmail" type="email" required></div><div id="recoveryFeedback" class="error"></div><button class="btn btn-primary full" type="submit">Enviar link</button><button class="btn btn-secondary full" type="button" style="margin-top:8px" onclick="closeForgotPassword()">Voltar</button></form></div>
+  </div>
+  <div id="resetPasswordModal" class="hidden" style="position:fixed;inset:0;z-index:70;background:#10233cbb;display:grid;place-items:center;padding:18px">
+    <div class="login-card" style="width:min(100%,440px)"><h2>Nova senha</h2><p class="muted">Crie uma senha com pelo menos 10 caracteres.</p><form onsubmit="submitPasswordReset(event)"><div class="field"><label for="resetNewPassword">Nova senha</label><input id="resetNewPassword" type="password" minlength="10" autocomplete="new-password" required></div><div class="field" style="margin-top:12px"><label for="resetConfirmPassword">Confirmar nova senha</label><input id="resetConfirmPassword" type="password" minlength="10" autocomplete="new-password" required></div><div id="resetFeedback" class="error"></div><button class="btn btn-primary full" type="submit">Salvar nova senha</button></form></div>
+  </div>
   <div id="toast" class="toast hidden" role="status"></div>
   <div id="documentExpiryNotice" class="document-expiry-host" aria-live="polite"></div>
 
@@ -112,6 +119,7 @@
     {id:'configuracoes',label:'CONFIGURAÇÃO',icon:'⚙',title:'Configuração'}
   ];
   let authToken = sessionStorage.getItem('ft_token') || '';
+  const FT_RESET_TOKEN = <?!= JSON.stringify(RESET_TOKEN) ?>;
   let currentUser = null;
   let dashboard = null;
   let solicitacoesFullTime = [];
@@ -134,6 +142,11 @@
     }).withFailureHandler(err=>{btn.disabled=false;btn.innerHTML='Entrar <span>→</span>';setLoginError(err.message||'Não foi possível entrar.');}).loginFullTime(document.getElementById('login').value,document.getElementById('password').value);
   }
   function setLoginError(msg){document.getElementById('loginError').textContent=msg;}
+  function showForgotPassword(){document.getElementById('recoveryEmail').value=document.getElementById('login').value||'';document.getElementById('recoveryFeedback').textContent='';document.getElementById('forgotPasswordModal').classList.remove('hidden');}
+  function closeForgotPassword(){document.getElementById('forgotPasswordModal').classList.add('hidden');}
+  function requestPasswordReset(ev){ev.preventDefault();const out=document.getElementById('recoveryFeedback');out.textContent='Enviando…';google.script.run.withSuccessHandler(r=>{out.textContent=r.message;}).withFailureHandler(e=>{out.textContent=e.message||'Não foi possível solicitar a recuperação.';}).solicitarRecuperacaoSenhaFullTime(document.getElementById('recoveryEmail').value);}
+  function submitPasswordReset(ev){ev.preventDefault();const p=document.getElementById('resetNewPassword').value,c=document.getElementById('resetConfirmPassword').value,out=document.getElementById('resetFeedback');if(p!==c){out.textContent='As senhas não conferem.';return;}out.textContent='Salvando…';google.script.run.withSuccessHandler(r=>{out.textContent=r.message;document.getElementById('resetNewPassword').value='';document.getElementById('resetConfirmPassword').value='';}).withFailureHandler(e=>{out.textContent=e.message||'Link inválido ou expirado.';}).redefinirSenhaPorTokenFullTime(FT_RESET_TOKEN,p);}
+  if(FT_RESET_TOKEN){document.getElementById('resetPasswordModal').classList.remove('hidden');}
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
   function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
   function loadApp(){showAppShell();google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser=data.user;paintNav();renderPage(currentPage);}).withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();}).obterPainelFullTime(authToken);}
