@@ -41,3 +41,25 @@ test('a estrutura relacional mantém identificadores de operação, cliente e lo
   assert.match(source, /OPERACAO_CLIENTES:[\s\S]*?'CLIENTE_ID'/);
   assert.match(source, /LOTES_OPERACAO:[\s\S]*?'OPERACAO_ID'[\s\S]*?'CLIENTE_ID'/);
 });
+
+test('participações e viagens recebem vínculo aditivo ao lote', () => {
+  const code = readFileSync(new URL('../../Code.gs', import.meta.url), 'utf8');
+  assert.match(code, /PARTICIPACAO_OPERACOES:[^\n]*'LOTE_ID'/);
+  assert.match(code, /VIAGENS:[^\n]*'LOTE_ID'/);
+  assert.match(source, /function designarConjuntoLoteOperacaoFullTime\(token, data\)/);
+  assert.match(source, /pm\.LOTEID/);
+  assert.match(source, /function obterAlocacoesLotesOperacaoFullTime\(token, operacaoId\)/);
+});
+
+test('migração de LOTE_ID é aditiva e não remove colunas', () => {
+  assert.match(source, /insertColumnAfter\(width\)/);
+  assert.doesNotMatch(source, /deleteColumn\s*\(/);
+  assert.match(source, /preservaDados:true/);
+});
+
+test('a elegibilidade pode ser calculada para a origem e regras de cada lote', () => {
+  const motor = readFileSync(new URL('../../MotorEscalaFullTime.gs', import.meta.url), 'utf8');
+  assert.match(motor, /function ordenarCandidatosLoteOperacaoFullTime\(token, operacaoId, loteId\)/);
+  assert.match(motor, /Cadastre e ative o local de origem deste lote/);
+  assert.match(motor, /const operationDay=/);
+});
