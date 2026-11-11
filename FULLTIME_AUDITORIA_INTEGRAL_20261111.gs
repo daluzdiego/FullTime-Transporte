@@ -21,12 +21,12 @@ const FT_AUDIT_20261111_CFG = Object.freeze({
     { name: 'CONJUNTOS', source: 'CONJUNTOS', mirror: 'FT_CADASTRO_BRUNO_CONJUNTOS', operational: 'CONJUNTOS', key: 'ID_EXTERNO' },
     { name: 'DOCUMENTOS', source: 'CONTROLE_DOCUMENTAL', mirror: 'FT_CADASTRO_BRUNO_DOCUMENTOS', operational: '', key: 'ID_DOCUMENTO' }
   ],
-  SOURCE_EXTRA: ['ENTRADA_OPERACOES_IA', 'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO'],
+  SOURCE_EXTRA: ['ENTRADA_OPERACOES_IA', 'OPERACOES', 'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO'],
   OPERATIONAL_EXTRA: [
     'ENTRADA_OPERACOES_IA', 'OPERACOES', 'PARTICIPACAO_OPERACOES',
     'MOVIMENTACOES_OPERACAO', 'LOCAIS', 'REGRAS_OPERACIONAIS',
     'DISPONIBILIDADE_DIARIA', 'FILA_MOTORISTAS', 'EVENTOS_ESCALA',
-    'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO'
+    'PLANILHABRUNO_AUDITORIA_SINCRONIZACAO', 'FT_STATUS_CADASTROS'
   ],
   AUTH_EXTRA: ['USUARIOS', 'AUDITORIA', 'FT_STATUS_CADASTROS', 'TOKENS_RECUPERACAO']
 });
@@ -215,6 +215,44 @@ function FT_AUDIT_20261111_executar() {
     readOnly: true
   };
 
-  Logger.log('FULL TIME — AUDITORIA INTEGRAL SOMENTE LEITURA: ' + JSON.stringify(report));
+  // Log compacto para evitar truncamento do Registro de execução.
+  const compact = {
+    audit: report.audit,
+    generatedAt: report.generatedAt,
+    mode: report.mode,
+    propertyChecks: report.propertyChecks,
+    source: report.sourceSheets.map(function(s) {
+      return {name:s.name, exists:s.exists, dataRows:s.dataRows, columns:s.lastColumn};
+    }),
+    operational: report.operationalSheets.map(function(s) {
+      return {name:s.name, exists:s.exists, dataRows:s.dataRows, columns:s.lastColumn};
+    }),
+    auth: report.authSheets.map(function(s) {
+      return {name:s.name, exists:s.exists, dataRows:s.dataRows, columns:s.lastColumn};
+    }),
+    comparisons: report.entityComparisons.map(function(e) {
+      const x=e.comparison||{};
+      return {
+        entity:e.entity,
+        source:e.source,
+        mirror:e.mirror,
+        operational:e.operational,
+        sourceMissingInMirror:(x.sourceMissingInMirror||[]).length,
+        mirrorNotInSource:(x.mirrorNotInSource||[]).length,
+        sourceMissingInOperational:(x.sourceMissingInOperational||[]).length,
+        operationalNotInSource:(x.operationalNotInSource||[]).length,
+        duplicateSource:(x.duplicateSourceIds||[]).length,
+        duplicateMirror:(x.duplicateMirrorIds||[]).length,
+        duplicateOperational:(x.duplicateOperationalIds||[]).length
+      };
+    }),
+    triggers: report.triggers.map(function(t) {
+      return {handler:t.handler,eventType:t.eventType,source:t.source,sourceId:t.sourceId};
+    }),
+    warnings: report.warnings,
+    summary: report.summary,
+    note: 'Relatório completo continua disponível no valor de retorno; este log contém somente os indicadores essenciais.'
+  };
+  Logger.log('FULL TIME — AUDITORIA INTEGRAL RESUMIDA: ' + JSON.stringify(compact));
   return report;
 }
