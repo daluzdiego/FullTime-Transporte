@@ -220,7 +220,9 @@ function prepararBaseOperacionalFullTime() {
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
+    DOCUMENTOS: ['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
+    ENTRADA_OPERACOES_IA: ['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
     MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
@@ -456,33 +458,36 @@ function listarRegistros_(name) {
       })
     })).reverse();
   }
-  const rows = (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  if (['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].indexOf(name) !== -1) {
-    const overrides = ftReadStatusOverrides_(name);
-    rows.forEach(r => { const id=String(r[0]||'').trim(); if(id&&overrides[id]) r[2]=overrides[id]; });
-  }
-  if (!rows.length) return [];
-
-  const mapped = rows.map(r => ({
-    id: String(r[0] || ''),
-    criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-    status: String(r[2] || ''),
-    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-  }));
-
-  // A capacidade do cavalo vem do cadastro central da planilha principal.
-  // Não depende de guia genérica CAMINHOES nem de correspondência por placa.
-  if (name === 'CAVALOS') {
-    mapped.forEach(item => {
-      item.capacidadeUtil = Number(String(item.campos[7] || '').replace(',','.')) || 0;
+  const sh = getSheet_(name);
+  const values = sh.getDataRange().getValues();
+  if (values.length < 2) return [];
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  const norm = value => String(value == null ? '' : value).trim().toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^A-Z0-9_]/g,'');
+  const ix = {};
+  headers.forEach((header,index) => { const key=norm(header); if(key && ix[key]===undefined) ix[key]=index; });
+  const fieldOrder = {
+    MOTORISTAS:['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAVALOS:['PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
+    CARRETAS:['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS:['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']
+  }[name];
+  const overrides = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name) ? ftReadStatusOverrides_(name) : {};
+  const mapped = values.slice(1).filter(row=>row.some(v=>v!=='' && v!==null)).map(row=>{
+    const get = key => ix[norm(key)]===undefined ? '' : row[ix[norm(key)]];
+    const id=String(get('ID')||'').trim();
+    const status=String(overrides[id]||get('STATUS')||'');
+    const created=get('CRIADO_EM');
+    const fieldsByName={};
+    (fieldOrder||headers.filter(h=>!['ID','CRIADO_EM','STATUS'].includes(norm(h)))).forEach(key=>{
+      const value=get(key);
+      fieldsByName[key]=value instanceof Date?value.toISOString().slice(0,10):String(value==null?'':value);
     });
-  } else if (name === 'CARRETAS') {
-    // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
-    mapped.forEach(item => {
-      const capacity = Number(String(item.campos[3] || '').replace(',','.'));
-      item.capacidadeUtil = capacity > 0 ? capacity : 0;
-    });
-  }
+    const campos=(fieldOrder||Object.keys(fieldsByName)).map(key=>fieldsByName[key]===undefined?'':fieldsByName[key]);
+    const item={id,criado:created instanceof Date?created.toISOString():String(created||''),status,campos,camposPorNome:fieldsByName};
+    if(name==='CAVALOS') item.capacidadeUtil=Number(String(get('CAPACIDADE_CARGA_TONELADAS')||'').replace(',','.'))||0;
+    if(name==='CARRETAS') item.capacidadeUtil=Number(String(get('CAPACIDADE_CARGA_TONELADAS')||'').replace(',','.'))||0;
+    return item;
+  });
   return mapped.reverse();
 }
 
