@@ -104,7 +104,7 @@ function listarOfertasAceitasAdminFullTime(token) {
   const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_MOTORISTA_headerMap_(sh),rows=sh.getDataRange().getValues();
   const ops=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(ops),orows=ops.getDataRange().getValues(),byId={};
   orows.slice(1).forEach(r=>byId[String(r[omap.ID]||'')]={nome:String(r[omap.NOME_OPERACAO]||''),origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||'')});
-  const drivers=ftReadBrunoRows_('MOTORISTAS'),driverNames={};
+  const drivers=FT_CENTRO_rows_('MOTORISTAS'),driverNames={};
   drivers.forEach(d=>driverNames[String(d.ID)]=String(d.NOME_COMPLETO||''));
   return rows.slice(1).filter(r=>String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase()==='ACEITA').map(r=>{
     const op=byId[String(r[map.OPERACAO_ID]||'')]||{};
