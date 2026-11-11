@@ -149,12 +149,13 @@ function obterPainelFullTime(token) {
     operacoes: listarOperacoesFullTime(token),
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
     locais: listarRegistros_('LOCAIS'),
+    // Contadores derivados dos arrays já carregados, sem novas leituras da planilha.
     counts: {
-      motoristas: contarAtivos_('MOTORISTAS'),
-      cavalos: contarAtivos_('CAVALOS'),
-      carretas: contarAtivos_('CARRETAS'),
-      conjuntos: contarAtivos_('CONJUNTOS'),
-      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAVALOS', 'PENDENTE_REVISAO') + contarStatus_('CARRETAS', 'PENDENTE_REVISAO')
+      motoristas: motoristas.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      cavalos: cavalos.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      carretas: carretas.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      conjuntos: conjuntos.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      pendentes: [motoristas,cavalos,carretas].reduce((total,rows)=>total+rows.filter(r=>String(r.status||'').toUpperCase()==='PENDENTE_REVISAO').length,0)
     },
     diagnosticoBase: {
       planilhaId: ssId,
@@ -663,8 +664,12 @@ function listarOperacoesFullTime(token) {
   const sh=getSheet_('OPERACOES'), grid=sh.getDataRange().getValues(), headers=grid[0].map(h=>String(h||'').trim().toUpperCase()), ix={};
   headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
   const val=(row,key)=>ix[key]===undefined?'':row[ix[key]];
+  // Uma única leitura legada da guia, indexada por ID. Evita reler a planilha
+  // inteira para cada operação (padrão N+1 que degradava o painel).
+  const legacyById={};
+  listarRegistros_('OPERACOES').forEach(item=>{legacyById[String(item.id)]=item;});
   return grid.slice(1).filter(row=>String(val(row,'ID')||'').trim()).map(row=>{
-    const id=String(val(row,'ID')),legacy=listarRegistros_('OPERACOES').find(x=>String(x.id)===id)||{id,campos:[],status:String(val(row,'STATUS')||'')};
+    const id=String(val(row,'ID')),legacy=legacyById[id]||{id,campos:[],status:String(val(row,'STATUS')||'')};
     const previstas=Math.max(0,Math.floor(Number(val(row,'TOTAL_VIAGENS_PREVISTAS')||0)));
     const realizadas=Math.max(0,Math.floor(Number(val(row,'VIAGENS_REALIZADAS')||val(row,'TOTAL_VIAGENS_CONCLUIDAS')||viagensPorOperacao[id]||0)));
     return Object.assign({},legacy,{data:val(row,'DATA_OPERACAO'),cliente:val(row,'CLIENTE'),nome:val(row,'NOME_OPERACAO'),origem:val(row,'ORIGEM'),destino:val(row,'DESTINO'),categoria:val(row,'CATEGORIA'),volumeTotal:Number(val(row,'VOLUME_TOTAL_TONELADAS')||0),viagensPrevistas:previstas,tipoOperacao:val(row,'TIPO_OPERACAO')||'OUTRA',viagensRealizadas:realizadas,viagensRestantes:Math.max(0,previstas-realizadas),saldo:Number(val(row,'SALDO_TONELADAS')||0),observacoes:val(row,'OBSERVACOES'),criadoPor:val(row,'CRIADO_POR'),produto:val(row,'PRODUTO_SERVICO'),distanciaKm:Number(val(row,'DISTANCIA_KM')||0),prazoEntrega:val(row,'DATA_ENTREGA'),janelaInicio:val(row,'JANELA_INICIO'),janelaFim:val(row,'JANELA_FIM'),tempoEstimadoHoras:Number(val(row,'TEMPO_ESTIMADO_HORAS')||0)});
