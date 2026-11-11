@@ -85,14 +85,20 @@ function processarEnvioCadastroMotoristaFullTime_(e) {
   }
 
   const sh = getSheet_('MOTORISTAS');
-  const rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 12).getDisplayValues() : [];
-  const duplicate = rows.some(function(r) { return digitos_(r[4]) === cpf; });
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  const ix = {};
+  headers.forEach((h,i)=>{const k=String(h||'').trim().toUpperCase();if(k&&!Object.prototype.hasOwnProperty.call(ix,k))ix[k]=i;});
+  ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'].forEach(k=>{if(ix[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em MOTORISTAS: '+k);});
+  const rows = sh.getLastRow() > 1 ? sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getDisplayValues() : [];
+  const duplicate = rows.some(function(r) { return digitos_(r[ix.CPF]) === cpf; });
   if (duplicate) {
     console.warn('Cadastro de motorista duplicado por CPF; resposta preservada na aba original e não foi duplicada em MOTORISTAS.');
     return;
   }
-
-  sh.appendRow([Utilities.getUuid(), new Date(), 'PENDENTE_REVISAO', nome, cpf, telefone, email, cnh, categoria, validade, cidade, observacoes]);
+  const values={ID:Utilities.getUuid(),CRIADO_EM:new Date(),STATUS:'PENDENTE_REVISAO',NOME_COMPLETO:nome,CPF:cpf,TELEFONE:telefone,EMAIL:email,CNH_NUMERO:cnh,CNH_CATEGORIA:categoria,CNH_VALIDADE:validade,CIDADE_UF:cidade,OBSERVACOES:observacoes};
+  const newRow=new Array(headers.length).fill('');
+  Object.keys(values).forEach(k=>{newRow[ix[k]]=values[k];});
+  sh.appendRow(newRow);
 }
 
 /**
