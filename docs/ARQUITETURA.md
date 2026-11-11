@@ -1,46 +1,59 @@
-# Arquitetura — Full Time MVP
+# Arquitetura — Full Time (centralizada)
 
-## Visão geral
+## Fonte de verdade
 
-A primeira versão utiliza Google Apps Script para a camada de aplicação, Google Sheets como persistência e uma interface HTML/CSS/JavaScript entregue por `doGet()`.
+A planilha principal Full Time é a única fonte de dados operacionais. O identificador é configurado em `FT_REGISTRY_DATABASE_ID`. A função `getSheet_(name)` deve encaminhar todas as guias operacionais para essa planilha.
 
-## Componentes
+A base de autenticação é separada e identificada por `FT_DATABASE_ID`. Ela contém `USUARIOS`, `AUDITORIA`, `TOKENS_RECUPERACAO` e estruturas de autenticação. Rotinas de reconstrução operacional não podem limpar nem recriar essa base.
 
-- `Code.gs`: autenticação, sessão, autorização de administrador, validação de dados, CRUD de motoristas e caminhões, métricas e auditoria.
-- `Index.html`: login e experiência administrativa responsiva.
-- Google Sheets: tabelas `USUARIOS`, `MOTORISTAS`, `CAMINHOES`, `AUDITORIA` e `CONFIGURACOES`.
+A antiga planilha do Bruno não participa mais de leitura, escrita ou sincronização operacional. A guia `CAVALOS-BRUNO` permanece protegida por decisão explícita do projeto.
 
-## Modelo de dados
+## Camada de aplicação
 
-### USUARIOS
-Identificador, login, nome, salt/hash da senha, papel, estado ativo, flag de troca obrigatória, data de criação e último login.
+- `Code.gs`: backend central, roteamento de planilhas, sessão, autenticação, autorização, cadastros e operações.
+- `Index.html`: interface web.
+- `CadastroMotoristasFullTime.gs`: cadastro e gestão de motoristas e conjuntos.
+- `AutenticacaoEmailFullTime.gs`: e-mail e recuperação de senha.
+- `CentroOperacoesFullTime.gs`: consolidação do centro de operações.
+- `PortalMotoristaFullTime.gs`: portal do motorista.
+- `ConvocacaoMotoristasFullTime.gs`: convocações.
+- `SolicitacoesFullTime.gs` e `InterpretacaoSolicitacoesFullTime.gs`: entrada e interpretação de solicitações.
+- `WhatsAppTickets.gs`: tickets recebidos por WhatsApp.
 
-### MOTORISTAS
-Identificador UUID, criação/atualização, status, nome, CPF, telefone, e-mail, dados de CNH, cidade/UF, contato de emergência, observações e usuário que cadastrou.
+## Persistência operacional
 
-Status inicial: `PENDENTE_REVISAO`. Estados operacionais: `ATIVO`, `INATIVO`.
+As guias operacionais são:
 
-### CAMINHOES
-Identificador UUID, criação/atualização, status, placa, RENAVAM, marca, modelo, ano, tipo, capacidade em toneladas, situação documental, observações e usuário que cadastrou.
+1. `MOTORISTAS`
+2. `CAVALOS`
+3. `CARRETAS`
+4. `CONJUNTOS`
+5. `DOCUMENTOS`
+6. `OPERACOES`
+7. `PARTICIPACAO_OPERACOES`
+8. `MOVIMENTACOES_OPERACAO`
+9. `LOCAIS`
+10. `REGRAS_OPERACIONAIS`
+11. `DISPONIBILIDADE_DIARIA`
+12. `FILA_MOTORISTAS`
+13. `EVENTOS_ESCALA`
+14. `ENTRADA_OPERACOES_IA`
 
-Status inicial: `PENDENTE_REVISAO`. Estados operacionais: `ATIVO`, `INATIVO`.
+Não manter tabelas genéricas `CAMINHOES` ou `CARGAS`. O cavalo mecânico e as carretas são entidades distintas e vinculadas por `CONJUNTOS`. A operação registra volume e viagens previstas; as viagens não são cadastradas como cargas independentes.
 
-### AUDITORIA
-Data, usuário, login, ação, entidade, identificador e breve descrição da ação administrativa.
+## Regras de integridade
 
-## Fluxos previstos
+- O vínculo motorista/cavalo/carreta é feito por IDs em `CONJUNTOS`.
+- Capacidade útil deve ser validada no conjunto e compatibilizada com os limites dos implementos.
+- Documentos são vinculados por entidade e ID externo.
+- Operações guardam origem, destino, tipo, produto/serviço, volume, viagens, distância e janelas logísticas.
+- Movimentações e participações registram execução; não devem sobrescrever o histórico da operação.
+- A entrada de IA preserva a mensagem bruta, o resultado interpretado e o vínculo com a operação criada.
 
-1. O administrador autentica-se.
-2. Na primeira autenticação, deve trocar a senha temporária.
-3. A aplicação obtém os indicadores e listas por funções de backend.
-4. O formulário envia os dados à função de servidor apropriada.
-5. O backend valida autorização, campos e duplicidades antes de gravar.
-6. O registro novo é criado como pendente.
-7. O administrador revisa e ativa/inativa manualmente.
+## Reconstrução de homologação
 
-## Limites deste MVP
+A rotina oficial é `FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111()`. Ela deve ser executada somente após sincronizar os arquivos e confirmar compilação sem erros. Antes de limpar a planilha principal, cria cópia de segurança. Valida que `FT_DATABASE_ID` existe e é diferente do ID operacional. A rotina não deve alterar a base de autenticação nem a guia protegida `CAVALOS-BRUNO`.
 
-- Não implementa ainda cargas, escalas, viagens, notificações, WhatsApp, relatórios exportáveis ou área de motorista.
-- Não armazena imagens de documentos.
-- Não realiza validação externa de CNH, CRLV-e, CPF ou situação legal.
-- Google Sheets não deve ser presumido como banco definitivo para uma operação crítica com concorrência sem testes de carga, revisão de arquitetura e plano de recuperação.
+## Regra de manutenção do projeto
+
+O escopo global de Apps Script é compartilhado entre todos os arquivos `.gs`. Não duplicar arquivos no editor nem declarar novamente identificadores globais com `const`/ `let`. Depois de qualquer alteração no GitHub, sincronizar o conteúdo no Apps Script; commit no GitHub não significa deploy automático.
