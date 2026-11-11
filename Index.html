@@ -149,7 +149,14 @@
   if(FT_RESET_TOKEN){document.getElementById('resetPasswordModal').classList.remove('hidden');}
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
   function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
-  function loadApp(){showAppShell();google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser=data.user;paintNav();renderPage(currentPage);}).withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();}).obterPainelFullTime(authToken);}
+  function loadApp(){
+    showAppShell();
+    const isDriver=String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA';
+    const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
+    currentPage=isDriver?'portalMotorista':'operacoes';
+    google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser={...currentUser,...data.user};paintNav();renderPage(currentPage);})
+      .withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();})[endpoint](authToken);
+  }
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
     const back=document.getElementById('navBackdrop');
@@ -174,6 +181,10 @@
   }
   function buildNav(){
     const side=document.getElementById('sideNav');
+    if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
+      side.innerHTML='<button data-page="portalMotorista" onclick="goPage(\'portalMotorista\')"><span class="nav-ico">▣</span>MINHAS OFERTAS</button>';
+      paintNav();return;
+    }
     side.innerHTML=NAV_ITEMS.map(n=>{
       if(n.group)return `<div class="nav-group"><button class="nav-group-toggle" type="button" aria-expanded="true" onclick="toggleNavGroup('frotaSubmenu',this)"><span class="nav-ico">${n.icon}</span>${n.label}<span class="nav-chevron">⌄</span></button><div id="frotaSubmenu" class="nav-submenu">${n.children.map(c=>`<button class="nav-subitem" data-page="${c.id}" onclick="goPage('${c.id}')"><span class="nav-ico">${c.icon}</span>${c.label}</button>`).join('')}</div></div>`;
       return `<button data-page="${n.id}" onclick="goPage('${n.id}')"><span class="nav-ico">${n.icon}</span>${n.label}</button>`;
@@ -211,6 +222,12 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
   window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
   function renderPage(page){
+    if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
+      document.getElementById('topTitle').textContent='Área do motorista';
+      document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
+      document.getElementById('content').innerHTML=renderPortalMotorista();
+      return;
+    }
     const titles={centro:'Centro de Operações',motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
     document.getElementById('topTitle').textContent=titles[page]||'Full Time';
     document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
@@ -235,6 +252,31 @@
     }else if(page==='conjuntos'){
       panels.forEach(p=>{const h=p.querySelector('.panel-head h2')?.textContent||'';if(h==='Cavalos mecânicos'||h==='Carretas')p.classList.add('hidden');});
     }
+  }
+
+  function renderPortalMotorista(){
+    const offers=Array.isArray(dashboard?.ofertas)?dashboard.ofertas:[];
+    const counts=dashboard?.counts||{};
+    const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
+    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0]];
+    return '<div class="page-head"><div><h1>Minhas ofertas</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui aparecem somente as convocações vinculadas ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
+      '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
+      (offers.length?offers.map(o=>{
+        const op=o.operacao||{},pendingOffer=o.status==='OFERTADA'&&!o.expirada;
+        const statusLabel=o.expirada?'EXPIRADA':o.status;
+        return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||'Operação')+'</h2><div class="muted small">'+esc(op.cliente||'')+' · '+esc(statusLabel)+'</div></div><span class="badge '+(pendingOffer?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div></div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(pendingOffer?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':o.status==='ACEITA'?'<p class="notice" style="margin-top:14px">Você aceitou esta oferta. Aguarde a confirmação da escala pela administração.</p>':'')+'</div></div>';
+      }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
+  }
+  function atualizarPortalMotorista(){
+    google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser={...currentUser,...data.user};renderPage('portalMotorista');toast('Ofertas atualizadas.');})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível atualizar.',true)).obterPortalMotoristaFullTime(authToken);
+  }
+  function responderOfertaPortal(id,resposta){
+    const acao=resposta==='ACEITA'?'aceitar':'recusar';
+    if(!confirm('Confirma que deseja '+acao+' esta oferta?'))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message);atualizarPortalMotorista();})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível responder à oferta.',true))
+      .responderOfertaMotoristaFullTime(authToken,id,resposta,'');
   }
 
   function renderCentroOperacoes(){
