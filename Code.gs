@@ -443,56 +443,56 @@ function ftOperationAppendFullTime_(sh, data) {
   sh.appendRow(row);
 }
 function listarRegistros_(name) {
-  if (name === 'OPERACOES') {
-    const sh = getSheet_('OPERACOES');
-    const values = sh.getDataRange().getValues();
-    if (values.length < 2) return [];
-    const map = ftOperationHeaderMap_(sh);
-    const get = (r,key) => map[key] === undefined ? '' : r[map[key]];
-    const fields = ['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
-    return values.slice(1).map(r => ({
-      id: String(get(r,'ID') || ''),
-      criado: get(r,'CRIADO_EM') instanceof Date ? get(r,'CRIADO_EM').toISOString() : String(get(r,'CRIADO_EM') || ''),
-      status: String(get(r,'STATUS') || ''),
-      campos: fields.map(key => {
-        const value = get(r,key);
-        return value instanceof Date ? value.toISOString().slice(0,10) : String(value == null ? '' : value);
-      })
-    })).reverse();
-  }
   const sh = getSheet_(name);
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
-  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
-  const norm = value => String(value == null ? '' : value).trim().toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^A-Z0-9_]/g,'');
-  const ix = {};
-  headers.forEach((header,index) => { const key=norm(header); if(key && ix[key]===undefined) ix[key]=index; });
-  const fieldOrder = {
-    MOTORISTAS:['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
-    CAVALOS:['PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
-    CARRETAS:['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS:['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']
-  }[name];
-  const overrides = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name) ? ftReadStatusOverrides_(name) : {};
-  const mapped = values.slice(1).filter(row=>row.some(v=>v!=='' && v!==null)).map(row=>{
-    const get = key => ix[norm(key)]===undefined ? '' : row[ix[norm(key)]];
-    const id=String(get('ID')||'').trim();
-    const status=String(overrides[id]||get('STATUS')||'');
-    const created=get('CRIADO_EM');
-    const fieldsByName={};
-    (fieldOrder||headers.filter(h=>!['ID','CRIADO_EM','STATUS'].includes(norm(h)))).forEach(key=>{
-      const value=get(key);
-      fieldsByName[key]=value instanceof Date?value.toISOString().slice(0,10):String(value==null?'':value);
-    });
-    const campos=(fieldOrder||Object.keys(fieldsByName)).map(key=>fieldsByName[key]===undefined?'':fieldsByName[key]);
-    const item={id,criado:created instanceof Date?created.toISOString():String(created||''),status,campos,camposPorNome:fieldsByName};
-    if(name==='CAVALOS') item.capacidadeUtil=Number(String(get('CAPACIDADE_CARGA_TONELADAS')||'').replace(',','.'))||0;
-    if(name==='CARRETAS') item.capacidadeUtil=Number(String(get('CAPACIDADE_CARGA_TONELADAS')||'').replace(',','.'))||0;
-    return item;
-  });
-  return mapped.reverse();
-}
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
 
+  // Cabeçalhos e conteúdo são lidos no mesmo formato visual da planilha.
+  // Isso evita deslocamentos/conversões de datas e mantém o índice de cada coluna.
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  const rows = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+  const norm = value => String(value == null ? '' : value)
+    .trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9_]/g, '');
+  const ix = {};
+  headers.forEach((header, index) => {
+    const key = norm(header);
+    if (key && ix[key] === undefined) ix[key] = index;
+  });
+
+  const fieldOrder = {
+    MOTORISTAS: ['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAVALOS: ['PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
+    CARRETAS: ['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS: ['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']
+  }[name];
+
+  const overrides = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name)
+    ? ftReadStatusOverrides_(name) : {};
+
+  return rows.filter(row => row.some(value => value !== '')).map(row => {
+    const get = key => ix[norm(key)] === undefined ? '' : String(row[ix[norm(key)]] || '');
+    const id = get('ID').trim();
+    const created = get('CRIADO_EM');
+    const fieldsByName = {};
+    const keys = fieldOrder || headers.filter(header => !['ID','CRIADO_EM','STATUS'].includes(norm(header)));
+    keys.forEach(key => { fieldsByName[key] = get(key); });
+    const campos = keys.map(key => fieldsByName[key] || '');
+    const item = {
+      id: id,
+      criado: created,
+      status: String(overrides[id] || get('STATUS') || ''),
+      campos: campos,
+      camposPorNome: fieldsByName
+    };
+    if (name === 'CAVALOS' || name === 'CARRETAS') {
+      item.capacidadeUtil = Number(String(get('CAPACIDADE_CARGA_TONELADAS')).replace(',', '.')) || 0;
+    }
+    return item;
+  }).reverse();
+}
 function contarAtivos_(name) {
   const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
   const rows=entity?listarRegistros_(entity).map(r=>[r.id,r.criado,r.status].concat(r.campos||[])):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
