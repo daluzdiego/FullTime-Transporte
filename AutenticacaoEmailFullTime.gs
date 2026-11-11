@@ -35,7 +35,7 @@ function FT_AUTH_hashToken_(token) {
 }
 function FT_AUTH_email_(v) {
   const email=String(v||'').trim().toLowerCase();
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))throw new Error('Endereço de e-mail inválido.');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Endereço de e-mail inválido.');
   return email;
 }
 /** Migração aditiva da autenticação; não altera senhas nem remove colunas. */
@@ -51,8 +51,12 @@ function FT_AUTH_vincularEmailAdmin(loginLegado,email) {
   if(row<1)throw new Error('Administrador legado não encontrado.');
   const conflict=values.some((r,i)=>i>0&&i!==row&&String(r[map.EMAIL]||'').trim().toLowerCase()===address);
   if(conflict)throw new Error('Este e-mail já está vinculado a outro usuário.');
+  const salt=Utilities.getUuid();
   sh.getRange(row+1,map.EMAIL+1).setValue(address);
-  return {ok:true,loginLegado:loginLegado,email:address,mensagem:'E-mail vinculado. O login será feito por este endereço.'};
+  sh.getRange(row+1,map.SALT+1,1,2).setValues([[salt,hashSenha_(salt,'12345')]]);
+  sh.getRange(row+1,map.TROCAR_SENHA+1).setValue(true);
+  sh.getRange(row+1,map.ATIVO+1).setValue(true);
+  return {ok:true,loginLegado:loginLegado,email:address,senhaInicial:'12345',trocaObrigatoria:true,mensagem:'E-mail vinculado e senha inicial definida. A troca será obrigatória no primeiro acesso.'};
 }
 /** Cria usuários de homologação para motoristas sincronizados com e-mails .test. */
 function FT_AUTH_criarUsuariosMotoristasTeste() {
@@ -60,19 +64,32 @@ function FT_AUTH_criarUsuariosMotoristasTeste() {
   if(!registryId)throw new Error('Planilha operacional não conectada.');
   const drivers=ftReadBrunoRows_('MOTORISTAS');
   const sh=getSheet_('USUARIOS'),map=FT_AUTH_ensureUserHeaders_(sh),values=sh.getDataRange().getValues();
-  const byEmail={};values.slice(1).forEach((r,i)=>{const e=String(r[map.EMAIL]||'').trim().toLowerCase();if(e)byEmail[e]=i+2;});
-  const created=[],skipped=[];
+  const byEmail={};
+  values.slice(1).forEach((r,i)=>{const e=String(r[map.EMAIL]||'').trim().toLowerCase();if(e)byEmail[e]=i+2;});
+  const criados=[],atualizados=[],ignorados=[];
   drivers.filter(d=>String(d.ID).indexOf('FT-TESTE-')===0).forEach(d=>{
     const email=FT_AUTH_email_(d.EMAIL);
     if(!/@example\.test$/i.test(email))throw new Error('E-mail do motorista de teste não usa domínio .test: '+email);
-    if(byEmail[email]){skipped.push(email);return;}
-    const salt=Utilities.getUuid(),temp=Utilities.getUuid().replace(/-/g,'')+'A9!';
-    const row=new Array(sh.getLastColumn()).fill('');
-    const vals={ID:Utilities.getUuid(),LOGIN:email,NOME:String(d.NOME_COMPLETO||'Motorista de teste'),PERFIL:'MOTORISTA',SALT:salt,HASH_SENHA:hashSenha_(salt,temp),ATIVO:true,TROCAR_SENHA:true,CRIADO_EM:new Date(),EMAIL:email,MOTORISTA_ID:String(d.ID)};
-    Object.keys(vals).forEach(k=>{if(map[k]!==undefined)row[map[k]]=vals[k];});
-    sh.appendRow(row);created.push({email:email,senhaTemporaria:temp,motoristaId:String(d.ID)});
+    const existingRow=byEmail[email]||0;
+    const salt=Utilities.getUuid();
+    const vals={ID:Utilities.getUuid(),LOGIN:email,NOME:String(d.NOME_COMPLETO||'Motorista de teste'),PERFIL:'MOTORISTA',SALT:salt,HASH_SENHA:hashSenha_(salt,'12345'),ATIVO:true,TROCAR_SENHA:false,CRIADO_EM:new Date(),EMAIL:email,MOTORISTA_ID:String(d.ID)};
+    if(existingRow){
+      const current=sh.getRange(existingRow,1,1,sh.getLastColumn()).getValues()[0];
+      if(String(current[map.PERFIL]||'').toUpperCase()!=='MOTORISTA')throw new Error('O e-mail '+email+' já pertence a um usuário que não é motorista. Nenhuma alteração foi feita para esse registro.');
+      Object.keys(vals).forEach(k=>{if(map[k]!==undefined && k!=='ID' && k!=='CRIADO_EM')current[map[k]]=vals[k];});
+      sh.getRange(existingRow,1,1,sh.getLastColumn()).setValues([current]);
+      atualizados.push(email);
+    } else {
+      const row=new Array(sh.getLastColumn()).fill('');
+      Object.keys(vals).forEach(k=>{if(map[k]!==undefined)row[map[k]]=vals[k];});
+      sh.appendRow(row);
+      byEmail[email]=sh.getLastRow();
+      criados.push(email);
+    }
   });
-  return {ok:true,criados:created.length,jaExistiam:skipped.length,credenciaisTemporarias:created,aviso:'Contas .test não recebem e-mails. Use apenas em homologação; não são credenciais de produção.'};
+  return {ok:true,criados:criados.length,atualizados:atualizados.length,ignorados:ignorados.length,
+    contas:[...criados,...atualizados],senhaPadrao:'12345',trocaObrigatoria:false,
+    aviso:'Contas fictícias .test exclusivas para homologação. Não recebem e-mails e não devem ser usadas em produção.'};
 }
 /** Solicita link de recuperação. Resposta genérica impede enumeração de contas. */
 function solicitarRecuperacaoSenhaFullTime(email) {
