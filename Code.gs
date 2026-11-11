@@ -834,3 +834,42 @@ function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
   Logger.log('FULL TIME — DIAGNÓSTICO DA BASE CENTRAL: ' + JSON.stringify(result));
   return result;
 }
+
+
+/**
+ * Contrato canônico das guias operacionais da Full Time.
+ * Auditoria somente leitura: não cria, renomeia nem altera cabeçalhos/dados.
+ */
+function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
+  const expectedId='11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||'';
+  if(registryId!==expectedId) throw new Error('FT_REGISTRY_DATABASE_ID não aponta para a planilha principal autorizada.');
+  const ss=SpreadsheetApp.openById(registryId);
+  const schemas={
+    MOTORISTAS:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAVALOS:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
+    CARRETAS:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
+    DOCUMENTOS:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
+    OPERACOES:['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
+    PARTICIPACAO_OPERACOES:['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
+    MOVIMENTACOES_OPERACAO:['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
+    LOCAIS:['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
+    REGRAS_OPERACIONAIS:['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
+    DISPONIBILIDADE_DIARIA:['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
+    FILA_MOTORISTAS:['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA:['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
+    ENTRADA_OPERACOES_IA:['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM']
+  };
+  const comparar=(a,b)=>a.length===b.length&&a.every((v,i)=>String(v).trim().toUpperCase()===String(b[i]).trim().toUpperCase());
+  const guias=Object.keys(schemas).map(name=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)return {guia:name,ok:false,erro:'GUIA_AUSENTE',esperado:schemas[name]};
+    const atual=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+    const ok=comparar(atual,schemas[name]);
+    return {guia:name,ok:ok,colunasAtuais:atual.length,colunasEsperadas:schemas[name].length,cabecalhosAtuais:atual,cabecalhosEsperados:ok?undefined:schemas[name]};
+  });
+  const result={planilhaId:registryId,planilhaNome:ss.getName(),baseAutenticacaoSeparada:!!PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')&&PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')!==registryId,guiasOk:guias.filter(x=>x.ok).length,guiasComDivergencia:guias.filter(x=>!x.ok).length,guias:guias};
+  Logger.log('FULLTIME_CONTRATO_CABECALHOS: '+JSON.stringify(result));
+  return result;
+}
