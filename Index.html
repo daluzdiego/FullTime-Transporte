@@ -171,13 +171,36 @@
         arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
         console.info('FT_UI_RECEBIMENTO_DASHBOARD',JSON.stringify({keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user}));
         window.__FT_UI_RECEBIMENTO={keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user};
-        dashboard=received;
-        currentUser={...currentUser,...(received.user||{})};
-        paintNav();
-        renderPage(currentPage);
+        try {
+          dashboard=received;
+          currentUser={...currentUser,...(received.user||{})};
+          paintNav();
+          renderPage(currentPage);
+        } catch(uiError) {
+          console.error('FT_UI_RENDER_ERROR',uiError&&uiError.stack||uiError);
+          renderLoadFailure(uiError);
+        }
       })
-      .withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();})[endpoint](authToken);
+      .withFailureHandler(err=>{
+        console.error('FT_UI_BACKEND_ERROR',err&&err.stack||err);
+        renderLoadFailure(err);
+      })[endpoint](authToken);
   }
+  function renderLoadFailure(error){
+    const message=String(error&&error.message||error||'Falha desconhecida ao carregar a interface.');
+    const content=document.getElementById('content');
+    if(content)content.innerHTML='<section class="panel"><div class="panel-body"><h2>Não foi possível carregar o sistema</h2><p class="muted">A autenticação foi concluída, mas ocorreu um erro ao montar o painel.</p><div class="notice error" style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(message)+'</div><p class="muted small">Abra o Console do navegador (F12 → Console) e copie a linha FT_UI_RENDER_ERROR ou FT_UI_BACKEND_ERROR para o suporte.</p><button class="btn btn-primary" onclick="loadApp()">Tentar novamente</button> <button class="btn btn-secondary" onclick="logout()">Sair</button></div></section>';
+    const title=document.getElementById('topTitle');if(title)title.textContent='Falha ao carregar';
+    const subtitle=document.getElementById('topSubtitle');if(subtitle)subtitle.textContent='Diagnóstico da interface';
+  }
+  window.addEventListener('error',event=>{
+    console.error('FT_UI_UNCAUGHT_ERROR',event.error&&event.error.stack||event.message);
+    if(authToken&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.error||event.message);
+  });
+  window.addEventListener('unhandledrejection',event=>{
+    console.error('FT_UI_UNHANDLED_REJECTION',event.reason&&event.reason.stack||event.reason);
+    if(authToken&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.reason);
+  });
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
     const back=document.getElementById('navBackdrop');
