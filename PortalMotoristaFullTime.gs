@@ -67,15 +67,16 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
     }
     const now=new Date(),note=texto_(observacao,500);
-    sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta);
+    sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ATIVO':'RECUSADA');
+    if(resposta==='ACEITA'&&map.INICIO_EM!==undefined)sh.getRange(idx+1,map.INICIO_EM+1).setValue(now);
     if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
     if(note&&map.MOTIVO!==undefined)sh.getRange(idx+1,map.MOTIVO+1).setValue(note);
-    FT_CONV_appendEvent_({tipo:resposta==='ACEITA'?'OFERTA_ACEITA':'OFERTA_RECUSADA',
+    FT_CONV_appendEvent_({tipo:resposta==='ACEITA'?'ESCALA_CONFIRMADA':'OFERTA_RECUSADA',
       operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],
       anterior:'OFERTADA',nova:resposta,motivo:note||'Resposta registrada pelo portal do motorista.',
       autor:session.email,ofertaId});
     auditar_(session,'RESPOSTA_OFERTA_MOTORISTA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId+' -> '+resposta);
-    return {ok:true,status:resposta,message:resposta==='ACEITA'?'Aceite registrado. Aguarde a confirmação operacional da escala.':'Recusa registrada.'};
+    return {ok:true,status:resposta==='ACEITA'?'ATIVO':'RECUSADA',message:resposta==='ACEITA'?'Aceite registrado. Escala ativada automaticamente.':'Recusa registrada. O próximo motorista será chamado automaticamente.'};
   } finally {lock.releaseLock();}
 }
 
@@ -120,7 +121,7 @@ function listarOfertasAceitasAdminFullTime(token) {
   orows.slice(1).forEach(r=>byId[String(r[omap.ID]||'')]={nome:String(r[omap.NOME_OPERACAO]||''),origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||'')});
   const drivers=FT_CENTRO_rows_('MOTORISTAS'),driverNames={};
   drivers.forEach(d=>driverNames[String(d.ID)]=String(d.NOME_COMPLETO||''));
-  return rows.slice(1).filter(r=>String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase()==='ACEITA').map(r=>{
+  return rows.slice(1).filter(r=>['ACEITA','ATIVO'].includes(String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase())).map(r=>{
     const op=byId[String(r[map.OPERACAO_ID]||'')]||{};
     return {id:String(r[map.ID]||''),motorista:driverNames[String(r[map.MOTORISTA_ID]||'')]||String(r[map.MOTORISTA_ID]||''),operacao:op.nome||String(r[map.OPERACAO_ID]||''),origem:op.origem||'',destino:op.destino||'',conjuntoId:String(r[map.CONJUNTO_ID]||''),aceitaEm:r[map.RESPONDIDA_EM]||''};
   });
