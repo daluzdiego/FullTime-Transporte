@@ -28,6 +28,8 @@ const FT_BRUNO_HEADERS = Object.freeze({
 });
 
 function configurarIntegracaoCadastroBrunoFullTime() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const origem = SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
   const destino = SpreadsheetApp.openById(FT_BRUNO_CONFIG.OPERATIONAL_ID);
   const required = Object.keys(FT_BRUNO_HEADERS);
@@ -135,6 +137,8 @@ function validarIntegracaoCadastroBrunoFullTime() {
 }
 
 function sincronizarCadastroBrunoFullTime() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -204,6 +208,8 @@ function sincronizarCadastroBrunoFullTime() {
  * Status operacional existente é preservado; registros novos entram em PENDENTE_REVISAO.
  */
 function importarCadastrosOperacionaisBrunoFT_(dest) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   importarMotoristasOperacionaisBrunoFT_(dest);
   importarVeiculosOperacionaisBrunoFT_(dest, 'FT_CADASTRO_BRUNO_CAVALOS', 'CAVALOS', 'CAVALO');
   importarVeiculosOperacionaisBrunoFT_(dest, 'FT_CADASTRO_BRUNO_CARRETAS', 'CARRETAS', 'CARRETA');
@@ -248,6 +254,8 @@ function ftFindOperationalRowBruno_(sheet, targetIndex, externalId, cpf, plate) 
 }
 
 function importarMotoristasOperacionaisBrunoFT_(dest) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const src = dest.getSheetByName('FT_CADASTRO_BRUNO_MOTORISTAS');
   const target = dest.getSheetByName('MOTORISTAS');
   if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: MOTORISTAS.');
@@ -284,6 +292,8 @@ function importarMotoristasOperacionaisBrunoFT_(dest) {
 }
 
 function importarVeiculosOperacionaisBrunoFT_(dest, sourceName, targetName, type) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const src = dest.getSheetByName(sourceName), target = dest.getSheetByName(targetName);
   if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: ' + targetName + '.');
   const si = ftHeadersIndexBruno_(src), ti = ftHeadersIndexBruno_(target);
@@ -336,6 +346,8 @@ function importarVeiculosOperacionaisBrunoFT_(dest, sourceName, targetName, type
 }
 
 function importarConjuntosOperacionaisBrunoFT_(dest) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const src = dest.getSheetByName('FT_CADASTRO_BRUNO_CONJUNTOS');
   const target = dest.getSheetByName('CONJUNTOS');
   if (!src || !target) throw new Error('Guia de espelho ou operacional ausente: CONJUNTOS.');
@@ -398,6 +410,8 @@ function importarConjuntosOperacionaisBrunoFT_(dest) {
 
 /** Mantida por compatibilidade com chamadas antigas; agora importa todos os cadastros permitidos. */
 function importarCavalosECarretasOperacionaisFT_(dest) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   importarCadastrosOperacionaisBrunoFT_(dest);
 }
 
@@ -421,6 +435,8 @@ function protegerCabecalhoFT_(sheet, description) {
 
 /** Configura CONJUNTOS como painel central. Somente a seleção do motorista fica editável. */
 function configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const sh=ss.getSheetByName('CONJUNTOS'), mot=ss.getSheetByName('MOTORISTAS');
   if(!sh||!mot) throw new Error('Guia MOTORISTAS ou CONJUNTOS ausente.');
   const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(x=>String(x).trim()), ix={};
@@ -442,6 +458,8 @@ function configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss) {
 
 /** Atualiza nome/CPF e impede que um motorista fique em dois conjuntos ativos. */
 function onEditConjuntosBrunoFullTime(e) {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   if(!e||!e.range)return;
   const sh=e.range.getSheet(), row=e.range.getRow();
   if(sh.getName()!=='CONJUNTOS'||row<2)return;
@@ -465,6 +483,8 @@ function onEditConjuntosBrunoFullTime(e) {
 
 /** Execute uma vez na planilha de cadastro do Bruno para aplicar a proteção. */
 function configurarConjuntosBrunoFullTime(){
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const ss=SpreadsheetApp.openById(FT_BRUNO_CONFIG.SOURCE_ID);
   const result=configurarEdicaoMotoristaConjuntoBrunoFullTime_(ss);
   const handler='onEditConjuntosBrunoFullTime';
@@ -475,6 +495,8 @@ function configurarConjuntosBrunoFullTime(){
 }
 
 function criarFormularioMotoristasFullTime() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const props = PropertiesService.getScriptProperties();
   const existingId = props.getProperty('FT_MOTORISTAS_FORM_ID');
   if (existingId) {
@@ -518,6 +540,8 @@ function criarFormularioMotoristasFullTime() {
 }
 
 function criarGatilhoSincronizacaoBrunoFullTime() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Integração Bruno desativada: a fonte única agora é a planilha principal Full Time.');
+
   const fn = 'sincronizarCadastroBrunoFullTime';
   ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()===fn;}).forEach(function(t){ScriptApp.deleteTrigger(t);});
   ScriptApp.newTrigger(fn).timeBased().everyHours(1).create();
