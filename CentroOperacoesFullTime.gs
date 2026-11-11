@@ -4,7 +4,7 @@
  * Distâncias e pesos só são exibidos quando informados no cadastro/operação.
  */
 function FT_CENTRO_norm_(v) {
-  return String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+  return String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9_]/g,'');
 }
 function FT_CENTRO_rows_(sheetName) {
   const sh = getSheet_(sheetName);
