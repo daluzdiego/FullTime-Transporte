@@ -443,6 +443,24 @@ function ftOperationAppendFullTime_(sh, data) {
   sh.appendRow(row);
 }
 function listarRegistros_(name) {
+  if (name === 'OPERACOES') {
+    const sh = getSheet_('OPERACOES');
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return [];
+    const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+    const norm = value => String(value == null ? '' : value).trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
+    const ix = {};
+    headers.forEach((h,i)=>{const k=norm(h);if(k && ix[k]===undefined)ix[k]=i;});
+    const rows = sh.getRange(2,1,lastRow-1,sh.getLastColumn()).getDisplayValues();
+    const get = (row,key)=>ix[norm(key)]===undefined?'':String(row[ix[norm(key)]]||'');
+    const fields = ['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
+    return rows.filter(row=>row.some(v=>v!=='')).map(row=>({
+      id:get(row,'ID'),
+      criado:get(row,'CRIADO_EM'),
+      status:get(row,'STATUS'),
+      campos:fields.map(key=>get(row,key))
+    })).reverse();
+  }
   const sh = getSheet_(name);
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
