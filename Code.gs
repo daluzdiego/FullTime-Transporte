@@ -799,6 +799,13 @@ function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
         cabecalhos: headers,
         primeiraLinha: rows > 1 ? sh.getRange(2,1,1,width).getDisplayValues()[0] : []
       };
+    }),
+    leituraBackend: ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','OPERACOES'].map(function(name) {
+      try {
+        return { guia: name, registrosLidos: listarRegistros_(name).length };
+      } catch (e) {
+        return { guia: name, erro: String(e && e.message || e) };
+      }
     })
   };
   Logger.log('FULL TIME — DIAGNÓSTICO DA BASE CENTRAL: ' + JSON.stringify(result));
