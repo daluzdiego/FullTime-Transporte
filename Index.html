@@ -579,7 +579,7 @@
   }
   function submitRetorno(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('retornoError').textContent=e.message||'Falha ao registrar retorno.';}).retornarConjuntoOperacaoFullTime(authToken,data);
   }
 
   function renderOperacoes(){
@@ -641,7 +641,7 @@
   }
   function saveMovimentacao(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagens=Math.floor(Number(data.viagens||0));
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
   }
 
   function renderDocumentExpiryNotice(){
