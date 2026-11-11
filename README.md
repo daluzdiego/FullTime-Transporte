@@ -23,6 +23,8 @@ Aplicação de gestão e escala de operações de transporte, construída com Go
 - `FULLTIME_CENTRALIZACAO_RECONSTRUCAO_20261111.gs`: preparação da arquitetura central e geração de dados fictícios para homologação.
 - `FULLTIME_OPERACOES_TESTE.gs`: geração adicional de operações de teste, quando necessária.
 - `AuditoriaEstruturalFullTime2.gs`: auditoria estrutural.
+- `docs/CONTRATO_CANONICO_CABECALHOS.md`: contrato único de cabeçalhos das 14 guias operacionais.
+- `FT_AUDITAR_CONTRATO_CABECALHOS_20261111()` em `Code.gs`: auditoria somente leitura dos cabeçalhos reais da planilha principal.
 
 Arquivos de sincronização Bruno e a rotina antiga de reconstrução foram retirados da branch ativa para evitar que sejam executados por engano.
 
@@ -38,6 +40,8 @@ O GitHub **não atualiza automaticamente** o editor Apps Script, a menos que exi
 2. Remova do projeto Apps Script os arquivos legados que foram excluídos desta branch: `FULLTIME_RECONSTRUCAO_BASE.gs`, `FULLTIME_AUDITORIA_INTEGRAL_20261111.gs`, `IntegracaoCadastroBruno.gs` e os quatro arquivos `PLANILHABRUNO-*.gs`.
 3. Confirme que existe somente uma cópia de cada arquivo ativo. O escopo global do Apps Script é compartilhado por todos os arquivos `.gs`.
 4. Salve e confirme que o projeto compila antes de executar qualquer função que grave dados.
+5. Mantenha os arquivos `Code.gs`, `Index.html` e `CadastroMotoristasFullTime.gs` sincronizados juntos: o backend fornece `camposPorNome`, consumido pela interface.
+6. Execute `FT_AUDITAR_CONTRATO_CABECALHOS_20261111()` para validar os 14 contratos de guias sem alterar dados.
 
 ## Reconstrução fictícia
 
