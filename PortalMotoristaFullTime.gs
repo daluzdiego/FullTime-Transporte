@@ -97,3 +97,17 @@ function confirmarAceiteOfertaAdminFullTime(token, ofertaId) {
   auditar_(session,'CONFIRMAR_ESCALA','OPERACAO',String(r[map.OPERACAO_ID]),ofertaId+' ativada após aceite.');
   return {ok:true,message:'Escala confirmada. O conjunto está ativo na operação.'};
 }
+
+
+function listarOfertasAceitasAdminFullTime(token) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_MOTORISTA_headerMap_(sh),rows=sh.getDataRange().getValues();
+  const ops=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(ops),orows=ops.getDataRange().getValues(),byId={};
+  orows.slice(1).forEach(r=>byId[String(r[omap.ID]||'')]={nome:String(r[omap.NOME_OPERACAO]||''),origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||'')});
+  const drivers=ftReadBrunoRows_('MOTORISTAS'),driverNames={};
+  drivers.forEach(d=>driverNames[String(d.ID)]=String(d.NOME_COMPLETO||''));
+  return rows.slice(1).filter(r=>String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase()==='ACEITA').map(r=>{
+    const op=byId[String(r[map.OPERACAO_ID]||'')]||{};
+    return {id:String(r[map.ID]||''),motorista:driverNames[String(r[map.MOTORISTA_ID]||'')]||String(r[map.MOTORISTA_ID]||''),operacao:op.nome||String(r[map.OPERACAO_ID]||''),origem:op.origem||'',destino:op.destino||'',conjuntoId:String(r[map.CONJUNTO_ID]||''),aceitaEm:r[map.RESPONDIDA_EM]||''};
+  });
+}
