@@ -101,6 +101,7 @@ function loginFullTime(email, senha) {
   const session = {
     id: String(user[map.ID]), login: email, email: email,
     nome: String(user[map.NOME]), perfil: String(user[map.PERFIL]),
+    motoristaId: map.MOTORISTA_ID !== undefined ? String(user[map.MOTORISTA_ID] || '') : '',
     trocarSenha: user[map.TROCAR_SENHA] === true
   };
   CacheService.getScriptCache().put(FT_CONFIG.SESSION_PREFIX + token, JSON.stringify(session), FT_CONFIG.SESSION_TTL_SECONDS);
