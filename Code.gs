@@ -762,14 +762,25 @@ function retornarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
   if(!operacaoId||!conjuntoId||!motivo) throw new Error('Informe operação, conjunto e motivo do retorno.');
-  const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
-  const idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='SAIU');
-  if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto ainda está ativo em outra operação. Registre primeiro sua saída/remanejamento dessa operação.');
-  sh.getRange(idx+1,6).setValue('ATIVO'); sh.getRange(idx+1,9).setValue(new Date()); sh.getRange(idx+1,12).setValue('Retorno: '+motivo); sh.getRange(idx+1,13).setValue(session.login);
-  auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou. Motivo: '+motivo);
-  return {ok:true,message:'Retorno registrado no histórico.'};
+  const lock=LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
+    const headers=rows[0].map(v=>String(v||'').trim().toUpperCase()), ix={};
+    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    const idx=rows.findIndex((r,i)=>i>0&&String(r[ix.OPERACAO_ID]||'')===operacaoId&&String(r[ix.CONJUNTO_ID]||'')===conjuntoId&&String(r[ix.STATUS_PARTICIPACAO]||'').toUpperCase()==='SAIU');
+    if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
+    if(rows.some((r,i)=>i>0&&i!==idx&&String(r[ix.CONJUNTO_ID]||'')===conjuntoId&&['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[ix.STATUS_PARTICIPACAO]||'').toUpperCase()))) {
+      throw new Error('Este conjunto ainda possui outra oferta ou participação em andamento.');
+    }
+    sh.getRange(idx+1,ix.STATUS_PARTICIPACAO+1).setValue('RETORNOU');
+    if(ix.RETORNO_EM!==undefined)sh.getRange(idx+1,ix.RETORNO_EM+1).setValue(new Date());
+    if(ix.MOTIVO!==undefined)sh.getRange(idx+1,ix.MOTIVO+1).setValue('Retorno: '+motivo);
+    if(ix.REGISTRADO_POR!==undefined)sh.getRange(idx+1,ix.REGISTRADO_POR+1).setValue(session.login);
+    auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou e foi liberado para nova escala. Motivo: '+motivo);
+    return {ok:true,message:'Retorno registrado. O conjunto foi liberado para uma nova escala.'};
+  } finally {lock.releaseLock();}
 }
+
 function designarConjuntoOperacaoFullTime(token, data) {
   const session = obterSessao_(token); exigirAdmin_(session);
   throw new Error('A designação direta foi desativada. Envie uma oferta ao motorista e aguarde o aceite para confirmar a participação.');
@@ -779,44 +790,83 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
-  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(listarRegistros_('MOTORISTAS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
-  const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
-  const activeParts=new Set(parts.slice(1).filter(r=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[5]||'').toUpperCase())).map(r=>String(r[3])));
-  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+
+  const dateKey=v=>{
+    if(!v)return '';
+    if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');
+    const s=String(v).trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+    const d=new Date(s);
+    return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
+  };
+  const operationDay=dateKey(op.data);
+  const sets=listarRegistros_('CONJUNTOS');
+  const drivers=listarRegistros_('MOTORISTAS');
+  const driverById={}; drivers.forEach(d=>driverById[String(d.id)]=d);
+
+  const partsSh=getSheet_('PARTICIPACAO_OPERACOES'), partsGrid=partsSh.getDataRange().getValues();
+  const pHeaders=partsGrid[0].map(v=>String(v||'').trim().toUpperCase()), pi={};
+  pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
+  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']);
+  const busySets=new Set(),busyDrivers=new Set();
+  partsGrid.slice(1).forEach(r=>{
+    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+    if(!blocking.has(status))return;
+    const setId=String(r[pi.CONJUNTO_ID]||'');
+    const driverId=String(r[pi.MOTORISTA_ID]||'');
+    if(setId)busySets.add(setId);
+    if(driverId)busyDrivers.add(driverId);
+  });
+
+  const availSh=getSheet_('DISPONIBILIDADE_DIARIA'), availGrid=availSh.getDataRange().getValues();
+  const ah=availGrid[0].map(v=>String(v||'').trim().toUpperCase()), ai={};
+  ah.forEach((h,i)=>{if(h&&ai[h]===undefined)ai[h]=i;});
+  const availabilityForDay={};
+  availGrid.slice(1).forEach(r=>{
+    const day=dateKey(r[ai.DATA_OPERACAO]), driverId=String(r[ai.MOTORISTA_ID]||'');
+    if(day===operationDay&&driverId)availabilityForDay[driverId]=String(r[ai.STATUS_DISPONIBILIDADE]||'').trim().toUpperCase();
+  });
+
   const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
   const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const dateKey=v=>{if(!v)return '';const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
-  const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
-  const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
-  const availabilityRows=getSheet_('DISPONIBILIDADE_DIARIA').getDataRange().getValues();
-  const availabilityByDriver={};
-  availabilityRows.slice(1).forEach(r=>{const day=dateKey(r[2]),driverId=String(r[3]||'');if(!driverId||day<sinceKey||day>today||String(r[4]||'').toUpperCase()!=='DISPONIVEL')return;(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);});
+  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const historyByDriver={};
-  parts.slice(1).forEach(r=>{const driverId=String(r[4]||''),day=dateKey(r[6]),opId=String(r[2]||'');if(!driverId||!day||day<sinceKey||day>today)return;const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});h.operations.add(opId);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;});
-  const candidates=sets.slice(1).map(r=>{
-    const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
-    const cap=Number(r[10]||0), driverId=String(r[3]||''), hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
-    const queue=queueByDriver[driverId], avail=availabilityByDriver[driverId]||new Set();
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
-  }).filter(c=>c.eligible);
-  const byCategory=candidates.filter(c=>{
-    if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
-    if(op.categoria==='MANOBRA_DIFICIL')return c.capacity>0;
-    return true;
+  partsGrid.slice(1).forEach(r=>{
+    const driverId=String(r[pi.MOTORISTA_ID]||''), day=dateKey(r[pi.INICIO_EM]), opId=String(r[pi.OPERACAO_ID]||'');
+    if(!driverId||!day||day<sinceKey||day>today)return;
+    const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});
+    h.operations.add(opId); h.days.add(day); if(day===today)h.today++; if(!h.last||day>h.last)h.last=day;
   });
+  const queueGrid=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
+  const qh=queueGrid[0].map(v=>String(v||'').trim().toUpperCase()), qi={};
+  qh.forEach((h,i)=>{if(h&&qi[h]===undefined)qi[h]=i;});
+  const queueByDriver={};
+  queueGrid.slice(1).forEach(r=>{const did=String(r[qi.MOTORISTA_ID]||'');if(did)queueByDriver[did]=r;});
+
+  const volume=Math.max(0,Number(op.volumeTotal)||0), trips=Math.max(0,Number(op.viagensPrevistas)||0);
+  const averageLoad=trips>0?volume/trips:0;
+  const candidates=sets.map(s=>{
+    const fields=s.camposPorNome||{}, driverId=String(fields.MOTORISTA_ID||''), driver=driverById[driverId];
+    const cap=Number(String(fields.CAPACIDADE_UTIL_TONELADAS||'').replace(',','.'))||0;
+    const condition=String(fields.ESTADO_CONSERVACAO||'').trim().toUpperCase();
+    const driverFields=driver?.camposPorNome||{};
+    const cnhExpiry=dateKey(driverFields.CNH_VALIDADE);
+    const cnhValid=!!cnhExpiry&&(!operationDay||cnhExpiry>=operationDay);
+    const availability=availabilityForDay[driverId]||'NAO_INFORMADA';
+    const availabilityOk=availability!=='INDISPONIVEL';
+    const capacityOk=cap>0&&(!averageLoad||cap>=averageLoad);
+    const hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
+    const queue=queueByDriver[driverId];
+    const eligible=s.status==='ATIVO'&&!!driver&&driver.status==='ATIVO'&&condition==='APTO'&&cnhValid&&capacityOk&&availabilityOk&&!busySets.has(String(s.id))&&!busyDrivers.has(driverId);
+    return {id:String(s.id),driverId,driverName:String(driverFields.NOME_COMPLETO||''),cavaloId:String(fields.CAVALO_ID||''),capacity:cap,condition,restrictions:String(fields.RESTRICOES||''),eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,motivoInelegibilidade:!cnhValid?'CNH vencida ou sem validade':!capacityOk?'Capacidade útil insuficiente':!availabilityOk?'Motorista indisponível na data':busySets.has(String(s.id))?'Conjunto já possui oferta/escala em andamento':busyDrivers.has(driverId)?'Motorista já possui oferta/escala em andamento':condition!=='APTO'?'Conjunto não está APTO':!driver||driver.status!=='ATIVO'?'Motorista inativo':''};
+  }).filter(c=>c.eligible);
+  const byCategory=candidates.filter(c=>op.categoria!=='ALTO_DESEMPENHO'||c.capacity>0);
   const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
   if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
   if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
   return ordered.map((c,i)=>({posicao:i+1,...c}));
 }
 
-/**
- * Diagnóstico somente leitura da fonte única Full Time.
- * Confere os dados reais nas guias e se o roteamento do backend aponta para a mesma base.
- */
 function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
@@ -872,13 +922,13 @@ function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
     CONJUNTOS:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
     DOCUMENTOS:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
     OPERACOES:['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
-    PARTICIPACAO_OPERACOES:['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
+    PARTICIPACAO_OPERACOES:['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR','OFERTADA_EM','RESPONDIDA_EM','EXPIRA_EM','ORIGEM_OFERTA','OBSERVACOES_OFERTA'],
     MOVIMENTACOES_OPERACAO:['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS:['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS:['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     DISPONIBILIDADE_DIARIA:['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
     FILA_MOTORISTAS:['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    EVENTOS_ESCALA:['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR'],
+    EVENTOS_ESCALA:['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR','OFERTA_ID'],
     ENTRADA_OPERACOES_IA:['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM']
   };
   const comparar=(a,b)=>a.length===b.length&&a.every((v,i)=>String(v).trim().toUpperCase()===String(b[i]).trim().toUpperCase());
