@@ -88,7 +88,7 @@ function loginFullTime(email, senha) {
   email = String(email || '').trim().toLowerCase();
   senha = String(senha || '');
   if (!email || !senha) throw new Error('Informe seu e-mail e sua senha.');
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error('Informe um endereço de e-mail válido.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Informe um endereço de e-mail válido.');
   const sh = getSheet_('USUARIOS');
   FT_AUTH_ensureUserHeaders_(sh);
   const values = sh.getDataRange().getValues();
