@@ -237,7 +237,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
-    else if(page==='escalas') c.innerHTML=renderEscalas();
+    else if(page==='escalas') { c.innerHTML=renderEscalas(); carregarOfertasAceitasAdmin(); }
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -488,6 +488,20 @@
       </div>
       <div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">${sets.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade útil</th><th>Status</th><th>Ação</th></tr></thead><tbody>${sets.map(x=>{const f=x.campos||[],d=find(drivers,f[0]),h=find(horses,f[1]),m=find(trailers,f[2]),t=find(trailers,f[3]);return '<tr><td>'+esc(d?.campos[0]||f[0]||'—')+'</td><td>'+esc(h?.campos[0]||f[1]||'—')+'</td><td>'+esc(m?.campos[0]||'—')+'</td><td>'+esc(t?.campos[0]||'—')+'</td><td>'+((Number(f[7]||0)>0)?Number(f[7]).toLocaleString('pt-BR')+' t':'—')+'</td><td>'+statusBadge(x.status)+'</td><td>'+action('CONJUNTOS',x)+'</td></tr>';}).join('')||'<tr><td colspan="7">Nenhum conjunto sincronizado.</td></tr>'}</tbody></table></div></div></div>`;
   }
+  function carregarOfertasAceitasAdmin(){
+    const host=document.getElementById('acceptedOffersAdmin');if(!host)return;
+    host.innerHTML='<div class="empty">Consultando ofertas aceitas…</div>';
+    google.script.run.withSuccessHandler(rows=>{
+      if(!document.getElementById('acceptedOffersAdmin'))return;
+      host.innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Operação</th><th>Trecho</th><th>Conjunto</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.motorista)+'</td><td>'+esc(r.operacao)+'</td><td>'+esc(r.origem)+' → '+esc(r.destino)+'</td><td>'+esc(r.conjuntoId)+'</td><td><button class="btn btn-primary" onclick="confirmarAceiteAdmin(\''+esc(r.id)+'\')">Confirmar escala</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum aceite aguardando confirmação.</div>';
+    }).withFailureHandler(e=>{host.innerHTML='<div class="notice">'+esc(e.message||'Falha ao consultar aceites.')+'</div>';}).listarOfertasAceitasAdminFullTime(authToken);
+  }
+  function confirmarAceiteAdmin(id){
+    if(!confirm('Confirmar esta escala? O conjunto ficará ATIVO na operação.'))return;
+    google.script.run.withSuccessHandler(r=>{toast(r.message);carregarOfertasAceitasAdmin();google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível confirmar a escala.',true)).confirmarAceiteOfertaAdminFullTime(authToken,id);
+  }
+
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.nome||o.campos[2]||o.id):id;};
@@ -499,6 +513,7 @@
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
+      <div class="panel"><div class="panel-head"><h2>Aceites aguardando confirmação</h2><span class="muted small">Resposta dos motoristas</span></div><div class="panel-body" id="acceptedOffersAdmin"><div class="empty">Carregando…</div></div></div>
       <div class="notice">Uma designação é por operação, não por viagem. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
       <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
