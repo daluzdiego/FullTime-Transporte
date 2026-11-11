@@ -131,13 +131,21 @@ function trocarSenhaInicial(token, novaSenha) {
 function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
-  return {
+
+  // Diagnóstico temporário de ponta a ponta: identifica a origem e o volume
+  // efetivamente entregue à interface, sem expor CPF, telefone ou e-mail.
+  const ssId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID') || '';
+  const motoristas = listarRegistros_('MOTORISTAS');
+  const cavalos = listarRegistros_('CAVALOS');
+  const carretas = listarRegistros_('CARRETAS');
+  const conjuntos = listarRegistros_('CONJUNTOS');
+  const payload = {
     user: session,
-    motoristas: listarRegistros_('MOTORISTAS'),
+    motoristas: motoristas,
     documentos: (function(){const sh=getSheet_('DOCUMENTOS'),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1).map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))}));})(),
-    cavalos: listarRegistros_('CAVALOS'),
-    carretas: listarRegistros_('CARRETAS'),
-    conjuntos: listarRegistros_('CONJUNTOS'),
+    cavalos: cavalos,
+    carretas: carretas,
+    conjuntos: conjuntos,
     operacoes: listarOperacoesFullTime(token),
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
     locais: listarRegistros_('LOCAIS'),
@@ -147,8 +155,18 @@ function obterPainelFullTime(token) {
       carretas: contarAtivos_('CARRETAS'),
       conjuntos: contarAtivos_('CONJUNTOS'),
       pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAVALOS', 'PENDENTE_REVISAO') + contarStatus_('CARRETAS', 'PENDENTE_REVISAO')
+    },
+    diagnosticoBase: {
+      planilhaId: ssId,
+      motoristasEntregues: motoristas.length,
+      cavalosEntregues: cavalos.length,
+      carretasEntregues: carretas.length,
+      conjuntosEntregues: conjuntos.length,
+      usuarioPerfil: String(session.perfil || '')
     }
   };
+  Logger.log('FT_UI_PAYLOAD_DIAGNOSTICO: ' + JSON.stringify(payload.diagnosticoBase));
+  return payload;
 }
 
 /**
