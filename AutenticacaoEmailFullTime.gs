@@ -58,6 +58,18 @@ function FT_AUTH_vincularEmailAdmin(loginLegado,email) {
   sh.getRange(row+1,map.ATIVO+1).setValue(true);
   return {ok:true,loginLegado:loginLegado,email:address,senhaInicial:'12345',trocaObrigatoria:true,mensagem:'E-mail vinculado e senha inicial definida. A troca será obrigatória no primeiro acesso.'};
 }
+/**
+ * Atalhos de execução sem parâmetros para vincular os administradores.
+ * Execute cada função uma única vez durante a configuração inicial.
+ * ATENÇÃO: executá-las novamente redefine a senha do respectivo admin para 12345.
+ */
+function FT_AUTH_vincularAdminDiego20261111() {
+  return FT_AUTH_vincularEmailAdmin('Diego','contato.diegodaluz@gmail.com');
+}
+function FT_AUTH_vincularAdminBruno20261111() {
+  return FT_AUTH_vincularEmailAdmin('Bruno','brunolopes@fulltimetransportes.com.br');
+}
+
 /** Cria usuários de homologação para motoristas sincronizados com e-mails .test. */
 function FT_AUTH_criarUsuariosMotoristasTeste() {
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
