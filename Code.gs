@@ -166,7 +166,9 @@ function obterPainelFullTime(token) {
     }
   };
   Logger.log('FT_UI_PAYLOAD_DIAGNOSTICO: ' + JSON.stringify(payload.diagnosticoBase));
-  return payload;
+  // google.script.run serializa objetos aninhados com limites próprios.
+  // Entregar JSON como string garante transporte consistente de todos os campos.
+  return JSON.stringify(payload);
 }
 
 /**
