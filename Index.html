@@ -149,13 +149,20 @@
   if(FT_RESET_TOKEN){document.getElementById('resetPasswordModal').classList.remove('hidden');}
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
   function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
+  function parsePainelResponse(data){
+    if(typeof data==='string'){
+      try{data=JSON.parse(data);}catch(e){throw new Error('Resposta do painel não contém JSON válido: '+e.message);}
+    }
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('Resposta do painel inválida ou vazia.');
+    return data;
+  }
   function loadApp(){
     showAppShell();
     const isDriver=String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA';
     const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'operacoes';
     google.script.run.withSuccessHandler(data=>{
-        const received=data&&typeof data==='object'?data:{};
+        const received=isDriver?data:parsePainelResponse(data);
         const arrayKeys=['motoristas','cavalos','carretas','conjuntos','operacoes','documentos'];
         const receivedCounts={};
         arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
@@ -219,7 +226,7 @@
     google.script.run.withSuccessHandler(data=>{
       operacoesRefreshBusy=false;
       if(!data)return;
-      dashboard=data;operacoesLastLoadedAt=Date.now();
+      dashboard=parsePainelResponse(data);operacoesLastLoadedAt=Date.now();
       if(currentPage==='operacoes'){
         const active=document.activeElement, activeId=active&&active.id;
         const y=window.scrollY;
@@ -488,7 +495,7 @@
     return '<tr data-search="'+esc(search)+'" data-status="'+esc(r.status)+'"><td><div class="primary-cell">'+esc(nome)+'</div><div class="secondary-cell">'+esc(f.EMAIL||'')+'</div></td><td>'+esc(maskCpf(cpf))+'</td><td>'+esc(telefone)+'</td><td>'+esc(cnh)+'</td><td>'+esc(formatDate(f.CNH_VALIDADE))+'</td><td>'+statusBadge(r.status)+'</td><td><div class="row-actions">'+approve+deactivate+'</div></td></tr>';
   }
   function statusBadge(s){const cls=s==='ATIVO'?'badge-active':s==='INATIVO'?'badge-inactive':'badge-pending';const label=s==='ATIVO'?'Ativo':s==='INATIVO'?'Inativo':'Pendente revisão';return `<span class="badge ${cls}">${label}</span>`;}
-  function setStatus(entity,id,status){const label=status==='ATIVO'?'aprovar':'inativar';if(!confirm(`Deseja ${label} este cadastro?`))return;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage(currentPage);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message,true)).atualizarStatusFullTime(authToken,entity,id,status);}
+  function setStatus(entity,id,status){const label=status==='ATIVO'?'aprovar':'inativar';if(!confirm(`Deseja ${label} este cadastro?`))return;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage(currentPage);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message,true)).atualizarStatusFullTime(authToken,entity,id,status);}
   function filterTable(){const q=(document.getElementById('filterInput')?.value||'').toLowerCase();const s=document.getElementById('statusFilter')?.value||'';document.querySelectorAll('#tableBody tr[data-search]').forEach(tr=>{tr.classList.toggle('hidden',!(tr.dataset.search.includes(q)&&(!s||tr.dataset.status===s)));});}
 
   function renderConjuntos(){
@@ -531,7 +538,7 @@
   }
   function confirmarAceiteAdmin(id){
     if(!confirm('Confirmar esta escala? O conjunto ficará ATIVO na operação.'))return;
-    google.script.run.withSuccessHandler(r=>{toast(r.message);carregarOfertasAceitasAdmin();google.script.run.withSuccessHandler(d=>{dashboard=d;}).obterPainelFullTime(authToken);})
+    google.script.run.withSuccessHandler(r=>{toast(r.message);carregarOfertasAceitasAdmin();google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);}).obterPainelFullTime(authToken);})
       .withFailureHandler(e=>toast(e.message||'Não foi possível confirmar a escala.',true)).confirmarAceiteOfertaAdminFullTime(authToken,id);
   }
 
@@ -568,7 +575,7 @@
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
     if(data.operacaoAtualId===data.operacaoDestinoId){document.getElementById('remanejamentoError').textContent='Escolha operações diferentes.';return;}
     if(!confirm('Confirmar transferência? A saída e a nova participação serão registradas.'))return;
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('remanejamentoError').textContent=e.message||'Falha no remanejamento.';}).remanejarConjuntoOperacaoFullTime(authToken,data);
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('escalas');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('remanejamentoError').textContent=e.message||'Falha no remanejamento.';}).remanejarConjuntoOperacaoFullTime(authToken,data);
   }
   function submitRetorno(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());
@@ -609,7 +616,7 @@
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
     const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=d;renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
   function showCandidatosOperacao(id){
     const panel=document.getElementById('operacaoActionPanel');panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
