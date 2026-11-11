@@ -796,6 +796,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');
     const s=String(v).trim();
     if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+    const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(br)return br[3]+'-'+br[2]+'-'+br[1];
     const d=new Date(s);
     return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
   };
