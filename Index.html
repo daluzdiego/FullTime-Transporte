@@ -256,10 +256,26 @@
       if(currentPage==='operacoes'){
         const active=document.activeElement, activeId=active&&active.id;
         const y=window.scrollY;
-        // Mantém candidatos/movimentação visíveis quando o painel de operações é atualizado.
+        // Preserva o detalhe de operação aberto durante a atualização automática.
+        const openDetails=document.querySelector('[id^="details-row-"][style*="table-row"]');
+        const openDetailsId=openDetails?openDetails.id.replace('details-row-',''):'';
+        const openDetailsHtml=openDetails?document.getElementById('details-content-'+openDetailsId)?.innerHTML||'':'';
+        const openSlotsValue=openDetailsId?document.getElementById('auto-slots-'+openDetailsId)?.value:null;
         const actionPanel=document.getElementById('operacaoActionPanel');
         const actionHtml=actionPanel?actionPanel.innerHTML:'';
         renderPage('operacoes');
+        if(openDetailsId){
+          const restoredRow=document.getElementById('details-row-'+openDetailsId);
+          const restoredContent=document.getElementById('details-content-'+openDetailsId);
+          const restoredButton=document.getElementById('details-btn-'+openDetailsId);
+          if(restoredRow&&restoredContent){
+            restoredRow.style.display='table-row';
+            restoredContent.innerHTML=openDetailsHtml;
+            if(restoredButton)restoredButton.textContent='FECHAR DETALHES';
+            const slots=document.getElementById('auto-slots-'+openDetailsId);
+            if(slots&&openSlotsValue!==null)slots.value=openSlotsValue;
+          }
+        }
         const currentActionPanel=document.getElementById('operacaoActionPanel');
         if(currentActionPanel&&actionHtml)currentActionPanel.innerHTML=actionHtml;
         if(activeId){const restored=document.getElementById(activeId);if(restored)restored.focus({preventScroll:true});}
