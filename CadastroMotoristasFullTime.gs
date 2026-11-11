@@ -11,33 +11,10 @@ function configurarCadastroInicialFullTime() {
   if (!registryId) throw new Error('Execute primeiro conectarPlanilhaOperacionalFullTime().');
   const ss = SpreadsheetApp.openById(registryId);
 
-  const schemas = {
-    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES'],
-    SOLICITACOES_TESTE: ['ID','CRIADO_EM','STATUS','CLIENTE','ORIGEM','DESTINO','DATA_OPERACAO','HORARIO_PREVISTO','PESO_TONELADAS','DESCRICAO','VALOR_FRETE','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','CRIADO_POR','OBSERVACOES']
-  };
-  Object.keys(schemas).forEach(function(name) {
-    let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-    const headers = schemas[name];
-    const currentWidth = Math.max(sh.getLastColumn(), headers.length);
-    const first = sh.getRange(1, 1, 1, currentWidth).getDisplayValues()[0].map(v => String(v || '').trim());
-    if (first.every(v => !v)) {
-      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    } else {
-      const existing = first.filter(Boolean);
-      const compatible = existing.every((h, i) => headers[i] === h);
-      if (!compatible || existing.length > headers.length) {
-        throw new Error('Cabeçalhos incompatíveis na guia ' + name + '. Nenhum dado foi sobrescrito.');
-      }
-      if (existing.length < headers.length) {
-        sh.getRange(1, existing.length + 1, 1, headers.length - existing.length).setValues([headers.slice(existing.length)]);
-      }
-    }
-    sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
-    sh.autoResizeColumns(1, headers.length);
+  // A arquitetura centralizada já cria as guias e define seus cabeçalhos oficiais.
+  // Esta rotina não recria nem altera schemas; apenas valida a presença das guias.
+  ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS'].forEach(function(name) {
+    if (!ss.getSheetByName(name)) throw new Error('Guia obrigatória ausente na planilha principal: ' + name);
   });
 
   const props = PropertiesService.getScriptProperties();
@@ -147,15 +124,22 @@ function salvarConjuntoVeicularFullTime(token, data) {
   });
 
   const sh = getSheet_('CONJUNTOS');
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  const ix = {};
+  headers.forEach((h,i)=>{const k=String(h||'').trim().toUpperCase();if(k&&!Object.prototype.hasOwnProperty.call(ix,k))ix[k]=i;});
+  ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'].forEach(k=>{if(ix[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em CONJUNTOS: '+k);});
   const rows = sh.getLastRow() > 1 ? sh.getDataRange().getValues().slice(1) : [];
   // Encerra a vigência de qualquer conjunto atual que use o mesmo motorista ou cavalo.
   rows.forEach(function(r, i) {
-    if (String(r[2]) === 'ATIVO' && (String(r[3]) === motoristaId || String(r[4]) === cavaloId)) {
-      sh.getRange(i + 2, 3).setValue('INATIVO');
+    if (String(r[ix.STATUS]) === 'ATIVO' && (String(r[ix.MOTORISTA_ID]) === motoristaId || String(r[ix.CAVALO_ID]) === cavaloId)) {
+      sh.getRange(i + 2, ix.STATUS + 1).setValue('INATIVO');
     }
   });
   const id = Utilities.getUuid();
-  sh.appendRow([id, new Date(), 'ATIVO', motoristaId, cavaloId, carretaMeioId, carretaFinalId, observacoes]);
+  const newRow = new Array(headers.length).fill('');
+  const values = {ID:id,CRIADO_EM:new Date(),STATUS:'ATIVO',MOTORISTA_ID:motoristaId,CAVALO_ID:cavaloId,CARRETA_MEIO_ID:carretaMeioId,CARRETA_FINAL_ID:carretaFinalId,OBSERVACOES:observacoes,ESTADO_CONSERVACAO:'APTO',RESTRICOES:'',CAPACIDADE_UTIL_TONELADAS:horse.capacidadeUtil||0,ATUALIZADO_POR:session.login||session.email||'ADMIN'};
+  Object.keys(values).forEach(k=>{newRow[ix[k]]=values[k];});
+  sh.appendRow(newRow);
   auditar_(session, 'VINCULAR_CONJUNTO', 'CONJUNTO', id, 'Motorista=' + motoristaId + '; cavalo=' + cavaloId + '; carreta1=' + carretaMeioId + '; carreta2=' + carretaFinalId);
   return { ok: true, id: id, message: 'Conjunto veicular associado ao motorista.' };
 }
