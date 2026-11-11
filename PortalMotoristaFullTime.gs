@@ -59,14 +59,16 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     if(String(record[map.STATUS_PARTICIPACAO]||'').toUpperCase()!=='OFERTADA')throw new Error('Esta oferta já foi respondida ou não está mais pendente.');
     const expires=record[map.EXPIRA_EM] instanceof Date?record[map.EXPIRA_EM]:new Date(record[map.EXPIRA_EM]);
     if(!isFinite(expires.getTime())||expires.getTime()<Date.now()){
+      const now=new Date();
       sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
-      sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(new Date());
-      throw new Error('O prazo desta oferta expirou. Solicite uma nova convocação.');
+      if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
+      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo de resposta encerrado.',autor:session.email,ofertaId});
+      auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
+      return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
     }
-    const now=new Date();
+    const now=new Date(),note=texto_(observacao,500);
     sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta);
-    sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-    const note=texto_(observacao,500);
+    if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
     if(note&&map.MOTIVO!==undefined)sh.getRange(idx+1,map.MOTIVO+1).setValue(note);
     FT_CONV_appendEvent_({tipo:resposta==='ACEITA'?'OFERTA_ACEITA':'OFERTA_RECUSADA',
       operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],
@@ -81,21 +83,33 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
 function confirmarAceiteOfertaAdminFullTime(token, ofertaId) {
   const session=obterSessao_(token);exigirAdmin_(session);
   ofertaId=texto_(ofertaId,120);
-  const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_MOTORISTA_headerMap_(sh),rows=sh.getDataRange().getValues();
-  const idx=rows.findIndex((r,i)=>i>0&&String(r[map.ID]||'')===ofertaId);
-  if(idx<1)throw new Error('Oferta não encontrada.');
-  const r=rows[idx],status=String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase();
-  if(status!=='ACEITA')throw new Error('Somente ofertas aceitas pelo motorista podem ser confirmadas.');
-  const ops=getSheet_('OPERACOES').getDataRange().getValues();
-  const op=ops.find((x,i)=>i>0&&String(x[0])===String(r[map.OPERACAO_ID]));
-  if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[2]||'')))throw new Error('A operação não está aberta para ativação.');
-  sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('ATIVO');
-  sh.getRange(idx+1,map.REGISTRADO_POR+1).setValue(session.email||session.login);
-  FT_CONV_appendEvent_({tipo:'ESCALA_CONFIRMADA',operacaoId:r[map.OPERACAO_ID],motoristaId:r[map.MOTORISTA_ID],
-    conjuntoId:r[map.CONJUNTO_ID],anterior:'ACEITA',nova:'ATIVO',motivo:'Aceite do motorista confirmado pela administração.',
-    autor:session.email||session.login,ofertaId});
-  auditar_(session,'CONFIRMAR_ESCALA','OPERACAO',String(r[map.OPERACAO_ID]),ofertaId+' ativada após aceite.');
-  return {ok:true,message:'Escala confirmada. O conjunto está ativo na operação.'};
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_MOTORISTA_headerMap_(sh),rows=sh.getDataRange().getValues();
+    const idx=rows.findIndex((r,i)=>i>0&&String(r[map.ID]||'')===ofertaId);
+    if(idx<1)throw new Error('Oferta não encontrada.');
+    const r=rows[idx],status=String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase();
+    if(status!=='ACEITA')throw new Error('Somente ofertas aceitas pelo motorista podem ser confirmadas.');
+    const expires=r[map.EXPIRA_EM] instanceof Date?r[map.EXPIRA_EM]:new Date(r[map.EXPIRA_EM]);
+    if(!isFinite(expires.getTime())||expires.getTime()<Date.now())throw new Error('O prazo da oferta expirou. Não é possível ativar esta escala.');
+    const opSh=getSheet_('OPERACOES'),opGrid=opSh.getDataRange().getValues(),oh=opGrid[0].map(v=>String(v||'').trim().toUpperCase()),oi={};
+    oh.forEach((h,i)=>{if(h&&oi[h]===undefined)oi[h]=i;});
+    const op=opGrid.slice(1).find(x=>String(x[oi.ID]||'')===String(r[map.OPERACAO_ID]));
+    if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[oi.STATUS]||'').toUpperCase()))throw new Error('A operação não está aberta para ativação.');
+    const all=rows.slice(1);
+    const conflict=all.some((x,i)=>i!==idx-1&&['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(x[map.STATUS_PARTICIPACAO]||'').toUpperCase())&&
+      (String(x[map.CONJUNTO_ID]||'')===String(r[map.CONJUNTO_ID]||'')||String(x[map.MOTORISTA_ID]||'')===String(r[map.MOTORISTA_ID]||'')));
+    if(conflict)throw new Error('O motorista ou conjunto já possui outra oferta ou escala em andamento.');
+    const now=new Date();
+    sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('ATIVO');
+    if(map.INICIO_EM!==undefined)sh.getRange(idx+1,map.INICIO_EM+1).setValue(now);
+    if(map.REGISTRADO_POR!==undefined)sh.getRange(idx+1,map.REGISTRADO_POR+1).setValue(session.email||session.login);
+    FT_CONV_appendEvent_({tipo:'ESCALA_CONFIRMADA',operacaoId:r[map.OPERACAO_ID],motoristaId:r[map.MOTORISTA_ID],
+      conjuntoId:r[map.CONJUNTO_ID],anterior:'ACEITA',nova:'ATIVO',motivo:'Aceite do motorista confirmado pela administração.',
+      autor:session.email||session.login,ofertaId});
+    auditar_(session,'CONFIRMAR_ESCALA','OPERACAO',String(r[map.OPERACAO_ID]),ofertaId+' ativada após aceite.');
+    return {ok:true,message:'Escala confirmada. O conjunto está ativo na operação.'};
+  } finally {lock.releaseLock();}
 }
 
 
