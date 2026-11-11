@@ -14,13 +14,9 @@ const FT_CONFIG = {
 function conectarPlanilhaOperacionalFullTime() {
   const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  ['FT_CADASTRO_BRUNO_MOTORISTAS','FT_CADASTRO_BRUNO_CAVALOS','FT_CADASTRO_BRUNO_CARRETAS','FT_CADASTRO_BRUNO_CONJUNTOS','FT_CADASTRO_BRUNO_DOCUMENTOS'].forEach(function(name) {
-    if (!ss.getSheetByName(name)) throw new Error('Não encontrei a guia sincronizada ' + name + '. Confira a sincronização da planilha do Bruno.');
-  });
-  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID',spreadsheetId);
-  console.log('Planilha conectada: '+ss.getUrl());
-  console.log('Cadastros lidos das guias FT_CADASTRO_BRUNO_*. Não serão criadas guias CAMINHOES ou CARGAS.');
-  console.log('Campo de capacidade de carga será lido do cadastro sincronizado dos cavalos.');
+  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
+  console.log('Fonte única conectada: ' + ss.getUrl());
+  console.log('Cadastros, operações e escala serão lidos e gravados diretamente nesta planilha.');
   return ss.getUrl();
 }
 
@@ -138,7 +134,7 @@ function obterPainelFullTime(token) {
   return {
     user: session,
     motoristas: listarRegistros_('MOTORISTAS'),
-    documentos: ftBrunoRowsAsLegacy_('DOCUMENTOS').map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))})),
+    documentos: (function(){const sh=getSheet_('DOCUMENTOS'),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1).map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))}));})(),
     cavalos: listarRegistros_('CAVALOS'),
     carretas: listarRegistros_('CARRETAS'),
     conjuntos: listarRegistros_('CONJUNTOS'),
@@ -268,7 +264,7 @@ function atualizarStatusFullTime(token, entidade, id, status) {
   if(!id)throw new Error('Identificador do cadastro não informado.');
   if(['PENDENTE_REVISAO','ATIVO','INATIVO'].indexOf(status)===-1)throw new Error('Status inválido.');
   const registro=listarRegistros_(entidade).find(function(r){return String(r.id)===String(id);});
-  if(!registro)throw new Error('Registro não encontrado no cadastro sincronizado do Bruno.');
+  if(!registro)throw new Error('Registro não encontrado na base principal.');
   if(entidade==='CONJUNTOS' && status==='ATIVO'){
     const fields=registro.campos||[];
     const required=[['MOTORISTAS',fields[0],'motorista'],['CAVALOS',fields[1],'cavalo']];
@@ -382,17 +378,22 @@ function arquivarGuiasLegadasFullTime() {
 }
 
 function getSheet_(name) {
-  // Dados operacionais ficam na planilha oficial compartilhada com a Full Time.
-  // Usuários e auditoria permanecem na base interna de autenticação.
+  // Fonte única: planilha principal. Somente autenticação e auditoria ficam na base interna.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA'];
+  const authTabs = ['USUARIOS','AUDITORIA','TOKENS_RECUPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
-    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
+    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha principal. Execute FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111().');
     return sh;
   }
-  return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
+  if (authTabs.indexOf(name) !== -1 || name === 'FT_STATUS_CADASTROS') {
+    const sh = SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
+    if (!sh) throw new Error('Guia de autenticação não encontrada: ' + name);
+    return sh;
+  }
+  throw new Error('Guia fora da arquitetura centralizada: ' + name);
 }
 function ftOperationHeaderMap_(sh) {
   const headers = sh.getLastColumn() ? sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0] : [];
@@ -437,16 +438,10 @@ function listarRegistros_(name) {
       })
     })).reverse();
   }
-  const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  // Cadastros e conjuntos vêm exclusivamente dos espelhos sincronizados do Bruno.
-  // As decisões de aprovação ficam em FT_STATUS_CADASTROS e não alteram a origem.
-  if (brunoEntity) {
+  const rows = (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
+  if (['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].indexOf(name) !== -1) {
     const overrides = ftReadStatusOverrides_(name);
-    rows.forEach(r => {
-      const id = String(r[0] || '').trim();
-      if (id && overrides[id]) r[2] = overrides[id];
-    });
+    rows.forEach(r => { const id=String(r[0]||'').trim(); if(id&&overrides[id]) r[2]=overrides[id]; });
   }
   if (!rows.length) return [];
 
@@ -457,8 +452,8 @@ function listarRegistros_(name) {
     campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
   }));
 
-  // A capacidade do cavalo vem do próprio cadastro sincronizado do Bruno.
-  // Não depende de uma guia genérica CAMINHOES nem de correspondência por placa.
+  // A capacidade do cavalo vem do cadastro central da planilha principal.
+  // Não depende de guia genérica CAMINHOES nem de correspondência por placa.
   if (name === 'CAVALOS') {
     mapped.forEach(item => {
       item.capacidadeUtil = Number(String(item.campos[7] || '').replace(',','.')) || 0;
