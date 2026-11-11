@@ -77,6 +77,8 @@ function PLANILHABRUNO_auditV2_(ss) {
   return sh;
 }
 function PLANILHABRUNO_validarSincronizacaoV2() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Sincronização Bruno desativada: o Full Time utiliza exclusivamente a planilha principal.');
+
   const origem=SpreadsheetApp.getActiveSpreadsheet();
   const destino=SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
   const out={sucesso:true,modo:'VALIDACAO_SEM_ESCRITA',origem:origem.getName(),origemId:origem.getId(),destino:destino.getName(),destinoId:destino.getId(),lote:PLANILHABRUNO_SYNC_V2.LOTE,guias:[],erros:[],avisos:[]};
@@ -129,6 +131,8 @@ function PLANILHABRUNO_validarSincronizacaoV2() {
  * Não grava, não move e não exclui colunas ou registros.
  */
 function PLANILHABRUNO_diagnosticarCabecalhoEntradaOperacoesIA() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Sincronização Bruno desativada: o Full Time utiliza exclusivamente a planilha principal.');
+
   const origem = SpreadsheetApp.getActiveSpreadsheet();
   const destino = SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
   const nome = 'ENTRADA_OPERACOES_IA';
@@ -173,6 +177,8 @@ function PLANILHABRUNO_diagnosticarCabecalhoEntradaOperacoesIA() {
   return out;
 }
 function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Sincronização Bruno desativada: o Full Time utiliza exclusivamente a planilha principal.');
+
   const origem=SpreadsheetApp.getActiveSpreadsheet();
   const destino=SpreadsheetApp.openById(PLANILHABRUNO_SYNC_V2.DESTINO_ID);
   const nome='ENTRADA_OPERACOES_IA';
@@ -212,6 +218,8 @@ function PLANILHABRUNO_atualizarCabecalhoEntradaOperacoesIA() {
 }
 
 function PLANILHABRUNO_sincronizarLoteTesteV2() {
+  if (PropertiesService.getScriptProperties().getProperty('FT_CENTRALIZED_SCHEMA_VERSION') === '2026.11.11') throw new Error('Sincronização Bruno desativada: o Full Time utiliza exclusivamente a planilha principal.');
+
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(30000))throw new Error('Já existe uma sincronização em andamento.');
   try {
