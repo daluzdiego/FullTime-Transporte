@@ -769,3 +769,38 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
   return ordered.map((c,i)=>({posicao:i+1,...c}));
 }
+
+/**
+ * Diagnóstico somente leitura da fonte única Full Time.
+ * Confere os dados reais nas guias e se o roteamento do backend aponta para a mesma base.
+ */
+function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
+  const props = PropertiesService.getScriptProperties();
+  const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
+  const authId = props.getProperty('FT_DATABASE_ID');
+  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
+  const ss = SpreadsheetApp.openById(registryId);
+  const names = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const result = {
+    executadoEm: new Date().toISOString(),
+    planilhaPrincipalId: registryId,
+    baseAutenticacaoSeparada: !!authId && authId !== registryId,
+    guias: names.map(function(name) {
+      const sh = ss.getSheetByName(name);
+      if (!sh) return { guia: name, existe: false, registros: 0, cabecalhos: [] };
+      const width = sh.getLastColumn();
+      const headers = width ? sh.getRange(1,1,1,width).getDisplayValues()[0] : [];
+      const rows = sh.getLastRow();
+      return {
+        guia: name,
+        existe: true,
+        registros: Math.max(0, rows - 1),
+        colunas: width,
+        cabecalhos: headers,
+        primeiraLinha: rows > 1 ? sh.getRange(2,1,1,width).getDisplayValues()[0] : []
+      };
+    })
+  };
+  Logger.log('FULL TIME — DIAGNÓSTICO DA BASE CENTRAL: ' + JSON.stringify(result));
+  return result;
+}
