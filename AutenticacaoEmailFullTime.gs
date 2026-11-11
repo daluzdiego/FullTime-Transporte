@@ -2,7 +2,7 @@
  * FULL TIME — Autenticação por e-mail e recuperação de senha
  * Executar FT_AUTH_prepararAutenticacaoEmail() uma vez na base interna.
  */
-const FT_AUTH_EMAIL_CFG_20261110 = Object.freeze({
+const FT_AUTH_EMAIL_CONFIG_20261111 = Object.freeze({
   USER_EXTRA_HEADERS: ['EMAIL','MOTORISTA_ID'],
   RESET_SHEET: 'RECUPERACAO_SENHA',
   RESET_HEADERS: ['ID','USUARIO_ID','TOKEN_HASH','CRIADO_EM','EXPIRA_EM','USADO_EM','SOLICITADO_IP'],
@@ -17,16 +17,16 @@ function FT_AUTH_headerMap_(sh) {
 function FT_AUTH_ensureUserHeaders_(sh) {
   const width=sh.getLastColumn(), current=width?sh.getRange(1,1,1,width).getDisplayValues()[0]:[];
   const have=new Set(current.map(v=>String(v||'').trim().toUpperCase()));
-  const missing=FT_AUTH_EMAIL_CFG_20261110.USER_EXTRA_HEADERS.filter(v=>!have.has(v));
+  const missing=FT_AUTH_EMAIL_CONFIG_20261111.USER_EXTRA_HEADERS.filter(v=>!have.has(v));
   if(missing.length)sh.getRange(1,width+1,1,missing.length).setValues([missing]);
   return FT_AUTH_headerMap_(sh);
 }
 function FT_AUTH_ensureResetSheet_() {
   const ss=SpreadsheetApp.openById(getDbId_());
-  let sh=ss.getSheetByName(FT_AUTH_EMAIL_CFG_20261110.RESET_SHEET);
-  if(!sh){sh=ss.insertSheet(FT_AUTH_EMAIL_CFG_20261110.RESET_SHEET);sh.getRange(1,1,1,FT_AUTH_EMAIL_CFG_20261110.RESET_HEADERS.length).setValues([FT_AUTH_EMAIL_CFG_20261110.RESET_HEADERS]);sh.setFrozenRows(1);}
+  let sh=ss.getSheetByName(FT_AUTH_EMAIL_CONFIG_20261111.RESET_SHEET);
+  if(!sh){sh=ss.insertSheet(FT_AUTH_EMAIL_CONFIG_20261111.RESET_SHEET);sh.getRange(1,1,1,FT_AUTH_EMAIL_CONFIG_20261111.RESET_HEADERS.length).setValues([FT_AUTH_EMAIL_CONFIG_20261111.RESET_HEADERS]);sh.setFrozenRows(1);}
   const have=new Set(sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase()));
-  const missing=FT_AUTH_EMAIL_CFG_20261110.RESET_HEADERS.filter(v=>!have.has(v));
+  const missing=FT_AUTH_EMAIL_CONFIG_20261111.RESET_HEADERS.filter(v=>!have.has(v));
   if(missing.length)sh.getRange(1,sh.getLastColumn()+1,1,missing.length).setValues([missing]);
   return sh;
 }
@@ -122,7 +122,7 @@ function solicitarRecuperacaoSenhaFullTime(email) {
   const user=rows[idx],now=new Date(),token=Utilities.getUuid()+Utilities.getUuid()+Utilities.getUuid();
   const reset=FT_AUTH_ensureResetSheet_(),rmap=FT_AUTH_headerMap_(reset);
   const row=new Array(reset.getLastColumn()).fill('');
-  const vals={ID:Utilities.getUuid(),USUARIO_ID:String(user[map.ID]),TOKEN_HASH:FT_AUTH_hashToken_(token),CRIADO_EM:now,EXPIRA_EM:new Date(now.getTime()+FT_AUTH_EMAIL_CFG_20261110.RESET_TTL_MINUTES*60000),USADO_EM:'',SOLICITADO_IP:''};
+  const vals={ID:Utilities.getUuid(),USUARIO_ID:String(user[map.ID]),TOKEN_HASH:FT_AUTH_hashToken_(token),CRIADO_EM:now,EXPIRA_EM:new Date(now.getTime()+FT_AUTH_EMAIL_CONFIG_20261111.RESET_TTL_MINUTES*60000),USADO_EM:'',SOLICITADO_IP:''};
   Object.keys(vals).forEach(k=>{if(rmap[k]!==undefined)row[rmap[k]]=vals[k];});
   reset.appendRow(row);
   const base=ScriptApp.getService().getUrl();
