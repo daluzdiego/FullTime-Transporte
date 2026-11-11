@@ -2,7 +2,7 @@
  * FULL TIME — GERADOR DE LOTE FICTÍCIO PARA A PLANILHA DO BRUNO
  *
  * Executar SOMENTE no projeto Apps Script vinculado à planilha de origem do Bruno.
- * Cria 40 motoristas, 40 cavalos, 40 carretas e 40 conjuntos.
+ * Cria 40 motoristas, 40 cavalos, 40 carretas e 40 conjuntos. Os motoristas usam e-mails .test individuais.
  *
  * Segurança:
  * - valida o ID da planilha de origem antes de gravar;
