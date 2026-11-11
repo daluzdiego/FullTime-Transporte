@@ -597,7 +597,7 @@
       <div class="page-head"><div><h1>Operações</h1><p>Controle o volume, as viagens previstas, as viagens realizadas e o saldo restante de cada operação.</p></div></div>
       <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
       <div class="panel ops-list-panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria de escala</th><th>Tipo de operação</th><th>Volume inicial</th><th>Saldo</th><th>Viagens previstas</th><th>Realizadas</th><th>Restantes</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>`<tr><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(typeLabel[o.tipoOperacao]||o.tipoOperacao||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${esc(o.viagensPrevistas||0)}</td><td>${esc(o.viagensRealizadas||0)}</td><td>${esc(o.viagensRestantes||0)}</td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" onclick="showCandidatosOperacao('${esc(o.id)}')">Ver candidatos</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${esc(o.id)}')">＋</button></td></tr>`).join(''):'<tr><td colspan="11"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Use o formulário abaixo para cadastrar a primeira operação.</div></td></tr>'}
+      ${ops.length?ops.map(o=>{const oid=esc(o.id);return `<tr id="op-row-${oid}"><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(typeLabel[o.tipoOperacao]||o.tipoOperacao||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${esc(o.viagensPrevistas||0)}</td><td>${esc(o.viagensRealizadas||0)}</td><td>${esc(o.viagensRestantes||0)}</td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')">DETALHES</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${oid}')">＋</button></td></tr><tr id="details-row-${oid}" style="display:none"><td colspan="11"><div id="details-content-${oid}"></div></td></tr>`}).join(''):'<tr><td colspan="11"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Use o formulário abaixo para cadastrar a primeira operação.</div></td></tr>'}
       </tbody></table></div></div></div>
       <details class="panel form-panel ops-form-panel"><summary class="panel-head"><h2>＋ Nova operação</h2><span class="badge badge-pending">Saldo por toneladas · abrir formulário</span></summary><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
@@ -625,18 +625,21 @@
     const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
-  function showCandidatosOperacao(id){
-    const panel=document.getElementById('operacaoActionPanel');
-    if(!panel)return;
-    panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
+  function showDetalhesOperacao(id){
+    const row=document.getElementById('details-row-'+id),content=document.getElementById('details-content-'+id),btn=document.getElementById('details-btn-'+id);
+    if(!row||!content)return;
+    if(row.style.display!=='none'){row.style.display='none';if(btn)btn.textContent='DETALHES';return;}
+    document.querySelectorAll('[id^="details-row-"]').forEach(el=>{el.style.display='none';});
+    document.querySelectorAll('[id^="details-btn-"]').forEach(el=>{el.textContent='DETALHES';});
+    row.style.display='table-row';if(btn)btn.textContent='FECHAR DETALHES';
+    content.innerHTML='<div class="panel"><div class="panel-body">O sistema está analisando os conjuntos elegíveis para esta operação…</div></div>';
     google.script.run.withSuccessHandler(rows=>{
-      // O painel pode ser recriado enquanto a consulta ao servidor está em andamento.
-      const currentPanel=document.getElementById('operacaoActionPanel');
-      if(!currentPanel||currentPage!=='operacoes')return;
-      currentPanel.innerHTML='<div class="panel"><div class="panel-head"><h2>Candidatos para escala</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class="btn btn-primary" onclick="ofertarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\')">Enviar oferta</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma escala foi criada.</div>')+'</div></div>';
+      const current=document.getElementById('details-content-'+id);
+      if(!current||document.getElementById('details-row-'+id)?.style.display==='none'||currentPage!=='operacoes')return;
+      current.innerHTML='<div class="panel"><div class="panel-head"><h2>Escolhidos pelo sistema</h2><span class="muted small">'+rows.length+' conjunto(s) elegível(is), em ordem de prioridade</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Ordem</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Convocação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><strong>'+r.posicao+'º</strong></td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class="btn btn-primary" onclick="ofertarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\')">Enviar oferta</button></td></tr>').join('')+'</tbody></table></div><p class="muted small">Elegíveis classificados pelo motor de escala. A oferta só é criada quando a convocação for enviada.</p>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>O sistema não encontrou motorista e conjunto que atendam aos critérios desta operação. Nenhuma convocação foi enviada.</div>')+'</div></div>';
     }).withFailureHandler(e=>{
-      const currentPanel=document.getElementById('operacaoActionPanel');
-      if(currentPanel&&currentPage==='operacoes')currentPanel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao calcular candidatos.')+'</div></div>';
+      const current=document.getElementById('details-content-'+id);
+      if(current)current.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao analisar os elegíveis.')+'</div></div>';
     }).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
   function ofertarConjuntoOperacao(operacaoId,conjuntoId){
