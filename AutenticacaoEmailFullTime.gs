@@ -79,9 +79,9 @@ function FT_AUTH_criarUsuariosMotoristasTeste() {
   const byEmail={};
   values.slice(1).forEach((r,i)=>{const e=String(r[map.EMAIL]||'').trim().toLowerCase();if(e)byEmail[e]=i+2;});
   const criados=[],atualizados=[],ignorados=[];
-  drivers.filter(d=>String(d.ID).indexOf('FT-TESTE-')===0).forEach(d=>{
+  drivers.filter(d=>/^(FT-TESTE-|FTTEST-MOT-)/i.test(String(d.ID||''))).forEach(d=>{
     const email=FT_AUTH_email_(d.EMAIL);
-    if(!/@example\.test$/i.test(email))throw new Error('E-mail do motorista de teste não usa domínio .test: '+email);
+    if(!/@(?:example|fulltime)\.test$/i.test(email))throw new Error('E-mail do motorista de teste não usa um domínio reservado .test: '+email);
     const existingRow=byEmail[email]||0;
     const salt=Utilities.getUuid();
     const vals={ID:Utilities.getUuid(),LOGIN:email,NOME:String(d.NOME_COMPLETO||'Motorista de teste'),PERFIL:'MOTORISTA',SALT:salt,HASH_SENHA:hashSenha_(salt,'12345'),ATIVO:true,TROCAR_SENHA:false,CRIADO_EM:new Date(),EMAIL:email,MOTORISTA_ID:String(d.ID)};
@@ -99,9 +99,11 @@ function FT_AUTH_criarUsuariosMotoristasTeste() {
       criados.push(email);
     }
   });
-  return {ok:true,criados:criados.length,atualizados:atualizados.length,ignorados:ignorados.length,
+  const resumo={ok:true,identificados:criados.length+atualizados.length,criados:criados.length,atualizados:atualizados.length,ignorados:ignorados.length,
     contas:[...criados,...atualizados],senhaPadrao:'12345',trocaObrigatoria:false,
     aviso:'Contas fictícias .test exclusivas para homologação. Não recebem e-mails e não devem ser usadas em produção.'};
+  Logger.log('FULLTIME_AUTH_MOTORISTAS: '+JSON.stringify(resumo));
+  return resumo;
 }
 /** Solicita link de recuperação. Resposta genérica impede enumeração de contas. */
 function solicitarRecuperacaoSenhaFullTime(email) {
