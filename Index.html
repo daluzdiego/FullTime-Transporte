@@ -233,7 +233,12 @@
       if(currentPage==='operacoes'){
         const active=document.activeElement, activeId=active&&active.id;
         const y=window.scrollY;
+        // Mantém candidatos/movimentação visíveis quando o painel de operações é atualizado.
+        const actionPanel=document.getElementById('operacaoActionPanel');
+        const actionHtml=actionPanel?actionPanel.innerHTML:'';
         renderPage('operacoes');
+        const currentActionPanel=document.getElementById('operacaoActionPanel');
+        if(currentActionPanel&&actionHtml)currentActionPanel.innerHTML=actionHtml;
         if(activeId){const restored=document.getElementById(activeId);if(restored)restored.focus({preventScroll:true});}
         window.scrollTo({top:y,behavior:'auto'});
         renderDocumentExpiryNotice();
@@ -621,10 +626,18 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
   function showCandidatosOperacao(id){
-    const panel=document.getElementById('operacaoActionPanel');panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
+    const panel=document.getElementById('operacaoActionPanel');
+    if(!panel)return;
+    panel.innerHTML='<div class="panel"><div class="panel-body">Calculando candidatos elegíveis…</div></div>';
     google.script.run.withSuccessHandler(rows=>{
-      panel.innerHTML='<div class="panel"><div class="panel-head"><h2>Candidatos para escala</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class=\"btn btn-primary\" onclick=\"ofertarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\')\">Enviar oferta</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma escala foi criada.</div>')+'</div></div>';
-    }).withFailureHandler(e=>{panel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message)+'</div></div>';}).ordenarCandidatosOperacaoFullTime(authToken,id);
+      // O painel pode ser recriado enquanto a consulta ao servidor está em andamento.
+      const currentPanel=document.getElementById('operacaoActionPanel');
+      if(!currentPanel||currentPage!=='operacoes')return;
+      currentPanel.innerHTML='<div class="panel"><div class="panel-head"><h2>Candidatos para escala</h2><span class="muted small">'+rows.length+' elegível(is)</span></div><div class="panel-body">'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Prioridade</th><th>Motorista</th><th>Capacidade útil</th><th>Conservação</th><th>Restrições</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r.posicao+'</td><td>'+esc(r.driverName)+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition)+'</td><td>'+esc(r.restrictions||'—')+'</td><td><button class="btn btn-primary" onclick="ofertarConjuntoOperacao(\''+esc(id)+'\',\''+esc(r.id)+'\')">Enviar oferta</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto elegível</strong>Confira se há motoristas, veículos e conjuntos reais aprovados, com capacidade útil cadastrada e conservação atualizada. Nenhuma escala foi criada.</div>')+'</div></div>';
+    }).withFailureHandler(e=>{
+      const currentPanel=document.getElementById('operacaoActionPanel');
+      if(currentPanel&&currentPage==='operacoes')currentPanel.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao calcular candidatos.')+'</div></div>';
+    }).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
   function ofertarConjuntoOperacao(operacaoId,conjuntoId){
     const motivo=prompt('Observação da convocação (opcional):')||'';
