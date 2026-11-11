@@ -74,7 +74,14 @@ function FT_AUTH_vincularAdminBruno20261111() {
 function FT_AUTH_criarUsuariosMotoristasTeste() {
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
   if(!registryId)throw new Error('Planilha operacional não conectada.');
-  const drivers=ftReadBrunoRows_('MOTORISTAS');
+  const driverSheet=SpreadsheetApp.openById(registryId).getSheetByName('MOTORISTAS');
+  if(!driverSheet)throw new Error('Guia MOTORISTAS não encontrada na planilha principal.');
+  const driverGrid=driverSheet.getDataRange().getValues();
+  const driverHeaders=driverGrid[0].map(v=>String(v||'').trim().toUpperCase());
+  const driverIx={}; driverHeaders.forEach((v,i)=>driverIx[v]=i);
+  const drivers=driverGrid.slice(1).map(row=>({
+    ID:row[driverIx.ID], NOME_COMPLETO:row[driverIx.NOME_COMPLETO], EMAIL:row[driverIx.EMAIL]
+  }));
   const sh=getSheet_('USUARIOS'),map=FT_AUTH_ensureUserHeaders_(sh),values=sh.getDataRange().getValues();
   const byEmail={};
   values.slice(1).forEach((r,i)=>{const e=String(r[map.EMAIL]||'').trim().toLowerCase();if(e)byEmail[e]=i+2;});
