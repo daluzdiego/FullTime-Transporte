@@ -31,6 +31,18 @@ function FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111() {
   props.deleteProperty('FT_BRUNO_SYNC_ENABLED');
   props.setProperty('FT_CENTRALIZED_SCHEMA_VERSION', '2026.11.11');
 
+  // Esvazia as guias fictícias da planilha antiga, preservando a guia protegida CAVALOS-BRUNO.
+  // A planilha antiga não será mais consultada pelo sistema.
+  const bruno = SpreadsheetApp.openById(FT_CENTRAL_CFG_20261111.BRUNO_ID);
+  const clearedBrunoSheets = [];
+  bruno.getSheets().forEach(function(sh) {
+    if (sh.getName() === 'CAVALOS-BRUNO') return;
+    const filter = sh.getFilter();
+    if (filter) filter.remove();
+    sh.clearContents();
+    clearedBrunoSheets.push(sh.getName());
+  });
+
   // Remove somente gatilhos que executam integrações com a planilha/formulário do Bruno.
   const removedTriggers = [];
   ScriptApp.getProjectTriggers().forEach(function(t) {
@@ -113,9 +125,9 @@ function FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111() {
     sucesso:true,fonteUnica:ss.getName(),planilhaId:ss.getId(),backupId:backup.getId(),
     motoristas:drivers.length,cavalos:horses.length,carretas:trailers.length,conjuntos:sets.length,
     documentos:docs.length,operacoes:operations.length,guiasOperacionais:Object.keys(schemas).length,
-    guiasEspelhoRemovidas:6,gatilhosRemovidos:removedTriggers,
+    guiasEspelhoRemovidas:6,guiasAntigasBrunoEsvaziadas:clearedBrunoSheets,gatilhosRemovidos:removedTriggers,
     autenticaçãoPreservada:true,planilhaBrunoDesconectada:true,
-    nota:'A planilha do Bruno não foi aberta nem alterada; ela não participa mais do sistema.'
+    nota:'Planilha antiga esvaziada; guia protegida CAVALOS-BRUNO preservada e não acessada para leitura.'
   };
   Logger.log('FULL TIME — CENTRALIZAÇÃO E RECONSTRUÇÃO: '+JSON.stringify(summary));
   return summary;
