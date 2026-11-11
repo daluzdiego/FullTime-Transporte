@@ -6,7 +6,7 @@
  * A base de autenticação permanece separada e intacta.
  * A planilha do Bruno é desconectada; nenhum dado dela é lido ou importado.
  */
-const FT_CENTRAL_CFG_20261111 = Object.freeze({
+var FT_CENTRAL_CFG_20261111 = Object.freeze({
   MAIN_ID: '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE',
   BRUNO_ID: '1cpTzFLfoorlFGj3rW1yCCbm4pQDumBqFKP0UWinijQI',
   PREFIX: 'FT-TESTE-20261111-'
