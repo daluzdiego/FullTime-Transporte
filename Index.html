@@ -154,7 +154,18 @@
     const isDriver=String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA';
     const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'operacoes';
-    google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser={...currentUser,...data.user};paintNav();renderPage(currentPage);})
+    google.script.run.withSuccessHandler(data=>{
+        const received=data&&typeof data==='object'?data:{};
+        const arrayKeys=['motoristas','cavalos','carretas','conjuntos','operacoes','documentos'];
+        const receivedCounts={};
+        arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
+        console.info('FT_UI_RECEBIMENTO_DASHBOARD',JSON.stringify({keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user}));
+        window.__FT_UI_RECEBIMENTO={keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user};
+        dashboard=received;
+        currentUser={...currentUser,...(received.user||{})};
+        paintNav();
+        renderPage(currentPage);
+      })
       .withFailureHandler(err=>{toast(err.message||'Sessão expirada.',true);logoutLocal();})[endpoint](authToken);
   }
   function toggleMobileNav(){
