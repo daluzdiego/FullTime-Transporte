@@ -28,10 +28,10 @@ function obterCentroOperacoesFullTime(token) {
   const ops=FT_CENTRO_rows_('OPERACOES');
   const parts=FT_CENTRO_rows_('PARTICIPACAO_OPERACOES');
   const moves=FT_CENTRO_rows_('MOVIMENTACOES_OPERACAO');
-  const drivers=ftReadBrunoRows_('MOTORISTAS');
-  const horses=ftReadBrunoRows_('CAVALOS');
-  const trailers=ftReadBrunoRows_('CARRETAS');
-  const sets=ftReadBrunoRows_('CONJUNTOS');
+  const drivers=FT_CENTRO_rows_('MOTORISTAS');
+  const horses=FT_CENTRO_rows_('CAVALOS');
+  const trailers=FT_CENTRO_rows_('CARRETAS');
+  const sets=FT_CENTRO_rows_('CONJUNTOS');
   const byId=a=>Object.fromEntries(a.map(x=>[String(x.ID||''),x]));
   const dBy=byId(drivers),hBy=byId(horses),tBy=byId(trailers),sBy=byId(sets);
   const activeStatuses=new Set(['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE']);
