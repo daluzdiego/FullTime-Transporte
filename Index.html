@@ -686,15 +686,41 @@
     }).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
   async function iniciarConvocacaoAutomatica(operacaoId){
-    const slots=Math.floor(Number(document.getElementById('auto-slots-'+operacaoId)?.value||0));
+    const host=document.getElementById('auto-status-'+operacaoId);
+    const button=document.querySelector('#auto-status-'+operacaoId)?.previousElementSibling?.querySelector('button')
+      ||Array.from(document.querySelectorAll('button')).find(b=>b.getAttribute('onclick')===("iniciarConvocacaoAutomatica('"+operacaoId+"')"));
+    const operation=(dashboard?.operacoes||[]).find(o=>String(o.id)===String(operacaoId));
+    const status=String(operation?.status||'').trim().toUpperCase();
+    if(!['ABERTA','EM_ANDAMENTO'].includes(status)){
+      const msg='Esta operação está com status "'+(operation?.status||'não identificado')+'". Antes da convocação, aprove a operação e deixe-a ABERTA.';
+      if(host)host.innerHTML='<div class="notice"><strong>Convocação não iniciada.</strong> '+esc(msg)+'</div>';
+      toast(msg,true);return;
+    }
+    const input=document.getElementById('auto-slots-'+operacaoId);
+    const slots=Math.floor(Number(input?.value||0));
     if(slots<1||slots>40){toast('Informe de 1 a 40 vagas.',true);return;}
-    const confirmed=await uiConfirm('Você solicitou a convocação de '+slots+' motorista(s). O sistema enviará ofertas aos elegíveis, respeitando a ordem de prioridade. Cada motorista terá 2 horas para responder. Recusas e expirações liberam a próxima pessoa da fila.',{title:'Confirmar convocação automática',ok:'Iniciar convocação'});if(!confirmed)return;
-    google.script.run.withSuccessHandler(res=>{
-      toast(res.message);
-      const host=document.getElementById('auto-status-'+operacaoId);
-      if(host)host.innerHTML='<div class="notice"><strong>Convocação iniciada</strong><br>Solicitados: '+esc(res.vagas||slots)+' · Ofertas enviadas agora: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+' · Prazo por resposta: 2 horas.</div>';
-    }).withFailureHandler(e=>toast(e.message||'Falha ao iniciar convocação.',true))
-      .FT_iniciarConvocacaoAutomaticaFullTime(authToken,{operacaoId:operacaoId,vagas:slots});
+    if(button){button.disabled=true;button.textContent='Preparando convocação…';}
+    if(host)host.innerHTML='<div class="notice">Aguardando confirmação para iniciar a fila automática…</div>';
+    try{
+      const confirmed=await uiConfirm('Você solicitou a convocação de '+slots+' motorista(s). O sistema enviará ofertas aos elegíveis, respeitando a ordem de prioridade. Cada motorista terá 2 horas para responder. Recusas e expirações liberam a próxima pessoa da fila.',{title:'Confirmar convocação automática',ok:'Iniciar convocação'});
+      if(!confirmed){if(host)host.innerHTML='';return;}
+      if(host)host.innerHTML='<div class="notice">Iniciando fila e registrando as primeiras ofertas…</div>';
+      google.script.run.withSuccessHandler(res=>{
+        if(button){button.disabled=false;button.textContent='Iniciar convocação automática';}
+        if(host)host.innerHTML='<div class="notice"><strong>Convocação iniciada</strong><br>Solicitados: '+esc(res.vagas||slots)+' · Ofertas enviadas agora: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+' · Prazo por resposta: 2 horas.</div>';
+        toast(res.message||'Fila de convocação iniciada.');
+      }).withFailureHandler(e=>{
+        if(button){button.disabled=false;button.textContent='Iniciar convocação automática';}
+        const msg=e?.message||'Falha ao iniciar convocação.';
+        if(host)host.innerHTML='<div class="notice"><strong>Não foi possível iniciar.</strong><br>'+esc(msg)+'</div>';
+        toast(msg,true);
+      }).FT_iniciarConvocacaoAutomaticaFullTime(authToken,{operacaoId:operacaoId,vagas:slots});
+    }catch(err){
+      if(button){button.disabled=false;button.textContent='Iniciar convocação automática';}
+      const msg=err?.message||'Falha ao abrir a confirmação da convocação.';
+      if(host)host.innerHTML='<div class="notice"><strong>Falha na interface.</strong><br>'+esc(msg)+'</div>';
+      toast(msg,true);
+    }
   }
   function showMovimentacao(id){
     const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id);const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
