@@ -27,15 +27,17 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
  rows.slice(1).forEach(r=>{
   if(String(r[m.OPERACAO_ID]||'')!==String(opId))return;
   let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
-  if(st==='ACEITA'||st==='ATIVO'){accepted++;return;}
   if(st==='OFERTADA'){
    const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
    if(!isFinite(ex)||ex<=Date.now()){
     const rowIndex=rows.findIndex((x,i)=>i>0&&String(x[m.ID]||'')===String(r[m.ID]||''));
     if(rowIndex>0){sh.getRange(rowIndex+1,m.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');if(m.RESPONDIDA_EM!==undefined)sh.getRange(rowIndex+1,m.RESPONDIDA_EM+1).setValue(new Date());}
     st='EXPIRADA';
-   }else pending.push(String(r[m.ID]||''));
+   }
   }
+  if(String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
+  if(st==='ACEITA'||st==='ATIVO'){accepted++;return;}
+  if(st==='OFERTADA')pending.push(String(r[m.ID]||''));
  });
  q.aceitas=accepted;q.pendentes=pending;
  if(accepted>=Number(q.vagas||0)||(!pending.length&&Number(q.cursor||0)>=((q.lista||[]).length))){
