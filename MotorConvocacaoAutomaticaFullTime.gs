@@ -79,4 +79,29 @@ function FT_processarFilasConvocacaoAutomatica(){
   return {ok:true,ofertasCriadas:created};
  }finally{lock.releaseLock();}
 }
+
+/** Executar uma vez pelo editor Apps Script para regularizar ofertas OFERTADA cujo prazo já venceu. Preserva as linhas e o histórico. */
+function FT_reconciliarOfertasExpiradasFullTime(){
+ const lock=LockService.getScriptLock();lock.waitLock(20000);
+ try{
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues(),now=Date.now(),stamp=new Date();
+  ['ID','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','STATUS_PARTICIPACAO','EXPIRA_EM'].forEach(k=>{if(m[k]===undefined)throw new Error('Coluna '+k+' ausente em PARTICIPACAO_OPERACOES.');});
+  let expired=0;
+  rows.slice(1).forEach((r,i)=>{
+   if(String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase()!=='OFERTADA')return;
+   const raw=r[m.EXPIRA_EM],ex=raw instanceof Date?raw.getTime():new Date(raw).getTime();
+   if(isFinite(ex)&&ex>now)return;
+   sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
+   if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(stamp);
+   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Reconciliação administrativa: prazo de resposta vencido.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
+   expired++;
+  });
+  const queues=FT_AUTO_READ_();
+  Object.keys(queues).forEach(opId=>{const q=queues[opId];if(q&&q.status==='EM_ANDAMENTO')FT_AUTO_RECONCILIAR_FILA_(opId,q);});
+  FT_AUTO_WRITE_(queues);
+  if(!Object.keys(queues).some(k=>queues[k]?.status==='EM_ANDAMENTO'))ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica').forEach(t=>ScriptApp.deleteTrigger(t));
+  return {sucesso:true,ofertasExpiradasRegularizadas:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; somente status de ofertas com prazo vencido foram atualizados.'};
+ }finally{lock.releaseLock();}
+}
+
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
