@@ -33,15 +33,16 @@ function obterPortalMotoristaFullTime(token) {
   const now=Date.now(), offers=own.map(r=>{
     const op=ops[String(r[pmap.OPERACAO_ID]||'')]||{};
     const expires=r[pmap.EXPIRA_EM] instanceof Date?r[pmap.EXPIRA_EM]:new Date(r[pmap.EXPIRA_EM]);
-    const status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
+    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
+    if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='EXPIRADA';
     return {
       id:String(r[pmap.ID]||''),status:status,ofertadaEm:r[pmap.OFERTADA_EM]||r[pmap.CRIADO_EM]||'',
-      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='OFERTADA'&&isFinite(expires.getTime())&&expires.getTime()<now,
+      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='EXPIRADA',
       observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
       operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
     };
   }).filter(o=>o.id&&o.operacao.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
-  const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length};
+  const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='EXPIRADA').length};
   return {user:{nome:session.nome,email:session.email},motoristaId,ofertas:offers,counts};
 }
 
