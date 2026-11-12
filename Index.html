@@ -666,6 +666,27 @@
     const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
+  const ftCandidatosOperacaoCache={};
+  function renderListaCandidatosOperacao(id,modo){
+    const host=document.getElementById('candidate-list-'+id);if(!host)return;
+    const rows=ftCandidatosOperacaoCache[id]||[];
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
+    const calledByDriver={};
+    parts.forEach(p=>{const st=String(p.campos?.[3]||'').toUpperCase();if(['OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA'].includes(st))calledByDriver[String(p.campos?.[2]||'')]=p;});
+    const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
+    const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
+    const visible=modo==='convocados'?called:rows;
+    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'EXPIRADA'}[st]||st);
+    const line=r=>{
+      const p=calledByDriver[String(r.driverId||'')],st=p?String(p.campos?.[3]||'').toUpperCase():'';
+      const invited=!!p,tone=invited?'background:#fff7e6;':'';
+      const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO · NÃO CONVOCADO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
+      return '<tr style="'+tone+'"><td>'+(r.posicao?esc(r.posicao)+'º':'—')+'</td><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';
+    };
+    host.innerHTML='<div class="form-actions" style="margin:8px 0 12px"><button class="btn '+(modo==='todos'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'todos\')">Todos os candidatos ('+rows.length+')</button><button class="btn '+(modo==='convocados'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'convocados\')">Convocados ('+called.length+')</button></div>'+
+      (visible.length?'<div class="table-wrap"><table><thead><tr><th>Ordem</th><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Detalhes</th></tr></thead><tbody>'+visible.map(line).join('')+'</tbody></table></div>':'<div class="empty">'+(modo==='convocados'?'Ainda não há motoristas convocados nesta operação.':'Nenhum candidato encontrado.')+'</div>')+
+      '<p class="muted small">'+eligible.length+' apto(s) ainda não convocado(s) · '+called.length+' convocação(ões) registrada(s).</p>';
+  }
   function showDetalhesOperacao(id){
     const row=document.getElementById('details-row-'+id),content=document.getElementById('details-content-'+id),btn=document.getElementById('details-btn-'+id);
     if(!row||!content)return;
@@ -677,9 +698,10 @@
     google.script.run.withSuccessHandler(rows=>{
       const current=document.getElementById('details-content-'+id);
       if(!current||document.getElementById('details-row-'+id)?.style.display==='none'||currentPage!=='operacoes')return;
+      ftCandidatosOperacaoCache[id]=rows;
       const aptos=rows.filter(r=>r.eligible),pendentes=rows.filter(r=>r.statusElegibilidade==='PENDENTE_REGULARIZACAO'),bloqueados=rows.filter(r=>r.statusElegibilidade==='BLOQUEADO');
-      const rowHtml=r=>'<tr><td>'+(r.posicao?'<strong>'+r.posicao+'º</strong>':'—')+'</td><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+esc(r.condition||'—')+'</td><td>'+esc(r.statusElegibilidade)+'</td><td>'+esc((r.motivosElegibilidade||[]).join(' · ')||'Todos os critérios atendidos')+'</td></tr>';
-      current.innerHTML='<div class="panel"><div class="panel-head"><h2>Validação de motoristas e conjuntos</h2><span class="muted small">'+aptos.length+' apto(s) · '+pendentes.length+' pendente(s) · '+bloqueados.length+' bloqueado(s)</span></div><div class="panel-body"><div class="notice"><strong>Critérios documentais:</strong> CNH válida e compatível com o conjunto; exame toxicológico cadastrado, aprovado e válido até a data da operação. Somente APTO recebe convocação.</div>'+(rows.length?'<div class="table-wrap"><table><thead><tr><th>Ordem</th><th>Motorista</th><th>Capacidade</th><th>Conservação</th><th>Situação</th><th>Pendências / justificativas</th></tr></thead><tbody>'+rows.map(rowHtml).join('')+'</tbody></table></div>':'<div class="empty"><strong>Nenhum conjunto cadastrado</strong>Não há conjuntos para validar nesta operação.</div>')+(aptos.length?'<p class="muted small">A fila de convocação considera somente os '+aptos.length+' conjunto(s) APTO(S), em ordem de prioridade. Cada motorista terá 2 horas para responder.</p><div class="form-actions"><label>Vagas desta operação <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="10" style="width:90px"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação automática</button></div><div id="auto-status-'+esc(id)+'"></div>':'<div class="notice"><strong>Convocação indisponível.</strong> Não há motoristas aptos. Regularize as pendências antes de iniciar a escala.</div>')+'</div></div>';
+      current.innerHTML='<div class="panel"><div class="panel-head"><h2>Validação de motoristas e conjuntos</h2><span class="muted small">'+aptos.length+' apto(s) · '+pendentes.length+' pendente(s) · '+bloqueados.length+' bloqueado(s)</span></div><div class="panel-body"><div class="notice"><strong>Critérios documentais:</strong> CNH válida e compatível com o conjunto; exame toxicológico cadastrado, aprovado e válido até a data da operação. Somente APTO recebe convocação.</div><div id="candidate-list-'+esc(id)+'"></div>'+(aptos.length?'<p class="muted small">A fila considera somente conjuntos APTO(S), em ordem de prioridade. Cada motorista terá 2 horas para responder.</p><div class="form-actions"><label>Vagas desta operação <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="10" style="width:90px"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação automática</button></div><div id="auto-status-'+esc(id)+'"></div>':'<div class="notice"><strong>Convocação indisponível.</strong> Não há motoristas aptos. Regularize as pendências antes de iniciar a escala.</div>')+'</div></div>';
+      renderListaCandidatosOperacao(id,'todos');
     }).withFailureHandler(e=>{
       const current=document.getElementById('details-content-'+id);
       if(current)current.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao analisar os elegíveis.')+'</div></div>';
