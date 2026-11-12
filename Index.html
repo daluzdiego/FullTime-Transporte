@@ -731,6 +731,7 @@
         if(button){button.disabled=false;button.textContent='Iniciar convocação automática';}
         if(host)host.innerHTML='<div class="notice"><strong>Convocação iniciada</strong><br>Solicitados: '+esc(res.vagas||slots)+' · Ofertas enviadas agora: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+' · Prazo por resposta: 2 horas.</div>';
         toast(res.message||'Fila de convocação iniciada.');
+        google.script.run.withSuccessHandler(data=>{dashboard=parsePainelResponse(data);showDetalhesOperacao(operacaoId);}).withFailureHandler(e=>toast(e.message||'Convocação iniciada, mas não foi possível atualizar a lista.',true)).obterPainelFullTime(authToken);
       }).withFailureHandler(e=>{
         if(button){button.disabled=false;button.textContent='Iniciar convocação automática';}
         const msg=e?.message||'Falha ao iniciar convocação.';
