@@ -1042,21 +1042,27 @@ function FT_GERAR_DOCUMENTOS_TOXICOLOGICOS_FICTICIOS_20261112() {
 function obterHistoricoMotoristaFullTime(token,motoristaId){
   const session=obterSessao_(token);exigirAdmin_(session);
   motoristaId=texto_(motoristaId,120);if(!motoristaId)throw new Error('Motorista não informado.');
+  const dateOut=v=>{
+    if(v===null||v===undefined||v==='')return '';
+    if(v instanceof Date)return isNaN(v.getTime())?'':Utilities.formatDate(v,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm:ss');
+    return String(v);
+  };
   const driver=listarRegistros_('MOTORISTAS').find(x=>String(x.id)===motoristaId);
   if(!driver)throw new Error('Motorista não encontrado.');
   const psh=getSheet_('PARTICIPACAO_OPERACOES'),pgrid=psh.getDataRange().getValues(),ph=(pgrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),pi={};
   ph.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
+  ['MOTORISTA_ID','OPERACAO_ID','STATUS_PARTICIPACAO'].forEach(k=>{if(pi[k]===undefined)throw new Error('Coluna '+k+' não encontrada em PARTICIPACAO_OPERACOES.');});
   const osh=getSheet_('OPERACOES'),ogrid=osh.getDataRange().getValues(),oh=(ogrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),oi={};
   oh.forEach((h,i)=>{if(h&&oi[h]===undefined)oi[h]=i;});
-  const ops={};ogrid.slice(1).forEach(r=>{const id=String(r[oi.ID]||'');if(id)ops[id]={id,nome:String(r[oi.NOME_OPERACAO]||''),status:String(r[oi.STATUS]||''),data:FT_dataChaveElegibilidade_(r[oi.DATA_OPERACAO]),origem:String(r[oi.ORIGEM]||''),destino:String(r[oi.DESTINO]||''),cliente:String(r[oi.CLIENTE]||'')};});
-  const sets=listarRegistros_('CONJUNTOS'),setById={};sets.forEach(s=>setById[String(s.id)]={id:String(s.id),nome:String(s.camposPorNome?.MOTORISTA_ID||'')===motoristaId?'Conjunto vinculado':'Conjunto '+String(s.id).slice(-6),capacidade:s.camposPorNome?.CAPACIDADE_UTIL_TONELADAS||''});
+  const ops={};ogrid.slice(1).forEach(r=>{const id=String(r[oi.ID]||'');if(id)ops[id]={id,nome:String(r[oi.NOME_OPERACAO]||''),status:String(r[oi.STATUS]||''),data:dateOut(r[oi.DATA_OPERACAO]),origem:String(r[oi.ORIGEM]||''),destino:String(r[oi.DESTINO]||''),cliente:String(r[oi.CLIENTE]||'')};});
+  const sets=listarRegistros_('CONJUNTOS'),setById={};sets.forEach(s=>{setById[String(s.id)]={id:String(s.id),nome:'Conjunto '+String(s.id).slice(-6),capacidade:String(s.camposPorNome?.CAPACIDADE_UTIL_TONELADAS||'')};});
   const history=pgrid.slice(1).map(r=>{
     if(String(r[pi.MOTORISTA_ID]||'')!==motoristaId)return null;
     const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase(),opId=String(r[pi.OPERACAO_ID]||''),setId=String(r[pi.CONJUNTO_ID]||'');
-    return {id:String(r[pi.ID]||''),status,operacao:ops[opId]||{id:opId,nome:'Operação não localizada',status:'',data:'',origem:'',destino:''},conjunto:setById[setId]||{id:setId,nome:'Conjunto '+setId.slice(-6)},criadoEm:r[pi.CRIADO_EM]||'',ofertadaEm:pi.OFERTADA_EM!==undefined?r[pi.OFERTADA_EM]||'':'',respondidaEm:pi.RESPONDIDA_EM!==undefined?r[pi.RESPONDIDA_EM]||'':'',inicioEm:pi.INICIO_EM!==undefined?r[pi.INICIO_EM]||'':'',saidaEm:pi.SAIDA_EM!==undefined?r[pi.SAIDA_EM]||'':'',retornoEm:pi.RETORNO_EM!==undefined?r[pi.RETORNO_EM]||'':'',expiraEm:pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]||'':'',motivo:String((pi.MOTIVO!==undefined?r[pi.MOTIVO]:'')||''),origemOferta:String((pi.ORIGEM_OFERTA!==undefined?r[pi.ORIGEM_OFERTA]:'')||'')};
-  }).filter(Boolean).sort((a,b)=>new Date(b.ofertadaEm||b.criadoEm||0)-new Date(a.ofertadaEm||a.criadoEm||0));
+    return {id:String(r[pi.ID]||''),status,operacao:ops[opId]||{id:opId,nome:'Operação não localizada',status:'',data:'',origem:'',destino:'',cliente:''},conjunto:setById[setId]||{id:setId,nome:setId?'Conjunto '+setId.slice(-6):'—',capacidade:''},criadoEm:dateOut(r[pi.CRIADO_EM]),ofertadaEm:dateOut(pi.OFERTADA_EM!==undefined?r[pi.OFERTADA_EM]:''),respondidaEm:dateOut(pi.RESPONDIDA_EM!==undefined?r[pi.RESPONDIDA_EM]:''),inicioEm:dateOut(pi.INICIO_EM!==undefined?r[pi.INICIO_EM]:''),saidaEm:dateOut(pi.SAIDA_EM!==undefined?r[pi.SAIDA_EM]:''),retornoEm:dateOut(pi.RETORNO_EM!==undefined?r[pi.RETORNO_EM]:''),expiraEm:dateOut(pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:''),motivo:String((pi.MOTIVO!==undefined?r[pi.MOTIVO]:'')||''),origemOferta:String((pi.ORIGEM_OFERTA!==undefined?r[pi.ORIGEM_OFERTA]:'')||'')};
+  }).filter(Boolean).sort((a,b)=>String(b.ofertadaEm||b.criadoEm).localeCompare(String(a.ofertadaEm||a.criadoEm)));
   const active=history.find(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(h.status));
   const latest=history[0]||null;
   const counts={convocacoes:history.length,aceitas:history.filter(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(h.status)).length,recusadas:history.filter(h=>h.status==='RECUSADA').length,expiradas:history.filter(h=>h.status==='EXPIRADA').length,participacoesConcluidas:history.filter(h=>h.status==='RETORNOU').length};
-  return {motorista:{id:driver.id,nome:driver.camposPorNome?.NOME_COMPLETO||'',status:driver.status,cnhCategoria:driver.camposPorNome?.CNH_CATEGORIA||'',cnhValidade:driver.camposPorNome?.CNH_VALIDADE||''},statusAtual:active?active.status:latest?latest.status:'SEM_CONVOCACAO',operacaoAtual:active?active.operacao:null,counts,history};
+  return {motorista:{id:String(driver.id),nome:String(driver.camposPorNome?.NOME_COMPLETO||''),status:String(driver.status||''),cnhCategoria:String(driver.camposPorNome?.CNH_CATEGORIA||''),cnhValidade:String(driver.camposPorNome?.CNH_VALIDADE||'')},statusAtual:active?active.status:latest?latest.status:'SEM_CONVOCACAO',operacaoAtual:active?active.operacao:null,counts,history};
 }
