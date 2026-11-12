@@ -836,7 +836,13 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
   const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set();
   partsGrid.slice(1).forEach(r=>{
-    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();if(!blocking.has(status))return;
+    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+    if(!blocking.has(status))return;
+    if(status==='OFERTADA'){
+      const raw=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'';
+      const expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();
+      if(!isFinite(expiry)||expiry<=Date.now())return;
+    }
     const sid=String(r[pi.CONJUNTO_ID]||''),did=String(r[pi.MOTORISTA_ID]||'');
     if(sid)busySets.add(sid);if(did)busyDrivers.add(did);
   });
@@ -1058,7 +1064,10 @@ function obterHistoricoMotoristaFullTime(token,motoristaId){
   const sets=listarRegistros_('CONJUNTOS'),setById={};sets.forEach(s=>{setById[String(s.id)]={id:String(s.id),nome:'Conjunto '+String(s.id).slice(-6),capacidade:String(s.camposPorNome?.CAPACIDADE_UTIL_TONELADAS||'')};});
   const history=pgrid.slice(1).map(r=>{
     if(String(r[pi.MOTORISTA_ID]||'')!==motoristaId)return null;
-    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase(),opId=String(r[pi.OPERACAO_ID]||''),setId=String(r[pi.CONJUNTO_ID]||'');
+    let status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+    const rawExpiry=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'',expiryMs=rawExpiry instanceof Date?rawExpiry.getTime():new Date(rawExpiry).getTime();
+    if(status==='OFERTADA'&&(!isFinite(expiryMs)||expiryMs<=Date.now()))status='EXPIRADA';
+    const opId=String(r[pi.OPERACAO_ID]||''),setId=String(r[pi.CONJUNTO_ID]||'');
     return {id:String(r[pi.ID]||''),status,operacao:ops[opId]||{id:opId,nome:'Operação não localizada',status:'',data:'',origem:'',destino:'',cliente:''},conjunto:setById[setId]||{id:setId,nome:setId?'Conjunto '+setId.slice(-6):'—',capacidade:''},criadoEm:dateOut(r[pi.CRIADO_EM]),ofertadaEm:dateOut(pi.OFERTADA_EM!==undefined?r[pi.OFERTADA_EM]:''),respondidaEm:dateOut(pi.RESPONDIDA_EM!==undefined?r[pi.RESPONDIDA_EM]:''),inicioEm:dateOut(pi.INICIO_EM!==undefined?r[pi.INICIO_EM]:''),saidaEm:dateOut(pi.SAIDA_EM!==undefined?r[pi.SAIDA_EM]:''),retornoEm:dateOut(pi.RETORNO_EM!==undefined?r[pi.RETORNO_EM]:''),expiraEm:dateOut(pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:''),motivo:String((pi.MOTIVO!==undefined?r[pi.MOTIVO]:'')||''),origemOferta:String((pi.ORIGEM_OFERTA!==undefined?r[pi.ORIGEM_OFERTA]:'')||'')};
   }).filter(Boolean).sort((a,b)=>String(b.ofertadaEm||b.criadoEm).localeCompare(String(a.ofertadaEm||a.criadoEm)));
   const active=history.find(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(h.status));
