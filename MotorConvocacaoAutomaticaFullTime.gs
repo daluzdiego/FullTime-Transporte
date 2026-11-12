@@ -25,7 +25,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues();
  let accepted=0,pending=[];
  rows.slice(1).forEach(r=>{
-  if(String(r[m.OPERACAO_ID]||'')!==String(opId)||String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
+  if(String(r[m.OPERACAO_ID]||'')!==String(opId))return;
   let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
   if(st==='ACEITA'||st==='ATIVO'){accepted++;return;}
   if(st==='OFERTADA'){
@@ -58,7 +58,15 @@ function FT_processarFilasConvocacaoAutomatica(){
    });q.pendentes=pending;
    while(q.aceitas+q.pendentes.length<q.vagas&&q.cursor<q.lista.length){
     const c=q.lista[q.cursor++];rows=sh.getDataRange().getValues();
-    if(rows.slice(1).some(r=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase())&&(String(r[m.CONJUNTO_ID])===c.conjuntoId||String(r[m.MOTORISTA_ID])===c.motoristaId)))continue;
+    if(rows.slice(1).some(r=>{
+      const st=String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase();
+      if(!['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(st))return false;
+      if(st==='OFERTADA'){
+        const raw=r[m.EXPIRA_EM],ex=raw instanceof Date?raw.getTime():new Date(raw).getTime();
+        if(!isFinite(ex)||ex<=Date.now())return false;
+      }
+      return String(r[m.CONJUNTO_ID])===c.conjuntoId||String(r[m.MOTORISTA_ID])===c.motoristaId;
+    }))continue;
     const now=new Date(),id='OFT-'+Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill(''),fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 2 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.'};
     Object.keys(fields).forEach(k=>{if(m[k]!==undefined)row[m[k]]=fields[k];});sh.appendRow(row);q.pendentes.push(id);created++;
     FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 2 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
