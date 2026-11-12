@@ -975,3 +975,64 @@ function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
   Logger.log('FULLTIME_CONTRATO_CABECALHOS: '+JSON.stringify(result));
   return result;
 }
+
+
+/**
+ * GERA DOCUMENTOS FICTÍCIOS DE EXAME TOXICOLÓGICO PARA HOMOLOGAÇÃO.
+ * Restrito a cadastros cujo nome começa com "Motorista Fictício".
+ * Não altera MOTORISTAS, CNH, conjuntos ou documentos reais.
+ * Idempotente: não duplica documento de teste já aprovado e válido.
+ */
+function FT_GERAR_DOCUMENTOS_TOXICOLOGICOS_FICTICIOS_20261112() {
+  const sh = getSheet_('DOCUMENTOS');
+  const lastCol = sh.getLastColumn();
+  if (lastCol < 1 || sh.getLastRow() < 1) throw new Error('Guia DOCUMENTOS sem cabeçalho.');
+  const headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase());
+  const ix = {};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  const required = ['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'];
+  const missing = required.filter(k=>ix[k]===undefined);
+  if(missing.length) throw new Error('Cabeçalhos ausentes em DOCUMENTOS: '+missing.join(', '));
+
+  const drivers = listarRegistros_('MOTORISTAS').filter(d=>/^motorista fict[ií]cio\b/i.test(String(d.nome||d.campos?.[0]||'')));
+  if(!drivers.length) throw new Error('Nenhum cadastro com nome "Motorista Fictício" foi encontrado. Nenhum dado foi gravado.');
+
+  const now = new Date();
+  const issue = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const expiry = new Date(2030, 11, 31);
+  const values = sh.getLastRow()>1 ? sh.getRange(2,1,sh.getLastRow()-1,lastCol).getValues() : [];
+  const existing = new Set();
+  values.forEach(row=>{
+    const ent=FT_normalizarTipoDocumento_(row[ix.ENTIDADE]);
+    const typ=FT_normalizarTipoDocumento_(row[ix.TIPO_DOCUMENTO]);
+    const id=String(row[ix.ID_EXTERNO]||'').trim();
+    const st=FT_normalizarTipoDocumento_(row[ix.STATUS]);
+    const valid=FT_dataChaveElegibilidade_(row[ix.DATA_VALIDADE]);
+    if(['MOTORISTA','MOTORISTAS','DRIVER'].includes(ent) &&
+       ['TOXICOLOGICO','EXAMETOXICOLOGICO','TOXICOLOGICOCNH'].includes(typ) &&
+       id && ['APROVADO','ATIVO','VALIDO','REGULAR','CONFERIDO'].includes(st) &&
+       valid && valid>='2026-11-12') existing.add(id);
+  });
+
+  const pending = drivers.filter(d=>d.id&&!existing.has(String(d.id)));
+  if(pending.length) {
+    const rows = pending.map(d=>{
+      const row = new Array(lastCol).fill('');
+      row[ix.ID_DOCUMENTO]='DOC-TESTE-'+Utilities.getUuid();
+      row[ix.CRIADO_EM]=now;
+      row[ix.STATUS]='APROVADO';
+      row[ix.TIPO_DOCUMENTO]='EXAME TOXICOLÓGICO';
+      row[ix.ENTIDADE]='MOTORISTA';
+      row[ix.ID_EXTERNO]=String(d.id);
+      row[ix.NUMERO_DOCUMENTO]='TESTE-FICTICIO-'+String(d.id).slice(-8);
+      row[ix.DATA_EMISSAO]=issue;
+      row[ix.DATA_VALIDADE]=expiry;
+      row[ix.OBSERVACOES]='DADO FICTÍCIO — HOMOLOGAÇÃO DE ESCALA AUTOMÁTICA. NÃO POSSUI VALIDADE LEGAL.';
+      return row;
+    });
+    sh.getRange(sh.getLastRow()+1,1,rows.length,lastCol).setValues(rows);
+  }
+  const result={sucesso:true,modo:'HOMOLOGACAO_COM_DADOS_FICTICIOS',motoristasFicticiosEncontrados:drivers.length,documentosNovos:pending.length,jaPossuiDocumentoAprovadoValido:drivers.length-pending.length,validadeAte:'31/12/2030',aviso:'Documentos exclusivamente fictícios para testes; não representam exames reais.'};
+  Logger.log('FULL TIME — DOCUMENTOS FICTÍCIOS: '+JSON.stringify(result));
+  return result;
+}
