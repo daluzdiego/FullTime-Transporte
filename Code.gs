@@ -791,86 +791,112 @@ function designarConjuntoOperacaoFullTime(token, data) {
   throw new Error('A designação direta foi desativada. Envie uma oferta ao motorista e aguarde o aceite para confirmar a participação.');
 }
 
+function FT_dataChaveElegibilidade_(v) {
+  if (!v) return '';
+  if (v instanceof Date && isFinite(v.getTime())) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const s=String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return br[3]+'-'+br[2]+'-'+br[1];
+  const d=new Date(s);
+  return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
+}
+function FT_normalizarTipoDocumento_(v) {
+  return String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+}
+function FT_documentosToxicologicoPorMotorista_() {
+  const sh=getSheet_('DOCUMENTOS'), grid=sh.getDataRange().getValues(), result={};
+  if (grid.length<2) return result;
+  const headers=grid[0].map(v=>String(v||'').trim().toUpperCase()), ix={};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  ['STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','DATA_VALIDADE'].forEach(k=>{
+    if(ix[k]===undefined) throw new Error('Cabeçalho obrigatório ausente em DOCUMENTOS: '+k);
+  });
+  grid.slice(1).forEach(r=>{
+    const entity=FT_normalizarTipoDocumento_(r[ix.ENTIDADE]), type=FT_normalizarTipoDocumento_(r[ix.TIPO_DOCUMENTO]);
+    if (!['MOTORISTA','MOTORISTAS','DRIVER'].includes(entity)) return;
+    if (!['TOXICOLOGICO','EXAMETOXICOLOGICO','TOXICOLOGICOCNH'].includes(type)) return;
+    const id=String(r[ix.ID_EXTERNO]||'').trim(); if(!id)return;
+    const status=FT_normalizarTipoDocumento_(r[ix.STATUS]), validStatus=['APROVADO','ATIVO','VALIDO','REGULAR','CONFERIDO'].includes(status);
+    const item={validStatus,expiry:FT_dataChaveElegibilidade_(r[ix.DATA_VALIDADE]),status:String(r[ix.STATUS]||'')};
+    if(!result[id] || (item.validStatus && (!result[id].validStatus || item.expiry>result[id].expiry))) result[id]=item;
+  });
+  return result;
+}
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
   if(!op) throw new Error('Operação não encontrada.');
-
-  const dateKey=v=>{
-    if(!v)return '';
-    if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');
-    const s=String(v).trim();
-    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
-    const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(br)return br[3]+'-'+br[2]+'-'+br[1];
-    const d=new Date(s);
-    return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
-  };
-  const operationDay=dateKey(op.data);
-  const sets=listarRegistros_('CONJUNTOS');
-  const drivers=listarRegistros_('MOTORISTAS');
-  const driverById={}; drivers.forEach(d=>driverById[String(d.id)]=d);
-
+  const operationDay=FT_dataChaveElegibilidade_(op.data);
+  const sets=listarRegistros_('CONJUNTOS'), drivers=listarRegistros_('MOTORISTAS'), driverById={};
+  drivers.forEach(d=>driverById[String(d.id)]=d);
+  const toxByDriver=FT_documentosToxicologicoPorMotorista_();
   const partsSh=getSheet_('PARTICIPACAO_OPERACOES'), partsGrid=partsSh.getDataRange().getValues();
-  const pHeaders=partsGrid[0].map(v=>String(v||'').trim().toUpperCase()), pi={};
+  const pHeaders=(partsGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()), pi={};
   pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
-  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']);
-  const busySets=new Set(),busyDrivers=new Set();
+  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set();
   partsGrid.slice(1).forEach(r=>{
-    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
-    if(!blocking.has(status))return;
-    const setId=String(r[pi.CONJUNTO_ID]||'');
-    const driverId=String(r[pi.MOTORISTA_ID]||'');
-    if(setId)busySets.add(setId);
-    if(driverId)busyDrivers.add(driverId);
+    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();if(!blocking.has(status))return;
+    const sid=String(r[pi.CONJUNTO_ID]||''),did=String(r[pi.MOTORISTA_ID]||'');
+    if(sid)busySets.add(sid);if(did)busyDrivers.add(did);
   });
-
-  const availSh=getSheet_('DISPONIBILIDADE_DIARIA'), availGrid=availSh.getDataRange().getValues();
-  const ah=availGrid[0].map(v=>String(v||'').trim().toUpperCase()), ai={};
+  const availSh=getSheet_('DISPONIBILIDADE_DIARIA'),availGrid=availSh.getDataRange().getValues();
+  const ah=(availGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),ai={};
   ah.forEach((h,i)=>{if(h&&ai[h]===undefined)ai[h]=i;});
   const availabilityForDay={};
   availGrid.slice(1).forEach(r=>{
-    const day=dateKey(r[ai.DATA_OPERACAO]), driverId=String(r[ai.MOTORISTA_ID]||'');
-    if(day===operationDay&&driverId)availabilityForDay[driverId]=String(r[ai.STATUS_DISPONIBILIDADE]||'').trim().toUpperCase();
+    const day=FT_dataChaveElegibilidade_(r[ai.DATA_OPERACAO]),did=String(r[ai.MOTORISTA_ID]||'');
+    if(day===operationDay&&did)availabilityForDay[did]=String(r[ai.STATUS_DISPONIBILIDADE]||'').trim().toUpperCase();
   });
-
-  const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
-  const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const since=new Date();since.setDate(since.getDate()-29);since.setHours(0,0,0,0);
+  const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd'),today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const historyByDriver={};
   partsGrid.slice(1).forEach(r=>{
-    const driverId=String(r[pi.MOTORISTA_ID]||''), day=dateKey(r[pi.INICIO_EM]), opId=String(r[pi.OPERACAO_ID]||'');
-    if(!driverId||!day||day<sinceKey||day>today)return;
-    const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});
-    h.operations.add(opId); h.days.add(day); if(day===today)h.today++; if(!h.last||day>h.last)h.last=day;
+    const did=String(r[pi.MOTORISTA_ID]||''),day=FT_dataChaveElegibilidade_(r[pi.INICIO_EM]),oid=String(r[pi.OPERACAO_ID]||'');
+    if(!did||!day||day<sinceKey||day>today)return;
+    const h=historyByDriver[did]||(historyByDriver[did]={operations:new Set(),days:new Set(),today:0,last:''});
+    h.operations.add(oid);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;
   });
-  const queueGrid=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
-  const qh=queueGrid[0].map(v=>String(v||'').trim().toUpperCase()), qi={};
+  const queueGrid=getSheet_('FILA_MOTORISTAS').getDataRange().getValues(),qh=(queueGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),qi={};
   qh.forEach((h,i)=>{if(h&&qi[h]===undefined)qi[h]=i;});
-  const queueByDriver={};
-  queueGrid.slice(1).forEach(r=>{const did=String(r[qi.MOTORISTA_ID]||'');if(did)queueByDriver[did]=r;});
-
-  const volume=Math.max(0,Number(op.volumeTotal)||0), trips=Math.max(0,Number(op.viagensPrevistas)||0);
-  const averageLoad=trips>0?volume/trips:0;
+  const queueByDriver={};queueGrid.slice(1).forEach(r=>{const did=String(r[qi.MOTORISTA_ID]||'');if(did)queueByDriver[did]=r;});
+  const volume=Math.max(0,Number(op.volumeTotal)||0),trips=Math.max(0,Number(op.viagensPrevistas)||0),averageLoad=trips>0?volume/trips:0;
   const candidates=sets.map(s=>{
-    const fields=s.camposPorNome||{}, driverId=String(fields.MOTORISTA_ID||''), driver=driverById[driverId];
-    const cap=Number(String(fields.CAPACIDADE_UTIL_TONELADAS||'').replace(',','.'))||0;
-    const condition=String(fields.ESTADO_CONSERVACAO||'').trim().toUpperCase();
-    const driverFields=driver?.camposPorNome||{};
-    const cnhExpiry=dateKey(driverFields.CNH_VALIDADE);
-    const cnhValid=!!cnhExpiry&&(!operationDay||cnhExpiry>=operationDay);
-    const availability=availabilityForDay[driverId]||'NAO_INFORMADA';
-    const availabilityOk=availability!=='INDISPONIVEL';
-    const capacityOk=cap>0&&(!averageLoad||cap>=averageLoad);
-    const hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
-    const queue=queueByDriver[driverId];
-    const eligible=s.status==='ATIVO'&&!!driver&&driver.status==='ATIVO'&&condition==='APTO'&&cnhValid&&capacityOk&&availabilityOk&&!busySets.has(String(s.id))&&!busyDrivers.has(driverId);
-    return {id:String(s.id),driverId,driverName:String(driverFields.NOME_COMPLETO||''),cavaloId:String(fields.CAVALO_ID||''),capacity:cap,condition,restrictions:String(fields.RESTRICOES||''),eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,motivoInelegibilidade:!cnhValid?'CNH vencida ou sem validade':!capacityOk?'Capacidade útil insuficiente':!availabilityOk?'Motorista indisponível na data':busySets.has(String(s.id))?'Conjunto já possui oferta/escala em andamento':busyDrivers.has(driverId)?'Motorista já possui oferta/escala em andamento':condition!=='APTO'?'Conjunto não está APTO':!driver||driver.status!=='ATIVO'?'Motorista inativo':''};
-  }).filter(c=>c.eligible);
-  const byCategory=candidates.filter(c=>op.categoria!=='ALTO_DESEMPENHO'||c.capacity>0);
+    const f=s.camposPorNome||{},did=String(f.MOTORISTA_ID||''),driver=driverById[did],df=driver?.camposPorNome||{};
+    const cap=Number(String(f.CAPACIDADE_UTIL_TONELADAS||'').replace(',','.'))||0,condition=String(f.ESTADO_CONSERVACAO||'').trim().toUpperCase();
+    const cnhExpiry=FT_dataChaveElegibilidade_(df.CNH_VALIDADE),cnhValid=!!cnhExpiry&&(!operationDay||cnhExpiry>=operationDay);
+    const category=String(df.CNH_CATEGORIA||'').trim().toUpperCase(),hasTrailer=!!(f.CARRETA_MEIO_ID||f.CARRETA_FINAL_ID);
+    const categoryValid=hasTrailer?category==='E':['C','D','E'].includes(category);
+    const tox=toxByDriver[did],toxValid=!!tox&&tox.validStatus&&!!tox.expiry&&(!operationDay||tox.expiry>=operationDay);
+    const availability=availabilityForDay[did]||'NAO_INFORMADA',availabilityOk=availability!=='INDISPONIVEL';
+    const capacityOk=cap>0&&(!averageLoad||cap>=averageLoad),setBusy=busySets.has(String(s.id)),driverBusy=busyDrivers.has(did);
+    const hist=historyByDriver[did]||{operations:new Set(),days:new Set(),today:0,last:''},queue=queueByDriver[did],reasons=[];
+    if(!driver||driver.status!=='ATIVO')reasons.push('Motorista não está aprovado/ativo');
+    if(s.status!=='ATIVO')reasons.push('Conjunto não está ativo');
+    if(!cnhExpiry)reasons.push('Validade da CNH não informada');else if(!cnhValid)reasons.push('CNH vencida na data da operação');
+    if(!categoryValid)reasons.push(hasTrailer?'CNH categoria E exigida para conjunto com carreta':'Categoria da CNH incompatível');
+    if(!tox)reasons.push('Exame toxicológico não cadastrado');
+    else if(!tox.validStatus)reasons.push('Exame toxicológico sem aprovação documental');
+    else if(!tox.expiry)reasons.push('Validade do exame toxicológico não informada');
+    else if(!toxValid)reasons.push('Exame toxicológico vencido na data da operação');
+    if(condition!=='APTO')reasons.push('Conjunto não está APTO');
+    if(!capacityOk)reasons.push('Capacidade útil insuficiente ou não informada');
+    if(!availabilityOk)reasons.push('Motorista indisponível na data');
+    if(setBusy)reasons.push('Conjunto já possui oferta/escala em andamento');
+    if(driverBusy)reasons.push('Motorista já possui oferta/escala em andamento');
+    const eligible=reasons.length===0;
+    return {id:String(s.id),driverId:did,driverName:String(df.NOME_COMPLETO||''),cavaloId:String(f.CAVALO_ID||''),capacity:cap,condition,restrictions:String(f.RESTRICOES||''),eligible,statusElegibilidade:eligible?'APTO':(!driver||driver.status!=='ATIVO'||s.status!=='ATIVO'||setBusy||driverBusy?'BLOQUEADO':'PENDENTE_REGULARIZACAO'),motivosElegibilidade:reasons,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,categoriaCnhValida:categoryValid,exameToxicologicoValido:toxValid,motivoInelegibilidade:reasons.join('; ')};
+  });
+  const eligible=candidates.filter(c=>c.eligible),byCategory=eligible.filter(c=>op.categoria!=='ALTO_DESEMPENHO'||c.capacity>0);
   const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
   if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
   if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
-  return ordered.map((c,i)=>({posicao:i+1,...c}));
+  const orderById={};ordered.forEach((c,i)=>orderById[c.id]=i+1);
+  return candidates.map(c=>({...c,posicao:orderById[c.id]||null})).sort((a,b)=>{
+    if(a.eligible!==b.eligible)return a.eligible?-1:1;
+    if(a.eligible)return a.posicao-b.posicao;
+    return String(a.driverName).localeCompare(String(b.driverName),'pt-BR');
+  });
 }
 
 function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
