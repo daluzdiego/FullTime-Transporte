@@ -839,11 +839,11 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set(),alreadyHandledInOperation=new Set();
   partsGrid.slice(1).forEach(r=>{
     if(String(r[pi.OPERACAO_ID]||'')===String(operacaoId)&&['NAO_RESPONDEU','EXPIRADA','RECUSADA','CANCELADA_REPROGRAMACAO','ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase())){
-      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':FT_dataChaveElegibilidade_(r[pi.DATA_OPERACAO_OFERTA]);
       const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
       const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
       const currentStart=String(opRow[opIx.JANELA_INICIO]||'').trim(),currentEnd=String(opRow[opIx.JANELA_FIM]||'').trim();
-      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
+      const currentDate=FT_dataChaveElegibilidade_(opRow[opIx.DATA_OPERACAO]);
       const sameSchedule=!!offerDate&&offerDate===currentDate&&offerStart===currentStart&&offerEnd===currentEnd;
       if(!sameSchedule)return;
       const handledDriver=String(r[pi.MOTORISTA_ID]||'');if(handledDriver)alreadyHandledInOperation.add(handledDriver);
@@ -851,10 +851,10 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(!blocking.has(status))return;
     if(status==='OFERTADA'){
-      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':FT_dataChaveElegibilidade_(r[pi.DATA_OPERACAO_OFERTA]);
       const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
       const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
-      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
+      const currentDate=FT_dataChaveElegibilidade_(opRow[opIx.DATA_OPERACAO]);
       if(!offerDate||offerDate!==currentDate||offerStart!==String(opRow[opIx.JANELA_INICIO]||'').trim()||offerEnd!==String(opRow[opIx.JANELA_FIM]||'').trim())return;
       const raw=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'';
       const expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();
