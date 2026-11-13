@@ -1103,6 +1103,60 @@ function obterHistoricoMotoristaFullTime(token,motoristaId){
  * Não grava, cria, exclui, renomeia nem altera dados ou cabeçalhos.
  * Executar manualmente no Apps Script: FT_AUDITAR_VINCULOS_E_OFERTAS_20261113
  */
+/**
+ * Saneia contas fictícias legadas e reafirma os vínculos das 40 contas atuais.
+ * Remove somente logins motora01..motora40; preserva contas atuais, admins,
+ * motoristas, conjuntos, operações, participações e eventos.
+ */
+function FT_CORRIGIR_CONTAS_MOTORISTAS_TESTE_20261113() {
+  const auth=SpreadsheetApp.openById(getDbId_());
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+  const registry=SpreadsheetApp.openById(registryId);
+  const users=auth.getSheetByName('USUARIOS'), driversSh=registry.getSheetByName('MOTORISTAS');
+  if(!users||!driversSh)throw new Error('Guia USUARIOS ou MOTORISTAS ausente.');
+  const headerMap=sh=>{
+    const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],m={};
+    h.forEach((v,i)=>{const k=String(v||'').trim().toUpperCase();if(k&&m[k]===undefined)m[k]=i;});
+    return m;
+  };
+  const um=headerMap(users),dm=headerMap(driversSh);
+  ['LOGIN','PERFIL','MOTORISTA_ID','ATIVO','EMAIL','NOME'].forEach(k=>{if(um[k]===undefined)throw new Error('Cabeçalho ausente em USUARIOS: '+k);});
+  ['ID','EMAIL','NOME_COMPLETO'].forEach(k=>{if(dm[k]===undefined)throw new Error('Cabeçalho ausente em MOTORISTAS: '+k);});
+  const ur=users.getDataRange().getValues(),dr=driversSh.getDataRange().getValues();
+  const drivers=dr.slice(1).filter(r=>String(r[dm.ID]||'').trim());
+  const driverByEmail={};
+  drivers.forEach(r=>{const e=String(r[dm.EMAIL]||'').trim().toLowerCase();if(e){if(driverByEmail[e])throw new Error('E-mail duplicado em MOTORISTAS: '+e);driverByEmail[e]=r;}});
+  const legacy=[],current=[],otherMotorist=[];
+  ur.slice(1).forEach((r,i)=>{
+    if(String(r[um.PERFIL]||'').toUpperCase()!=='MOTORISTA')return;
+    const login=String(r[um.LOGIN]||'').trim().toLowerCase();
+    if(/^motora(?:0[1-9]|[1-3][0-9]|40)$/.test(login))legacy.push({row:i+2,login});
+    else if(/^[^\s@]+@example\.test$/i.test(login)||/^[^\s@]+@example\.test$/i.test(String(r[um.EMAIL]||'')))current.push({row:i+2,login,email:String(r[um.EMAIL]||r[um.LOGIN]||'').trim().toLowerCase(),name:String(r[um.NOME]||'').trim(),motoristaId:String(r[um.MOTORISTA_ID]||'').trim()});
+    else otherMotorist.push(login);
+  });
+  if(drivers.length!==40)throw new Error('Proteção: esperados exatamente 40 motoristas; encontrados '+drivers.length+'. Nada foi alterado.');
+  if(legacy.length!==40)throw new Error('Proteção: esperadas exatamente 40 contas legadas motora01..40; encontradas '+legacy.length+'. Nada foi alterado.');
+  if(current.length!==40)throw new Error('Proteção: esperadas exatamente 40 contas atuais com e-mail .test; encontradas '+current.length+'. Nada foi alterado.');
+  if(otherMotorist.length)throw new Error('Existem outras contas MOTORISTA fora dos dois grupos esperados: '+otherMotorist.join(', ')+'. Nada foi alterado.');
+  const seen=new Set(),updates=[];
+  current.forEach(a=>{
+    const d=driverByEmail[a.email];
+    if(!d)throw new Error('Conta atual sem motorista correspondente por e-mail: '+a.login+'. Nada foi alterado.');
+    const id=String(d[dm.ID]).trim(),name=String(d[dm.NOME_COMPLETO]||'').trim();
+    if(a.name&&name&&a.name.toUpperCase()!==name.toUpperCase())throw new Error('Nome divergente para '+a.login+': '+a.name+' / '+name+'. Nada foi alterado.');
+    if(seen.has(id))throw new Error('Mais de uma conta atual aponta para o mesmo motorista: '+id+'. Nada foi alterado.');
+    seen.add(id);updates.push({row:a.row,id,login:a.login});
+  });
+  if(seen.size!==40)throw new Error('Proteção: não foi possível vincular exatamente os 40 motoristas. Nada foi alterado.');
+  // Primeiro reafirma os 40 vínculos por e-mail; depois exclui apenas as 40 contas legadas.
+  updates.forEach(x=>users.getRange(x.row,um.MOTORISTA_ID+1).setValue(x.id));
+  legacy.sort((a,b)=>b.row-a.row).forEach(x=>users.deleteRow(x.row));
+  const result={ok:true,contasLegadasExcluidas:legacy.length,contasAtuaisPreservadas:current.length,vinculosAtualizados:updates.length,motoristasPreservados:drivers.length,outrasContasMotorista:otherMotorist.length,baseAutenticacao:auth.getId(),baseOperacional:registryId,escopo:'Somente USUARIOS: contas fictícias legadas motora01..motora40'};
+  Logger.log('FULL TIME — SANEAMENTO DE CONTAS FICTÍCIAS: '+JSON.stringify(result));
+  return result;
+}
+
 function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
   const props=PropertiesService.getScriptProperties();
   const registryId=props.getProperty('FT_REGISTRY_DATABASE_ID')||'';
