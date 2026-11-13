@@ -1095,3 +1095,107 @@ function obterHistoricoMotoristaFullTime(token,motoristaId){
   const counts={convocacoes:history.length,aceitas:history.filter(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(h.status)).length,recusadas:history.filter(h=>h.status==='RECUSADA').length,expiradas:history.filter(h=>h.status==='NAO_RESPONDEU'||h.status==='EXPIRADA').length,participacoesConcluidas:history.filter(h=>h.status==='RETORNOU').length};
   return {motorista:{id:String(driver.id),nome:String(driver.camposPorNome?.NOME_COMPLETO||''),status:String(driver.status||''),cnhCategoria:String(driver.camposPorNome?.CNH_CATEGORIA||''),cnhValidade:String(driver.camposPorNome?.CNH_VALIDADE||'')},statusAtual:active?active.status:latest?latest.status:'SEM_CONVOCACAO',operacaoAtual:active?active.operacao:null,counts,history};
 }
+
+
+
+/**
+ * AUDITORIA SOMENTE LEITURA — vínculo de motoristas e ofertas.
+ * Não grava, cria, exclui, renomeia nem altera dados ou cabeçalhos.
+ * Executar manualmente no Apps Script: FT_AUDITAR_VINCULOS_E_OFERTAS_20261113
+ */
+function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
+  const props=PropertiesService.getScriptProperties();
+  const registryId=props.getProperty('FT_REGISTRY_DATABASE_ID')||'';
+  const authId=props.getProperty(FT_CONFIG.DB_PROPERTY)||'';
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+  if(!authId)throw new Error('FT_DATABASE_ID não configurado.');
+  const registry=SpreadsheetApp.openById(registryId);
+  const auth=SpreadsheetApp.openById(authId);
+  const read=(ss,name)=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)throw new Error('Guia obrigatória ausente: '+name+' em '+ss.getName());
+    const grid=sh.getDataRange().getValues();
+    const headers=(grid[0]||[]).map(v=>String(v||'').trim().toUpperCase());
+    const ix={};headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    return {sheet:sh,headers,ix,rows:grid.slice(1).filter(r=>r.some(v=>v!==''&&v!==null))};
+  };
+  const users=read(auth,'USUARIOS');
+  const drivers=read(registry,'MOTORISTAS');
+  const sets=read(registry,'CONJUNTOS');
+  const parts=read(registry,'PARTICIPACAO_OPERACOES');
+  const ops=read(registry,'OPERACOES');
+  const events=registry.getSheetByName('EVENTOS_ESCALA');
+  const get=(r,ix,k)=>ix[k]===undefined?'':r[ix[k]];
+  const norm=v=>String(v==null?'':v).trim();
+  const driverById=new Map(),opById=new Map(),setById=new Map();
+  drivers.rows.forEach(r=>{const id=norm(get(r,drivers.ix,'ID'));if(id&&!driverById.has(id))driverById.set(id,r);});
+  ops.rows.forEach(r=>{const id=norm(get(r,ops.ix,'ID'));if(id&&!opById.has(id))opById.set(id,r);});
+  sets.rows.forEach(r=>{const id=norm(get(r,sets.ix,'ID'));if(id&&!setById.has(id))setById.set(id,r);});
+  const duplicate=(rows,ix,key)=>{
+    const map={};rows.forEach(r=>{const v=norm(get(r,ix,key));if(v)(map[v]||(map[v]=0),map[v]++);});
+    return Object.keys(map).filter(k=>map[k]>1).map(k=>({valor:k,ocorrencias:map[k]}));
+  };
+  const accounts=users.rows.map(r=>({
+    usuarioId:norm(get(r,users.ix,'ID')),
+    login:norm(get(r,users.ix,'LOGIN')),
+    nome:norm(get(r,users.ix,'NOME')),
+    perfil:norm(get(r,users.ix,'PERFIL')).toUpperCase(),
+    ativo:String(get(r,users.ix,'ATIVO')).toUpperCase()==='TRUE',
+    motoristaId:norm(get(r,users.ix,'MOTORISTA_ID'))
+  }));
+  const driverAccounts=accounts.filter(a=>a.perfil==='MOTORISTA');
+  const accountAudit=driverAccounts.map(a=>{
+    const d=driverById.get(a.motoristaId);
+    return {usuarioId:a.usuarioId,login:a.login,nomeConta:a.nome,motoristaId:a.motoristaId,
+      contaAtiva:a.ativo,cadastroEncontrado:!!d,
+      nomeCadastro:d?norm(get(d,drivers.ix,'NOME_COMPLETO')):'',
+      statusCadastro:d?norm(get(d,drivers.ix,'STATUS')):'',
+      divergenciaNome:!!(d&&a.nome&&norm(get(d,drivers.ix,'NOME_COMPLETO'))&&a.nome.toUpperCase()!==norm(get(d,drivers.ix,'NOME_COMPLETO')).toUpperCase()),
+      problema:!a.motoristaId?'MOTORISTA_ID_VAZIO':!d?'MOTORISTA_ID_SEM_CADASTRO':!a.ativo?'CONTA_INATIVA':''
+    };
+  });
+  const participationAudit=parts.rows.map(r=>{
+    const id=norm(get(r,parts.ix,'ID')),driverId=norm(get(r,parts.ix,'MOTORISTA_ID'));
+    const opId=norm(get(r,parts.ix,'OPERACAO_ID')),setId=norm(get(r,parts.ix,'CONJUNTO_ID'));
+    const status=norm(get(r,parts.ix,'STATUS_PARTICIPACAO')).toUpperCase();
+    const expRaw=get(r,parts.ix,'EXPIRA_EM');
+    const exp=expRaw instanceof Date?expRaw.getTime():new Date(expRaw).getTime();
+    return {ofertaId:id,motoristaId:driverId,nomeMotorista:driverById.has(driverId)?norm(get(driverById.get(driverId),drivers.ix,'NOME_COMPLETO')):'',
+      operacaoId:opId,operacaoEncontrada:opById.has(opId),nomeOperacao:opById.has(opId)?norm(get(opById.get(opId),ops.ix,'NOME_OPERACAO')):'',
+      conjuntoId:setId,conjuntoEncontrado:setById.has(setId),status,expiraEm:expRaw instanceof Date?expRaw.toISOString():norm(expRaw),
+      ofertaVencida:status==='OFERTADA'&&(!isFinite(exp)||exp<=Date.now()),
+      motoristaEncontrado:driverById.has(driverId)};
+  });
+  const offersByDriver={};
+  participationAudit.forEach(o=>{if(o.motoristaId)(offersByDriver[o.motoristaId]||(offersByDriver[o.motoristaId]=[])).push(o);});
+  const setDriverAudit=sets.rows.map(r=>{
+    const setId=norm(get(r,sets.ix,'ID')),driverId=norm(get(r,sets.ix,'MOTORISTA_ID'));
+    return {conjuntoId:setId,motoristaId:driverId,nomeMotorista:driverById.has(driverId)?norm(get(driverById.get(driverId),drivers.ix,'NOME_COMPLETO')):'',
+      motoristaEncontrado:driverById.has(driverId),statusConjunto:norm(get(r,sets.ix,'STATUS'))};
+  });
+  const issues=[];
+  accountAudit.forEach(a=>{if(a.problema)issues.push({tipo:a.problema,usuarioId:a.usuarioId,login:a.login,motoristaId:a.motoristaId});if(a.divergenciaNome)issues.push({tipo:'NOME_DIVERGENTE_CONTA_CADASTRO',usuarioId:a.usuarioId,motoristaId:a.motoristaId,nomeConta:a.nomeConta,nomeCadastro:a.nomeCadastro});});
+  const accountsPerDriver={};driverAccounts.forEach(a=>{if(a.motoristaId)(accountsPerDriver[a.motoristaId]||(accountsPerDriver[a.motoristaId]=[])).push(a.login);});
+  Object.keys(accountsPerDriver).forEach(id=>{if(accountsPerDriver[id].length>1)issues.push({tipo:'MAIS_DE_UMA_CONTA_POR_MOTORISTA',motoristaId:id,logins:accountsPerDriver[id]});});
+  participationAudit.forEach(o=>{
+    if(!o.motoristaEncontrado)issues.push({tipo:'OFERTA_COM_MOTORISTA_INEXISTENTE',ofertaId:o.ofertaId,motoristaId:o.motoristaId});
+    if(!o.operacaoEncontrada)issues.push({tipo:'OFERTA_COM_OPERACAO_INEXISTENTE',ofertaId:o.ofertaId,operacaoId:o.operacaoId});
+    if(!o.conjuntoEncontrado)issues.push({tipo:'OFERTA_COM_CONJUNTO_INEXISTENTE',ofertaId:o.ofertaId,conjuntoId:o.conjuntoId});
+    if(o.ofertaVencida)issues.push({tipo:'OFERTA_VENCIDA_AINDA_OFERTADA',ofertaId:o.ofertaId,motoristaId:o.motoristaId,operacaoId:o.operacaoId,expiraEm:o.expiraEm});
+  });
+  setDriverAudit.forEach(s=>{if(s.motoristaId&&!s.motoristaEncontrado)issues.push({tipo:'CONJUNTO_COM_MOTORISTA_INEXISTENTE',conjuntoId:s.conjuntoId,motoristaId:s.motoristaId});});
+  const byStatus={};participationAudit.forEach(o=>byStatus[o.status]=(byStatus[o.status]||0)+1);
+  const result={
+    executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',
+    bases:{principalId:registryId,autenticacaoId:authId,basesSeparadas:registryId!==authId},
+    contagens:{contas:accounts.length,contasMotorista:driverAccounts.length,motoristas:drivers.rows.length,conjuntos:sets.rows.length,operacoes:ops.rows.length,participacoes:parts.rows.length,ofertasPorStatus:byStatus},
+    contasMotorista:accountAudit,
+    conjuntos:setDriverAudit,
+    ofertas:participationAudit,
+    duplicidades:{idsUsuarios:duplicate(users.rows,users.ix,'ID'),logins:duplicate(users.rows,users.ix,'LOGIN'),idsMotoristas:duplicate(drivers.rows,drivers.ix,'ID'),idsConjuntos:duplicate(sets.rows,sets.ix,'ID'),idsOperacoes:duplicate(ops.rows,ops.ix,'ID'),idsParticipacoes:duplicate(parts.rows,parts.ix,'ID')},
+    eventosEscala:{guiaExiste:!!events,registros:events?Math.max(0,events.getLastRow()-1):0},
+    problemas:issues
+  };
+  Logger.log('FULL TIME — AUDITORIA DE VÍNCULOS E OFERTAS — SOMENTE LEITURA: '+JSON.stringify(result));
+  return result;
+}
