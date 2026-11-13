@@ -851,6 +851,11 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(!blocking.has(status))return;
     if(status==='OFERTADA'){
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+      const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
+      const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
+      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
+      if(!offerDate||offerDate!==currentDate||offerStart!==String(opRow[opIx.JANELA_INICIO]||'').trim()||offerEnd!==String(opRow[opIx.JANELA_FIM]||'').trim())return;
       const raw=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'';
       const expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();
       if(!isFinite(expiry)||expiry<=Date.now())return;
