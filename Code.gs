@@ -1197,8 +1197,29 @@ function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
     problemas:issues
   };
   const countByType={};issues.forEach(x=>countByType[x.tipo]=(countByType[x.tipo]||0)+1);
+  const userByLogin={};accounts.forEach(a=>{userByLogin[a.login.toLowerCase()]=a;});
+  const driverIdentity=drivers.rows.map(r=>({
+    id:norm(get(r,drivers.ix,'ID')),
+    nome:norm(get(r,drivers.ix,'NOME_COMPLETO')),
+    email:norm(get(r,drivers.ix,'EMAIL')).toLowerCase()
+  }));
+  const accountIdentity=driverAccounts.map(a=>{
+    const raw=users.rows.find(r=>norm(get(r,users.ix,'LOGIN')).toLowerCase()===a.login.toLowerCase());
+    return {login:a.login,nomeConta:a.nome,emailConta:raw?norm(get(raw,users.ix,'EMAIL')).toLowerCase():'',motoristaIdAtual:a.motoristaId};
+  });
+  const identityCrosscheck=accountIdentity.map(a=>{
+    const byEmail=a.emailConta?driverIdentity.filter(d=>d.email&&d.email===a.emailConta):[];
+    const byName=a.nomeConta?driverIdentity.filter(d=>d.nome&&d.nome.toUpperCase()===a.nomeConta.toUpperCase()):[];
+    return {login:a.login,nomeConta:a.nomeConta,emailConta:a.emailConta,motoristaIdAtual:a.motoristaId,
+      candidatosEmail:byEmail.map(d=>({id:d.id,nome:d.nome,email:d.email})),
+      candidatosNome:byName.map(d=>({id:d.id,nome:d.nome,email:d.email})),
+      correspondenciaUnica:byEmail.length===1?'EMAIL':byName.length===1?'NOME':(byEmail.length>1||byName.length>1?'AMBIGUA':'NAO_IDENTIFICADA'),
+      idCandidato:byEmail.length===1?byEmail[0].id:byName.length===1?byName[0].id:''
+    };
+  });
   const compact={
     executadoEm:result.executadoEm,modo:result.modo,bases:result.bases,contagens:result.contagens,
+    cruzamentoIdentidade:identityCrosscheck,
     contasSemCadastro:accountAudit.filter(a=>!a.cadastroEncontrado).map(a=>({login:a.login,motoristaId:a.motoristaId,ativo:a.contaAtiva})),
     idsMotoristasCadastrados:drivers.rows.map(r=>norm(get(r,drivers.ix,'ID'))).filter(Boolean),
     conjuntosSemMotorista:setDriverAudit.filter(x=>!x.motoristaEncontrado),
