@@ -336,8 +336,22 @@
       }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
   }
   function atualizarPortalMotorista(){
-    google.script.run.withSuccessHandler(data=>{dashboard=data;currentUser={...currentUser,...data.user};renderPage('portalMotorista');toast('Ofertas atualizadas.');})
-      .withFailureHandler(e=>toast(e.message||'Não foi possível atualizar.',true)).obterPortalMotoristaFullTime(authToken);
+    const content=document.getElementById('content');
+    if(content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
+    google.script.run.withSuccessHandler(data=>{
+      if(!data||!Array.isArray(data.ofertas)){renderLoadFailure(new Error('Resposta inválida do portal: lista de ofertas ausente.'));return;}
+      dashboard=data;
+      currentUser={...currentUser,...(data.user||{}),perfil:'MOTORISTA'};
+      document.getElementById('topTitle').textContent='Área do motorista';
+      document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
+      if(content)content.innerHTML=renderPortalMotorista();
+      console.info('FT_PORTAL_ATUALIZADO',JSON.stringify({motoristaId:data.motoristaId,ofertas:data.ofertas.length,diagnostico:data.diagnosticoVinculo||{}}));
+      toast('Ofertas atualizadas.');
+    }).withFailureHandler(e=>{
+      console.error('FT_PORTAL_ATUALIZACAO_ERRO',e&&e.message||e);
+      if(content)content.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
+      toast(e.message||'Não foi possível atualizar.',true);
+    }).obterPortalMotoristaFullTime(authToken);
   }
   async function responderOfertaPortal(id,resposta){
     const acao=resposta==='ACEITA'?'aceitar':'recusar';
