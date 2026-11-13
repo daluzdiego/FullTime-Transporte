@@ -836,8 +836,11 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const partsSh=getSheet_('PARTICIPACAO_OPERACOES'), partsGrid=partsSh.getDataRange().getValues();
   const pHeaders=(partsGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()), pi={};
   pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
-  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set();
+  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set(),alreadyHandledInOperation=new Set();
   partsGrid.slice(1).forEach(r=>{
+    if(String(r[pi.OPERACAO_ID]||'')===String(operacaoId)&&['NAO_RESPONDEU','EXPIRADA','RECUSADA','ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase())){
+      const handledDriver=String(r[pi.MOTORISTA_ID]||'');if(handledDriver)alreadyHandledInOperation.add(handledDriver);
+    }
     const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(!blocking.has(status))return;
     if(status==='OFERTADA'){
@@ -892,8 +895,10 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     if(!availabilityOk)reasons.push('Motorista indisponível na data');
     if(setBusy)reasons.push('Conjunto já possui oferta/escala em andamento');
     if(driverBusy)reasons.push('Motorista já possui oferta/escala em andamento');
+    const alreadyHandled=alreadyHandledInOperation.has(did);
+    if(alreadyHandled)reasons.push('Motorista já foi convocado nesta operação e não pode receber nova oferta');
     const eligible=reasons.length===0;
-    return {id:String(s.id),driverId:did,driverName:String(df.NOME_COMPLETO||''),cavaloId:String(f.CAVALO_ID||''),capacity:cap,condition,restrictions:String(f.RESTRICOES||''),eligible,statusElegibilidade:eligible?'APTO':(!driver||driver.status!=='ATIVO'||s.status!=='ATIVO'||setBusy||driverBusy?'BLOQUEADO':'PENDENTE_REGULARIZACAO'),motivosElegibilidade:reasons,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,categoriaCnhValida:categoryValid,exameToxicologicoValido:toxValid,motivoInelegibilidade:reasons.join('; ')};
+    return {id:String(s.id),driverId:did,driverName:String(df.NOME_COMPLETO||''),cavaloId:String(f.CAVALO_ID||''),capacity:cap,condition,restrictions:String(f.RESTRICOES||''),eligible,statusElegibilidade:eligible?'APTO':(!driver||driver.status!=='ATIVO'||s.status!=='ATIVO'||setBusy||driverBusy||alreadyHandled?'BLOQUEADO':'PENDENTE_REGULARIZACAO'),motivosElegibilidade:reasons,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,categoriaCnhValida:categoryValid,exameToxicologicoValido:toxValid,motivoInelegibilidade:reasons.join('; ')};
   });
   const eligible=candidates.filter(c=>c.eligible),byCategory=eligible.filter(c=>op.categoria!=='ALTO_DESEMPENHO'||c.capacity>0);
   const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
