@@ -141,3 +141,36 @@ function listarOfertasAceitasAdminFullTime(token) {
     return {id:String(r[map.ID]||''),motorista:driverNames[String(r[map.MOTORISTA_ID]||'')]||String(r[map.MOTORISTA_ID]||''),operacao:op.nome||String(r[map.OPERACAO_ID]||''),origem:op.origem||'',destino:op.destino||'',conjuntoId:String(r[map.CONJUNTO_ID]||''),aceitaEm:r[map.RESPONDIDA_EM]||''};
   });
 }
+
+/**
+ * Diagnóstico sem escrita: compara as ofertas efetivas dos motoristas fictícios
+ * 023, 024, 025 e 039 com o estado persistido da fila automática.
+ * Execute pelo editor do Apps Script. Não cria, cancela ou altera ofertas.
+ */
+function FT_DIAGNOSTICAR_DIVERGENCIA_CONVOCACOES_20261113(){
+  const ids=['023','024','025','039'].map(n=>'FT-TESTE-20261111-MOT-'+n);
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_MOTORISTA_headerMap_(sh);
+  const required=['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','CONJUNTO_ID'];
+  required.forEach(k=>{if(m[k]===undefined)throw new Error('Cabeçalho ausente: '+k);});
+  const rows=sh.getDataRange().getValues().slice(1);
+  const details=ids.map(id=>{
+    const own=rows.filter(r=>String(r[m.MOTORISTA_ID]||'').trim()===id);
+    const statuses={};
+    own.forEach(r=>{const st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();statuses[st]=(statuses[st]||0)+1;});
+    return {motoristaId:id,participacoes:own.length,statuses,ultimas:own.slice(-5).reverse().map(r=>({
+      ofertaId:String(r[m.ID]||''),operacaoId:String(r[m.OPERACAO_ID]||''),
+      conjuntoId:String(r[m.CONJUNTO_ID]||''),status:String(r[m.STATUS_PARTICIPACAO]||''),
+      origem:m.ORIGEM_OFERTA===undefined?'':String(r[m.ORIGEM_OFERTA]||''),
+      expiraEm:m.EXPIRA_EM===undefined?'':String(r[m.EXPIRA_EM]||'')
+    }))};
+  });
+  const queues=typeof FT_AUTO_READ_==='function'?FT_AUTO_READ_():{};
+  const queueSummary=Object.keys(queues).map(opId=>({
+    operacaoId:opId,status:queues[opId].status,cursor:queues[opId].cursor,
+    vagas:queues[opId].vagas,pendentes:queues[opId].pendentes||[],
+    aceitas:queues[opId].aceitas
+  }));
+  const result={modo:'SOMENTE_LEITURA',totalParticipacoes:rows.length,motoristas:details,filasAutomaticas:queueSummary};
+  Logger.log('FULL TIME — DIVERGENCIA CONVOCACOES: '+JSON.stringify(result));
+  return result;
+}
