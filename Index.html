@@ -172,6 +172,7 @@
         const receivedCounts={};
         arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
         console.info('FT_UI_RECEBIMENTO_DASHBOARD',JSON.stringify({keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user}));
+        if(isDriver)console.info('FT_PORTAL_VINCULO',JSON.stringify(received.diagnosticoVinculo||{}));
         window.__FT_UI_RECEBIMENTO={keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user};
         try {
           dashboard=received;
