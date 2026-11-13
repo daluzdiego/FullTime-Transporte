@@ -53,7 +53,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
    if(!isFinite(ex)||ex<=Date.now()){
     const rowIndex=rows.findIndex((x,i)=>i>0&&String(x[m.ID]||'')===String(r[m.ID]||''));
     if(rowIndex>0){sh.getRange(rowIndex+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(rowIndex+1,m.RESPONDIDA_EM+1).setValue(new Date());}
-    st='EXPIRADA';
+    st='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
    }
   }
   if(String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
@@ -77,7 +77,7 @@ function FT_processarFilasConvocacaoAutomatica(){
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n],st=String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase();
     if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}if(st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='RETORNOU')return;if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
-    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
+    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
    });q.pendentes=pending;
    while(q.aceitas+q.pendentes.length<q.vagas&&q.cursor<q.lista.length){
     const c=q.lista[q.cursor++];rows=sh.getDataRange().getValues();
