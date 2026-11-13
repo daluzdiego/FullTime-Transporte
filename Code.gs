@@ -1068,12 +1068,13 @@ function obterHistoricoMotoristaFullTime(token,motoristaId){
     if(String(r[pi.MOTORISTA_ID]||'')!==motoristaId)return null;
     let status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     const rawExpiry=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'',expiryMs=rawExpiry instanceof Date?rawExpiry.getTime():new Date(rawExpiry).getTime();
-    if(status==='OFERTADA'&&(!isFinite(expiryMs)||expiryMs<=Date.now()))status='EXPIRADA';
+    if(status==='OFERTADA'&&(!isFinite(expiryMs)||expiryMs<=Date.now()))status='NAO_RESPONDEU';
+    if(status==='EXPIRADA')status='NAO_RESPONDEU';
     const opId=String(r[pi.OPERACAO_ID]||''),setId=String(r[pi.CONJUNTO_ID]||'');
     return {id:String(r[pi.ID]||''),status,operacao:ops[opId]||{id:opId,nome:'Operação não localizada',status:'',data:'',origem:'',destino:'',cliente:''},conjunto:setById[setId]||{id:setId,nome:setId?'Conjunto '+setId.slice(-6):'—',capacidade:''},criadoEm:dateOut(r[pi.CRIADO_EM]),ofertadaEm:dateOut(pi.OFERTADA_EM!==undefined?r[pi.OFERTADA_EM]:''),respondidaEm:dateOut(pi.RESPONDIDA_EM!==undefined?r[pi.RESPONDIDA_EM]:''),inicioEm:dateOut(pi.INICIO_EM!==undefined?r[pi.INICIO_EM]:''),saidaEm:dateOut(pi.SAIDA_EM!==undefined?r[pi.SAIDA_EM]:''),retornoEm:dateOut(pi.RETORNO_EM!==undefined?r[pi.RETORNO_EM]:''),expiraEm:dateOut(pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:''),motivo:String((pi.MOTIVO!==undefined?r[pi.MOTIVO]:'')||''),origemOferta:String((pi.ORIGEM_OFERTA!==undefined?r[pi.ORIGEM_OFERTA]:'')||'')};
   }).filter(Boolean).sort((a,b)=>String(b.ofertadaEm||b.criadoEm).localeCompare(String(a.ofertadaEm||a.criadoEm)));
   const active=history.find(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(h.status));
   const latest=history[0]||null;
-  const counts={convocacoes:history.length,aceitas:history.filter(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(h.status)).length,recusadas:history.filter(h=>h.status==='RECUSADA').length,expiradas:history.filter(h=>h.status==='EXPIRADA').length,participacoesConcluidas:history.filter(h=>h.status==='RETORNOU').length};
+  const counts={convocacoes:history.length,aceitas:history.filter(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(h.status)).length,recusadas:history.filter(h=>h.status==='RECUSADA').length,expiradas:history.filter(h=>h.status==='NAO_RESPONDEU'||h.status==='EXPIRADA').length,participacoesConcluidas:history.filter(h=>h.status==='RETORNOU').length};
   return {motorista:{id:String(driver.id),nome:String(driver.camposPorNome?.NOME_COMPLETO||''),status:String(driver.status||''),cnhCategoria:String(driver.camposPorNome?.CNH_CATEGORIA||''),cnhValidade:String(driver.camposPorNome?.CNH_VALIDADE||'')},statusAtual:active?active.status:latest?latest.status:'SEM_CONVOCACAO',operacaoAtual:active?active.operacao:null,counts,history};
 }
