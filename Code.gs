@@ -1282,6 +1282,7 @@ function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
     duplicidades:result.duplicidades,eventosEscala:result.eventosEscala,problemasPorTipo:countByType
   };
 
+  Logger.log('FULL TIME — AUDITORIA DE VÍNCULOS E OFERTAS: '+JSON.stringify(compact));
   return result;
 }
 
