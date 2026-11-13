@@ -1,3 +1,24 @@
+
+/** Reposiciona o motorista no fim da fila geral sem apagar nem alterar o histórico operacional. */
+function FT_colocarMotoristaNoFinalDaFila_(motoristaId, motivo){
+  motoristaId=String(motoristaId||'').trim();if(!motoristaId)return false;
+  const sh=getSheet_('FILA_MOTORISTAS'),map=FT_AUTO_MAP_(sh);
+  if(map.MOTORISTA_ID===undefined||map.DATA_ENTRADA===undefined)return false;
+  const last=sh.getLastRow();if(last<2)return false;
+  const ids=sh.getRange(2,map.MOTORISTA_ID+1,last-1,1).getDisplayValues();
+  for(let i=0;i<ids.length;i++){
+    if(String(ids[i][0]||'').trim()!==motoristaId)continue;
+    sh.getRange(i+2,map.DATA_ENTRADA+1).setValue(new Date());
+    if(map.OBSERVACOES!==undefined){
+      const current=String(sh.getRange(i+2,map.OBSERVACOES+1).getDisplayValue()||'');
+      const note='Reposicionado ao final da fila: '+String(motivo||'convocação encerrada')+'.';
+      sh.getRange(i+2,map.OBSERVACOES+1).setValue((current?current+' | ':'')+note);
+    }
+    return true;
+  }
+  return false;
+}
+
 /** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 2 horas. */
 const FT_AUTO_PROP_='FT_AUTO_QUEUES_V1';
 const FT_AUTO_TTL_=7200000;
@@ -56,7 +77,7 @@ function FT_processarFilasConvocacaoAutomatica(){
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n],st=String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase();
     if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}if(st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='RETORNOU')return;if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
-    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
+    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
    });q.pendentes=pending;
    while(q.aceitas+q.pendentes.length<q.vagas&&q.cursor<q.lista.length){
     const c=q.lista[q.cursor++];rows=sh.getDataRange().getValues();
@@ -93,7 +114,8 @@ function FT_reconciliarOfertasExpiradasFullTime(){
    if(isFinite(ex)&&ex>now)return;
    sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
    if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(stamp);
-   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Reconciliação administrativa: prazo de resposta vencido.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
+   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
    expired++;
   });
   const queues=FT_AUTO_READ_();
