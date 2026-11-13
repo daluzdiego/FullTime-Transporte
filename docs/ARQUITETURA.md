@@ -6,8 +6,8 @@ A primeira versão utiliza Google Apps Script para a camada de aplicação, Goog
 
 ## Componentes
 
-- `Code.gs`: autenticação, sessão, autorização de administrador, validação de dados, CRUD de motoristas e caminhões, métricas e auditoria.
-- `Index.html`: login e experiência administrativa responsiva.
+- `apps-script/Code.gs`: autenticação, sessão, autorização de administrador, validação de dados, CRUD de motoristas e caminhões, métricas e auditoria.
+- `apps-script/Index.html`: login e experiência administrativa responsiva.
 - Google Sheets: tabelas `USUARIOS`, `MOTORISTAS`, `CAMINHOES`, `AUDITORIA` e `CONFIGURACOES`.
 
 ## Modelo de dados

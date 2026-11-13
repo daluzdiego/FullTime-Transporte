@@ -10,7 +10,7 @@
 
 1. Acesse https://script.google.com/ e crie um projeto independente.
 2. Copie o conteúdo de `Code.gs` para o editor de script.
-3. Crie um arquivo HTML chamado exatamente `Index` e copie o conteúdo de `Index.html`.
+3. Confirme que o arquivo HTML se chama exatamente `Index` no editor Apps Script e use o conteúdo de `apps-script/Index.html`.
 4. Salve os arquivos.
 
 ## Inicializar a base
