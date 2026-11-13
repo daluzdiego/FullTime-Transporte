@@ -17,7 +17,11 @@ function FT_MOTORISTA_headerMap_(sh) {
 
 function obterPortalMotoristaFullTime(token) {
   const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES'), pmap=FT_MOTORISTA_headerMap_(parts);
+  const parts=getSheet_('PARTICIPACAO_OPERACOES');
+  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
+  const have=new Set(parts.getRange(1,1,1,parts.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase()));
+  const missing=required.filter(h=>!have.has(h));if(missing.length)parts.getRange(1,parts.getLastColumn()+1,1,missing.length).setValues([missing]);
+  const pmap=FT_MOTORISTA_headerMap_(parts);
   const rows=parts.getDataRange().getValues();
   const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'')===motoristaId);
   const opsSheet=getSheet_('OPERACOES'), omap=FT_MOTORISTA_headerMap_(opsSheet), opRows=opsSheet.getDataRange().getValues();
@@ -32,12 +36,16 @@ function obterPortalMotoristaFullTime(token) {
   };});
   const now=Date.now(), offers=own.map(r=>{
     const op=ops[String(r[pmap.OPERACAO_ID]||'')]||{};
+    const snapDate=String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10),snapStart=String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim(),snapEnd=String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
+    const currentDate=op.data instanceof Date?Utilities.formatDate(op.data,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op.data||'').slice(0,10);
+    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||snapStart!==String(op.janelaInicio||'').trim()||snapEnd!==String(op.janelaFim||'').trim());
     const expires=r[pmap.EXPIRA_EM] instanceof Date?r[pmap.EXPIRA_EM]:new Date(r[pmap.EXPIRA_EM]);
     let status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
-    if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
+    if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
+    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
     return {
       id:String(r[pmap.ID]||''),status:status,ofertadaEm:r[pmap.OFERTADA_EM]||r[pmap.CRIADO_EM]||'',
-      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',
+      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
       observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
       operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
     };
