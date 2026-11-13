@@ -31,7 +31,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
    const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
    if(!isFinite(ex)||ex<=Date.now()){
     const rowIndex=rows.findIndex((x,i)=>i>0&&String(x[m.ID]||'')===String(r[m.ID]||''));
-    if(rowIndex>0){sh.getRange(rowIndex+1,m.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');if(m.RESPONDIDA_EM!==undefined)sh.getRange(rowIndex+1,m.RESPONDIDA_EM+1).setValue(new Date());}
+    if(rowIndex>0){sh.getRange(rowIndex+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(rowIndex+1,m.RESPONDIDA_EM+1).setValue(new Date());}
     st='EXPIRADA';
    }
   }
@@ -54,9 +54,9 @@ function FT_processarFilasConvocacaoAutomatica(){
    const q=queues[opId];if(!q||q.status!=='EM_ANDAMENTO')return;let rows=sh.getDataRange().getValues(),pending=[];
    q.pendentes.forEach(id=>{
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n],st=String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase();
-    if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}if(st==='RECUSADA'||st==='EXPIRADA'||st==='RETORNOU')return;if(st!=='OFERTADA')return;
+    if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}if(st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='RETORNOU')return;if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
-    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo de 2 horas encerrado.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
+    if(!isFinite(ex)||ex<=Date.now()){sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;}pending.push(id);
    });q.pendentes=pending;
    while(q.aceitas+q.pendentes.length<q.vagas&&q.cursor<q.lista.length){
     const c=q.lista[q.cursor++];rows=sh.getDataRange().getValues();
@@ -91,16 +91,16 @@ function FT_reconciliarOfertasExpiradasFullTime(){
    if(String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase()!=='OFERTADA')return;
    const raw=r[m.EXPIRA_EM],ex=raw instanceof Date?raw.getTime():new Date(raw).getTime();
    if(isFinite(ex)&&ex>now)return;
-   sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
+   sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
    if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(stamp);
-   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Reconciliação administrativa: prazo de resposta vencido.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
+   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Reconciliação administrativa: prazo de resposta vencido.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
    expired++;
   });
   const queues=FT_AUTO_READ_();
   Object.keys(queues).forEach(opId=>{const q=queues[opId];if(q&&q.status==='EM_ANDAMENTO')FT_AUTO_RECONCILIAR_FILA_(opId,q);});
   FT_AUTO_WRITE_(queues);
   if(!Object.keys(queues).some(k=>queues[k]?.status==='EM_ANDAMENTO'))ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica').forEach(t=>ScriptApp.deleteTrigger(t));
-  return {sucesso:true,ofertasExpiradasRegularizadas:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; somente status de ofertas com prazo vencido foram atualizados.'};
+  return {sucesso:true,ofertasSemRespostaRegularizadas:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; somente status de ofertas com prazo vencido foram atualizados.'};
  }finally{lock.releaseLock();}
 }
 
