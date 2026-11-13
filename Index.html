@@ -325,7 +325,7 @@
     const offers=Array.isArray(dashboard?.ofertas)?dashboard.ofertas:[];
     const counts=dashboard?.counts||{};
     const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
-    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0]];
+    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0],['Sem resposta em 2h',counts.expiradas||0]];
     return '<div class="page-head"><div><h1>Minhas ofertas</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui aparecem somente as convocações vinculadas ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
       (offers.length?offers.map(o=>{
@@ -685,7 +685,7 @@
     const rows=ftCandidatosOperacaoCache[id]||[];
     const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
     const calledByDriver={};
-    parts.forEach(p=>{const st=String(p.campos?.[3]||'').toUpperCase();if(['OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA'].includes(st))calledByDriver[String(p.campos?.[2]||'')]=p;});
+    parts.forEach(p=>{const st=String(p.campos?.[3]||'').toUpperCase();if(['OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA','NAO_RESPONDEU'].includes(st))calledByDriver[String(p.campos?.[2]||'')]=p;});
     const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
     const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
     const visible=modo==='convocados'?called:rows;
