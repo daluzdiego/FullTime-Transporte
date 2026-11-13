@@ -7,140 +7,17 @@ const FT_CONFIG = {
 
 
 /**
- * Cria SOMENTE as guias MOTORISTAS e CAMINHOES na planilha indicada pelo responsável.
+ * Conecta a base operacional e valida os espelhos sincronizados da planilha do Bruno.
  * Não cria outra planilha, não apaga guias existentes e não altera FT_DATABASE_ID.
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
- */
-function criarGuiasMotoristasECaminhoesNaPlanilhaInformada() {
-  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  const schemas = {
-    MOTORISTAS: [
-      'ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE',
-      'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE',
-      'CIDADE_UF', 'OBSERVACOES'
-    ],
-    CAMINHOES: [
-      'ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA',
-      'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS',
-      'SITUACAO_DOCUMENTAL', 'OBSERVACOES'
-    ]
-  };
-
-  Object.keys(schemas).forEach(function(name) {
-    let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-
-    const headers = schemas[name];
-    const firstRow = sh.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
-    const rowIsBlank = firstRow.every(function(value) { return !String(value).trim(); });
-
-    if (rowIsBlank) {
-      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    } else {
-      const matches = headers.every(function(header, i) {
-        return String(firstRow[i] || '').trim() === header;
-      });
-      if (!matches) {
-        throw new Error('A guia "' + name + '" já contém cabeçalhos diferentes. Nenhum cabeçalho foi sobrescrito. Verifique a guia antes de continuar.');
-      }
-    }
-
-    sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, headers.length)
-      .setFontWeight('bold')
-      .setBackground('#eaf2ff')
-      .setFontColor('#16345c')
-      .setWrap(true);
-    sh.autoResizeColumns(1, headers.length);
-    sh.setTabColor(name === 'MOTORISTAS' ? '#1769e8' : '#168354');
-  });
-
-  // Remove apenas a guia padrão se estiver vazia e não for uma das duas guias-alvo.
-  // Nunca apaga guias com conteúdo nem guias com nomes diferentes do padrão.
-  ss.getSheets().slice().forEach(function(sh) {
-    const name = sh.getName();
-    const isDefaultName = name === 'Sheet1' || name === 'Planilha1';
-    const isTarget = Object.prototype.hasOwnProperty.call(schemas, name);
-    if (isDefaultName && !isTarget && sh.getLastRow() <= 1 && sh.getLastColumn() <= 1 &&
-        !String(sh.getRange(1, 1).getDisplayValue()).trim() && ss.getSheets().length > 2) {
-      ss.deleteSheet(sh);
-    }
-  });
-
-  console.log('Guias verificadas/criadas em: ' + ss.getUrl());
-  console.log('Guias processadas: MOTORISTAS, CAMINHOES. Somente uma guia padrão vazia pode ser removida.');
-  return ss.getUrl();
-}
-
-
-/**
- * Configura a planilha operacional externa para os cadastros.
- * Executar manualmente uma vez. Não altera a base interna de login/auditoria.
  */
 function conectarPlanilhaOperacionalFullTime() {
   const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  const expected = {
-    MOTORISTAS: ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
-    CAMINHOES: ['ID','CRIADO_EM','STATUS','PLACA','RENAVAM','MARCA','MODELO','ANO','TIPO_VEICULO','CAPACIDADE_TONELADAS','SITUACAO_DOCUMENTAL','OBSERVACOES']
-  };
-  Object.keys(expected).forEach(function(name) {
-    const sh = ss.getSheetByName(name);
-    if (!sh) throw new Error('Não encontrei a guia ' + name + ' na planilha operacional.');
-    const actual = sh.getRange(1,1,1,expected[name].length).getDisplayValues()[0];
-    if (expected[name].some(function(h,i){ return actual[i] !== h; })) {
-      throw new Error('Os cabeçalhos da guia ' + name + ' não correspondem ao formato esperado. Nenhuma conexão foi salva.');
-    }
-  });
   PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
-  console.log('Planilha operacional conectada: ' + ss.getUrl());
-  console.log('Somente MOTORISTAS e CAMINHOES serão lidos/escritos nesta planilha; login e auditoria permanecem na base interna.');
+  console.log('Fonte única conectada: ' + ss.getUrl());
+  console.log('Cadastros, operações e escala serão lidos e gravados diretamente nesta planilha.');
   return ss.getUrl();
-}
-
-/**
- * Adiciona exatamente cinco motoristas e cinco caminhões claramente fictícios.
- * É idempotente: se já existirem registros com ID TESTE-FT-*, não duplica a carga.
- * Execute apenas em ambiente de teste; os dados são marcados como TESTE.
- */
-function inserirDadosFakeFullTime() {
-  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if (!registryId) throw new Error('Execute primeiro conectarPlanilhaOperacionalFullTime().');
-  const ss = SpreadsheetApp.openById(registryId);
-  const drivers = [
-    ['TESTE-FT-MOT-001','MOTORISTA TESTE 01','','(00) 90000-0001','motorista01@example.invalid','CNH-TESTE-001','C','2030-01-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-002','MOTORISTA TESTE 02','','(00) 90000-0002','motorista02@example.invalid','CNH-TESTE-002','D','2030-02-28','Pelotas / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-003','MOTORISTA TESTE 03','','(00) 90000-0003','motorista03@example.invalid','CNH-TESTE-003','E','2030-03-31','Rio Grande / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-004','MOTORISTA TESTE 04','','(00) 90000-0004','motorista04@example.invalid','CNH-TESTE-004','C','2030-04-30','São José do Norte / RS','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-MOT-005','MOTORISTA TESTE 05','','(00) 90000-0005','motorista05@example.invalid','CNH-TESTE-005','D','2030-05-31','Pelotas / RS','DADO FICTÍCIO — não usar em operação']
-  ];
-  const trucks = [
-    ['TESTE-FT-CAM-001','TST0001','','Volvo','FH 460 TESTE','2022','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-002','TST0002','','Scania','R 450 TESTE','2021','Cavalo mecânico',25,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-003','TST0003','','Mercedes-Benz','Actros TESTE','2023','Cavalo mecânico',26,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-004','TST0004','','Volvo','VM TESTE','2020','Truck',14,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação'],
-    ['TESTE-FT-CAM-005','TST0005','','Iveco','Hi-Way TESTE','2022','Carreta',27,'DOCUMENTO FICTÍCIO','DADO FICTÍCIO — não usar em operação']
-  ];
-  const driverSheet = ss.getSheetByName('MOTORISTAS');
-  const truckSheet = ss.getSheetByName('CAMINHOES');
-  const existingDriverIds = driverSheet.getLastRow() > 1 ? driverSheet.getRange(2,1,driverSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
-  const existingTruckIds = truckSheet.getLastRow() > 1 ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,1).getDisplayValues().flat() : [];
-  const now = new Date();
-  let driverCount = 0, truckCount = 0;
-  drivers.forEach(function(d) {
-    if (existingDriverIds.indexOf(d[0]) !== -1) return;
-    driverSheet.appendRow([d[0],now,'PENDENTE_REVISAO',d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9]]);
-    driverCount++;
-  });
-  trucks.forEach(function(t) {
-    if (existingTruckIds.indexOf(t[0]) !== -1) return;
-    truckSheet.appendRow([t[0],now,'PENDENTE_REVISAO',t[1],t[2],t[3],t[4],t[5],t[6],t[7],t[8],t[9]]);
-    truckCount++;
-  });
-  console.log('Dados fictícios inseridos: ' + driverCount + ' motoristas, ' + truckCount + ' caminhões.');
-  console.log('Todos estão marcados como PENDENTE_REVISAO e possuem IDs TESTE-FT-*. Remova-os antes da produção.');
-  return {motoristas:driverCount,caminhoes:truckCount};
 }
 
 function doGet(e) {
@@ -154,6 +31,7 @@ function doGet(e) {
   }
   const template = HtmlService.createTemplateFromFile('Index');
   template.LOGIN_BG = getLoginBackground_();
+  template.RESET_TOKEN = String(p.reset || '');
   return template.evaluate()
     .setTitle('Full Time | Gestão de Transporte')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -169,8 +47,6 @@ function configurarSistemaFullTime() {
   const ss = SpreadsheetApp.create('FULL TIME — Base Operacional');
   const schemas = {
     USUARIOS: ['ID', 'LOGIN', 'NOME', 'PERFIL', 'SALT', 'HASH_SENHA', 'ATIVO', 'TROCAR_SENHA', 'CRIADO_EM'],
-    MOTORISTAS: ['ID', 'CRIADO_EM', 'STATUS', 'NOME_COMPLETO', 'CPF', 'TELEFONE', 'EMAIL', 'CNH_NUMERO', 'CNH_CATEGORIA', 'CNH_VALIDADE', 'CIDADE_UF', 'OBSERVACOES'],
-    CAMINHOES: ['ID', 'CRIADO_EM', 'STATUS', 'PLACA', 'RENAVAM', 'MARCA', 'MODELO', 'ANO', 'TIPO_VEICULO', 'CAPACIDADE_TONELADAS', 'SITUACAO_DOCUMENTAL', 'OBSERVACOES'],
     AUDITORIA: ['DATA_HORA', 'LOGIN', 'ACAO', 'ENTIDADE', 'REGISTRO_ID', 'DETALHES']
   };
 
@@ -204,24 +80,28 @@ function abrirBaseFullTime() {
   return SpreadsheetApp.openById(getDbId_()).getUrl();
 }
 
-function loginFullTime(login, senha) {
-  login = String(login || '').trim();
+function loginFullTime(email, senha) {
+  email = String(email || '').trim().toLowerCase();
   senha = String(senha || '');
-  if (!login || !senha) throw new Error('Informe o usuário e a senha.');
-
-  const users = getSheet_('USUARIOS').getDataRange().getValues();
-  const user = users.slice(1).find(r => String(r[1]).toLowerCase() === login.toLowerCase() && r[6] === true);
-  if (!user || hashSenha_(String(user[4]), senha) !== String(user[5])) {
-    throw new Error('Usuário ou senha inválidos.');
+  if (!email || !senha) throw new Error('Informe seu e-mail e sua senha.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Informe um endereço de e-mail válido.');
+  const sh = getSheet_('USUARIOS');
+  FT_AUTH_ensureUserHeaders_(sh);
+  const values = sh.getDataRange().getValues();
+  const map = FT_AUTH_headerMap_(sh);
+  const user = values.slice(1).find(r => String(r[map.EMAIL] || '').trim().toLowerCase() === email && r[map.ATIVO] === true);
+  if (!user || hashSenha_(String(user[map.SALT]), senha) !== String(user[map.HASH_SENHA])) {
+    throw new Error('E-mail ou senha inválidos.');
   }
-
   const token = Utilities.getUuid() + Utilities.getUuid();
   const session = {
-    id: String(user[0]), login: String(user[1]), nome: String(user[2]),
-    perfil: String(user[3]), trocarSenha: user[7] === true
+    id: String(user[map.ID]), login: email, email: email,
+    nome: String(user[map.NOME]), perfil: String(user[map.PERFIL]),
+    motoristaId: map.MOTORISTA_ID !== undefined ? String(user[map.MOTORISTA_ID] || '') : '',
+    trocarSenha: user[map.TROCAR_SENHA] === true
   };
   CacheService.getScriptCache().put(FT_CONFIG.SESSION_PREFIX + token, JSON.stringify(session), FT_CONFIG.SESSION_TTL_SECONDS);
-  auditar_(session, 'LOGIN', 'SESSAO', '', 'Login efetuado');
+  auditar_(session, 'LOGIN', 'SESSAO', '', 'Login por e-mail efetuado');
   return { token: token, user: session };
 }
 
@@ -251,166 +131,47 @@ function trocarSenhaInicial(token, novaSenha) {
 function obterPainelFullTime(token) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
-  const cargas = listarCargasFullTime_();
-  const hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return {
+
+  // Diagnóstico temporário de ponta a ponta: identifica a origem e o volume
+  // efetivamente entregue à interface, sem expor CPF, telefone ou e-mail.
+  const ssId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID') || '';
+  const motoristas = listarRegistros_('MOTORISTAS');
+  const cavalos = listarRegistros_('CAVALOS');
+  const carretas = listarRegistros_('CARRETAS');
+  const conjuntos = listarRegistros_('CONJUNTOS');
+  const payload = {
     user: session,
-    motoristas: listarRegistros_('MOTORISTAS'),
-    documentos: ftBrunoRowsAsLegacy_('DOCUMENTOS').map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))})),
-    caminhoes: listarRegistros_('CAMINHOES'),
-    cavalos: listarRegistros_('CAVALOS'),
-    carretas: listarRegistros_('CARRETAS'),
-    conjuntos: listarRegistros_('CONJUNTOS'),
-    operacoes: listarRegistros_('OPERACOES'),
+    motoristas: motoristas,
+    documentos: (function(){const sh=getSheet_('DOCUMENTOS'),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1).map(r=>({id:String(r[0]||''),criado:String(r[1]||''),status:String(r[2]||''),campos:r.slice(3).map(v=>String(v==null?'':v))}));})(),
+    cavalos: cavalos,
+    carretas: carretas,
+    conjuntos: conjuntos,
+    operacoes: listarOperacoesFullTime(token),
     participacoesOperacoes: listarRegistros_('PARTICIPACAO_OPERACOES'),
-    cargas: cargas,
     locais: listarRegistros_('LOCAIS'),
+    // Contadores derivados dos arrays já carregados, sem novas leituras da planilha.
     counts: {
-      motoristas: contarAtivos_('MOTORISTAS'),
-      caminhoes: contarAtivos_('CAMINHOES'),
-      pendentes: contarStatus_('MOTORISTAS', 'PENDENTE_REVISAO') + contarStatus_('CAMINHOES', 'PENDENTE_REVISAO'),
-      cargasFuturas: cargas.filter(c => c.data >= hoje && ['PROGRAMADA','A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length,
-      aCarregar: cargas.filter(c => c.status === 'AGUARDANDO_CARREGAMENTO').length,
-      emAndamento: cargas.filter(c => ['CARREGADA','EM_TRANSITO','AGUARDANDO_DESCARGA'].indexOf(c.status) !== -1).length,
-      semEscala: cargas.filter(c => ['A_ESCALAR','SEM_ESCALA'].indexOf(c.status) !== -1).length
+      motoristas: motoristas.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      cavalos: cavalos.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      carretas: carretas.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      conjuntos: conjuntos.filter(r=>String(r.status||'').toUpperCase()==='ATIVO').length,
+      pendentes: [motoristas,cavalos,carretas].reduce((total,rows)=>total+rows.filter(r=>String(r.status||'').toUpperCase()==='PENDENTE_REVISAO').length,0)
+    },
+    diagnosticoBase: {
+      planilhaId: ssId,
+      motoristasEntregues: motoristas.length,
+      cavalosEntregues: cavalos.length,
+      carretasEntregues: carretas.length,
+      conjuntosEntregues: conjuntos.length,
+      usuarioPerfil: String(session.perfil || '')
     }
   };
+  Logger.log('FT_UI_PAYLOAD_DIAGNOSTICO: ' + JSON.stringify(payload.diagnosticoBase));
+  // google.script.run serializa objetos aninhados com limites próprios.
+  // Entregar JSON como string garante transporte consistente de todos os campos.
+  return JSON.stringify(payload);
 }
 
-function salvarMotoristaFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  data = data || {};
-  const nome = texto_(data.nome, 120);
-  const cpf = digitos_(data.cpf);
-  const telefone = digitos_(data.telefone);
-  const cnh = texto_(data.cnh, 40);
-  const categoria = texto_(data.categoria, 5).toUpperCase();
-  if (!nome) throw new Error('Informe o nome completo.');
-  if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) throw new Error('O CPF informado não é válido.');
-  if (!telefone || telefone.length < 10) throw new Error('Informe um telefone com DDD.');
-  if (!cnh) throw new Error('Informe o número da CNH.');
-  if (!['C','D','E'].includes(categoria)) throw new Error('Selecione a categoria da CNH.');
-  if (!data.validade) throw new Error('Informe a validade da CNH.');
-  if (cpf && duplicado_('MOTORISTAS', 5, cpf)) throw new Error('Já existe um motorista cadastrado com este CPF.');
-
-  const id = Utilities.getUuid();
-  getSheet_('MOTORISTAS').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', nome, cpf, telefone,
-    texto_(data.email, 150), cnh, categoria, data.validade,
-    texto_(data.cidade, 120), texto_(data.observacoes, 1000)
-  ]);
-  auditar_(session, 'CRIAR', 'MOTORISTA', id, nome);
-  return { ok: true, id: id, message: 'Motorista cadastrado e enviado para revisão.' };
-}
-
-function salvarCaminhaoFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  data = data || {};
-  const placa = texto_(data.placa, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const marca = texto_(data.marca, 80);
-  const modelo = texto_(data.modelo, 80);
-  const ano = texto_(data.ano, 10);
-  const tipo = texto_(data.tipo, 50);
-  const capacidade = Number(data.capacidade);
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já está cadastrada.');
-  if (!marca || !modelo) throw new Error('Informe marca e modelo.');
-  if (!ano || !/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
-  if (!tipo) throw new Error('Selecione o tipo de veículo.');
-  if (!(capacidade > 0 && capacidade <= 200)) throw new Error('Informe uma capacidade em toneladas válida.');
-
-  const id = Utilities.getUuid();
-  getSheet_('CAMINHOES').appendRow([
-    id, new Date(), 'PENDENTE_REVISAO', placa,
-    digitos_(data.renavam), marca, modelo, ano, tipo, capacidade,
-    texto_(data.documento, 80), texto_(data.observacoes, 1000)
-  ]);
-  auditar_(session, 'CRIAR', 'CAMINHAO', id, placa + ' — ' + marca + ' ' + modelo);
-  return { ok: true, id: id, message: 'Caminhão cadastrado e enviado para revisão.' };
-}
-
-
-/** Importação em lote via CSV UTF-8 delimitado por ponto e vírgula. */
-function importarMotoristasCsvFullTime(token, csvText) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  const rows = parseImportCsv_(csvText, [
-    'nome','cpf','telefone','email','cnh','categoria','validade','cidade','observacoes'
-  ]);
-  const sh = getSheet_('MOTORISTAS');
-  const existingCpf = new Set(sh.getLastRow() > 1 ? sh.getRange(2,5,sh.getLastRow()-1,1).getDisplayValues().flat().map(digitos_).filter(Boolean) : []);
-  const seenCpf = new Set();
-  const output = [], errors = [];
-  rows.forEach(function(row, idx) {
-    const line = idx + 2;
-    const nome = texto_(row.nome,120), cpf = digitos_(row.cpf), telefone = digitos_(row.telefone);
-    const cnh = texto_(row.cnh,40), categoria = texto_(row.categoria,5).toUpperCase();
-    if (!nome) { errors.push('Linha ' + line + ': nome obrigatório.'); return; }
-    if (!telefone || telefone.length < 10) { errors.push('Linha ' + line + ': telefone com DDD obrigatório.'); return; }
-    if (!cnh) { errors.push('Linha ' + line + ': número da CNH obrigatório.'); return; }
-    if (!['C','D','E'].includes(categoria)) { errors.push('Linha ' + line + ': categoria deve ser C, D ou E.'); return; }
-    if (!row.validade || !/^\d{4}-\d{2}-\d{2}$/.test(row.validade)) { errors.push('Linha ' + line + ': validade deve estar no formato AAAA-MM-DD.'); return; }
-    if (cpf && (cpf.length !== 11 || !cpfValido_(cpf))) { errors.push('Linha ' + line + ': CPF inválido.'); return; }
-    if (cpf && (existingCpf.has(cpf) || seenCpf.has(cpf))) { errors.push('Linha ' + line + ': CPF duplicado.'); return; }
-    if (cpf) seenCpf.add(cpf);
-    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',nome,cpf,telefone,texto_(row.email,150),cnh,categoria,row.validade,texto_(row.cidade,120),texto_(row.observacoes,1000)]);
-  });
-  if (output.length) {
-    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
-    auditar_(session,'IMPORTAR_LOTE','MOTORISTAS','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
-  }
-  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' motorista(s) importado(s); '+errors.length+' linha(s) precisam de correção.'};
-}
-
-function importarCaminhoesCsvFullTime(token, csvText) {
-  const session = obterSessao_(token); exigirAdmin_(session);
-  const rows = parseImportCsv_(csvText, [
-    'placa','renavam','marca','modelo','ano','tipo','capacidade','documento','observacoes'
-  ]);
-  const sh = getSheet_('CAMINHOES');
-  const existingPlates = new Set(sh.getLastRow() > 1 ? sh.getRange(2,4,sh.getLastRow()-1,1).getDisplayValues().flat().map(normalizarPlaca_).filter(Boolean) : []);
-  const seenPlates = new Set();
-  const output = [], errors = [];
-  rows.forEach(function(row, idx) {
-    const line = idx + 2;
-    const placa = normalizarPlaca_(row.placa), marca = texto_(row.marca,80), modelo = texto_(row.modelo,80);
-    const ano = texto_(row.ano,10), tipo = texto_(row.tipo,50), capacidade = Number(String(row.capacidade||'').replace(',','.'));
-    if (!placa || placa.length !== 7) { errors.push('Linha ' + line + ': placa deve ter 7 caracteres.'); return; }
-    if (existingPlates.has(placa) || seenPlates.has(placa)) { errors.push('Linha ' + line + ': placa duplicada.'); return; }
-    if (!marca || !modelo) { errors.push('Linha ' + line + ': marca e modelo obrigatórios.'); return; }
-    if (!/^\d{4}$/.test(ano)) { errors.push('Linha ' + line + ': ano deve ter quatro dígitos.'); return; }
-    if (!tipo) { errors.push('Linha ' + line + ': tipo de veículo obrigatório.'); return; }
-    if (!(capacidade > 0 && capacidade <= 200)) { errors.push('Linha ' + line + ': capacidade deve estar entre 0,1 e 200 toneladas.'); return; }
-    seenPlates.add(placa);
-    output.push([Utilities.getUuid(),new Date(),'PENDENTE_REVISAO',placa,digitos_(row.renavam),marca,modelo,ano,tipo,capacidade,texto_(row.documento,80),texto_(row.observacoes,1000)]);
-  });
-  if (output.length) {
-    sh.getRange(sh.getLastRow()+1,1,output.length,12).setValues(output);
-    auditar_(session,'IMPORTAR_LOTE','CAMINHOES','', 'Importados: '+output.length+'; rejeitados: '+errors.length);
-  }
-  return {ok:true,importados:output.length,rejeitados:errors.length,erros:errors.slice(0,30),message:output.length+' caminhão(ões) importado(s); '+errors.length+' linha(s) precisam de correção.'};
-}
-
-function parseImportCsv_(csvText, requiredHeaders) {
-  const text = String(csvText || '').replace(/^\uFEFF/, '').trim();
-  if (!text) throw new Error('O arquivo está vazio.');
-  if (text.length > 1500000) throw new Error('Arquivo muito grande. Divida em arquivos menores (limite de 1,5 MB).');
-  const delimiter = text.split(/\r?\n/)[0].includes(';') ? ';' : ',';
-  const matrix = Utilities.parseCsv(text, delimiter);
-  if (matrix.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalhos e pelo menos um registro.');
-  const normalize = function(v) { return String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); };
-  const headers = matrix[0].map(normalize);
-  const indexes = {};
-  requiredHeaders.forEach(function(h) {
-    const i = headers.indexOf(normalize(h));
-    if (i < 0) throw new Error('Cabeçalho obrigatório ausente: ' + h + '. Baixe o modelo e mantenha os nomes das colunas.');
-    indexes[h] = i;
-  });
-  return matrix.slice(1).filter(function(r) { return r.some(function(v){return String(v||'').trim();}); }).map(function(r) {
-    const obj = {};
-    requiredHeaders.forEach(function(h) { obj[h] = String(r[indexes[h]] == null ? '' : r[indexes[h]]).trim(); });
-    return obj;
-  });
-}
 /**
  * Prepara as guias operacionais na planilha oficial já conectada.
  * Não apaga nem renomeia guias existentes e não altera os cadastros atuais.
@@ -426,9 +187,8 @@ function prepararGuiasEscalaFullTime() {
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
-    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   const resultado = [];
   Object.keys(schemas).forEach(function(name) {
@@ -441,6 +201,8 @@ function prepararGuiasEscalaFullTime() {
     const headers = schemas[name];
     const width = sh.getLastColumn();
     const row = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(function(v) { return String(v || '').trim(); }) : [];
+    if (name === 'FILA_MOTORISTAS' && row[6] === 'ULTIMA_CARGA_CONCLUIDA_EM') { sh.getRange(1,7).setValue('ULTIMA_OPERACAO_CONCLUIDA_EM'); row[6] = 'ULTIMA_OPERACAO_CONCLUIDA_EM'; }
+    if (name === 'EVENTOS_ESCALA' && row[3] === 'CARGA_ID') { sh.getRange(1,4).setValue('OPERACAO_ID'); row[3] = 'OPERACAO_ID'; }
     if (row.every(function(v) { return !v; })) {
       sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     } else if (row.length !== headers.length || headers.some(function(h, i) { return row[i] !== h; })) {
@@ -461,22 +223,16 @@ function prepararBaseOperacionalFullTime() {
   if (!id) throw new Error('A planilha operacional ainda não está conectada. Execute conectarPlanilhaOperacionalFullTime() primeiro.');
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
-    CAVALOS: ['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CARRETAS: ['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
-    CONJUNTOS: ['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
-    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_CARGAS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR'],
+    OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
+    DOCUMENTOS: ['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
+    ENTRADA_OPERACOES_IA: ['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM'],
     PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
-    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR'],
+    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
-    CARGAS: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','HORARIO_PREVISTO','CLIENTE','ORIGEM','DESTINO','PESO_TONELADAS','DESCRICAO','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','CRIADO_POR','TIPO_OPERACAO','TICKET_CARREGAMENTO_URL','TICKET_DESCARGA_URL','VALOR_FRETE'],
-    ESCALAS: ['ID','CRIADO_EM','STATUS','CARGA_ID','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','MOTIVO_SELECAO','INICIO_PREVISTO','FIM_PREVISTO','OBSERVACOES'],
-    HISTORICO_OPERACOES: ['ID','DATA_HORA','CARGA_ID','MOTORISTA_ID','ORIGEM','DESTINO','EVENTO','OBSERVACOES','REGISTRADO_POR'],
-    TICKETS: ['ID','RECEBIDO_EM','WHATSAPP_MESSAGE_ID','TELEFONE_REMETENTE','MOTORISTA_ID','CARGA_ID','TIPO_TICKET','MEDIA_ID','DRIVE_FILE_ID','DRIVE_FILE_URL','NOME_ARQUIVO','MIME_TYPE','STATUS_LEITURA','DATA_HORA_EXTRAIDA','CONFIANCA_LEITURA','ERRO_VALIDACAO','RETENCAO_ATE','METADADOS_JSON'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
-    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_CARGA_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
-    OFERTAS_CARGAS: ['ID','CRIADO_EM','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_FILA','STATUS_OFERTA','EXPIRA_EM','RESPONDIDO_EM','MOTIVO_RECUSA','CRIADO_POR'],
-    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','CARGA_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
+    FILA_MOTORISTAS: ['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR']
   };
   Object.keys(schemas).forEach(function(name) {
     let sh = ss.getSheetByName(name);
@@ -484,7 +240,28 @@ function prepararBaseOperacionalFullTime() {
     const headers = schemas[name];
     const oldWidth = sh.getLastColumn();
     const row = oldWidth ? sh.getRange(1,1,1,oldWidth).getDisplayValues()[0].map(v => String(v || '').trim()) : [];
-    if (row.every(v => !v)) {
+    if (name === 'OPERACOES' && row[10] === 'TOTAL_CARGAS_PREVISTAS') {
+      sh.getRange(1,11).setValue('TOTAL_VIAGENS_PREVISTAS');
+      row[10] = 'TOTAL_VIAGENS_PREVISTAS';
+    }
+    if (name === 'FILA_MOTORISTAS' && row[6] === 'ULTIMA_CARGA_CONCLUIDA_EM') { sh.getRange(1,7).setValue('ULTIMA_OPERACAO_CONCLUIDA_EM'); row[6] = 'ULTIMA_OPERACAO_CONCLUIDA_EM'; }
+    if (name === 'EVENTOS_ESCALA' && row[3] === 'CARGA_ID') { sh.getRange(1,4).setValue('OPERACAO_ID'); row[3] = 'OPERACAO_ID'; }
+    if (name === 'OPERACOES') {
+      // OPERACOES pode ter colunas adicionais e ordem ampliada. Preservar tudo;
+      // TOTAL_VIAGENS_CONCLUIDAS é alias compatível de VIAGENS_REALIZADAS.
+      const norm = v => String(v || '').trim().toUpperCase();
+      const existing = row.map(norm);
+      const aliases = { VIAGENS_REALIZADAS: ['VIAGENS_REALIZADAS','TOTAL_VIAGENS_CONCLUIDAS'] };
+      const missing = headers.filter(h => {
+        const alternatives = aliases[h] || [h];
+        return !alternatives.some(a => existing.indexOf(norm(a)) !== -1);
+      });
+      if (row.every(v => !v)) {
+        sh.getRange(1,1,1,headers.length).setValues([headers]);
+      } else if (missing.length) {
+        sh.getRange(1,sh.getLastColumn()+1,1,missing.length).setValues([missing]);
+      }
+    } else if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
       const prefix = row.every((v,i) => headers[i] === v);
@@ -495,325 +272,37 @@ function prepararBaseOperacionalFullTime() {
       }
     }
     sh.setFrozenRows(1);
-    sh.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
-    sh.autoResizeColumns(1,headers.length);
+    const formatWidth = Math.max(sh.getLastColumn(), headers.length);
+    sh.getRange(1,1,1,formatWidth).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c').setWrap(true);
+    sh.autoResizeColumns(1,formatWidth);
   });
   console.log('Guias operacionais verificadas/criadas na planilha: ' + ss.getUrl());
   return ss.getUrl();
 }
 
-function listarCargasFullTime_() {
-  const sh = getSheet_('CARGAS');
-  if (sh.getLastRow() < 2) return [];
-  // Ler pela largura real evita perder os campos novos e tolera versões antigas da guia.
-  const width = Math.max(sh.getLastColumn(), 19);
-  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues();
-  const motoristas = listarRegistros_('MOTORISTAS');
-  const caminhoes = listarRegistros_('CAMINHOES');
-  const byId = function(list) { const out = {}; list.forEach(x => out[x.id] = x); return out; };
-  const driversById = byId(motoristas);
-  const trucksById = byId(caminhoes);
-  const safeList = function(name) { try { return listarRegistros_(name); } catch (e) { return []; } };
-  const cavalosById = byId(safeList('CAVALOS'));
-  const carretasById = byId(safeList('CARRETAS'));
-  const field = function(map, id, index, fallback) {
-    if (!id) return '';
-    const item = map[id];
-    return item && item.campos ? String(item.campos[index] || '') : (fallback || '');
-  };
-  return rows.map(function(r) {
-    const motoristaId = String(r[10] || '');
-    const cavaloId = String(r[11] || '');
-    const carretaMeioId = String(r[12] || '');
-    const carretaFinalId = String(r[13] || '');
-    const horaValue = r[4];
-    let horario = '';
-    if (horaValue instanceof Date) horario = Utilities.formatDate(horaValue, Session.getScriptTimeZone(), 'HH:mm');
-    else if (typeof horaValue === 'number' && isFinite(horaValue)) {
-      const mins = Math.round(horaValue * 24 * 60) % (24 * 60);
-      horario = ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2);
-    } else {
-      const raw = String(horaValue || '').trim();
-      const match = raw.match(/(?:T|\s)(\d{2}:\d{2})/);
-      horario = match ? match[1] : (/^\d{1,2}:\d{2}$/.test(raw) ? raw : '');
-    }
-    return {
-      id: String(r[0] || ''),
-      criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-      status: String(r[2] || 'A_ESCALAR'),
-      data: r[3] instanceof Date ? Utilities.formatDate(r[3], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[3] || '').slice(0,10),
-      horario: horario,
-      cliente: String(r[5] || ''),
-      origem: String(r[6] || ''),
-      destino: String(r[7] || ''),
-      peso: Number(r[8] || 0),
-      descricao: String(r[9] || ''),
-      motoristaId: motoristaId,
-      motoristaNome: field(driversById, motoristaId, 0, motoristaId),
-      motoristaCnh: field(driversById, motoristaId, 4, ''),
-      cavaloId: cavaloId,
-      cavaloPlaca: field(cavalosById, cavaloId, 0, field(trucksById, cavaloId, 0, cavaloId)),
-      carretaMeioId: carretaMeioId,
-      carretaMeioPlaca: field(carretasById, carretaMeioId, 0, field(trucksById, carretaMeioId, 0, carretaMeioId)),
-      carretaFinalId: carretaFinalId,
-      carretaFinalPlaca: field(carretasById, carretaFinalId, 0, field(trucksById, carretaFinalId, 0, carretaFinalId)),
-      observacoes: String(r[14] || ''),
-      criadoPor: String(r[15] || ''),
-      tipoOperacao: String(r[16] || 'OUTRA'),
-      ticketCarregamentoUrl: String(r[17] || ''),
-      ticketDescargaUrl: String(r[18] || ''),
-      valorFrete: Number(r[19] || 0)
-    };
-  }).filter(function(c) { return c.id; })
-    .sort((a,b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario));
-}
-function salvarCargaFullTime(token, data) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  data = data || {};
-  const dataOperacao = texto_(data.data, 10);
-  const horario = texto_(data.horario, 10);
-  const cliente = texto_(data.cliente, 120);
-  const origem = texto_(data.origem, 160);
-  const destino = texto_(data.destino, 160);
-  const peso = Number(String(data.peso == null ? '' : data.peso).replace(',', '.'));
-  const valorFrete = Number(String(data.valorFrete == null ? '' : data.valorFrete).replace(/\s/g, '').replace(',', '.'));
-  const descricao = texto_(data.descricao, 300);
-  const observacoes = texto_(data.observacoes, 1000);
-  const tiposPermitidos = ['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'];
-  const tipoOperacao = texto_(data.tipoOperacao || 'OUTRA', 40).toUpperCase();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataOperacao) || isNaN(new Date(dataOperacao + 'T12:00:00').getTime())) throw new Error('Informe uma data válida para a operação.');
-  if (horario && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horario)) throw new Error('Informe o horário no formato HH:MM.');
-  if (!cliente) throw new Error('Informe o cliente contratante.');
-  if (!origem) throw new Error('Informe a origem da carga.');
-  if (!destino) throw new Error('Informe o destino da carga.');
-  if (!(peso > 0 && isFinite(peso))) throw new Error('Informe um peso total maior que zero, em toneladas. Não há limite fixo de 100 toneladas para a carga total.');
-  if (!tiposPermitidos.includes(tipoOperacao)) throw new Error('Selecione um tipo de operação válido.');
-  if (data.valorFrete != null && String(data.valorFrete).trim() !== '' && !(valorFrete >= 0 && isFinite(valorFrete))) throw new Error('Informe um valor de frete válido.');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const id = Utilities.getUuid();
-    const sh = getSheet_('CARGAS');
-    // O layout oficial tem 20 colunas; colunas novas são adicionadas ao final pela preparação da base.
-    const values = [
-      id, new Date(), 'A_ESCALAR', dataOperacao, horario, cliente, origem, destino,
-      peso, descricao, '', '', '', '', observacoes,
-      session.login || session.nome || 'ADMIN', tipoOperacao, '', '', 
-      (data.valorFrete == null || String(data.valorFrete).trim() === '') ? '' : valorFrete
-    ];
-    if (sh.getLastColumn() < values.length) {
-      throw new Error('A guia CARGAS ainda não tem todas as colunas. Execute prepararBaseOperacionalFullTime() e tente novamente.');
-    }
-    sh.appendRow(values);
-    auditar_(session, 'CRIAR', 'CARGA', id, cliente + ' — ' + origem + ' → ' + destino + ' (' + peso + ' t; frete ' + (values[19] === '' ? 'não informado' : valorFrete) + ')');
-    return {ok:true,id:id,message:'Carga registrada. O valor do frete foi salvo e a escala será feita em etapa própria.'};
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** Cadastro administrativo de cavalos mecânicos. Registros começam pendentes. */
-function salvarCavaloFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
-  const placa = normalizarPlaca_(data.placa);
-  const marca = texto_(data.marca, 80), modelo = texto_(data.modelo, 80);
-  const ano = texto_(data.ano, 4);
-  const tara = Number(String(data.tara || '').replace(',', '.'));
-  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CAVALOS', 4, placa) || duplicado_('CAMINHOES', 4, placa)) throw new Error('Esta placa já existe em CAVALOS ou CAMINHOES. Não duplique o veículo.');
-  if (!marca || !modelo) throw new Error('Informe marca e modelo.');
-  if (!/^\d{4}$/.test(ano)) throw new Error('Informe o ano com quatro dígitos.');
-  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
-  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id = Utilities.getUuid();
-  getSheet_('CAVALOS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,marca,modelo,ano,tara,pbtc,texto_(data.observacoes,1000)]);
-  auditar_(session,'CRIAR','CAVALO',id,placa+' — '+marca+' '+modelo);
-  return {ok:true,id:id,message:'Cavalo mecânico cadastrado e enviado para revisão.'};
-}
-
-/** Cadastro administrativo de carretas. */
-function salvarCarretaFullTime(token, data) {
-  const session = obterSessao_(token); exigirAdmin_(session); data = data || {};
-  const placa = normalizarPlaca_(data.placa);
-  const tipo = texto_(data.tipo,60);
-  const tara = Number(String(data.tara || '').replace(',', '.'));
-  const capacidade = Number(String(data.capacidade || '').replace(',', '.'));
-  const pbtc = Number(String(data.pbtc || '').replace(',', '.'));
-  if (placa.length !== 7) throw new Error('Informe uma placa válida com 7 caracteres.');
-  if (duplicado_('CARRETAS',4,placa) || duplicado_('CAVALOS',4,placa) || duplicado_('CAMINHOES',4,placa)) throw new Error('Esta placa já está cadastrada em outro veículo.');
-  if (!tipo) throw new Error('Selecione o tipo de carreta.');
-  if (!(tara >= 0 && tara <= 100)) throw new Error('Informe uma tara válida.');
-  if (!(capacidade > 0 && capacidade <= 100)) throw new Error('Informe a capacidade de carga em toneladas.');
-  if (!(pbtc > 0 && pbtc <= 200)) throw new Error('Informe o PBTC máximo em toneladas.');
-  const id=Utilities.getUuid();
-  getSheet_('CARRETAS').appendRow([id,new Date(),'PENDENTE_REVISAO',placa,tipo,tara,capacidade,pbtc,texto_(data.observacoes,1000)]);
-  auditar_(session,'CRIAR','CARRETA',id,placa+' — '+tipo);
-  return {ok:true,id:id,message:'Carreta cadastrada e enviada para revisão.'};
-}
-
-/** Associa motorista, cavalo e até duas carretas. Só ativos podem compor conjunto operacional. */
-/** Associa motorista, cavalo e até duas carretas. Capacidade calculada pelos cadastros. */
-function salvarConjuntoVeicularFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const motoristaId=texto_(data.motoristaId,100), cavaloId=texto_(data.cavaloId,100);
-  const carretaMeioId=texto_(data.carretaMeioId,100), carretaFinalId=texto_(data.carretaFinalId,100);
-  if (!motoristaId || !cavaloId) throw new Error('Selecione o motorista e o cavalo mecânico.');
-  if (carretaMeioId && carretaMeioId===carretaFinalId) throw new Error('A mesma carreta não pode ocupar as duas posições.');
-
-  function findById(name,id) {
-    if (!id) return null;
-    const rows=getSheet_(name).getDataRange().getValues();
-    for(let i=1;i<rows.length;i++) if(String(rows[i][0])===String(id)) return rows[i];
-    return null;
-  }
-  function statusValid(row, label, allowPending) {
-    if (!row) throw new Error(label+' não encontrado no cadastro.');
-    const status=String(row[2]||'').toUpperCase();
-    if (status!=='ATIVO' && !(allowPending && status==='PENDENTE_REVISAO')) {
-      throw new Error(label+' está '+(status||'sem status')+'. Ative ou revise o cadastro antes de utilizá-lo.');
-    }
-    return status;
-  }
-
-  const motorista=findById('MOTORISTAS',motoristaId);
-  const cavalo=findById('CAVALOS',cavaloId) || findById('CAMINHOES',cavaloId);
-  statusValid(motorista,'O motorista',false);
-  const cavaloStatus=statusValid(cavalo,'O cavalo mecânico',true);
-  if (cavalo===null || (String(cavalo[8]||'').toLowerCase().indexOf('cavalo')===-1 && getSheet_('CAVALOS').getDataRange().getValues().slice(1).every(r=>String(r[0])!==cavaloId))) {
-    throw new Error('O veículo selecionado não está cadastrado como cavalo mecânico.');
-  }
-
-  // CAMINHOES.CAPACIDADE_TONELADAS é a capacidade originalmente informada.
-  // Localiza o registro pela placa, sem copiar PBTC para capacidade útil.
-  const cavaloPlate=normalizarPlaca_(cavalo[3]);
-  const truckSheet=getSheet_('CAMINHOES');
-  const truckRows=truckSheet.getLastRow()>1
-    ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-    : [];
-  const truck=truckRows.find(r=>normalizarPlaca_(r[3])===cavaloPlate);
-  const cavaloCapacity=Number(truck ? String(truck[9]||'').replace(',','.') : 0);
-  if (!(cavaloCapacity>0)) throw new Error('Não encontrei a capacidade do cavalo '+cavaloPlate+' na guia CAMINHOES. Confira a coluna CAPACIDADE_TONELADAS.');
-
-  let pending=cavaloStatus==='PENDENTE_REVISAO';
-  const selectedTrailers=[];
-  [[carretaMeioId,'Carreta do meio'],[carretaFinalId,'Carreta final']].forEach(pair=>{
-    if (!pair[0]) return;
-    const row=findById('CARRETAS',pair[0]);
-    const st=statusValid(row,pair[1],true);
-    const capacity=Number(String(row[6]||'').replace(',','.'));
-    if (!(capacity>0)) throw new Error(pair[1]+' está sem CAPACIDADE_CARGA_TONELADAS cadastrada.');
-    if (st==='PENDENTE_REVISAO') pending=true;
-    selectedTrailers.push({id:pair[0],capacity:capacity,label:pair[1]});
-  });
-
-  const capacidadeUtil=cavaloCapacity+selectedTrailers.reduce((sum,x)=>sum+x.capacity,0);
-  if (!(capacidadeUtil>0 && isFinite(capacidadeUtil))) throw new Error('Não foi possível calcular a capacidade do conjunto.');
-
-  const sh=getSheet_('CONJUNTOS'), values=sh.getDataRange().getValues();
-  // Evita reutilizar motorista, cavalo ou carreta em outro conjunto ainda vigente.
-  for(let i=1;i<values.length;i++) {
-    if (['ATIVO','PENDENTE_REVISAO'].indexOf(String(values[i][2]))===-1) continue;
-    const ids=[String(values[i][3]||''),String(values[i][4]||''),String(values[i][5]||''),String(values[i][6]||'')];
-    const requested=[motoristaId,cavaloId,carretaMeioId,carretaFinalId].filter(Boolean);
-    if (requested.some(id=>ids.indexOf(id)!==-1)) throw new Error('Um dos veículos ou o motorista já está vinculado a outro conjunto ativo ou pendente. Revise o conjunto existente antes de continuar.');
-  }
-
-  const id=Utilities.getUuid();
-  const conjuntoStatus=pending?'PENDENTE_REVISAO':'PENDENTE_REVISAO';
-  sh.appendRow([id,new Date(),conjuntoStatus,motoristaId,cavaloId,carretaMeioId,carretaFinalId,texto_(data.observacoes,1000),'APTO','',capacidadeUtil,session.login]);
-  auditar_(session,'CRIAR','CONJUNTO',id,'Capacidade somada automaticamente: '+capacidadeUtil+' t; cavalo '+cavaloPlate);
-  return {ok:true,id:id,capacidadeUtil:capacidadeUtil,message:'Conjunto salvo como PENDENTE_REVISAO. Capacidade calculada automaticamente: '+capacidadeUtil+' t. Revise e aprove os veículos antes de usar na escala.'};
-}
-
-function normalizarPlaca_(v) { return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
-
-/**
- * Guarda decisões administrativas fora das guias espelhadas do Bruno.
- * Assim, a aprovação não depende de o registro existir fisicamente na guia local.
- */
-function ftGetStatusControlSheet_() {
-  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
-  const ss = SpreadsheetApp.openById(registryId);
-  let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
-  if (!sh) {
-    sh = ss.insertSheet('FT_STATUS_CADASTROS');
-    sh.getRange(1,1,1,5).setValues([['ENTIDADE','REGISTRO_ID','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-
-function ftSaveStatusOverride_(entity, id, status, session) {
-  const sh = ftGetStatusControlSheet_();
-  const last = sh.getLastRow();
-  const values = last > 1 ? sh.getRange(2,1,last-1,5).getDisplayValues() : [];
-  const keyEntity = String(entity).trim().toUpperCase();
-  const keyId = String(id).trim();
-  const index = values.findIndex(r => String(r[0]).trim().toUpperCase() === keyEntity && String(r[1]).trim() === keyId);
-  const row = [keyEntity,keyId,status,new Date(),session && session.login || 'ADMIN'];
-  if (index >= 0) sh.getRange(index+2,1,1,5).setValues([row]);
-  else sh.appendRow(row);
-}
-
-function ftReadStatusOverrides_(entity) {
-  const sh = ftGetStatusControlSheet_();
-  const last = sh.getLastRow();
-  if (last < 2) return {};
-  const values = sh.getRange(2,1,last-1,5).getDisplayValues();
-  const out = {};
-  values.forEach(r => {
-    if (String(r[0]).trim().toUpperCase() === String(entity).trim().toUpperCase() && r[1]) {
-      out[String(r[1]).trim()] = String(r[2] || '');
-    }
-  });
-  return out;
-}
-
 function atualizarStatusFullTime(token, entidade, id, status) {
-  const session = obterSessao_(token);
-  exigirAdmin_(session);
-  const mapa = { MOTORISTAS: 3, CAMINHOES: 3, CAVALOS: 3, CARRETAS: 3, CONJUNTOS: 3 };
-  if (!mapa[entidade]) throw new Error('Tipo de cadastro inválido.');
-  if (!id) throw new Error('Identificador do cadastro não informado.');
-  if (!['PENDENTE_REVISAO', 'ATIVO', 'INATIVO'].includes(status)) throw new Error('Status inválido.');
-
-  // Motoristas sincronizados: a decisão é gravada numa guia de controle própria.
-  // Não exige que o ID exista na guia local MOTORISTAS e não altera a planilha de origem.
-  if (entidade === 'MOTORISTAS') {
-    const local = getSheet_('MOTORISTAS');
-    const localRows = local.getDataRange().getValues();
-    const localIndex = localRows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-    if (localIndex > 0) local.getRange(localIndex + 1, 3).setValue(status);
-    ftSaveStatusOverride_(entidade, id, status, session);
-    auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-    return {ok:true, message: status === 'ATIVO' ? 'Motorista aprovado com sucesso.' : status === 'INATIVO' ? 'Motorista inativado.' : 'Motorista voltou para revisão.'};
-  }
-
-  const sh = getSheet_(entidade);
-  const rows = sh.getDataRange().getValues();
-  const idx = rows.findIndex((r,i) => i > 0 && String(r[0]).trim() === String(id).trim());
-  if (idx < 1) throw new Error('Registro não encontrado na guia ' + entidade + '.');
-  if (entidade === 'CONJUNTOS' && status === 'ATIVO') {
-    const conjunto = rows[idx];
-    const required = [['MOTORISTAS',conjunto[3],'motorista'],['CAVALOS',conjunto[4],'cavalo']];
-    if (conjunto[5]) required.push(['CARRETAS',conjunto[5],'carreta do meio']);
-    if (conjunto[6]) required.push(['CARRETAS',conjunto[6],'carreta final']);
-    required.forEach(item => {
-      let assetRows = getSheet_(item[0]).getDataRange().getValues();
-      let asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]));
-      if (!asset && item[0] === 'CAVALOS') {
-        assetRows = getSheet_('CAMINHOES').getDataRange().getValues();
-        asset = assetRows.slice(1).find(r => String(r[0]) === String(item[1]) && String(r[8]||'').toLowerCase().includes('cavalo'));
-      }
-      if (!asset || String(asset[2]) !== 'ATIVO') throw new Error('Não é possível ativar o conjunto: ' + item[2] + ' precisa estar ATIVO e aprovado.');
+  const session=obterSessao_(token); exigirAdmin_(session);
+  const entidades=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'];
+  if(entidades.indexOf(entidade)===-1)throw new Error('Tipo de cadastro inválido.');
+  if(!id)throw new Error('Identificador do cadastro não informado.');
+  if(['PENDENTE_REVISAO','ATIVO','INATIVO'].indexOf(status)===-1)throw new Error('Status inválido.');
+  const registro=listarRegistros_(entidade).find(function(r){return String(r.id)===String(id);});
+  if(!registro)throw new Error('Registro não encontrado na base principal.');
+  if(entidade==='CONJUNTOS' && status==='ATIVO'){
+    const fields=registro.campos||[];
+    const required=[['MOTORISTAS',fields[0],'motorista'],['CAVALOS',fields[1],'cavalo']];
+    if(fields[2])required.push(['CARRETAS',fields[2],'carreta do meio']);
+    if(fields[3])required.push(['CARRETAS',fields[3],'carreta final']);
+    required.forEach(function(item){
+      const asset=listarRegistros_(item[0]).find(function(r){return String(r.id)===String(item[1]);});
+      if(!asset||String(asset.status)!=='ATIVO')throw new Error('Não é possível ativar o conjunto: '+item[2]+' precisa estar ATIVO e aprovado.');
     });
+    if(!(Number(fields[7])>0))throw new Error('Não é possível ativar o conjunto: informe a capacidade útil total no cadastro do Bruno.');
   }
-  sh.getRange(idx + 1, mapa[entidade]).setValue(status);
-  auditar_(session, 'ALTERAR_STATUS', entidade, id, status);
-  return {ok:true, message:'Status atualizado.'};
+  ftSaveStatusOverride_(entidade,id,status,session);
+  auditar_(session,'ALTERAR_STATUS',entidade,id,status);
+  const labels={MOTORISTAS:'Motorista',CAVALOS:'Cavalo mecânico',CARRETAS:'Carreta',CONJUNTOS:'Conjunto veicular'};
+  return {ok:true,message:labels[entidade]+(status==='ATIVO'?' aprovado(a) com sucesso.':status==='INATIVO'?' inativado(a).':' voltou para revisão.')};
 }
 
 function obterSessao_(token) {
@@ -830,106 +319,207 @@ function getDbId_() {
   if (!id) throw new Error('A base ainda não foi configurada. Execute configurarSistemaFullTime().');
   return id;
 }
+
+/**
+ * Armazena decisões de aprovação separadas dos cadastros sincronizados do Bruno.
+ * A guia é criada automaticamente na base interna de autenticação, sem alterar
+ * as planilhas de frota ou os dados originais.
+ */
+function ftStatusOverridesSheet_() {
+  const ss = SpreadsheetApp.openById(getDbId_());
+  let sh = ss.getSheetByName('FT_STATUS_CADASTROS');
+  if (!sh) {
+    sh = ss.insertSheet('FT_STATUS_CADASTROS');
+    sh.getRange(1, 1, 1, 5).setValues([['ENTIDADE','ID_CADASTRO','STATUS','ATUALIZADO_EM','ATUALIZADO_POR']]);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#eaf2ff').setFontColor('#16345c');
+  }
+  return sh;
+}
+
+function ftReadStatusOverrides_(entidade) {
+  const sh = ftStatusOverridesSheet_();
+  const last = sh.getLastRow();
+  const result = {};
+  if (last < 2) return result;
+  const values = sh.getRange(2, 1, last - 1, 5).getValues();
+  values.forEach(function(row) {
+    if (String(row[0] || '').trim().toUpperCase() !== String(entidade || '').trim().toUpperCase()) return;
+    const id = String(row[1] || '').trim();
+    const status = String(row[2] || '').trim().toUpperCase();
+    if (id && ['PENDENTE_REVISAO','ATIVO','INATIVO'].indexOf(status) !== -1) result[id] = status;
+  });
+  return result;
+}
+
+function ftSaveStatusOverride_(entidade, id, status, session) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = ftStatusOverridesSheet_();
+    const entityKey = String(entidade || '').trim().toUpperCase();
+    const idKey = String(id || '').trim();
+    const statusKey = String(status || '').trim().toUpperCase();
+    if (!entityKey || !idKey) throw new Error('Entidade e identificador são obrigatórios para salvar a aprovação.');
+    const last = sh.getLastRow();
+    if (last >= 2) {
+      const rows = sh.getRange(2, 1, last - 1, 2).getDisplayValues();
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (String(rows[i][0]).trim().toUpperCase() === entityKey && String(rows[i][1]).trim() === idKey) {
+          sh.getRange(i + 2, 3, 1, 3).setValues([[statusKey, new Date(), session ? session.login : '']]);
+          return {ok:true, updated:true};
+        }
+      }
+    }
+    sh.appendRow([entityKey, idKey, statusKey, new Date(), session ? session.login : '']);
+    return {ok:true, updated:false};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Arquiva, sem excluir dados, as antigas guias que deixaram de fazer parte do fluxo.
+ * Execute somente depois de confirmar que os espelhos FT_CADASTRO_BRUNO_* estão atualizados.
+ */
+function arquivarGuiasLegadasFullTime() {
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não está configurado. Execute conectarPlanilhaOperacionalFullTime().');
+  const ss=SpreadsheetApp.openById(registryId);
+  const names=['CAMINHOES','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','OFERTAS_CARGAS','MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'];
+  const archived=[];
+  names.forEach(function(name){
+    const sh=ss.getSheetByName(name);
+    if(!sh)return;
+    let target='LEGADO_'+name, suffix=1;
+    while(ss.getSheetByName(target)){target='LEGADO_'+name+'_'+suffix;suffix++;}
+    sh.setName(target);
+    sh.hideSheet();
+    archived.push(target);
+  });
+  return {ok:true,arquivadas:archived,message:archived.length+' guia(s) legada(s) arquivada(s), sem exclusão de dados.'};
+}
+
 function getSheet_(name) {
-  // Dados operacionais ficam na planilha oficial compartilhada com a Full Time.
-  // Usuários e auditoria permanecem na base interna de autenticação.
+  // Fonte única: planilha principal. Somente autenticação e auditoria ficam na base interna.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAMINHOES','CAVALOS','CARRETAS','CONJUNTOS','LOCAIS','REGRAS_OPERACIONAIS','CARGAS','ESCALAS','HISTORICO_OPERACOES','TICKETS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA'];
+  const authTabs = ['USUARIOS','AUDITORIA','TOKENS_RECUPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
-    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha operacional. Execute prepararBaseOperacionalFullTime() primeiro.');
+    if (!sh) throw new Error('A guia ' + name + ' não existe na planilha principal. Execute FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111().');
     return sh;
   }
-  return SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
+  if (authTabs.indexOf(name) !== -1 || name === 'FT_STATUS_CADASTROS') {
+    const sh = SpreadsheetApp.openById(getDbId_()).getSheetByName(name);
+    if (!sh) throw new Error('Guia de autenticação não encontrada: ' + name);
+    return sh;
+  }
+  throw new Error('Guia fora da arquitetura centralizada: ' + name);
+}
+function ftOperationHeaderMap_(sh) {
+  const headers = sh.getLastColumn() ? sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0] : [];
+  const map = {};
+  headers.forEach((h,i) => {
+    const key = String(h || '').trim().toUpperCase();
+    if (key && map[key] === undefined) map[key] = i;
+  });
+  if (map.VIAGENS_REALIZADAS === undefined && map.TOTAL_VIAGENS_CONCLUIDAS !== undefined) {
+    map.VIAGENS_REALIZADAS = map.TOTAL_VIAGENS_CONCLUIDAS;
+  }
+  return map;
+}
+function ftOperationAppendFullTime_(sh, data) {
+  const map = ftOperationHeaderMap_(sh);
+  const width = sh.getLastColumn();
+  const row = new Array(width).fill('');
+  Object.keys(data || {}).forEach(key => {
+    const col = map[String(key).toUpperCase()];
+    if (col !== undefined) row[col] = data[key];
+  });
+  ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'].forEach(key => {
+    if (map[key] === undefined) throw new Error('A guia OPERACOES não possui a coluna necessária: '+key);
+  });
+  sh.appendRow(row);
 }
 function listarRegistros_(name) {
-  const brunoEntity = ({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  let rows = brunoEntity ? ftBrunoRowsAsLegacy_(brunoEntity) : (function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.length<2?[]:v.slice(1);})();
-  const localSetIds = new Set();
+  if (name === 'OPERACOES') {
+    const sh = getSheet_('OPERACOES');
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return [];
+    const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+    const norm = value => String(value == null ? '' : value).trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
+    const ix = {};
+    headers.forEach((h,i)=>{const k=norm(h);if(k && ix[k]===undefined)ix[k]=i;});
+    const rows = sh.getRange(2,1,lastRow-1,sh.getLastColumn()).getDisplayValues();
+    const get = (row,key)=>ix[norm(key)]===undefined?'':String(row[ix[norm(key)]]||'');
+    const fields = ['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
+    return rows.filter(row=>row.some(v=>v!=='')).map(row=>({
+      id:get(row,'ID'),
+      criado:get(row,'CRIADO_EM'),
+      status:get(row,'STATUS'),
+      campos:fields.map(key=>get(row,key))
+    })).reverse();
+  }
+  const sh = getSheet_(name);
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
 
-  // MOTORISTAS: combina o espelho recebido do Bruno com as decisões locais.
-  // O registro local prevalece pelo ID, preservando ATIVO/INATIVO após novas sincronizações.
-  if (name === 'MOTORISTAS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]), r); });
-    const local = getSheet_('MOTORISTAS');
-    if (local.getLastRow() > 1) {
-      local.getRange(2,1,local.getLastRow()-1,Math.max(12,local.getLastColumn())).getValues().forEach(r => {
-        if (r[0]) byId.set(String(r[0]), r.slice(0,12));
-      });
+  // Cabeçalhos e conteúdo são lidos no mesmo formato visual da planilha.
+  // Isso evita deslocamentos/conversões de datas e mantém o índice de cada coluna.
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  const rows = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+  const norm = value => String(value == null ? '' : value)
+    .trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9_]/g, '');
+  const ix = {};
+  headers.forEach((header, index) => {
+    const key = norm(header);
+    if (key && ix[key] === undefined) ix[key] = index;
+  });
+
+  const fieldOrder = {
+    MOTORISTAS: ['NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAVALOS: ['PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
+    CARRETAS: ['PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS: ['MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']
+  }[name];
+
+  const overrides = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS'].includes(name)
+    ? ftReadStatusOverrides_(name) : {};
+
+  return rows.filter(row => row.some(value => value !== '')).map(row => {
+    const get = key => ix[norm(key)] === undefined ? '' : String(row[ix[norm(key)]] || '');
+    const id = get('ID').trim();
+    const created = get('CRIADO_EM');
+    const fieldsByName = {};
+    const keys = fieldOrder || headers.filter(header => !['ID','CRIADO_EM','STATUS'].includes(norm(header)));
+    keys.forEach(key => { fieldsByName[key] = get(key); });
+    const campos = keys.map(key => fieldsByName[key] || '');
+    const item = {
+      id: id,
+      criado: created,
+      status: String(overrides[id] || get('STATUS') || ''),
+      campos: campos,
+      camposPorNome: fieldsByName
+    };
+    if (name === 'CAVALOS' || name === 'CARRETAS') {
+      item.capacidadeUtil = Number(String(get('CAPACIDADE_CARGA_TONELADAS')).replace(',', '.')) || 0;
     }
-    rows = Array.from(byId.values());
-  }
-
-  // Status administrativos dos motoristas prevalecem sobre a planilha espelhada do Bruno.
-  if (name === 'MOTORISTAS') {
-    const overrides = ftReadStatusOverrides_('MOTORISTAS');
-    rows.forEach(r => {
-      const id = String(r[0] || '').trim();
-      if (id && overrides[id]) r[2] = overrides[id];
-    });
-  }
-
-  // CONJUNTOS tem duas origens: vínculos recebidos da planilha do Bruno e
-  // conjuntos criados dentro do sistema. Exibe ambos sem duplicar IDs.
-  if (name === 'CONJUNTOS') {
-    const byId = new Map();
-    rows.forEach(r => { if (r[0]) byId.set(String(r[0]),r); });
-    const localSheet = getSheet_('CONJUNTOS');
-    if (localSheet.getLastRow() > 1) {
-      localSheet.getRange(2,1,localSheet.getLastRow()-1,Math.max(12,localSheet.getLastColumn())).getValues().forEach(r => {
-        if (!r[0]) return;
-        localSetIds.add(String(r[0]));
-        byId.set(String(r[0]),r.slice(0,12));
-      });
-    }
-    rows = Array.from(byId.values());
-  }
-  if (!rows.length) return [];
-
-  const mapped = rows.map(r => ({
-    id: String(r[0] || ''),
-    criado: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ''),
-    status: String(r[2] || ''),
-    campos: r.slice(3).map(v => v instanceof Date ? v.toISOString().slice(0,10) : String(v == null ? '' : v)),
-    ...(name === 'CONJUNTOS' ? {origem: localSetIds.has(String(r[0]||'')) ? 'SISTEMA' : 'BRUNO'} : {})
-  }));
-
-  // A capacidade cadastrada originalmente em CAMINHOES é a fonte para os
-  // cavalos sincronizados em CAVALOS. O vínculo é feito pela placa normalizada.
-  if (name === 'CAVALOS') {
-    const truckSheet = getSheet_('CAMINHOES');
-    const truckRows = truckSheet.getLastRow() > 1
-      ? truckSheet.getRange(2,1,truckSheet.getLastRow()-1,Math.max(10,truckSheet.getLastColumn())).getValues()
-      : [];
-    const capacityByPlate = {};
-    truckRows.forEach(r => {
-      const plate = normalizarPlaca_(r[3]);
-      const capacity = Number(String(r[9] == null ? '' : r[9]).replace(',','.'));
-      if (plate && capacity > 0) capacityByPlate[plate] = capacity;
-    });
-    mapped.forEach(item => {
-      item.capacidadeUtil = capacityByPlate[normalizarPlaca_(item.campos[0])] || 0;
-    });
-  } else if (name === 'CARRETAS') {
-    // Layout legado de CARRETAS: placa, tipo, tara, capacidade de carga...
-    mapped.forEach(item => {
-      const capacity = Number(String(item.campos[3] || '').replace(',','.'));
-      item.capacidadeUtil = capacity > 0 ? capacity : 0;
-    });
-  }
-  return mapped.reverse();
+    return item;
+  }).reverse();
 }
-
 function contarAtivos_(name) {
   const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
+  const rows=entity?listarRegistros_(entity).map(r=>[r.id,r.criado,r.status].concat(r.campos||[])):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
   return rows.filter(r => String(r[2]||'').toUpperCase() === 'ATIVO').length;
 }
 function contarStatus_(name, status) {
   const entity=({MOTORISTAS:'MOTORISTAS',CAVALOS:'CAVALOS',CARRETAS:'CARRETAS',CONJUNTOS:'CONJUNTOS'})[name];
-  const rows=entity?ftBrunoRowsAsLegacy_(entity):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
+  const rows=entity?listarRegistros_(entity).map(r=>[r.id,r.criado,r.status].concat(r.campos||[])):(function(){const sh=getSheet_(name),v=sh.getDataRange().getValues();return v.slice(1);})();
   return rows.filter(r => String(r[2]||'').toUpperCase() === String(status||'').toUpperCase()).length;
 }
 function duplicado_(name, col, value) {
@@ -1062,35 +652,64 @@ function motoristasSemConfirmacaoDiariaFullTime(motoristas, confirmacoes, dataIS
  */
 function listarOperacoesFullTime(token) {
   const session = obterSessao_(token); exigirAdmin_(session);
-  return listarRegistros_('OPERACOES').map(function(r) {
-    const f = r.campos;
-    return {id:r.id,criado:r.criado,status:r.status,data:f[0]||'',cliente:f[1]||'',nome:f[2]||'',origem:f[3]||'',destino:f[4]||'',categoria:f[5]||'',volumeTotal:Number(f[6]||0),cargasPrevistas:Number(f[7]||0),saldo:Number(f[8]||0),observacoes:f[9]||'',criadoPor:f[10]||''};
+  const movimentos = getSheet_('MOVIMENTACOES_OPERACAO').getDataRange().getValues();
+  const viagensPorOperacao = {};
+  movimentos.slice(1).forEach(function(r) {
+    const id = String(r[2] || '');
+    if (!id) return;
+    const quantidade = Math.floor(Number(r[9] || 0));
+    const legado = String(r[6] || '').toUpperCase() === 'SIM' ? 1 : 0;
+    viagensPorOperacao[id] = (viagensPorOperacao[id] || 0) + (quantidade > 0 ? quantidade : legado);
+  });
+  const sh=getSheet_('OPERACOES'), grid=sh.getDataRange().getValues(), headers=grid[0].map(h=>String(h||'').trim().toUpperCase()), ix={};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  const val=(row,key)=>ix[key]===undefined?'':row[ix[key]];
+  // Monta o formato legado diretamente da mesma leitura da guia OPERACOES.
+  // Evita uma segunda ida ao Sheets apenas para reconstruir os campos da operação.
+  const legacyFields=['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
+  return grid.slice(1).filter(row=>String(val(row,'ID')||'').trim()).map(row=>{
+    const id=String(val(row,'ID')),legacy={id,criado:String(val(row,'CRIADO_EM')||''),status:String(val(row,'STATUS')||''),campos:legacyFields.map(k=>String(val(row,k)||''))};
+    const previstas=Math.max(0,Math.floor(Number(val(row,'TOTAL_VIAGENS_PREVISTAS')||0)));
+    const realizadas=Math.max(0,Math.floor(Number(val(row,'VIAGENS_REALIZADAS')||val(row,'TOTAL_VIAGENS_CONCLUIDAS')||viagensPorOperacao[id]||0)));
+    return Object.assign({},legacy,{data:val(row,'DATA_OPERACAO'),cliente:val(row,'CLIENTE'),nome:val(row,'NOME_OPERACAO'),origem:val(row,'ORIGEM'),destino:val(row,'DESTINO'),categoria:val(row,'CATEGORIA'),volumeTotal:Number(val(row,'VOLUME_TOTAL_TONELADAS')||0),viagensPrevistas:previstas,tipoOperacao:val(row,'TIPO_OPERACAO')||'OUTRA',viagensRealizadas:realizadas,viagensRestantes:Math.max(0,previstas-realizadas),saldo:Number(val(row,'SALDO_TONELADAS')||0),observacoes:val(row,'OBSERVACOES'),criadoPor:val(row,'CRIADO_POR'),produto:val(row,'PRODUTO_SERVICO'),distanciaKm:Number(val(row,'DISTANCIA_KM')||0),prazoEntrega:val(row,'DATA_ENTREGA'),janelaInicio:val(row,'JANELA_INICIO'),janelaFim:val(row,'JANELA_FIM'),tempoEstimadoHoras:Number(val(row,'TEMPO_ESTIMADO_HORAS')||0)});
   });
 }
 function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
-  const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria,40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), cargas=Math.floor(Number(data.cargasPrevistas));
+  const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
+  const produto=texto_(data.produto,160), distanciaKm=Number(String(data.distanciaKm||'').replace(',','.'));
+  const dataEntrega=texto_(data.dataEntrega,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
+  const tempoEstimadoHoras=Number(String(data.tempoEstimadoHoras||'').replace(',','.'));
+  if(data.distanciaKm!=='' && data.distanciaKm!=null && !(distanciaKm>0&&isFinite(distanciaKm))) throw new Error('A distância deve ser informada em quilômetros e ser maior que zero.');
+  if(dataEntrega && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dataEntrega)) throw new Error('Informe uma data de entrega válida.');
+  if(janelaInicio && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaInicio)) throw new Error('Horário inicial inválido.');
+  if(janelaFim && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(janelaFim)) throw new Error('Horário final inválido.');
+  if(data.tempoEstimadoHoras!=='' && data.tempoEstimadoHoras!=null && !(tempoEstimadoHoras>0&&isFinite(tempoEstimadoHoras))) throw new Error('O tempo estimado deve ser maior que zero.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dataOp) || isNaN(new Date(dataOp+'T12:00:00').getTime())) throw new Error('Informe uma data válida.');
   if(!cliente||!nome||!origem||!destino) throw new Error('Preencha cliente, nome da operação, origem e destino.');
-  if(!['ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
+  if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
+  if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipoOperacao)) throw new Error('Tipo de operação inválido.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(cargas>0&&cargas<=100000)) throw new Error('Informe a quantidade prevista de cargas.');
+  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
-  getSheet_('OPERACOES').appendRow([id,now,'ABERTA',dataOp,cliente,nome,origem,destino,categoria,volume,cargas,volume,observacoes,session.login]);
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; cargas='+cargas);
-  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t.'};
+  const sh=getSheet_('OPERACOES');
+  if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
+  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
+  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
-  const toneladas=Number(String(data.toneladas||'').replace(',','.')), viagens=Math.max(0,Math.floor(Number(data.viagens||0)));
-  const viagemConcluida=data.viagemConcluida===true||String(data.viagemConcluida)==='true';
+  const toneladas=Number(String(data.toneladas||'').replace(',','.'));
+  const viagens=Math.floor(Number(data.viagens||0));
   const observacoes=texto_(data.observacoes,1000);
   if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
   if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
+  if(!(viagens>0&&viagens<=10000)) throw new Error('Informe a quantidade de viagens concluídas nesta movimentação.');
   const lock=LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
@@ -1099,7 +718,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
     const saldo=Number(op[11]||0);
     if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
-    const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
+    const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
     const setRow=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
     if(!setRow||String(setRow[2])!=='ATIVO') throw new Error('O conjunto não está ativo.');
     const cond=String(setRow[8]||'APTO').toUpperCase();
@@ -1109,28 +728,24 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(!part) throw new Error('O conjunto precisa estar previamente designado e ativo nesta operação antes de registrar movimentações.');
     const partId=String(part[0]);
     const moveId=Utilities.getUuid();
-    getSheet_('MOVIMENTACOES_OPERACAO').appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,viagemConcluida?'SIM':'NÃO',observacoes,session.login]);
+    const movimentos=getSheet_('MOVIMENTACOES_OPERACAO');
+    if(movimentos.getLastColumn()<10 || ops.getLastColumn()<16) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
+    movimentos.appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,'SIM',observacoes,session.login,viagens]);
     const novoSaldo=Math.max(0,saldo-toneladas);
     ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
     ops.getRange(idx+1,12).setValue(novoSaldo);
     const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
     const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
     parts.getRange(partRowIndex,10).setValue(Number(parts.getRange(partRowIndex,10).getValue()||0)+toneladas);
-    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+(viagemConcluida?1:0));
-    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada. Saldo restante: '+novoSaldo+' t.'};
+    parts.getRange(partRowIndex,11).setValue(Number(parts.getRange(partRowIndex,11).getValue()||0)+viagens);
+    const operationMap=ftOperationHeaderMap_(ops);
+    const tripsCol=operationMap.VIAGENS_REALIZADAS;
+    if(tripsCol===undefined) throw new Error('A guia OPERACOES não possui coluna de viagens realizadas/concluídas.');
+    const totalTrips=Math.max(0,Math.floor(Number(op[tripsCol]||0)))+viagens;
+    ops.getRange(idx+1,tripsCol+1).setValue(totalTrips);
+    auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
+    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
-}
-function alterarEstadoConjuntoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const id=texto_(data.conjuntoId,100), estado=texto_(data.estado,40).toUpperCase(), restricoes=texto_(data.restricoes,1000);
-  if(!id||!['APTO','APTO_COM_RESTRICAO','INDISPONIVEL'].includes(estado)) throw new Error('Selecione um conjunto e um estado válido.');
-  if(estado==='APTO_COM_RESTRICAO'&&!restricoes) throw new Error('Descreva a restrição para liberar o conjunto com ressalvas.');
-  const sh=getSheet_('CONJUNTOS'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===id);
-  if(idx<1) throw new Error('Conjunto não encontrado.');
-  sh.getRange(idx+1,9).setValue(estado); sh.getRange(idx+1,10).setValue(restricoes); sh.getRange(idx+1,11).setValue(Number(data.capacidadeUtil||0)); sh.getRange(idx+1,12).setValue(session.login);
-  auditar_(session,'ALTERAR_CONSERVACAO','CONJUNTO',id,estado+'; '+restricoes);
-  return {ok:true,message:'Estado de conservação atualizado.'};
 }
 function remanejarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
@@ -1151,149 +766,571 @@ function retornarConjuntoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
   if(!operacaoId||!conjuntoId||!motivo) throw new Error('Informe operação, conjunto e motivo do retorno.');
-  const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
-  const idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoId&&String(r[3])===conjuntoId&&String(r[5])==='SAIU');
-  if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto ainda está ativo em outra operação. Registre primeiro sua saída/remanejamento dessa operação.');
-  sh.getRange(idx+1,6).setValue('ATIVO'); sh.getRange(idx+1,9).setValue(new Date()); sh.getRange(idx+1,12).setValue('Retorno: '+motivo); sh.getRange(idx+1,13).setValue(session.login);
-  auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou. Motivo: '+motivo);
-  return {ok:true,message:'Retorno registrado no histórico.'};
-}
-function designarConjuntoOperacaoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100), motivo=texto_(data.motivo,500);
-  if(!operacaoId||!conjuntoId) throw new Error('Selecione operação e conjunto.');
-  const ops=getSheet_('OPERACOES').getDataRange().getValues();
-  const op=ops.find((r,i)=>i>0&&String(r[0])===operacaoId);
-  if(!op) throw new Error('Operação não encontrada.');
-  if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[2]))) throw new Error('A operação não está aberta para receber conjuntos.');
-  const sets=getSheet_('CONJUNTOS').getDataRange().getValues();
-  const set=sets.find((r,i)=>i>0&&String(r[0])===conjuntoId);
-  if(!set||String(set[2])!=='ATIVO') throw new Error('Conjunto não está ativo.');
-  if(String(set[8]||'APTO').toUpperCase()!=='APTO') throw new Error('A escala automática exige conservação APTO; revise restrições com o administrador.');
-  if(!(Number(set[10])>0)) throw new Error('O conjunto não tem capacidade útil real cadastrada.');
-  const driverRows=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
-  const driver=driverRows.find((r,i)=>i>0&&String(r[0])===String(set[3]));
-  if(!driver||String(driver[2])!=='ATIVO') throw new Error('Motorista associado não está ativo.');
-  const parts=getSheet_('PARTICIPACAO_OPERACOES'), rows=parts.getDataRange().getValues();
-  if(rows.some((r,i)=>i>0&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO')) throw new Error('Este conjunto já participa de uma operação em andamento.');
-  const id=Utilities.getUuid(), now=new Date();
-  parts.appendRow([id,now,operacaoId,conjuntoId,String(set[3]),'ATIVO',now,'','','0',0,motivo,session.login]);
-  const eventSheet=getSheet_('EVENTOS_ESCALA');
-  eventSheet.appendRow([Utilities.getUuid(),now,'CONJUNTO_DESIGNADO',operacaoId,String(set[3]),conjuntoId,'','',motivo||'Designação manual do administrador',session.login]);
-  if(String(op[2])==='ABERTA') getSheet_('OPERACOES').getRange(ops.findIndex((r,i)=>i>0&&String(r[0])===operacaoId)+1,3).setValue('EM_ANDAMENTO');
-  auditar_(session,'DESIGNAR_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' designado. '+motivo);
-  return {ok:true,message:'Conjunto designado à operação. A decisão ficou registrada no histórico.'};
+  const lock=LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues();
+    const headers=rows[0].map(v=>String(v||'').trim().toUpperCase()), ix={};
+    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    const idx=rows.findIndex((r,i)=>i>0&&String(r[ix.OPERACAO_ID]||'')===operacaoId&&String(r[ix.CONJUNTO_ID]||'')===conjuntoId&&String(r[ix.STATUS_PARTICIPACAO]||'').toUpperCase()==='SAIU');
+    if(idx<1) throw new Error('Não foi encontrada uma saída anterior que permita registrar o retorno.');
+    if(rows.some((r,i)=>i>0&&i!==idx&&String(r[ix.CONJUNTO_ID]||'')===conjuntoId&&['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[ix.STATUS_PARTICIPACAO]||'').toUpperCase()))) {
+      throw new Error('Este conjunto ainda possui outra oferta ou participação em andamento.');
+    }
+    sh.getRange(idx+1,ix.STATUS_PARTICIPACAO+1).setValue('RETORNOU');
+    if(ix.RETORNO_EM!==undefined)sh.getRange(idx+1,ix.RETORNO_EM+1).setValue(new Date());
+    if(ix.MOTIVO!==undefined)sh.getRange(idx+1,ix.MOTIVO+1).setValue('Retorno: '+motivo);
+    if(ix.REGISTRADO_POR!==undefined)sh.getRange(idx+1,ix.REGISTRADO_POR+1).setValue(session.login);
+    auditar_(session,'RETORNO_CONJUNTO','OPERACAO',operacaoId,'Conjunto '+conjuntoId+' retornou e foi liberado para nova escala. Motivo: '+motivo);
+    return {ok:true,message:'Retorno registrado. O conjunto foi liberado para uma nova escala.'};
+  } finally {lock.releaseLock();}
 }
 
+function designarConjuntoOperacaoFullTime(token, data) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  throw new Error('A designação direta foi desativada. Envie uma oferta ao motorista e aguarde o aceite para confirmar a participação.');
+}
+
+function FT_dataChaveElegibilidade_(v) {
+  if (!v) return '';
+  if (v instanceof Date && isFinite(v.getTime())) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const s=String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const br=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return br[3]+'-'+br[2]+'-'+br[1];
+  const d=new Date(s);
+  return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
+}
+function FT_normalizarTipoDocumento_(v) {
+  return String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+}
+function FT_documentosToxicologicoPorMotorista_() {
+  const sh=getSheet_('DOCUMENTOS'), grid=sh.getDataRange().getValues(), result={};
+  if (grid.length<2) return result;
+  const headers=grid[0].map(v=>String(v||'').trim().toUpperCase()), ix={};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  ['STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','DATA_VALIDADE'].forEach(k=>{
+    if(ix[k]===undefined) throw new Error('Cabeçalho obrigatório ausente em DOCUMENTOS: '+k);
+  });
+  grid.slice(1).forEach(r=>{
+    const entity=FT_normalizarTipoDocumento_(r[ix.ENTIDADE]), type=FT_normalizarTipoDocumento_(r[ix.TIPO_DOCUMENTO]);
+    if (!['MOTORISTA','MOTORISTAS','DRIVER'].includes(entity)) return;
+    if (!['TOXICOLOGICO','EXAMETOXICOLOGICO','TOXICOLOGICOCNH'].includes(type)) return;
+    const id=String(r[ix.ID_EXTERNO]||'').trim(); if(!id)return;
+    const status=FT_normalizarTipoDocumento_(r[ix.STATUS]), validStatus=['APROVADO','ATIVO','VALIDO','REGULAR','CONFERIDO'].includes(status);
+    const item={validStatus,expiry:FT_dataChaveElegibilidade_(r[ix.DATA_VALIDADE]),status:String(r[ix.STATUS]||'')};
+    if(!result[id] || (item.validStatus && (!result[id].validStatus || item.expiry>result[id].expiry))) result[id]=item;
+  });
+  return result;
+}
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
-  const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
-  if(!op) throw new Error('Operação não encontrada.');
-  const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(ftBrunoRowsAsLegacy_('CONJUNTOS'));
-  const drivers=[['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']].concat(ftBrunoRowsAsLegacy_('MOTORISTAS'));
-  const driverById={}; drivers.slice(1).forEach(r=>driverById[String(r[0])]=r);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES').getDataRange().getValues();
-  const activeParts=new Set(parts.slice(1).filter(r=>String(r[5])==='ATIVO').map(r=>String(r[3])));
-  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const since=new Date(); since.setDate(since.getDate()-29); since.setHours(0,0,0,0);
-  const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd');
-  const dateKey=v=>{if(!v)return '';const d=v instanceof Date?v:new Date(v);return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';};
-  const queueRows=getSheet_('FILA_MOTORISTAS').getDataRange().getValues();
-  const queueByDriver={}; queueRows.slice(1).forEach(r=>{if(r[2])queueByDriver[String(r[2])]=r;});
-  const availabilityRows=getSheet_('DISPONIBILIDADE_DIARIA').getDataRange().getValues();
-  const availabilityByDriver={};
-  availabilityRows.slice(1).forEach(r=>{const day=dateKey(r[2]),driverId=String(r[3]||'');if(!driverId||day<sinceKey||day>today||String(r[4]||'').toUpperCase()!=='DISPONIVEL')return;(availabilityByDriver[driverId]||(availabilityByDriver[driverId]=new Set())).add(day);});
-  const historyByDriver={};
-  parts.slice(1).forEach(r=>{const driverId=String(r[4]||''),day=dateKey(r[6]),opId=String(r[2]||'');if(!driverId||!day||day<sinceKey||day>today)return;const h=historyByDriver[driverId]||(historyByDriver[driverId]={operations:new Set(),days:new Set(),today:0,last:''});h.operations.add(opId);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;});
-  const candidates=sets.slice(1).map(r=>{
-    const cond=String(r[8]||'APTO').toUpperCase(), driver=driverById[String(r[3])];
-    const cap=Number(r[10]||0), driverId=String(r[3]||''), hist=historyByDriver[driverId]||{operations:new Set(),days:new Set(),today:0,last:''};
-    const queue=queueByDriver[driverId], avail=availabilityByDriver[driverId]||new Set();
-    const eligible=String(r[2])==='ATIVO'&&!!driver&&String(driver[2])==='ATIVO'&&cond==='APTO'&&!activeParts.has(String(r[0]))&&cap>0;
-    return {id:String(r[0]),driverId:driverId,driverName:driver?String(driver[3]):'',cavaloId:String(r[4]),capacity:cap,condition:cond,restrictions:String(r[9]||''),eligible:eligible,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:avail.size,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:r[1],ultimaOperaEm:hist.last};
-  }).filter(c=>c.eligible);
-  const byCategory=candidates.filter(c=>{
-    if(op.categoria==='ALTO_DESEMPENHO')return c.capacity>0;
-    if(op.categoria==='MANOBRA_DIFICIL')return c.capacity>0;
-    return true;
+  const opSheet=getSheet_('OPERACOES'),opGrid=opSheet.getDataRange().getValues(),opHeaders=(opGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),opIx={};
+  opHeaders.forEach((h,i)=>{if(h&&opIx[h]===undefined)opIx[h]=i;});
+  const opRow=opGrid.slice(1).find(r=>String(r[opIx.ID]||'')===String(operacaoId));
+  if(!opRow) throw new Error('Operação não encontrada.');
+  const op={id:String(opRow[opIx.ID]),data:opRow[opIx.DATA_OPERACAO],categoria:String(opRow[opIx.CATEGORIA]||'PADRAO'),volumeTotal:Number(opRow[opIx.VOLUME_TOTAL_TONELADAS]||0),viagensPrevistas:Number(opRow[opIx.TOTAL_VIAGENS_PREVISTAS]||0)};
+  const operationDay=FT_dataChaveElegibilidade_(op.data);
+  const sets=listarRegistros_('CONJUNTOS'), drivers=listarRegistros_('MOTORISTAS'), driverById={};
+  drivers.forEach(d=>driverById[String(d.id)]=d);
+  const toxByDriver=FT_documentosToxicologicoPorMotorista_();
+  const partsSh=getSheet_('PARTICIPACAO_OPERACOES'), partsGrid=partsSh.getDataRange().getValues();
+  const pHeaders=(partsGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()), pi={};
+  pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
+  const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set(),alreadyHandledInOperation=new Set();
+  partsGrid.slice(1).forEach(r=>{
+    if(String(r[pi.OPERACAO_ID]||'')===String(operacaoId)&&['NAO_RESPONDEU','EXPIRADA','RECUSADA','CANCELADA_REPROGRAMACAO','ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase())){
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+      const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
+      const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
+      const currentStart=String(opRow[opIx.JANELA_INICIO]||'').trim(),currentEnd=String(opRow[opIx.JANELA_FIM]||'').trim();
+      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
+      const sameSchedule=!!offerDate&&offerDate===currentDate&&offerStart===currentStart&&offerEnd===currentEnd;
+      if(!sameSchedule)return;
+      const handledDriver=String(r[pi.MOTORISTA_ID]||'');if(handledDriver)alreadyHandledInOperation.add(handledDriver);
+    }
+    const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+    if(!blocking.has(status))return;
+    if(status==='OFERTADA'){
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+      const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
+      const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
+      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
+      if(!offerDate||offerDate!==currentDate||offerStart!==String(opRow[opIx.JANELA_INICIO]||'').trim()||offerEnd!==String(opRow[opIx.JANELA_FIM]||'').trim())return;
+      const raw=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'';
+      const expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();
+      if(!isFinite(expiry)||expiry<=Date.now())return;
+    }
+    const sid=String(r[pi.CONJUNTO_ID]||''),did=String(r[pi.MOTORISTA_ID]||'');
+    if(sid)busySets.add(sid);if(did)busyDrivers.add(did);
   });
+  const availSh=getSheet_('DISPONIBILIDADE_DIARIA'),availGrid=availSh.getDataRange().getValues();
+  const ah=(availGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),ai={};
+  ah.forEach((h,i)=>{if(h&&ai[h]===undefined)ai[h]=i;});
+  const availabilityForDay={};
+  availGrid.slice(1).forEach(r=>{
+    const day=FT_dataChaveElegibilidade_(r[ai.DATA_OPERACAO]),did=String(r[ai.MOTORISTA_ID]||'');
+    if(day===operationDay&&did)availabilityForDay[did]=String(r[ai.STATUS_DISPONIBILIDADE]||'').trim().toUpperCase();
+  });
+  const since=new Date();since.setDate(since.getDate()-29);since.setHours(0,0,0,0);
+  const sinceKey=Utilities.formatDate(since,Session.getScriptTimeZone(),'yyyy-MM-dd'),today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const historyByDriver={};
+  partsGrid.slice(1).forEach(r=>{
+    const did=String(r[pi.MOTORISTA_ID]||''),day=FT_dataChaveElegibilidade_(r[pi.INICIO_EM]),oid=String(r[pi.OPERACAO_ID]||'');
+    if(!did||!day||day<sinceKey||day>today)return;
+    const h=historyByDriver[did]||(historyByDriver[did]={operations:new Set(),days:new Set(),today:0,last:''});
+    h.operations.add(oid);h.days.add(day);if(day===today)h.today++;if(!h.last||day>h.last)h.last=day;
+  });
+  const queueGrid=getSheet_('FILA_MOTORISTAS').getDataRange().getValues(),qh=(queueGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),qi={};
+  qh.forEach((h,i)=>{if(h&&qi[h]===undefined)qi[h]=i;});
+  const queueByDriver={};queueGrid.slice(1).forEach(r=>{const did=String(r[qi.MOTORISTA_ID]||'');if(did)queueByDriver[did]=r;});
+  const volume=Math.max(0,Number(op.volumeTotal)||0),trips=Math.max(0,Number(op.viagensPrevistas)||0),averageLoad=trips>0?volume/trips:0;
+  const candidates=sets.map(s=>{
+    const f=s.camposPorNome||{},did=String(f.MOTORISTA_ID||''),driver=driverById[did],df=driver?.camposPorNome||{};
+    const cap=Number(String(f.CAPACIDADE_UTIL_TONELADAS||'').replace(',','.'))||0,condition=String(f.ESTADO_CONSERVACAO||'').trim().toUpperCase();
+    const cnhExpiry=FT_dataChaveElegibilidade_(df.CNH_VALIDADE),cnhValid=!!cnhExpiry&&(!operationDay||cnhExpiry>=operationDay);
+    const category=String(df.CNH_CATEGORIA||'').trim().toUpperCase(),hasTrailer=!!(f.CARRETA_MEIO_ID||f.CARRETA_FINAL_ID);
+    const categoryValid=hasTrailer?category==='E':['C','D','E'].includes(category);
+    const tox=toxByDriver[did],toxValid=!!tox&&tox.validStatus&&!!tox.expiry&&(!operationDay||tox.expiry>=operationDay);
+    const availability=availabilityForDay[did]||'NAO_INFORMADA',availabilityOk=availability!=='INDISPONIVEL';
+    const capacityOk=cap>0&&(!averageLoad||cap>=averageLoad),setBusy=busySets.has(String(s.id)),driverBusy=busyDrivers.has(did);
+    const hist=historyByDriver[did]||{operations:new Set(),days:new Set(),today:0,last:''},queue=queueByDriver[did],reasons=[];
+    if(!driver||driver.status!=='ATIVO')reasons.push('Motorista não está aprovado/ativo');
+    if(s.status!=='ATIVO')reasons.push('Conjunto não está ativo');
+    if(!cnhExpiry)reasons.push('Validade da CNH não informada');else if(!cnhValid)reasons.push('CNH vencida na data da operação');
+    if(!categoryValid)reasons.push(hasTrailer?'CNH categoria E exigida para conjunto com carreta':'Categoria da CNH incompatível');
+    if(!tox)reasons.push('Exame toxicológico não cadastrado');
+    else if(!tox.validStatus)reasons.push('Exame toxicológico sem aprovação documental');
+    else if(!tox.expiry)reasons.push('Validade do exame toxicológico não informada');
+    else if(!toxValid)reasons.push('Exame toxicológico vencido na data da operação');
+    if(condition!=='APTO')reasons.push('Conjunto não está APTO');
+    if(!capacityOk)reasons.push('Capacidade útil insuficiente ou não informada');
+    if(!availabilityOk)reasons.push('Motorista indisponível na data');
+    if(setBusy)reasons.push('Conjunto já possui oferta/escala em andamento');
+    if(driverBusy)reasons.push('Motorista já possui oferta/escala em andamento');
+    const alreadyHandled=alreadyHandledInOperation.has(did);
+    if(alreadyHandled)reasons.push('Motorista já foi convocado nesta operação e não pode receber nova oferta');
+    const eligible=reasons.length===0;
+    return {id:String(s.id),driverId:did,driverName:String(df.NOME_COMPLETO||''),cavaloId:String(f.CAVALO_ID||''),capacity:cap,condition,restrictions:String(f.RESTRICOES||''),eligible,statusElegibilidade:eligible?'APTO':(!driver||driver.status!=='ATIVO'||s.status!=='ATIVO'||setBusy||driverBusy||alreadyHandled?'BLOQUEADO':'PENDENTE_REGULARIZACAO'),motivosElegibilidade:reasons,operacoesHoje:hist.today,operacoes30Dias:hist.operations.size,diasDisponivel30Dias:0,diasTrabalhados30Dias:hist.days.size,dataEntradaFila:queue?queue[1]:s.criado,ultimaOperaEm:hist.last,disponibilidadeData:availability,capacidadeCompativel:capacityOk,cnhValida:cnhValid,categoriaCnhValida:categoryValid,exameToxicologicoValido:toxValid,motivoInelegibilidade:reasons.join('; ')};
+  });
+  const eligible=candidates.filter(c=>c.eligible),byCategory=eligible.filter(c=>op.categoria!=='ALTO_DESEMPENHO'||c.capacity>0);
   const ordered=ordenarElegiveisEscalaFullTime(byCategory.map(c=>({...c,elegivel:true,recusouOperacaoAtual:false})));
   if(op.categoria==='ALTO_DESEMPENHO')ordered.sort((a,b)=>b.capacity-a.capacity);
   if(op.categoria==='MANOBRA_DIFICIL')ordered.sort((a,b)=>a.capacity-b.capacity);
-  return ordered.map((c,i)=>({posicao:i+1,...c}));
+  const orderById={};ordered.forEach((c,i)=>orderById[c.id]=i+1);
+  return candidates.map(c=>({...c,posicao:orderById[c.id]||null})).sort((a,b)=>{
+    if(a.eligible!==b.eligible)return a.eligible?-1:1;
+    if(a.eligible)return a.posicao-b.posicao;
+    return String(a.driverName).localeCompare(String(b.driverName),'pt-BR');
+  });
+}
+
+function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
+  const props = PropertiesService.getScriptProperties();
+  const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
+  const authId = props.getProperty('FT_DATABASE_ID');
+  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
+  const ss = SpreadsheetApp.openById(registryId);
+  const names = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO'];
+  const result = {
+    executadoEm: new Date().toISOString(),
+    planilhaPrincipalId: registryId,
+    baseAutenticacaoSeparada: !!authId && authId !== registryId,
+    guias: names.map(function(name) {
+      const sh = ss.getSheetByName(name);
+      if (!sh) return { guia: name, existe: false, registros: 0, cabecalhos: [] };
+      const width = sh.getLastColumn();
+      const headers = width ? sh.getRange(1,1,1,width).getDisplayValues()[0] : [];
+      const rows = sh.getLastRow();
+      return {
+        guia: name,
+        existe: true,
+        registros: Math.max(0, rows - 1),
+        colunas: width,
+        cabecalhos: headers,
+        primeiraLinha: rows > 1 ? sh.getRange(2,1,1,width).getDisplayValues()[0] : []
+      };
+    }),
+    leituraBackend: ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','OPERACOES'].map(function(name) {
+      try {
+        return { guia: name, registrosLidos: listarRegistros_(name).length };
+      } catch (e) {
+        return { guia: name, erro: String(e && e.message || e) };
+      }
+    })
+  };
+  Logger.log('FULL TIME — DIAGNÓSTICO DA BASE CENTRAL: ' + JSON.stringify(result));
+  return result;
+}
+
+
+/**
+ * Contrato canônico das guias operacionais da Full Time.
+ * Auditoria somente leitura: não cria, renomeia nem altera cabeçalhos/dados.
+ */
+function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
+  const expectedId='11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||'';
+  if(registryId!==expectedId) throw new Error('FT_REGISTRY_DATABASE_ID não aponta para a planilha principal autorizada.');
+  const ss=SpreadsheetApp.openById(registryId);
+  const schemas={
+    MOTORISTAS:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
+    CAVALOS:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES','CAPACIDADE_CARGA_TONELADAS'],
+    CARRETAS:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES'],
+    CONJUNTOS:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR'],
+    DOCUMENTOS:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
+    OPERACOES:['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
+    PARTICIPACAO_OPERACOES:['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR','OFERTADA_EM','RESPONDIDA_EM','EXPIRA_EM','ORIGEM_OFERTA','OBSERVACOES_OFERTA'],
+    MOVIMENTACOES_OPERACAO:['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
+    LOCAIS:['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
+    REGRAS_OPERACIONAIS:['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
+    DISPONIBILIDADE_DIARIA:['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
+    FILA_MOTORISTAS:['ID','DATA_ENTRADA','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA','ULTIMA_OFERTA_EM','ULTIMA_OPERACAO_CONCLUIDA_EM','VIAGENS_PERIODO','OBSERVACOES'],
+    EVENTOS_ESCALA:['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','POSICAO_ANTERIOR','POSICAO_NOVA','MOTIVO','REGISTRADO_POR','OFERTA_ID'],
+    ENTRADA_OPERACOES_IA:['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM']
+  };
+  const comparar=(a,b)=>a.length===b.length&&a.every((v,i)=>String(v).trim().toUpperCase()===String(b[i]).trim().toUpperCase());
+  const guias=Object.keys(schemas).map(name=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)return {guia:name,ok:false,erro:'GUIA_AUSENTE',esperado:schemas[name]};
+    const atual=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim()):[];
+    const ok=comparar(atual,schemas[name]);
+    return {guia:name,ok:ok,colunasAtuais:atual.length,colunasEsperadas:schemas[name].length,cabecalhosAtuais:atual,cabecalhosEsperados:ok?undefined:schemas[name]};
+  });
+  const result={planilhaId:registryId,planilhaNome:ss.getName(),baseAutenticacaoSeparada:!!PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')&&PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')!==registryId,guiasOk:guias.filter(x=>x.ok).length,guiasComDivergencia:guias.filter(x=>!x.ok).length,guias:guias};
+  Logger.log('FULLTIME_CONTRATO_CABECALHOS: '+JSON.stringify(result));
+  return result;
+}
+
+
+/**
+ * GERA DOCUMENTOS FICTÍCIOS DE EXAME TOXICOLÓGICO PARA HOMOLOGAÇÃO.
+ * Restrito a cadastros cujo nome começa com "Motorista Fictício".
+ * Não altera MOTORISTAS, CNH, conjuntos ou documentos reais.
+ * Idempotente: não duplica documento de teste já aprovado e válido.
+ */
+function FT_GERAR_DOCUMENTOS_TOXICOLOGICOS_FICTICIOS_20261112() {
+  const sh = getSheet_('DOCUMENTOS');
+  const lastCol = sh.getLastColumn();
+  if (lastCol < 1 || sh.getLastRow() < 1) throw new Error('Guia DOCUMENTOS sem cabeçalho.');
+  const headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase());
+  const ix = {};
+  headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
+  const required = ['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'];
+  const missing = required.filter(k=>ix[k]===undefined);
+  if(missing.length) throw new Error('Cabeçalhos ausentes em DOCUMENTOS: '+missing.join(', '));
+
+  const drivers = listarRegistros_('MOTORISTAS').filter(d=>/^motorista fict[ií]cio\b/i.test(String(d.nome||d.campos?.[0]||'')));
+  if(!drivers.length) throw new Error('Nenhum cadastro com nome "Motorista Fictício" foi encontrado. Nenhum dado foi gravado.');
+
+  const now = new Date();
+  const issue = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const expiry = new Date(2030, 11, 31);
+  const values = sh.getLastRow()>1 ? sh.getRange(2,1,sh.getLastRow()-1,lastCol).getValues() : [];
+  const existing = new Set();
+  values.forEach(row=>{
+    const ent=FT_normalizarTipoDocumento_(row[ix.ENTIDADE]);
+    const typ=FT_normalizarTipoDocumento_(row[ix.TIPO_DOCUMENTO]);
+    const id=String(row[ix.ID_EXTERNO]||'').trim();
+    const st=FT_normalizarTipoDocumento_(row[ix.STATUS]);
+    const valid=FT_dataChaveElegibilidade_(row[ix.DATA_VALIDADE]);
+    if(['MOTORISTA','MOTORISTAS','DRIVER'].includes(ent) &&
+       ['TOXICOLOGICO','EXAMETOXICOLOGICO','TOXICOLOGICOCNH'].includes(typ) &&
+       id && ['APROVADO','ATIVO','VALIDO','REGULAR','CONFERIDO'].includes(st) &&
+       valid && valid>='2026-11-12') existing.add(id);
+  });
+
+  const pending = drivers.filter(d=>d.id&&!existing.has(String(d.id)));
+  if(pending.length) {
+    const rows = pending.map(d=>{
+      const row = new Array(lastCol).fill('');
+      row[ix.ID_DOCUMENTO]='DOC-TESTE-'+Utilities.getUuid();
+      row[ix.CRIADO_EM]=now;
+      row[ix.STATUS]='APROVADO';
+      row[ix.TIPO_DOCUMENTO]='EXAME TOXICOLÓGICO';
+      row[ix.ENTIDADE]='MOTORISTA';
+      row[ix.ID_EXTERNO]=String(d.id);
+      row[ix.NUMERO_DOCUMENTO]='TESTE-FICTICIO-'+String(d.id).slice(-8);
+      row[ix.DATA_EMISSAO]=issue;
+      row[ix.DATA_VALIDADE]=expiry;
+      row[ix.OBSERVACOES]='DADO FICTÍCIO — HOMOLOGAÇÃO DE ESCALA AUTOMÁTICA. NÃO POSSUI VALIDADE LEGAL.';
+      return row;
+    });
+    sh.getRange(sh.getLastRow()+1,1,rows.length,lastCol).setValues(rows);
+  }
+  const result={sucesso:true,modo:'HOMOLOGACAO_COM_DADOS_FICTICIOS',motoristasFicticiosEncontrados:drivers.length,documentosNovos:pending.length,jaPossuiDocumentoAprovadoValido:drivers.length-pending.length,validadeAte:'31/12/2030',aviso:'Documentos exclusivamente fictícios para testes; não representam exames reais.'};
+  Logger.log('FULL TIME — DOCUMENTOS FICTÍCIOS: '+JSON.stringify(result));
+  return result;
+}
+
+
+/** Histórico operacional individual do motorista — consulta administrativa. */
+function obterHistoricoMotoristaFullTime(token,motoristaId){
+  const session=obterSessao_(token);exigirAdmin_(session);
+  motoristaId=texto_(motoristaId,120);if(!motoristaId)throw new Error('Motorista não informado.');
+  const dateOut=v=>{
+    if(v===null||v===undefined||v==='')return '';
+    if(v instanceof Date)return isNaN(v.getTime())?'':Utilities.formatDate(v,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm:ss');
+    return String(v);
+  };
+  const driver=listarRegistros_('MOTORISTAS').find(x=>String(x.id)===motoristaId);
+  if(!driver)throw new Error('Motorista não encontrado.');
+  const psh=getSheet_('PARTICIPACAO_OPERACOES'),pgrid=psh.getDataRange().getValues(),ph=(pgrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),pi={};
+  ph.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
+  ['MOTORISTA_ID','OPERACAO_ID','STATUS_PARTICIPACAO'].forEach(k=>{if(pi[k]===undefined)throw new Error('Coluna '+k+' não encontrada em PARTICIPACAO_OPERACOES.');});
+  const osh=getSheet_('OPERACOES'),ogrid=osh.getDataRange().getValues(),oh=(ogrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),oi={};
+  oh.forEach((h,i)=>{if(h&&oi[h]===undefined)oi[h]=i;});
+  const ops={};ogrid.slice(1).forEach(r=>{const id=String(r[oi.ID]||'');if(id)ops[id]={id,nome:String(r[oi.NOME_OPERACAO]||''),status:String(r[oi.STATUS]||''),data:dateOut(r[oi.DATA_OPERACAO]),origem:String(r[oi.ORIGEM]||''),destino:String(r[oi.DESTINO]||''),cliente:String(r[oi.CLIENTE]||'')};});
+  const sets=listarRegistros_('CONJUNTOS'),setById={};sets.forEach(s=>{setById[String(s.id)]={id:String(s.id),nome:'Conjunto '+String(s.id).slice(-6),capacidade:String(s.camposPorNome?.CAPACIDADE_UTIL_TONELADAS||'')};});
+  const history=pgrid.slice(1).map(r=>{
+    if(String(r[pi.MOTORISTA_ID]||'')!==motoristaId)return null;
+    let status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+    const rawExpiry=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'',expiryMs=rawExpiry instanceof Date?rawExpiry.getTime():new Date(rawExpiry).getTime();
+    if(status==='OFERTADA'&&(!isFinite(expiryMs)||expiryMs<=Date.now()))status='NAO_RESPONDEU';
+    if(status==='EXPIRADA')status='NAO_RESPONDEU';
+    const opId=String(r[pi.OPERACAO_ID]||''),setId=String(r[pi.CONJUNTO_ID]||'');
+    return {id:String(r[pi.ID]||''),status,operacao:ops[opId]||{id:opId,nome:'Operação não localizada',status:'',data:'',origem:'',destino:'',cliente:''},conjunto:setById[setId]||{id:setId,nome:setId?'Conjunto '+setId.slice(-6):'—',capacidade:''},criadoEm:dateOut(r[pi.CRIADO_EM]),ofertadaEm:dateOut(pi.OFERTADA_EM!==undefined?r[pi.OFERTADA_EM]:''),respondidaEm:dateOut(pi.RESPONDIDA_EM!==undefined?r[pi.RESPONDIDA_EM]:''),inicioEm:dateOut(pi.INICIO_EM!==undefined?r[pi.INICIO_EM]:''),saidaEm:dateOut(pi.SAIDA_EM!==undefined?r[pi.SAIDA_EM]:''),retornoEm:dateOut(pi.RETORNO_EM!==undefined?r[pi.RETORNO_EM]:''),expiraEm:dateOut(pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:''),motivo:String((pi.MOTIVO!==undefined?r[pi.MOTIVO]:'')||''),origemOferta:String((pi.ORIGEM_OFERTA!==undefined?r[pi.ORIGEM_OFERTA]:'')||'')};
+  }).filter(Boolean).sort((a,b)=>String(b.ofertadaEm||b.criadoEm).localeCompare(String(a.ofertadaEm||a.criadoEm)));
+  const active=history.find(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(h.status));
+  const latest=history[0]||null;
+  const counts={convocacoes:history.length,aceitas:history.filter(h=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(h.status)).length,recusadas:history.filter(h=>h.status==='RECUSADA').length,expiradas:history.filter(h=>h.status==='NAO_RESPONDEU'||h.status==='EXPIRADA').length,participacoesConcluidas:history.filter(h=>h.status==='RETORNOU').length};
+  return {motorista:{id:String(driver.id),nome:String(driver.camposPorNome?.NOME_COMPLETO||''),status:String(driver.status||''),cnhCategoria:String(driver.camposPorNome?.CNH_CATEGORIA||''),cnhValidade:String(driver.camposPorNome?.CNH_VALIDADE||'')},statusAtual:active?active.status:latest?latest.status:'SEM_CONVOCACAO',operacaoAtual:active?active.operacao:null,counts,history};
 }
 
 
 
 /**
- * Adaptador de leitura dos cadastros sincronizados da planilha do Bruno.
- * A leitura é por nome de cabeçalho, nunca por posição da coluna de origem.
- * Escritas de sincronização continuam sendo responsabilidade do arquivo PLANILHABRUNO.
+ * AUDITORIA SOMENTE LEITURA — vínculo de motoristas e ofertas.
+ * Não grava, cria, exclui, renomeia nem altera dados ou cabeçalhos.
+ * Executar manualmente no Apps Script: FT_AUDITAR_VINCULOS_E_OFERTAS_20261113
  */
-const FT_BRUNO_CADASTROS = Object.freeze({
-  MOTORISTAS: {sheet:'FT_CADASTRO_BRUNO_MOTORISTAS', fields:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES']},
-  CAVALOS: {sheet:'FT_CADASTRO_BRUNO_CAVALOS', fields:['ID','CRIADO_EM','STATUS','PLACA','MARCA','MODELO','ANO','TARA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
-  CARRETAS: {sheet:'FT_CADASTRO_BRUNO_CARRETAS', fields:['ID','CRIADO_EM','STATUS','PLACA','TIPO_CARRETA','TARA_TONELADAS','CAPACIDADE_CARGA_TONELADAS','PBTC_MAX_TONELADAS','OBSERVACOES']},
-  CONJUNTOS: {sheet:'FT_CADASTRO_BRUNO_CONJUNTOS', fields:['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']},
-  DOCUMENTOS: {sheet:'FT_CADASTRO_BRUNO_DOCUMENTOS', fields:['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES']}
-});
-function ftNormHeader_(v) {
-  return String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
-}
-function ftReadBrunoRows_(entity) {
-  const cfg=FT_BRUNO_CADASTROS[entity];
-  if(!cfg) throw new Error('Cadastro Bruno não configurado: '+entity);
+/**
+ * Saneia contas fictícias legadas e reafirma os vínculos das 40 contas atuais.
+ * Remove somente logins motora01..motora40; preserva contas atuais, admins,
+ * motoristas, conjuntos, operações, participações e eventos.
+ */
+function FT_CORRIGIR_CONTAS_MOTORISTAS_TESTE_20261113() {
+  const auth=SpreadsheetApp.openById(getDbId_());
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
-  if(!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não está configurado.');
-  const ss=SpreadsheetApp.openById(registryId), sh=ss.getSheetByName(cfg.sheet);
-  if(!sh) throw new Error('Não encontrei a guia sincronizada '+cfg.sheet+'. Execute a validação PLANILHABRUNO antes de continuar.');
-  if(sh.getLastRow()<2 || sh.getLastColumn()<1) return [];
-  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
-  const index={}; headers.forEach((h,i)=>{const k=ftNormHeader_(h);if(k && index[k]===undefined)index[k]=i;});
-  const aliases={
-    ID:['ID','IDEXTERNO','IDDOCUMENTO','CODIGO','IDENTIFICADOR'],
-    CRIADO_EM:['CRIADOEM','DATA_CRIACAO','DATAHORACADASTRO','CADASTRADOEM'],
-    STATUS:['STATUS','SITUACAO','SITUACAO_CADASTRAL'],
-    NOME_COMPLETO:['NOMECOMPLETO','NOME','MOTORISTA','NOMEMOTORISTA'],
-    CNH_NUMERO:['CNHNUMERO','NUMEROCNH','CNH'],
-    CNH_CATEGORIA:['CNHCATEGORIA','CATEGORIACNH','CATEGORIA'],
-    CNH_VALIDADE:['CNHVALIDADE','VALIDADEC NH','VALIDADECNH'],
-    CIDADE_UF:['CIDADEUF','CIDADE','MUNICIPIOUF'],
-    CAPACIDADE_CARGA_TONELADAS:['CAPACIDADECARGATONELADAS','CAPACIDADETONELADAS','CAPACIDADE'],
-    ESTADO_CONSERVACAO:['ESTADOCONSERVACAO','CONDICAO','ESTADO'],
-    CAPACIDADE_UTIL_TONELADAS:['CAPACIDADEUTILTONELADAS','CAPACIDADEUTIL'],
-    MOTORISTA_ID:['MOTORISTAIDEXTERNO','IDMOTORISTA','MOTORISTAID'],
-    CAVALO_ID:['CAVALOIDEXTERNO','IDCAVALO','CAVALOID'],
-    CARRETA_MEIO_ID:['CARRETAMEIOIDEXTERNO','IDCARRETAMEIO'],
-    CARRETA_FINAL_ID:['CARRETAFINALIDEXTERNO','IDCARRETAFINAL'],
-    DATA_VALIDADE:['DATAVALIDADE','VALIDADE','VENCIMENTO','VENCEDOCUMENTO'],
-    TIPO_DOCUMENTO:['TIPODOCUMENTO','DOCUMENTO','TIPO'],
-    NUMERO_DOCUMENTO:['NUMERODOCUMENTO','NUMERO','REGISTRO'],
-    ENTIDADE:['ENTIDADE','TIPOENTIDADE','CADASTRO']
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+  const registry=SpreadsheetApp.openById(registryId);
+  const users=auth.getSheetByName('USUARIOS'), driversSh=registry.getSheetByName('MOTORISTAS');
+  if(!users||!driversSh)throw new Error('Guia USUARIOS ou MOTORISTAS ausente.');
+  const headerMap=sh=>{
+    const h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],m={};
+    h.forEach((v,i)=>{const k=String(v||'').trim().toUpperCase();if(k&&m[k]===undefined)m[k]=i;});
+    return m;
   };
-  const findCol=function(field){
-    const opts=[field].concat(aliases[field]||[]);
-    for(let i=0;i<opts.length;i++){const k=ftNormHeader_(opts[i]);if(index[k]!==undefined)return index[k];}
-    return -1;
-  };
-  const raw=sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues();
-  return raw.map(r=>{
-    const out={};
-    cfg.fields.forEach(f=>{
-      const col=findCol(f);
-      let v=col<0?'':r[col];
-      if(v instanceof Date) v=Utilities.formatDate(v,Session.getScriptTimeZone(),f.indexOf('DATA')===0||f.indexOf('VALIDADE')>=0?'yyyy-MM-dd':'yyyy-MM-dd HH:mm:ss');
-      out[f]=v==null?'':v;
-    });
-    if(!out.ID) out.ID=out.ID_EXTERNO||out.ID_DOCUMENTO||'';
-    if(!out.STATUS) out.STATUS='PENDENTE_REVISAO';
-    return out;
-  }).filter(r=>String(r.ID||r.ID_DOCUMENTO||'').trim()!=='');
-}
-function ftBrunoRowsAsLegacy_(entity) {
-  return ftReadBrunoRows_(entity).map(o=>{
-    const cfg=FT_BRUNO_CADASTROS[entity];
-    return cfg.fields.map(f=>o[f] == null ? '' : o[f]);
+  const um=headerMap(users),dm=headerMap(driversSh);
+  ['LOGIN','PERFIL','MOTORISTA_ID','ATIVO','EMAIL','NOME'].forEach(k=>{if(um[k]===undefined)throw new Error('Cabeçalho ausente em USUARIOS: '+k);});
+  ['ID','EMAIL','NOME_COMPLETO'].forEach(k=>{if(dm[k]===undefined)throw new Error('Cabeçalho ausente em MOTORISTAS: '+k);});
+  const ur=users.getDataRange().getValues(),dr=driversSh.getDataRange().getValues();
+  const drivers=dr.slice(1).filter(r=>String(r[dm.ID]||'').trim());
+  const driverByEmail={};
+  drivers.forEach(r=>{const e=String(r[dm.EMAIL]||'').trim().toLowerCase();if(e){if(driverByEmail[e])throw new Error('E-mail duplicado em MOTORISTAS: '+e);driverByEmail[e]=r;}});
+  const legacy=[],current=[],otherMotorist=[];
+  ur.slice(1).forEach((r,i)=>{
+    if(String(r[um.PERFIL]||'').toUpperCase()!=='MOTORISTA')return;
+    const login=String(r[um.LOGIN]||'').trim().toLowerCase();
+    if(/^motora(?:0[1-9]|[1-3][0-9]|40)$/.test(login))legacy.push({row:i+2,login});
+    else if(/^[^\s@]+@example\.test$/i.test(login)||/^[^\s@]+@example\.test$/i.test(String(r[um.EMAIL]||'')))current.push({row:i+2,login,email:String(r[um.EMAIL]||r[um.LOGIN]||'').trim().toLowerCase(),name:String(r[um.NOME]||'').trim(),motoristaId:String(r[um.MOTORISTA_ID]||'').trim()});
+    else otherMotorist.push(login);
   });
+  if(drivers.length!==40)throw new Error('Proteção: esperados exatamente 40 motoristas; encontrados '+drivers.length+'. Nada foi alterado.');
+  if(legacy.length!==40)throw new Error('Proteção: esperadas exatamente 40 contas legadas motora01..40; encontradas '+legacy.length+'. Nada foi alterado.');
+  if(current.length!==40)throw new Error('Proteção: esperadas exatamente 40 contas atuais com e-mail .test; encontradas '+current.length+'. Nada foi alterado.');
+  if(otherMotorist.length)throw new Error('Existem outras contas MOTORISTA fora dos dois grupos esperados: '+otherMotorist.join(', ')+'. Nada foi alterado.');
+  const seen=new Set(),updates=[];
+  current.forEach(a=>{
+    const d=driverByEmail[a.email];
+    if(!d)throw new Error('Conta atual sem motorista correspondente por e-mail: '+a.login+'. Nada foi alterado.');
+    const id=String(d[dm.ID]).trim(),name=String(d[dm.NOME_COMPLETO]||'').trim();
+    if(a.name&&name&&a.name.toUpperCase()!==name.toUpperCase())throw new Error('Nome divergente para '+a.login+': '+a.name+' / '+name+'. Nada foi alterado.');
+    if(seen.has(id))throw new Error('Mais de uma conta atual aponta para o mesmo motorista: '+id+'. Nada foi alterado.');
+    seen.add(id);updates.push({row:a.row,id,login:a.login});
+  });
+  if(seen.size!==40)throw new Error('Proteção: não foi possível vincular exatamente os 40 motoristas. Nada foi alterado.');
+  // Primeiro reafirma os 40 vínculos por e-mail; depois exclui apenas as 40 contas legadas.
+  updates.forEach(x=>users.getRange(x.row,um.MOTORISTA_ID+1).setValue(x.id));
+  legacy.sort((a,b)=>b.row-a.row).forEach(x=>users.deleteRow(x.row));
+  const result={ok:true,contasLegadasExcluidas:legacy.length,contasAtuaisPreservadas:current.length,vinculosAtualizados:updates.length,motoristasPreservados:drivers.length,outrasContasMotorista:otherMotorist.length,baseAutenticacao:auth.getId(),baseOperacional:registryId,escopo:'Somente USUARIOS: contas fictícias legadas motora01..motora40'};
+  Logger.log('FULL TIME — SANEAMENTO DE CONTAS FICTÍCIAS: '+JSON.stringify(result));
+  return result;
+}
+
+function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
+  const props=PropertiesService.getScriptProperties();
+  const registryId=props.getProperty('FT_REGISTRY_DATABASE_ID')||'';
+  const authId=props.getProperty(FT_CONFIG.DB_PROPERTY)||'';
+  if(!registryId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+  if(!authId)throw new Error('FT_DATABASE_ID não configurado.');
+  const registry=SpreadsheetApp.openById(registryId);
+  const auth=SpreadsheetApp.openById(authId);
+  const read=(ss,name)=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)throw new Error('Guia obrigatória ausente: '+name+' em '+ss.getName());
+    const grid=sh.getDataRange().getValues();
+    const headers=(grid[0]||[]).map(v=>String(v||'').trim().toUpperCase());
+    const ix={};headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    return {sheet:sh,headers,ix,rows:grid.slice(1).filter(r=>r.some(v=>v!==''&&v!==null))};
+  };
+  const users=read(auth,'USUARIOS');
+  const drivers=read(registry,'MOTORISTAS');
+  const sets=read(registry,'CONJUNTOS');
+  const parts=read(registry,'PARTICIPACAO_OPERACOES');
+  const ops=read(registry,'OPERACOES');
+  const events=registry.getSheetByName('EVENTOS_ESCALA');
+  const get=(r,ix,k)=>ix[k]===undefined?'':r[ix[k]];
+  const norm=v=>String(v==null?'':v).trim();
+  const driverById=new Map(),opById=new Map(),setById=new Map();
+  drivers.rows.forEach(r=>{const id=norm(get(r,drivers.ix,'ID'));if(id&&!driverById.has(id))driverById.set(id,r);});
+  ops.rows.forEach(r=>{const id=norm(get(r,ops.ix,'ID'));if(id&&!opById.has(id))opById.set(id,r);});
+  sets.rows.forEach(r=>{const id=norm(get(r,sets.ix,'ID'));if(id&&!setById.has(id))setById.set(id,r);});
+  const duplicate=(rows,ix,key)=>{
+    const map={};rows.forEach(r=>{const v=norm(get(r,ix,key));if(v)(map[v]||(map[v]=0),map[v]++);});
+    return Object.keys(map).filter(k=>map[k]>1).map(k=>({valor:k,ocorrencias:map[k]}));
+  };
+  const accounts=users.rows.map(r=>({
+    usuarioId:norm(get(r,users.ix,'ID')),
+    login:norm(get(r,users.ix,'LOGIN')),
+    nome:norm(get(r,users.ix,'NOME')),
+    perfil:norm(get(r,users.ix,'PERFIL')).toUpperCase(),
+    ativo:String(get(r,users.ix,'ATIVO')).toUpperCase()==='TRUE',
+    motoristaId:norm(get(r,users.ix,'MOTORISTA_ID'))
+  }));
+  const driverAccounts=accounts.filter(a=>a.perfil==='MOTORISTA');
+  const accountAudit=driverAccounts.map(a=>{
+    const d=driverById.get(a.motoristaId);
+    return {usuarioId:a.usuarioId,login:a.login,nomeConta:a.nome,motoristaId:a.motoristaId,
+      contaAtiva:a.ativo,cadastroEncontrado:!!d,
+      nomeCadastro:d?norm(get(d,drivers.ix,'NOME_COMPLETO')):'',
+      statusCadastro:d?norm(get(d,drivers.ix,'STATUS')):'',
+      divergenciaNome:!!(d&&a.nome&&norm(get(d,drivers.ix,'NOME_COMPLETO'))&&a.nome.toUpperCase()!==norm(get(d,drivers.ix,'NOME_COMPLETO')).toUpperCase()),
+      problema:!a.motoristaId?'MOTORISTA_ID_VAZIO':!d?'MOTORISTA_ID_SEM_CADASTRO':!a.ativo?'CONTA_INATIVA':''
+    };
+  });
+  const participationAudit=parts.rows.map(r=>{
+    const id=norm(get(r,parts.ix,'ID')),driverId=norm(get(r,parts.ix,'MOTORISTA_ID'));
+    const opId=norm(get(r,parts.ix,'OPERACAO_ID')),setId=norm(get(r,parts.ix,'CONJUNTO_ID'));
+    const status=norm(get(r,parts.ix,'STATUS_PARTICIPACAO')).toUpperCase();
+    const expRaw=get(r,parts.ix,'EXPIRA_EM');
+    const exp=expRaw instanceof Date?expRaw.getTime():new Date(expRaw).getTime();
+    return {ofertaId:id,motoristaId:driverId,nomeMotorista:driverById.has(driverId)?norm(get(driverById.get(driverId),drivers.ix,'NOME_COMPLETO')):'',
+      operacaoId:opId,operacaoEncontrada:opById.has(opId),nomeOperacao:opById.has(opId)?norm(get(opById.get(opId),ops.ix,'NOME_OPERACAO')):'',
+      conjuntoId:setId,conjuntoEncontrado:setById.has(setId),status,expiraEm:expRaw instanceof Date?expRaw.toISOString():norm(expRaw),
+      ofertaVencida:status==='OFERTADA'&&(!isFinite(exp)||exp<=Date.now()),
+      motoristaEncontrado:driverById.has(driverId)};
+  });
+  const offersByDriver={};
+  participationAudit.forEach(o=>{if(o.motoristaId)(offersByDriver[o.motoristaId]||(offersByDriver[o.motoristaId]=[])).push(o);});
+  const setDriverAudit=sets.rows.map(r=>{
+    const setId=norm(get(r,sets.ix,'ID')),driverId=norm(get(r,sets.ix,'MOTORISTA_ID'));
+    return {conjuntoId:setId,motoristaId:driverId,nomeMotorista:driverById.has(driverId)?norm(get(driverById.get(driverId),drivers.ix,'NOME_COMPLETO')):'',
+      motoristaEncontrado:driverById.has(driverId),statusConjunto:norm(get(r,sets.ix,'STATUS'))};
+  });
+  const issues=[];
+  accountAudit.forEach(a=>{if(a.problema)issues.push({tipo:a.problema,usuarioId:a.usuarioId,login:a.login,motoristaId:a.motoristaId});if(a.divergenciaNome)issues.push({tipo:'NOME_DIVERGENTE_CONTA_CADASTRO',usuarioId:a.usuarioId,motoristaId:a.motoristaId,nomeConta:a.nomeConta,nomeCadastro:a.nomeCadastro});});
+  const accountsPerDriver={};driverAccounts.forEach(a=>{if(a.motoristaId)(accountsPerDriver[a.motoristaId]||(accountsPerDriver[a.motoristaId]=[])).push(a.login);});
+  Object.keys(accountsPerDriver).forEach(id=>{if(accountsPerDriver[id].length>1)issues.push({tipo:'MAIS_DE_UMA_CONTA_POR_MOTORISTA',motoristaId:id,logins:accountsPerDriver[id]});});
+  participationAudit.forEach(o=>{
+    if(!o.motoristaEncontrado)issues.push({tipo:'OFERTA_COM_MOTORISTA_INEXISTENTE',ofertaId:o.ofertaId,motoristaId:o.motoristaId});
+    if(!o.operacaoEncontrada)issues.push({tipo:'OFERTA_COM_OPERACAO_INEXISTENTE',ofertaId:o.ofertaId,operacaoId:o.operacaoId});
+    if(!o.conjuntoEncontrado)issues.push({tipo:'OFERTA_COM_CONJUNTO_INEXISTENTE',ofertaId:o.ofertaId,conjuntoId:o.conjuntoId});
+    if(o.ofertaVencida)issues.push({tipo:'OFERTA_VENCIDA_AINDA_OFERTADA',ofertaId:o.ofertaId,motoristaId:o.motoristaId,operacaoId:o.operacaoId,expiraEm:o.expiraEm});
+  });
+  setDriverAudit.forEach(s=>{if(s.motoristaId&&!s.motoristaEncontrado)issues.push({tipo:'CONJUNTO_COM_MOTORISTA_INEXISTENTE',conjuntoId:s.conjuntoId,motoristaId:s.motoristaId});});
+  const byStatus={};participationAudit.forEach(o=>byStatus[o.status]=(byStatus[o.status]||0)+1);
+  const result={
+    executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',
+    bases:{principalId:registryId,autenticacaoId:authId,basesSeparadas:registryId!==authId},
+    contagens:{contas:accounts.length,contasMotorista:driverAccounts.length,motoristas:drivers.rows.length,conjuntos:sets.rows.length,operacoes:ops.rows.length,participacoes:parts.rows.length,ofertasPorStatus:byStatus},
+    contasMotorista:accountAudit,
+    conjuntos:setDriverAudit,
+    ofertas:participationAudit,
+    duplicidades:{idsUsuarios:duplicate(users.rows,users.ix,'ID'),logins:duplicate(users.rows,users.ix,'LOGIN'),idsMotoristas:duplicate(drivers.rows,drivers.ix,'ID'),idsConjuntos:duplicate(sets.rows,sets.ix,'ID'),idsOperacoes:duplicate(ops.rows,ops.ix,'ID'),idsParticipacoes:duplicate(parts.rows,parts.ix,'ID')},
+    eventosEscala:{guiaExiste:!!events,registros:events?Math.max(0,events.getLastRow()-1):0},
+    problemas:issues
+  };
+  const countByType={};issues.forEach(x=>countByType[x.tipo]=(countByType[x.tipo]||0)+1);
+  const userByLogin={};accounts.forEach(a=>{userByLogin[a.login.toLowerCase()]=a;});
+  const driverIdentity=drivers.rows.map(r=>({
+    id:norm(get(r,drivers.ix,'ID')),
+    nome:norm(get(r,drivers.ix,'NOME_COMPLETO')),
+    email:norm(get(r,drivers.ix,'EMAIL')).toLowerCase()
+  }));
+  const accountIdentity=driverAccounts.map(a=>{
+    const raw=users.rows.find(r=>norm(get(r,users.ix,'LOGIN')).toLowerCase()===a.login.toLowerCase());
+    return {login:a.login,nomeConta:a.nome,emailConta:raw?norm(get(raw,users.ix,'EMAIL')).toLowerCase():'',motoristaIdAtual:a.motoristaId};
+  });
+  const identityCrosscheck=accountIdentity.map(a=>{
+    const byEmail=a.emailConta?driverIdentity.filter(d=>d.email&&d.email===a.emailConta):[];
+    const byName=a.nomeConta?driverIdentity.filter(d=>d.nome&&d.nome.toUpperCase()===a.nomeConta.toUpperCase()):[];
+    return {login:a.login,nomeConta:a.nomeConta,emailConta:a.emailConta,motoristaIdAtual:a.motoristaId,
+      candidatosEmail:byEmail.map(d=>({id:d.id,nome:d.nome,email:d.email})),
+      candidatosNome:byName.map(d=>({id:d.id,nome:d.nome,email:d.email})),
+      correspondenciaUnica:byEmail.length===1?'EMAIL':byName.length===1?'NOME':(byEmail.length>1||byName.length>1?'AMBIGUA':'NAO_IDENTIFICADA'),
+      idCandidato:byEmail.length===1?byEmail[0].id:byName.length===1?byName[0].id:''
+    };
+  });
+  const identityCounts={};
+  identityCrosscheck.forEach(x=>identityCounts[x.correspondenciaUnica]=(identityCounts[x.correspondenciaUnica]||0)+1);
+  const compact={
+    executadoEm:result.executadoEm,modo:result.modo,bases:result.bases,contagens:result.contagens,
+    resumoIdentidade:identityCounts,
+    contasComCorrespondencia:identityCrosscheck.filter(x=>x.idCandidato).map(x=>({login:x.login,idCandidato:x.idCandidato,metodo:x.correspondenciaUnica})),
+    contasSemCorrespondencia:identityCrosscheck.filter(x=>!x.idCandidato).map(x=>({login:x.login,nomeConta:x.nomeConta,motoristaIdAtual:x.motoristaIdAtual})),
+    idsMotoristasCadastrados:driverIdentity.map(d=>d.id),
+    duplicidades:result.duplicidades,eventosEscala:result.eventosEscala,problemasPorTipo:countByType
+  };
+
+  Logger.log('FULL TIME — AUDITORIA DE VÍNCULOS E OFERTAS: '+JSON.stringify(compact));
+  return result;
+}
+
+/**
+ * Diagnóstico pontual: compara contas, cadastros, conjuntos e ofertas pendentes.
+ * SOMENTE LEITURA. Não cria, altera ou exclui dados.
+ * Execute no editor Apps Script e consulte o Registro de execução.
+ */
+function FT_DIAGNOSTICAR_PORTAL_OFERTAS_20261113() {
+  const props=PropertiesService.getScriptProperties();
+  const authId=props.getProperty('FT_DATABASE_ID');
+  const registryId=props.getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!authId||!registryId)throw new Error('IDs das bases não configurados.');
+  const auth=SpreadsheetApp.openById(authId),reg=SpreadsheetApp.openById(registryId);
+  const read=(ss,name)=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)throw new Error('Guia ausente: '+name);
+    const v=sh.getDataRange().getValues(),h=(v[0]||[]).map(x=>String(x||'').trim().toUpperCase()),ix={};
+    h.forEach((x,i)=>{if(x&&ix[x]===undefined)ix[x]=i;});
+    return {rows:v.slice(1),ix};
+  };
+  const users=read(auth,'USUARIOS'),drivers=read(reg,'MOTORISTAS'),sets=read(reg,'CONJUNTOS'),parts=read(reg,'PARTICIPACAO_OPERACOES');
+  const val=(r,ix,k)=>ix[k]===undefined?'':String(r[ix[k]]==null?'':r[ix[k]]).trim();
+  const driverById=new Map(drivers.rows.map(r=>[val(r,drivers.ix,'ID'),r]));
+  const accountByDriver=new Map();
+  users.rows.forEach(r=>{
+    if(val(r,users.ix,'PERFIL').toUpperCase()!=='MOTORISTA')return;
+    const id=val(r,users.ix,'MOTORISTA_ID');
+    if(id)accountByDriver.set(id,{login:val(r,users.ix,'LOGIN'),nome:val(r,users.ix,'NOME'),ativo:val(r,users.ix,'ATIVO')});
+  });
+  const setById=new Map(sets.rows.map(r=>[val(r,sets.ix,'ID'),r]));
+  const offers=parts.rows.filter(r=>val(r,parts.ix,'STATUS_PARTICIPACAO').toUpperCase()==='OFERTADA')
+    .map(r=>{
+      const driverId=val(r,parts.ix,'MOTORISTA_ID'),setId=val(r,parts.ix,'CONJUNTO_ID'),opId=val(r,parts.ix,'OPERACAO_ID');
+      const d=driverById.get(driverId),a=accountByDriver.get(driverId),set=setById.get(setId);
+      return {ofertaId:val(r,parts.ix,'ID'),motoristaId:driverId,
+        nomeCadastro:d?val(d,drivers.ix,'NOME_COMPLETO'):'MOTORISTA_NAO_ENCONTRADO',
+        conta:a||null,conjuntoId:setId,motoristaDoConjunto:set?val(set,sets.ix,'MOTORISTA_ID'):'CONJUNTO_NAO_ENCONTRADO',
+        operacaoId:opId,origemOferta:val(r,parts.ix,'ORIGEM_OFERTA'),
+        expiraEm:parts.ix.EXPIRA_EM!==undefined&&r[parts.ix.EXPIRA_EM] instanceof Date?r[parts.ix.EXPIRA_EM].toISOString():val(r,parts.ix,'EXPIRA_EM')};
+    });
+  const result={
+    executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',
+    bases:{autenticacao:authId,operacional:registryId},
+    cabecalhosParticipacao:{motoristaId:parts.ix.MOTORISTA_ID,id:parts.ix.ID,status:parts.ix.STATUS_PARTICIPACAO,operacaoId:parts.ix.OPERACAO_ID,conjuntoId:parts.ix.CONJUNTO_ID},
+    contasMotorista:users.rows.filter(r=>val(r,users.ix,'PERFIL').toUpperCase()==='MOTORISTA').length,
+    motoristas:drivers.rows.length,ofertasOfertadas:offers.length,ofertas:offers
+  };
+  Logger.log('FULL TIME — DIAGNÓSTICO PORTAL x CONVOCAÇÃO: '+JSON.stringify(result));
+  return result;
 }
