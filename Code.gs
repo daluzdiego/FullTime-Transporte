@@ -1217,15 +1217,16 @@ function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
       idCandidato:byEmail.length===1?byEmail[0].id:byName.length===1?byName[0].id:''
     };
   });
+  const identityCounts={};
+  identityCrosscheck.forEach(x=>identityCounts[x.correspondenciaUnica]=(identityCounts[x.correspondenciaUnica]||0)+1);
   const compact={
     executadoEm:result.executadoEm,modo:result.modo,bases:result.bases,contagens:result.contagens,
-    cruzamentoIdentidade:identityCrosscheck,
-    contasSemCadastro:accountAudit.filter(a=>!a.cadastroEncontrado).map(a=>({login:a.login,motoristaId:a.motoristaId,ativo:a.contaAtiva})),
-    idsMotoristasCadastrados:drivers.rows.map(r=>norm(get(r,drivers.ix,'ID'))).filter(Boolean),
-    conjuntosSemMotorista:setDriverAudit.filter(x=>!x.motoristaEncontrado),
-    ofertasComReferenciasInvalidas:participationAudit.filter(x=>!x.motoristaEncontrado||!x.operacaoEncontrada||!x.conjuntoEncontrado).map(x=>({ofertaId:x.ofertaId,motoristaId:x.motoristaId,motoristaEncontrado:x.motoristaEncontrado,operacaoId:x.operacaoId,operacaoEncontrada:x.operacaoEncontrada,conjuntoId:x.conjuntoId,conjuntoEncontrado:x.conjuntoEncontrado,status:x.status})),
+    resumoIdentidade:identityCounts,
+    contasComCorrespondencia:identityCrosscheck.filter(x=>x.idCandidato).map(x=>({login:x.login,idCandidato:x.idCandidato,metodo:x.correspondenciaUnica})),
+    contasSemCorrespondencia:identityCrosscheck.filter(x=>!x.idCandidato).map(x=>({login:x.login,nomeConta:x.nomeConta,motoristaIdAtual:x.motoristaIdAtual})),
+    idsMotoristasCadastrados:driverIdentity.map(d=>d.id),
     duplicidades:result.duplicidades,eventosEscala:result.eventosEscala,problemasPorTipo:countByType
   };
-  Logger.log('FULL TIME — AUDITORIA COMPACTA DE VÍNCULOS — SOMENTE LEITURA: '+JSON.stringify(compact));
+
   return result;
 }
