@@ -825,8 +825,11 @@ function FT_documentosToxicologicoPorMotorista_() {
 }
 function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const session=obterSessao_(token); exigirAdmin_(session);
-  const op=listarOperacoesFullTime(token).find(o=>o.id===String(operacaoId));
-  if(!op) throw new Error('Operação não encontrada.');
+  const opSheet=getSheet_('OPERACOES'),opGrid=opSheet.getDataRange().getValues(),opHeaders=(opGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),opIx={};
+  opHeaders.forEach((h,i)=>{if(h&&opIx[h]===undefined)opIx[h]=i;});
+  const opRow=opGrid.slice(1).find(r=>String(r[opIx.ID]||'')===String(operacaoId));
+  if(!opRow) throw new Error('Operação não encontrada.');
+  const op={id:String(opRow[opIx.ID]),data:opRow[opIx.DATA_OPERACAO],categoria:String(opRow[opIx.CATEGORIA]||'PADRAO'),volumeTotal:Number(opRow[opIx.VOLUME_TOTAL_TONELADAS]||0),viagensPrevistas:Number(opRow[opIx.TOTAL_VIAGENS_PREVISTAS]||0)};
   const operationDay=FT_dataChaveElegibilidade_(op.data);
   const sets=listarRegistros_('CONJUNTOS'), drivers=listarRegistros_('MOTORISTAS'), driverById={};
   drivers.forEach(d=>driverById[String(d.id)]=d);
