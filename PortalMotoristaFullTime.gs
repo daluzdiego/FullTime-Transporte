@@ -23,7 +23,11 @@ function obterPortalMotoristaFullTime(token) {
   const missing=required.filter(h=>!have.has(h));if(missing.length)parts.getRange(1,parts.getLastColumn()+1,1,missing.length).setValues([missing]);
   const pmap=FT_MOTORISTA_headerMap_(parts);
   const rows=parts.getDataRange().getValues();
-  const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'')===motoristaId);
+  const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
+  const driverRecord=listarRegistros_('MOTORISTAS').find(d=>String(d.id||'').trim()===motoristaId);
+  if(!driverRecord)throw new Error('O usuário está vinculado ao motorista '+motoristaId+', mas esse ID não foi encontrado na guia MOTORISTAS. Corrija MOTORISTA_ID na guia USUARIOS.');
+  const driverFields=driverRecord.camposPorNome||{};
+  const driverName=String(driverFields.NOME_COMPLETO||driverRecord.nome||session.nome||'Motorista');
   const opsSheet=getSheet_('OPERACOES'), omap=FT_MOTORISTA_headerMap_(opsSheet), opRows=opsSheet.getDataRange().getValues();
   const ops={};
   opRows.slice(1).forEach(r=>{ops[String(r[omap.ID]||'')]={
@@ -51,7 +55,7 @@ function obterPortalMotoristaFullTime(token) {
     };
   }).filter(o=>o.id&&o.operacao.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
   const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length};
-  return {user:{nome:session.nome,email:session.email},motoristaId,ofertas:offers,counts};
+  return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
 }
 
 function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao) {
