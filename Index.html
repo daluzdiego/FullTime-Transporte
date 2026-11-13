@@ -330,7 +330,7 @@
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
       (offers.length?offers.map(o=>{
         const op=o.operacao||{},pendingOffer=o.status==='OFERTADA'&&!o.expirada;
-        const statusLabel=o.expirada?'EXPIRADA':o.status;
+        const statusLabel=o.expirada?'NÃO RESPONDEU EM 2H':o.status;
         return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||'Operação')+'</h2><div class="muted small">'+esc(op.cliente||'')+' · '+esc(statusLabel)+'</div></div><span class="badge '+(pendingOffer?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div></div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(pendingOffer?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':o.status==='ACEITA'?'<p class="notice" style="margin-top:14px">Você aceitou esta oferta. Aguarde a confirmação da escala pela administração.</p>':'')+'</div></div>';
       }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
   }
@@ -689,11 +689,11 @@
     const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
     const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
     const visible=modo==='convocados'?called:rows;
-    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'EXPIRADA'}[st]||st);
+    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'NÃO RESPONDEU EM 2H',NAO_RESPONDEU:'NÃO RESPONDEU EM 2H'}[st]||st);
     const line=r=>{
       const p=calledByDriver[String(r.driverId||'')],st=p?String(p.campos?.[3]||'').toUpperCase():'';
       const invited=!!p,tone=invited?'background:#fff7e6;':'';
-      const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO · NÃO CONVOCADO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
+      const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO · NÃO CONVOCADO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
       return '<tr style="'+tone+'"><td>'+(r.posicao?esc(r.posicao)+'º':'—')+'</td><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';
     };
     host.innerHTML='<div class="form-actions" style="margin:8px 0 12px"><button class="btn '+(modo==='todos'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'todos\')">Todos os candidatos ('+rows.length+')</button><button class="btn '+(modo==='convocados'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'convocados\')">Convocados ('+called.length+')</button></div>'+
