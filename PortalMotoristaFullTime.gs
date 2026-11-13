@@ -53,7 +53,7 @@ function obterPortalMotoristaFullTime(token) {
       observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
       operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
     };
-  }).filter(o=>o.id&&o.operacao.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
+  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
   const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length};
   return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
 }
@@ -81,7 +81,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
     }
     const now=new Date(),note=texto_(observacao,500);
-    sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ATIVO':'RECUSADA');
+    sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ACEITA':'RECUSADA');
     if(resposta==='ACEITA'&&map.INICIO_EM!==undefined)sh.getRange(idx+1,map.INICIO_EM+1).setValue(now);
     if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
     if(note&&map.MOTIVO!==undefined)sh.getRange(idx+1,map.MOTIVO+1).setValue(note);
@@ -91,7 +91,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       anterior:'OFERTADA',nova:resposta,motivo:note||'Resposta registrada pelo portal do motorista.',
       autor:session.email,ofertaId});
     auditar_(session,'RESPOSTA_OFERTA_MOTORISTA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId+' -> '+resposta);
-    return {ok:true,status:resposta==='ACEITA'?'ATIVO':'RECUSADA',message:resposta==='ACEITA'?'Aceite registrado. Escala ativada automaticamente.':'Recusa registrada. O próximo motorista será chamado automaticamente.'};
+    return {ok:true,status:resposta==='ACEITA'?'ATIVO':'RECUSADA',message:resposta==='ACEITA'?'Aceite registrado. Aguarde a confirmação da escala pela administração.':'Recusa registrada. O próximo motorista será chamado automaticamente.'};
   } finally {lock.releaseLock();}
 }
 
