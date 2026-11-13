@@ -1284,3 +1284,52 @@ function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
 
   return result;
 }
+
+/**
+ * Diagnóstico pontual: compara contas, cadastros, conjuntos e ofertas pendentes.
+ * SOMENTE LEITURA. Não cria, altera ou exclui dados.
+ * Execute no editor Apps Script e consulte o Registro de execução.
+ */
+function FT_DIAGNOSTICAR_PORTAL_OFERTAS_20261113() {
+  const props=PropertiesService.getScriptProperties();
+  const authId=props.getProperty('FT_DATABASE_ID');
+  const registryId=props.getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!authId||!registryId)throw new Error('IDs das bases não configurados.');
+  const auth=SpreadsheetApp.openById(authId),reg=SpreadsheetApp.openById(registryId);
+  const read=(ss,name)=>{
+    const sh=ss.getSheetByName(name);
+    if(!sh)throw new Error('Guia ausente: '+name);
+    const v=sh.getDataRange().getValues(),h=(v[0]||[]).map(x=>String(x||'').trim().toUpperCase()),ix={};
+    h.forEach((x,i)=>{if(x&&ix[x]===undefined)ix[x]=i;});
+    return {rows:v.slice(1),ix};
+  };
+  const users=read(auth,'USUARIOS'),drivers=read(reg,'MOTORISTAS'),sets=read(reg,'CONJUNTOS'),parts=read(reg,'PARTICIPACAO_OPERACOES');
+  const val=(r,ix,k)=>ix[k]===undefined?'':String(r[ix[k]]==null?'':r[ix[k]]).trim();
+  const driverById=new Map(drivers.rows.map(r=>[val(r,drivers.ix,'ID'),r]));
+  const accountByDriver=new Map();
+  users.rows.forEach(r=>{
+    if(val(r,users.ix,'PERFIL').toUpperCase()!=='MOTORISTA')return;
+    const id=val(r,users.ix,'MOTORISTA_ID');
+    if(id)accountByDriver.set(id,{login:val(r,users.ix,'LOGIN'),nome:val(r,users.ix,'NOME'),ativo:val(r,users.ix,'ATIVO')});
+  });
+  const setById=new Map(sets.rows.map(r=>[val(r,sets.ix,'ID'),r]));
+  const offers=parts.rows.filter(r=>val(r,parts.ix,'STATUS_PARTICIPACAO').toUpperCase()==='OFERTADA')
+    .map(r=>{
+      const driverId=val(r,parts.ix,'MOTORISTA_ID'),setId=val(r,parts.ix,'CONJUNTO_ID'),opId=val(r,parts.ix,'OPERACAO_ID');
+      const d=driverById.get(driverId),a=accountByDriver.get(driverId),set=setById.get(setId);
+      return {ofertaId:val(r,parts.ix,'ID'),motoristaId:driverId,
+        nomeCadastro:d?val(d,drivers.ix,'NOME_COMPLETO'):'MOTORISTA_NAO_ENCONTRADO',
+        conta:a||null,conjuntoId:setId,motoristaDoConjunto:set?val(set,sets.ix,'MOTORISTA_ID'):'CONJUNTO_NAO_ENCONTRADO',
+        operacaoId:opId,origemOferta:val(r,parts.ix,'ORIGEM_OFERTA'),
+        expiraEm:parts.ix.EXPIRA_EM!==undefined&&r[parts.ix.EXPIRA_EM] instanceof Date?r[parts.ix.EXPIRA_EM].toISOString():val(r,parts.ix,'EXPIRA_EM')};
+    });
+  const result={
+    executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',
+    bases:{autenticacao:authId,operacional:registryId},
+    cabecalhosParticipacao:{motoristaId:parts.ix.MOTORISTA_ID,id:parts.ix.ID,status:parts.ix.STATUS_PARTICIPACAO,operacaoId:parts.ix.OPERACAO_ID,conjuntoId:parts.ix.CONJUNTO_ID},
+    contasMotorista:users.rows.filter(r=>val(r,users.ix,'PERFIL').toUpperCase()==='MOTORISTA').length,
+    motoristas:drivers.rows.length,ofertasOfertadas:offers.length,ofertas:offers
+  };
+  Logger.log('FULL TIME — DIAGNÓSTICO PORTAL x CONVOCAÇÃO: '+JSON.stringify(result));
+  return result;
+}
