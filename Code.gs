@@ -1196,6 +1196,15 @@ function FT_AUDITAR_VINCULOS_E_OFERTAS_20261113() {
     eventosEscala:{guiaExiste:!!events,registros:events?Math.max(0,events.getLastRow()-1):0},
     problemas:issues
   };
-  Logger.log('FULL TIME — AUDITORIA DE VÍNCULOS E OFERTAS — SOMENTE LEITURA: '+JSON.stringify(result));
+  const countByType={};issues.forEach(x=>countByType[x.tipo]=(countByType[x.tipo]||0)+1);
+  const compact={
+    executadoEm:result.executadoEm,modo:result.modo,bases:result.bases,contagens:result.contagens,
+    contasSemCadastro:accountAudit.filter(a=>!a.cadastroEncontrado).map(a=>({login:a.login,motoristaId:a.motoristaId,ativo:a.contaAtiva})),
+    idsMotoristasCadastrados:drivers.rows.map(r=>norm(get(r,drivers.ix,'ID'))).filter(Boolean),
+    conjuntosSemMotorista:setDriverAudit.filter(x=>!x.motoristaEncontrado),
+    ofertasComReferenciasInvalidas:participationAudit.filter(x=>!x.motoristaEncontrado||!x.operacaoEncontrada||!x.conjuntoEncontrado).map(x=>({ofertaId:x.ofertaId,motoristaId:x.motoristaId,motoristaEncontrado:x.motoristaEncontrado,operacaoId:x.operacaoId,operacaoEncontrada:x.operacaoEncontrada,conjuntoId:x.conjuntoId,conjuntoEncontrado:x.conjuntoEncontrado,status:x.status})),
+    duplicidades:result.duplicidades,eventosEscala:result.eventosEscala,problemasPorTipo:countByType
+  };
+  Logger.log('FULL TIME — AUDITORIA COMPACTA DE VÍNCULOS — SOMENTE LEITURA: '+JSON.stringify(compact));
   return result;
 }
