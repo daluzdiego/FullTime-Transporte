@@ -31,6 +31,6 @@ jobs:
             echo "Checking $file"
             node --check < "$file"
             count=$((count + 1))
-          done < <(find apps-script -type f \\( -name '*.gs' -o -name '*.js' \\) -print0)
+          done < <(find apps-script -type f \( -name '*.gs' -o -name '*.js' \) -print0)
           test "$count" -gt 0
           echo "Parsed $count files successfully."
