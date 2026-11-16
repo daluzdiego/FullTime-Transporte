@@ -324,16 +324,68 @@
 
   function renderPortalMotorista(){
     const offers=Array.isArray(dashboard?.ofertas)?dashboard.ofertas:[];
+    const orphanEvents=Array.isArray(dashboard?.eventos)?dashboard.eventos:[];
     const counts=dashboard?.counts||{};
     const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
-    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0],['Sem resposta em 2h',counts.expiradas||0]];
-    return '<div class="page-head"><div><h1>Minhas ofertas</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui aparecem somente as convocações vinculadas ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
+    const localDay=d=>{
+      if(!d)return '';
+      const s=String(d).trim();
+      let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+      m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+      if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+      const x=d instanceof Date?d:new Date(d);
+      return isNaN(x.getTime())?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+    };
+    const today=new Date(),todayKey=dashboard?.hoje||localDay(today);
+    const operationDay=o=>o?.operacao?.dataKey||localDay(o?.operacao?.data);
+    const futureOffers=offers.filter(o=>{const k=operationDay(o);return k&&k>todayKey;});
+    const todayOffers=offers.filter(o=>operationDay(o)===todayKey);
+    const pastOffers=offers.filter(o=>{const k=operationDay(o);return !k||k<todayKey;});
+
+    const cards=[
+      ['Convites recebidos',counts.total??offers.length],
+      ['Pendentes',counts.pendentes||0],
+      ['Aceitas',counts.aceitas||0],
+      ['Recusadas',counts.recusadas||0],
+      ['Prazo encerrado',counts.expiradas||0],
+      ['Canceladas',counts.canceladas||0]
+    ];
+    const dateTime=v=>{
+      if(!v)return 'Não registrado';
+      const d=new Date(v);
+      return isNaN(d.getTime())?esc(v):d.toLocaleString('pt-BR');
+    };
+    const labels={
+      OFERTADA:'PENDENTE',ACEITA:'ACEITA PELO MOTORISTA',ATIVO:'ESCALA CONFIRMADA',
+      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA NO PORTAL — PRAZO DE 2 HORAS',
+      EXPIRADA:'PRAZO ENCERRADO — SEM RESPOSTA NO PORTAL',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
+      CANCELADA:'CANCELADA',SAIU:'EM EXECUÇÃO',EM_VIAGEM:'EM VIAGEM',RETORNOU:'CONCLUÍDA'
+    };
+    const eventLabel=e=>{
+      const map={OFERTA_ENVIADA:'Convocação disponibilizada no portal',OFERTA_RECUSADA:'Motorista recusou',ESCALA_CONFIRMADA:'Aceite/escala confirmada',OFERTA_EXPIRADA:'Prazo expirou',OFERTA_CANCELADA_REPROGRAMACAO:'Convite cancelado por reprogramação'};
+      return map[e.tipo]||String(e.tipo||'Evento').replace(/_/g,' ');
+    };
+    const eventLine=e=>'<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span style="color:var(--blue)">●</span><div><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div></div>';
+    const renderOfferCard=o=>{
+      const op=o.operacao||{},isPending=o.status==='OFERTADA'&&!o.expirada;
+      const statusLabel=labels[o.status]||o.status||'STATUS NÃO INFORMADO';
+      const negativeStatuses=['RECUSADA','NAO_RESPONDEU','EXPIRADA','CANCELADA','CANCELADA_REPROGRAMACAO'];
+      const badgeTone=isPending||negativeStatuses.includes(o.status)?'badge-pending':'badge-active';
+      const events=Array.isArray(o.eventos)?o.eventos:[];
+      const eventHtml=events.length?events.map(eventLine).join(''):'<div class="muted small" style="padding-top:8px">Sem evento complementar registrado. Os dados da participação permanecem no histórico.</div>';
+      const responseInfo=o.respondidaEm?'<div><strong>Decisão registrada</strong><div>'+dateTime(o.respondidaEm)+'</div></div>':'';
+      return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted small">'+esc(op.cliente||'')+' · Convite: '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+badgeTone+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div><div><strong>Prazo para resposta</strong><div>'+dateTime(o.expiraEm)+'</div></div>'+responseInfo+'</div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700;color:var(--blue-dark)">Ver histórico deste convite ('+events.length+' eventos)</summary><div style="padding-top:10px">'+eventHtml+'</div></details></div></div>';
+    };
+    const standalone=orphanEvents.length?'<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Outros eventos do seu histórico</h2></div><div class="panel-body">'+orphanEvents.map(e=>'<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+' · '+esc(e.operacao?.nome||e.operacaoId||'Operação não identificada')+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div>').join('')+'</div></div>':'';
+    return '<div class="page-head"><div><h1>Minhas ofertas e histórico</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
-      (offers.length?offers.map(o=>{
-        const op=o.operacao||{},pendingOffer=o.status==='OFERTADA'&&!o.expirada;
-        const statusLabel=o.expirada?'NÃO RESPONDEU EM 2H':o.status;
-        return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||'Operação')+'</h2><div class="muted small">'+esc(op.cliente||'')+' · '+esc(statusLabel)+'</div></div><span class="badge '+(pendingOffer?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div></div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(pendingOffer?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':o.status==='ACEITA'?'<p class="notice" style="margin-top:14px">Você aceitou esta oferta. Aguarde a confirmação da escala pela administração.</p>':'')+'</div></div>';
-      }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
+      (pending.length?'<h2 style="margin:22px 0 12px">Aguardando sua resposta</h2>':'')+
+      (offers.length?[
+        futureOffers.length?'<h2 style="margin:22px 0 12px">Próximas operações ('+futureOffers.length+')</h2>'+futureOffers.map(renderOfferCard).join(''):'',
+        todayOffers.length?'<h2 style="margin:22px 0 12px">Operações de hoje ('+todayOffers.length+')</h2>'+todayOffers.map(renderOfferCard).join(''):'',
+        pastOffers.length?'<h2 style="margin:22px 0 12px">Convites e operações anteriores ('+pastOffers.length+')</h2>'+pastOffers.map(renderOfferCard).join(''):''
+      ].join(''):'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
   }
   function atualizarPortalMotorista(){
     const content=document.getElementById('content');
@@ -363,20 +415,35 @@
   }
 
   function renderCentroOperacoes(){
-    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Visão consolidada das operações atuais, conjuntos em atividade e cargas movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Acompanhe operações atuais, futuras, atrasadas e encerradas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+  }
+  function renderCardCentro(o){
+    const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
+    const pct=o.viagensPrevistas>0?Math.min(100,Math.max(0,o.viagensRealizadas/o.viagensPrevistas*100)):0;
+    const badge=o.atrasada?'<span class="badge badge-pending">ATRASADA</span>':'<span class="badge badge-active">'+esc(o.status)+'</span>';
+    const action=o.sugestaoConclusao?'<div class="notice" style="margin-top:12px"><strong>Conclusão sugerida.</strong> Saldo zerado, viagens conferidas e nenhuma participação ativa.<div class="form-actions"><button class="btn btn-primary" onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Conferir e encerrar operação</button></div></div>':'';
+    return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+' · Início: '+esc(formatDate(o.data)||'não informado')+' · Previsão de término: '+esc(formatDate(o.previsaoTermino)||'não informada')+'</div></div>'+badge+'</div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Viagens <strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(0)+'% concluído</div></div><div class="center-op-metrics"><div class="center-op-metric"><span>Volume total</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Saldo</span><strong>'+esc(num(o.saldo))+' t</strong></div><div class="center-op-metric"><span>Conjuntos ativos</span><strong>'+esc(o.conjuntos.length)+'</strong></div></div><div class="center-op-meta"><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span><span>'+esc(o.produto||'Produto não informado')+'</span><span>'+esc(num(o.toneladasMovimentadas))+' t movimentadas</span></div>'+action+'<details class="center-op-sets"><summary>Ver conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';
   }
   function carregarCentroOperacoes(){
     const host=document.getElementById('centroResumo');if(!host||!authToken)return;
     host.innerHTML='<div class="empty">Atualizando Centro de Operações…</div>';
     google.script.run.withSuccessHandler(data=>{
       if(currentPage!=='centro')return;
-      const k=data.indicadores||{},ops=data.operacoes||[];
+      const k=data.indicadores||{},current=(data.operacoes||[]).filter(o=>!o.atrasada),future=data.futuras||[],late=data.atrasadas||[],done=data.concluidas||[],cancelled=data.canceladas||[];
       const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
-      const cards=[['Operações atuais',k.operacoesAtuais||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Toneladas movimentadas',num(k.toneladasMovimentadas)+' t']];
-      host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div>'+(ops.length?'<div class="center-ops-grid">'+ops.map(o=>{const pct=o.viagensPrevistas>0?Math.min(100,Math.max(0,o.viagensRealizadas/o.viagensPrevistas*100)):0;return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+'</div></div><span class="badge badge-active">'+esc(o.status)+'</span></div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Viagens <strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(0)+'% concluído</div></div><div class="center-op-metrics"><div class="center-op-metric"><span>Volume total</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Saldo</span><strong>'+esc(num(o.saldo))+' t</strong></div><div class="center-op-metric"><span>Conjuntos</span><strong>'+esc(o.conjuntos.length)+'</strong></div></div><div class="center-op-meta"><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span><span>'+esc(o.produto||'Produto não informado')+'</span><span>'+esc(num(o.toneladasMovimentadas))+' t movimentadas</span></div><details class="center-op-sets"><summary>Ver conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';}).join('')+'</div>':'<div class="panel"><div class="empty"><strong>Nenhuma operação atual</strong>As operações abertas ou em andamento aparecerão aqui.</div></div>');
+      const cards=[['Atuais',k.operacoesAtuais||0],['Futuras',k.operacoesFuturas||0],['Atrasadas',k.operacoesAtrasadas||0],['Conclusões sugeridas',k.sugestoesConclusao||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Toneladas movimentadas',num(k.toneladasMovimentadas)+' t']];
+      const section=(title,items,empty)=>'<section style="margin-top:20px"><div class="panel-head"><h2>'+title+'</h2><span class="muted small">'+items.length+' operação(ões)</span></div>'+(items.length?'<div class="center-ops-grid">'+items.map(renderCardCentro).join('')+'</div>':'<div class="panel"><div class="empty">'+empty+'</div></div>')+'</section>';
+      const lateNotice=late.length?'<div class="notice" style="margin-top:14px"><strong>Atenção: '+late.length+' operação(ões) atrasada(s).</strong> A previsão de término passou. O status operacional foi preservado; confira a necessidade de reprogramação.</div>':'';
+      const noDeadline=current.filter(o=>o.semPrevisao).length?'<div class="notice" style="margin-top:10px">'+current.filter(o=>o.semPrevisao).length+' operação(ões) em andamento sem previsão de término cadastrada. Cadastre a data limite para permitir alertas de atraso.</div>':'';
+      host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div>'+lateNotice+noDeadline+section('Operações atuais',current,'Nenhuma operação atual.')+section('Operações futuras',future,'Nenhuma operação futura.')+section('Operações atrasadas',late,'Nenhuma operação atrasada.')+'<details class="panel" style="margin-top:20px"><summary class="panel-head"><h2>Histórico de operações concluídas ('+done.length+')</h2></summary><div class="panel-body">'+(done.length?'<div class="center-ops-grid">'+done.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação concluída.</div>')+'</div></details><details class="panel" style="margin-top:12px"><summary class="panel-head"><h2>Operações canceladas ('+cancelled.length+')</h2></summary><div class="panel-body">'+(cancelled.length?'<div class="center-ops-grid">'+cancelled.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação cancelada.</div>')+'</div></details>';
     }).withFailureHandler(err=>{host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';}).obterCentroOperacoesFullTime(authToken);
   }
-
+  async function confirmarConclusaoCentro(id){
+    if(!await uiConfirm('O sistema identificou saldo zerado, viagens conferidas e nenhuma participação ativa. Confirma o encerramento definitivo desta operação?',{title:'Confirmar conclusão',ok:'Encerrar operação',danger:false}))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação encerrada.');carregarCentroOperacoes();})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível encerrar a operação.',true))
+      .confirmarConclusaoOperacaoFullTime(authToken,id,'Conclusão conferida e confirmada no Centro de Operações.');
+  }
   function renderSolicitacoes(){
     return `
       <div class="page-head">
@@ -564,7 +631,7 @@
     if(!row.classList.contains('hidden')){row.classList.add('hidden');return;}
     row.classList.remove('hidden');host.innerHTML='<span class="muted">Consultando histórico…</span>';
     google.script.run.withSuccessHandler(data=>{
-      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Não respondeu em 2h',NAO_RESPONDEU:'Não respondeu em 2h',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
+      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Prazo encerrado sem resposta no portal',NAO_RESPONDEU:'Sem resposta no portal após 2 horas',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
       const counts=data.counts||{},current=data.operacaoAtual,history=data.history||[],label=s=>labels[String(s||'').toUpperCase()]||String(s||'—');
       host.innerHTML='<div class="panel" style="margin:8px 0;border:1px solid #dbe5f0"><div class="panel-head"><h3 style="margin:0">Histórico de '+esc(data.motorista?.nome||'motorista')+'</h3><span class="badge '+(current?'badge-active':'badge-pending')+'">'+esc(label(data.statusAtual))+'</span></div><div class="panel-body"><div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat-card"><div><div class="stat-label">Convocações</div><div class="stat-value">'+esc(counts.convocacoes||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Aceites</div><div class="stat-value">'+esc(counts.aceitas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Recusas</div><div class="stat-value">'+esc(counts.recusadas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Sem resposta em 2h</div><div class="stat-value">'+esc(counts.expiradas||0)+'</div></div></div></div>'+
       (current?'<div class="notice"><strong>Operação atual:</strong> '+esc(current.nome||'Operação')+' · '+esc(current.origem||'')+' → '+esc(current.destino||'')+'</div>':'<div class="notice">Não há operação ativa vinculada a este motorista.</div>')+
@@ -711,7 +778,7 @@
     const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
     const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
     const visible=modo==='convocados'?called:rows;
-    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'NÃO RESPONDEU EM 2H',NAO_RESPONDEU:'NÃO RESPONDEU EM 2H',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
+    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'PRAZO ENCERRADO · SEM RESPOSTA NO PORTAL',NAO_RESPONDEU:'SEM RESPOSTA NO PORTAL · 2 HORAS',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
     const line=r=>{
       const p=calledByDriver[String(r.driverId||'')],st=p?String(p.camposPorNome?.STATUS_PARTICIPACAO||p.campos?.[3]||'').trim().toUpperCase():'';
       const invited=!!p,tone=st==='OFERTADA'?'background:#fff7e6;':'';
