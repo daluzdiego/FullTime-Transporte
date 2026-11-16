@@ -147,3 +147,24 @@ function FT_prepararCamposLogisticosOperacao20261110() {
   sh.setFrozenRows(1);
   return {ok:true,adicionados:missing,preservados:true,totalColunas:finalHeaders.length,message:missing.length?'Campos logísticos adicionados ao final de OPERACOES.':'Todos os campos logísticos já existem.'};
 }
+
+/** Diagnóstico somente leitura para homologar datas, atrasos e sugestões de encerramento. */
+function FT_AUDITAR_CICLO_VIDA_OPERACOES_20261116() {
+  const ops=FT_CENTRO_rows_('OPERACOES'),parts=FT_CENTRO_rows_('PARTICIPACAO_OPERACOES');
+  const moves=FT_CENTRO_rows_('MOVIMENTACOES_OPERACAO');
+  const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const result=ops.map(o=>{
+    const id=String(o.ID||''),status=String(o.STATUS||'').toUpperCase();
+    const opParts=parts.filter(p=>String(p.OPERACAO_ID||'')===id);
+    const active=opParts.filter(p=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
+    const opMoves=moves.filter(m=>String(m.OPERACAO_ID||'')===id);
+    const trips=opMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS||(String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0)||FT_CENTRO_num_(o.VIAGENS_REALIZADAS);
+    const saldo=FT_CENTRO_num_(o.SALDO_TONELADAS),planned=FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS);
+    const due=FT_CENTRO_dateKey_(o.DATA_ENTREGA);
+    return {id,nome:String(o.NOME_OPERACAO||''),status,dataInicio:FT_CENTRO_dateKey_(o.DATA_OPERACAO),previsaoTermino:due,atrasada:!!(due&&due<today&&['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status)),semPrevisao:!due&&['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status),saldo,viagensPrevistas:planned,viagensRealizadas:trips,participacoesAtivas:active.length,sugestaoConclusao:saldo<=0.000001&&planned>0&&trips>=planned&&active.length===0&&!['CONCLUIDA','CANCELADA','CANCELADO'].includes(status)};
+  });
+  const summary={executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',hoje:today,total:result.length,atrasadas:result.filter(x=>x.atrasada).length,semPrevisao:result.filter(x=>x.semPrevisao).length,sugestoesConclusao:result.filter(x=>x.sugestaoConclusao).length,porStatus:{},operacoes:result};
+  result.forEach(x=>summary.porStatus[x.status]=(summary.porStatus[x.status]||0)+1);
+  Logger.log('FULL TIME — AUDITORIA CICLO DE VIDA: '+JSON.stringify(summary));
+  return summary;
+}
