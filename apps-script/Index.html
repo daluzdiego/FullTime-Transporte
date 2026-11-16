@@ -324,16 +324,46 @@
 
   function renderPortalMotorista(){
     const offers=Array.isArray(dashboard?.ofertas)?dashboard.ofertas:[];
+    const orphanEvents=Array.isArray(dashboard?.eventos)?dashboard.eventos:[];
     const counts=dashboard?.counts||{};
     const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
-    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0],['Sem resposta em 2h',counts.expiradas||0]];
-    return '<div class="page-head"><div><h1>Minhas ofertas</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui aparecem somente as convocações vinculadas ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
+    const cards=[
+      ['Convites recebidos',counts.total??offers.length],
+      ['Pendentes',counts.pendentes||0],
+      ['Aceitas',counts.aceitas||0],
+      ['Recusadas',counts.recusadas||0],
+      ['Sem resposta',counts.expiradas||0],
+      ['Canceladas',counts.canceladas||0]
+    ];
+    const dateTime=v=>{
+      if(!v)return 'Não registrado';
+      const d=new Date(v);
+      return isNaN(d.getTime())?esc(v):d.toLocaleString('pt-BR');
+    };
+    const labels={
+      OFERTADA:'PENDENTE',ACEITA:'ACEITA PELO MOTORISTA',ATIVO:'ESCALA CONFIRMADA',
+      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA EM 2H',
+      EXPIRADA:'EXPIRADA',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
+      CANCELADA:'CANCELADA',SAIU:'EM EXECUÇÃO',EM_VIAGEM:'EM VIAGEM',RETORNOU:'CONCLUÍDA'
+    };
+    const eventLabel=e=>{
+      const map={OFERTA_ENVIADA:'Convite registrado',OFERTA_RECUSADA:'Motorista recusou',ESCALA_CONFIRMADA:'Aceite/escala confirmada',OFERTA_EXPIRADA:'Prazo expirou',OFERTA_CANCELADA_REPROGRAMACAO:'Convite cancelado por reprogramação'};
+      return map[e.tipo]||String(e.tipo||'Evento').replace(/_/g,' ');
+    };
+    const eventLine=e=>'<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span style="color:var(--blue)">●</span><div><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div></div>';
+    const offerCards=offers.map(o=>{
+      const op=o.operacao||{},isPending=o.status==='OFERTADA'&&!o.expirada;
+      const statusLabel=labels[o.status]||o.status||'STATUS NÃO INFORMADO';
+      const events=Array.isArray(o.eventos)?o.eventos:[];
+      const eventHtml=events.length?events.map(eventLine).join(''):'<div class="muted small" style="padding-top:8px">Sem evento complementar registrado. Os dados da participação permanecem no histórico.</div>';
+      const responseInfo=o.respondidaEm?'<div><strong>Decisão registrada</strong><div>'+dateTime(o.respondidaEm)+'</div></div>':'';
+      return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted small">'+esc(op.cliente||'')+' · Convite: '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+(isPending?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div><div><strong>Prazo para resposta</strong><div>'+dateTime(o.expiraEm)+'</div></div>'+responseInfo+'</div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700;color:var(--blue-dark)">Ver histórico deste convite ('+events.length+' eventos)</summary><div style="padding-top:10px">'+eventHtml+'</div></details></div></div>';
+    }).join('');
+    const standalone=orphanEvents.length?'<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Outros eventos do seu histórico</h2></div><div class="panel-body">'+orphanEvents.map(e=>'<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+' · '+esc(e.operacao?.nome||e.operacaoId||'Operação não identificada')+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div>').join('')+'</div></div>':'';
+    return '<div class="page-head"><div><h1>Minhas ofertas e histórico</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
-      (offers.length?offers.map(o=>{
-        const op=o.operacao||{},pendingOffer=o.status==='OFERTADA'&&!o.expirada;
-        const statusLabel=o.expirada?'NÃO RESPONDEU EM 2H':o.status;
-        return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||'Operação')+'</h2><div class="muted small">'+esc(op.cliente||'')+' · '+esc(statusLabel)+'</div></div><span class="badge '+(pendingOffer?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div></div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(pendingOffer?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':o.status==='ACEITA'?'<p class="notice" style="margin-top:14px">Você aceitou esta oferta. Aguarde a confirmação da escala pela administração.</p>':'')+'</div></div>';
-      }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
+      (pending.length?'<h2 style="margin:22px 0 12px">Aguardando sua resposta</h2>':'')+
+      (offerCards||'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
   }
   function atualizarPortalMotorista(){
     const content=document.getElementById('content');
