@@ -125,6 +125,7 @@ function obterPortalMotoristaFullTime(token) {
   return {
     user:{nome:driverName,email:session.email,perfil:session.perfil},
     motoristaId,
+    hoje:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd'),
     diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes,eventosVinculados:driverEvents.length},
     ofertas:offers,eventos:eventosAvulsos,counts
   };
