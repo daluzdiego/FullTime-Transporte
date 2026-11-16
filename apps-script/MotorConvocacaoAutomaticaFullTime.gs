@@ -44,6 +44,29 @@ function FT_AUTO_prepararCabecalhosAgenda_(sh){
  return FT_AUTO_MAP_(sh);
 }
 
+
+/**
+ * Converte oferta vencida (inclusive legado EXPIRADA) em NAO_RESPONDEU.
+ * Idempotente: só reposiciona e registra evento na primeira transição.
+ * RESPONDIDA_EM permanece reservado a uma resposta efetiva do motorista.
+ */
+function FT_AUTO_marcarSemResposta_(sh,rowNumber,record,map,autor){
+  const status=String(record[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+  if(status==='NAO_RESPONDEU')return false;
+  if(!['OFERTADA','EXPIRADA'].includes(status))return false;
+  sh.getRange(rowNumber,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
+  record[map.STATUS_PARTICIPACAO]='NAO_RESPONDEU';
+  FT_colocarMotoristaNoFinalDaFila_(record[map.MOTORISTA_ID],'prazo de 2 horas encerrado sem resposta no portal');
+  if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({
+    tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],
+    motoristaId:record[map.MOTORISTA_ID],conjuntoId:record[map.CONJUNTO_ID],
+    anterior:status,nova:'NAO_RESPONDEU',
+    motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',
+    autor:autor||'MOTOR_AUTOMATICO',ofertaId:record[map.ID]
+  });
+  return true;
+}
+
 /** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 2 horas. */
 const FT_AUTO_PROP_QUEUE_STORE_='FT_AUTO_QUEUES_V1';
 const FT_AUTO_RESPONSE_TTL_MS_=7200000;
@@ -105,14 +128,15 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
    r[m.STATUS_PARTICIPACAO]='CANCELADA_REPROGRAMACAO';st='CANCELADA_REPROGRAMACAO';
    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:st,motivo:'Data ou janela da operação foi alterada; oferta anterior cancelada para nova convocação.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
   }
-  // A oferta fica disponível no portal; expiração encerra o prazo sem presumir que o motorista abriu a tela.
-  if(st==='OFERTADA'){
+  // Regulariza também registros legados EXPIRADA; a transição é idempotente.
+  if(st==='EXPIRADA'){
+   FT_AUTO_marcarSemResposta_(sh,i+2,r,m,'MOTOR_RECONCILIACAO');
+   st='NAO_RESPONDEU';
+  } else if(st==='OFERTADA'){
    const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
    if(!isFinite(ex)||ex<=Date.now()){
-    sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
-     st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';
-     FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'prazo de 2 horas encerrado sem resposta no portal');
-     if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
+    FT_AUTO_marcarSemResposta_(sh,i+2,r,m,'MOTOR_RECONCILIACAO');
+    st='NAO_RESPONDEU';
    }
   }
   if(st==='ACEITA'||st==='ATIVO'){accepted++;return;}
@@ -139,13 +163,12 @@ function FT_processarFilasConvocacaoAutomatica(){
       FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'CANCELADA_REPROGRAMACAO',motivo:'Data ou janela da operação alterada; oferta anterior cancelada.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;
     }
     if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}
-    if(['RECUSADA','EXPIRADA','NAO_RESPONDEU','RETORNOU'].includes(st))return;
+    if(st==='EXPIRADA'){FT_AUTO_marcarSemResposta_(sh,n+1,r,m,'MOTOR_AUTOMATICO');return;}
+    if(['RECUSADA','NAO_RESPONDEU','RETORNOU'].includes(st))return;
     if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
     if(!isFinite(ex)||ex<=Date.now()){
-      sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';
-      FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'prazo de 2 horas encerrado sem resposta no portal');
-      if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
+      FT_AUTO_marcarSemResposta_(sh,n+1,r,m,'MOTOR_AUTOMATICO');
       return;
     }
     pending.push(id);
@@ -176,7 +199,7 @@ function FT_processarFilasConvocacaoAutomatica(){
  }finally{lock.releaseLock();}
 }
 
-/** Executar uma vez pelo editor Apps Script para marcar ofertas vencidas como EXPIRADA, sem presumir ausência de resposta. Preserva as linhas e o histórico. */
+/** Reconcilia ofertas OFERTADA vencidas e converte estados legados EXPIRADA para NAO_RESPONDEU. Preserva linhas e histórico. */
 function FT_reconciliarOfertasExpiradasFullTime(){
  const lock=LockService.getScriptLock();lock.waitLock(20000);
  try{
@@ -185,19 +208,21 @@ function FT_reconciliarOfertasExpiradasFullTime(){
   let expired=0;
   rows.slice(1).forEach((r,i)=>{
    if(String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
-    if(String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase()!=='OFERTADA')return;
+   const status=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+   if(status==='EXPIRADA'){
+     if(FT_AUTO_marcarSemResposta_(sh,i+2,r,m,'SISTEMA_RECONCILIACAO'))expired++;
+     return;
+   }
+   if(status!=='OFERTADA')return;
    const raw=r[m.EXPIRA_EM],ex=raw instanceof Date?raw.getTime():new Date(raw).getTime();
    if(isFinite(ex)&&ex>now)return;
-   sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
-   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'prazo de 2 horas encerrado sem resposta no portal');
-   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
-   expired++;
+   if(FT_AUTO_marcarSemResposta_(sh,i+2,r,m,'SISTEMA_RECONCILIACAO'))expired++;
   });
   const queues=FT_AUTO_READ_();
   Object.keys(queues).forEach(opId=>{const q=queues[opId];if(q&&q.status==='EM_ANDAMENTO')FT_AUTO_RECONCILIAR_FILA_(opId,q);});
   FT_AUTO_WRITE_(queues);
   if(!Object.keys(queues).some(k=>queues[k]?.status==='EM_ANDAMENTO'))ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica').forEach(t=>ScriptApp.deleteTrigger(t));
-  return {sucesso:true,ofertasSemRespostaNoPortal:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; ofertas vencidas foram marcadas como EXPIRADA. As ofertas sem resposta após 2 horas foram marcadas como NAO_RESPONDEU e os motoristas reposicionados ao final da fila.'};
+  return {sucesso:true,ofertasSemRespostaNoPortal:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; ofertas vencidas e estados legados EXPIRADA foram normalizados para NAO_RESPONDEU. Motoristas reposicionados uma única vez ao final da fila.'};
  }finally{lock.releaseLock();}
 }
 
