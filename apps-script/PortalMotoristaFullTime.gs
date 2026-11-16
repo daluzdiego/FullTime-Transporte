@@ -16,46 +16,93 @@ function FT_MOTORISTA_headerMap_(sh) {
 }
 
 function obterPortalMotoristaFullTime(token) {
-  const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES');
-  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
-  const have=new Set(parts.getRange(1,1,1,parts.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase()));
-  const missing=required.filter(h=>!have.has(h));if(missing.length)parts.getRange(1,parts.getLastColumn()+1,1,missing.length).setValues([missing]);
-  const pmap=FT_MOTORISTA_headerMap_(parts);
-  const rows=parts.getDataRange().getValues();
-  const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
+  const session=obterSessao_(token),motoristaId=exigirMotorista_(session);
+  const parts=getSheet_('PARTICIPACAO_OPERACOES'),pmap=FT_MOTORISTA_headerMap_(parts);
+  const required=['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO'];
+  required.forEach(k=>{if(pmap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em PARTICIPACAO_OPERACOES: '+k);});
+  // Leitura estrita: abrir o portal não cria colunas nem altera registros.
+  const rows=parts.getLastRow()>1?parts.getRange(2,1,parts.getLastRow()-1,parts.getLastColumn()).getValues():[];
+  const own=rows.filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
   const driverRecord=listarRegistros_('MOTORISTAS').find(d=>String(d.id||'').trim()===motoristaId);
   if(!driverRecord)throw new Error('O usuário está vinculado ao motorista '+motoristaId+', mas esse ID não foi encontrado na guia MOTORISTAS. Corrija MOTORISTA_ID na guia USUARIOS.');
   const driverFields=driverRecord.camposPorNome||{};
   const driverName=String(driverFields.NOME_COMPLETO||driverRecord.nome||session.nome||'Motorista');
-  const opsSheet=getSheet_('OPERACOES'), omap=FT_MOTORISTA_headerMap_(opsSheet), opRows=opsSheet.getDataRange().getValues();
+
+  const opsSheet=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(opsSheet);
+  const opRows=opsSheet.getLastRow()>1?opsSheet.getRange(2,1,opsSheet.getLastRow()-1,opsSheet.getLastColumn()).getValues():[];
   const ops={};
-  opRows.slice(1).forEach(r=>{ops[String(r[omap.ID]||'')]={
-    id:String(r[omap.ID]||''),status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
-    cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
-    origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
-    produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
-    dataEntrega:r[omap.DATA_ENTREGA]||'',janelaInicio:r[omap.JANELA_INICIO]||'',janelaFim:r[omap.JANELA_FIM]||'',
-    tempoEstimadoHoras:r[omap.TEMPO_ESTIMADO_HORAS]||'',volume:Number(r[omap.VOLUME_TOTAL_TONELADAS]||0)
-  };});
-  const now=Date.now(), offers=own.map(r=>{
-    const op=ops[String(r[pmap.OPERACAO_ID]||'')]||{};
-    const snapDate=String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10),snapStart=String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim(),snapEnd=String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
+  opRows.forEach(r=>{
+    const id=String(r[omap.ID]||'');if(!id)return;
+    ops[id]={
+      id:id,status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
+      cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
+      origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
+      produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
+      dataEntrega:r[omap.DATA_ENTREGA]||'',janelaInicio:r[omap.JANELA_INICIO]||'',janelaFim:r[omap.JANELA_FIM]||'',
+      tempoEstimadoHoras:r[omap.TEMPO_ESTIMADO_HORAS]||'',volume:Number(r[omap.VOLUME_TOTAL_TONELADAS]||0)
+    };
+  });
+
+  // Eventos são consultados pelo vínculo autenticado e associados à oferta pelo OFERTA_ID.
+  const eventSheet=getSheet_('EVENTOS_ESCALA'),emap=FT_MOTORISTA_headerMap_(eventSheet);
+  const eventRows=eventSheet.getLastRow()>1?eventSheet.getRange(2,1,eventSheet.getLastRow()-1,eventSheet.getLastColumn()).getValues():[];
+  const driverEvents=eventRows.filter(r=>String(r[emap.MOTORISTA_ID]||'').trim()===motoristaId).map(r=>({
+    id:String(r[emap.ID]||''),ofertaId:String(r[emap.OFERTA_ID]||''),
+    operacaoId:String(r[emap.OPERACAO_ID]||''),tipo:String(r[emap.TIPO_EVENTO]||'EVENTO'),
+    dataHora:r[emap.DATA_HORA]||'',motivo:String(r[emap.MOTIVO]||''),
+    registradoPor:String(r[emap.REGISTRADO_POR]||'')
+  })).sort((a,b)=>new Date(b.dataHora||0)-new Date(a.dataHora||0));
+
+  const now=Date.now();
+  const offers=own.map(r=>{
+    const offerId=String(r[pmap.ID]||''),opId=String(r[pmap.OPERACAO_ID]||''),op=ops[opId]||{};
+    const snapDate=pmap.DATA_OPERACAO_OFERTA===undefined?'':String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+    const snapStart=pmap.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim();
+    const snapEnd=pmap.JANELA_FIM_OFERTA===undefined?'':String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
     const currentDate=op.data instanceof Date?Utilities.formatDate(op.data,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op.data||'').slice(0,10);
     const scheduleChanged=!!snapDate&&(snapDate!==currentDate||snapStart!==String(op.janelaInicio||'').trim()||snapEnd!==String(op.janelaFim||'').trim());
-    const expires=r[pmap.EXPIRA_EM] instanceof Date?r[pmap.EXPIRA_EM]:new Date(r[pmap.EXPIRA_EM]);
-    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
+    const rawExpiry=pmap.EXPIRA_EM===undefined?'':r[pmap.EXPIRA_EM];
+    const expires=rawExpiry instanceof Date?rawExpiry:new Date(rawExpiry);
+    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
     else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
+    const offerEvents=driverEvents.filter(e=>e.ofertaId===offerId);
+    const responseEvent=offerEvents.find(e=>['OFERTA_RECUSADA','ESCALA_CONFIRMADA','OFERTA_EXPIRADA','OFERTA_CANCELADA_REPROGRAMACAO'].includes(e.tipo));
     return {
-      id:String(r[pmap.ID]||''),status:status,ofertadaEm:r[pmap.OFERTADA_EM]||r[pmap.CRIADO_EM]||'',
-      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
-      observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
-      operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
+      id:offerId,operacaoId:opId,status:status,
+      criadaEm:pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM],
+      ofertadaEm:(pmap.OFERTADA_EM!==undefined&&r[pmap.OFERTADA_EM])?r[pmap.OFERTADA_EM]:(pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM]),
+      respondidaEm:pmap.RESPONDIDA_EM===undefined?'':r[pmap.RESPONDIDA_EM],
+      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',
+      agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
+      observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||(pmap.MOTIVO!==undefined?r[pmap.MOTIVO]:'')||''),
+      motivoResposta:pmap.MOTIVO===undefined?'':String(r[pmap.MOTIVO]||''),
+      conjuntoId:pmap.CONJUNTO_ID===undefined?'':String(r[pmap.CONJUNTO_ID]||''),
+      operacao:op,eventos:offerEvents,
+      decisaoEm:(pmap.RESPONDIDA_EM!==undefined&&r[pmap.RESPONDIDA_EM])?r[pmap.RESPONDIDA_EM]:(responseEvent?responseEvent.dataHora:'')
     };
-  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
-  const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length};
-  return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
+  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||b.criadaEm||0)-new Date(a.ofertadaEm||a.criadaEm||0));
+
+  // Eventos sem linha de participação também permanecem visíveis no histórico do próprio motorista.
+  const offerIds=new Set(offers.map(o=>o.id));
+  const eventosAvulsos=driverEvents.filter(e=>!e.ofertaId||!offerIds.has(e.ofertaId)).map(e=>({
+    id:e.id,ofertaId:e.ofertaId,operacaoId:e.operacaoId,tipo:e.tipo,dataHora:e.dataHora,
+    motivo:e.motivo,operacao:ops[e.operacaoId]||{}
+  }));
+  const counts={
+    pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,
+    aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,
+    recusadas:offers.filter(o=>o.status==='RECUSADA').length,
+    expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length,
+    canceladas:offers.filter(o=>o.status==='CANCELADA_REPROGRAMACAO'||o.status==='CANCELADA').length,
+    total:offers.length
+  };
+  return {
+    user:{nome:driverName,email:session.email,perfil:session.perfil},
+    motoristaId,
+    diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes,eventosVinculados:driverEvents.length},
+    ofertas:offers,eventos:eventosAvulsos,counts
+  };
 }
 
 function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao) {
