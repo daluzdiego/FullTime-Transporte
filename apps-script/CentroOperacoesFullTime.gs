@@ -24,8 +24,14 @@ function FT_CENTRO_num_(v) {
   const n=Number(s); return isFinite(n)?n:0;
 }
 function FT_CENTRO_dateKey_(value) {
-  if(!value)return '';
-  const d=value instanceof Date?value:new Date(value);
+  if(value===null||value===undefined||value==='')return '';
+  if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const s=String(value).trim();
+  let m=s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+  m=s.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{4})$/);
+  if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  const d=new Date(s);
   return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
 }
 function FT_CENTRO_addDays_(dateKey,days) {
