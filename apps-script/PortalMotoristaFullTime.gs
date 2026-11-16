@@ -15,6 +15,24 @@ function FT_MOTORISTA_headerMap_(sh) {
   return map;
 }
 
+function FT_MOTORISTA_dateKey_(value) {
+  if(value===null||value===undefined||value==='')return '';
+  if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const s=String(value).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+  m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  const d=new Date(s);
+  return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
+}
+function FT_MOTORISTA_timeKey_(value) {
+  if(value===null||value===undefined||value==='')return '';
+  if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'HH:mm');
+  const s=String(value).trim(),m=s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  return m?String(m[1]).padStart(2,'0')+':'+m[2]:s;
+}
+
 function obterPortalMotoristaFullTime(token) {
   const session=obterSessao_(token),motoristaId=exigirMotorista_(session);
   const parts=getSheet_('PARTICIPACAO_OPERACOES'),pmap=FT_MOTORISTA_headerMap_(parts);
@@ -56,16 +74,18 @@ function obterPortalMotoristaFullTime(token) {
   const now=Date.now();
   const offers=own.map(r=>{
     const offerId=String(r[pmap.ID]||''),opId=String(r[pmap.OPERACAO_ID]||''),op=ops[opId]||{};
-    const snapDate=pmap.DATA_OPERACAO_OFERTA===undefined?'':String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10);
-    const snapStart=pmap.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim();
-    const snapEnd=pmap.JANELA_FIM_OFERTA===undefined?'':String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
-    const currentDate=op.data instanceof Date?Utilities.formatDate(op.data,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op.data||'').slice(0,10);
-    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||snapStart!==String(op.janelaInicio||'').trim()||snapEnd!==String(op.janelaFim||'').trim());
+    const snapDate=pmap.DATA_OPERACAO_OFERTA===undefined?'':FT_MOTORISTA_dateKey_(r[pmap.DATA_OPERACAO_OFERTA]);
+    const snapStart=pmap.HORARIO_OPERACAO_OFERTA===undefined?'':FT_MOTORISTA_timeKey_(r[pmap.HORARIO_OPERACAO_OFERTA]);
+    const snapEnd=pmap.JANELA_FIM_OFERTA===undefined?'':FT_MOTORISTA_timeKey_(r[pmap.JANELA_FIM_OFERTA]);
+    const currentDate=FT_MOTORISTA_dateKey_(op.data);
+    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||
+      (!!snapStart&&snapStart!==FT_MOTORISTA_timeKey_(op.janelaInicio))||
+      (!!snapEnd&&snapEnd!==FT_MOTORISTA_timeKey_(op.janelaFim)));
     const rawExpiry=pmap.EXPIRA_EM===undefined?'':r[pmap.EXPIRA_EM];
     const expires=rawExpiry instanceof Date?rawExpiry:new Date(rawExpiry);
     let status=String(r[pmap.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
-    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
+    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='EXPIRADA';
     const offerEvents=driverEvents.filter(e=>e.ofertaId===offerId);
     const responseEvent=offerEvents.find(e=>['OFERTA_RECUSADA','ESCALA_CONFIRMADA','OFERTA_EXPIRADA','OFERTA_CANCELADA_REPROGRAMACAO'].includes(e.tipo));
     return {
@@ -73,7 +93,7 @@ function obterPortalMotoristaFullTime(token) {
       criadaEm:pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM],
       ofertadaEm:(pmap.OFERTADA_EM!==undefined&&r[pmap.OFERTADA_EM])?r[pmap.OFERTADA_EM]:(pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM]),
       respondidaEm:pmap.RESPONDIDA_EM===undefined?'':r[pmap.RESPONDIDA_EM],
-      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',
+      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',prazoEncerrado:status==='EXPIRADA',
       agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
       observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||(pmap.MOTIVO!==undefined?r[pmap.MOTIVO]:'')||''),
       motivoResposta:pmap.MOTIVO===undefined?'':String(r[pmap.MOTIVO]||''),
@@ -120,12 +140,13 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     const expires=record[map.EXPIRA_EM] instanceof Date?record[map.EXPIRA_EM]:new Date(record[map.EXPIRA_EM]);
     if(!isFinite(expires.getTime())||expires.getTime()<=Date.now()){
       const now=new Date();
-      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
+      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
       if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'não respondeu em 2 horas');
-      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de resposta encerrado.',autor:session.email,ofertaId});
+      // Sem confirmação de entrega, o prazo não prova que o motorista recebeu o convite.
+      // Não atribuímos ausência de resposta nem alteramos sua posição na fila.
+      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo encerrado; entrega da notificação não comprovada. Não classificar como ausência de resposta.',autor:session.email,ofertaId});
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
-      return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
+      return {ok:false,status:'EXPIRADA',message:'O prazo foi encerrado, mas não há confirmação de entrega da notificação. A administração deverá verificar o envio antes de uma nova convocação.'};
     }
     const now=new Date(),note=texto_(observacao,500);
     sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ACEITA':'RECUSADA');
