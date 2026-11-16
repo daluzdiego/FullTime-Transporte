@@ -1,0 +1,36 @@
+name: Apps Script syntax
+
+on:
+  pull_request:
+    paths:
+      - "apps-script/**/*.gs"
+      - "apps-script/**/*.js"
+      - ".github/workflows/apps-script-syntax.yml"
+  push:
+    branches:
+      - "fix/**"
+    paths:
+      - "apps-script/**/*.gs"
+      - "apps-script/**/*.js"
+      - ".github/workflows/apps-script-syntax.yml"
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Parse Apps Script JavaScript files
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check < "$file"
+            count=$((count + 1))
+          done < <(find apps-script -type f \\( -name '*.gs' -o -name '*.js' \\) -print0)
+          test "$count" -gt 0
+          echo "Parsed $count files successfully."
