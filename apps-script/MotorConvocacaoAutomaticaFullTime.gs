@@ -178,7 +178,7 @@ function FT_processarFilasConvocacaoAutomatica(){
 function FT_reconciliarOfertasExpiradasFullTime(){
  const lock=LockService.getScriptLock();lock.waitLock(20000);
  try{
-  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues(),now=Date.now(),stamp=new Date();
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues(),now=Date.now();
   ['ID','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','STATUS_PARTICIPACAO','EXPIRA_EM','ORIGEM_OFERTA'].forEach(k=>{if(m[k]===undefined)throw new Error('Coluna '+k+' ausente em PARTICIPACAO_OPERACOES.');});
   let expired=0;
   rows.slice(1).forEach((r,i)=>{
@@ -194,7 +194,7 @@ function FT_reconciliarOfertasExpiradasFullTime(){
   Object.keys(queues).forEach(opId=>{const q=queues[opId];if(q&&q.status==='EM_ANDAMENTO')FT_AUTO_RECONCILIAR_FILA_(opId,q);});
   FT_AUTO_WRITE_(queues);
   if(!Object.keys(queues).some(k=>queues[k]?.status==='EM_ANDAMENTO'))ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica').forEach(t=>ScriptApp.deleteTrigger(t));
-  return {sucesso:true,ofertasSemRespostaRegularizadas:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; somente status de ofertas com prazo vencido foram atualizados.'};
+  return {sucesso:true,ofertasExpiradasSemConfirmacaoEntrega:expired,filasConcluidas:Object.values(queues).filter(q=>q?.status==='CONCLUIDA').length,aviso:'Nenhuma linha foi excluída; ofertas vencidas foram marcadas como EXPIRADA. A entrega da notificação não foi presumida.'};
  }finally{lock.releaseLock();}
 }
 
