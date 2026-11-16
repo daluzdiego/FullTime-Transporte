@@ -88,6 +88,47 @@ function obterCentroOperacoesFullTime(token) {
 }
 
 
+/**
+ * Encerramento administrativo explícito. Não altera operação só por ter passado a data.
+ * Exige saldo zerado, viagens previstas conferidas e ausência de participações ativas.
+ */
+function confirmarConclusaoOperacaoFullTime(token, operacaoId, observacao) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  operacaoId=texto_(operacaoId,100);observacao=texto_(observacao||'',500);
+  if(!operacaoId)throw new Error('Informe a operação que será encerrada.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    const sh=getSheet_('OPERACOES'),grid=sh.getDataRange().getValues();
+    const headers=(grid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),ix={};
+    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    ['ID','STATUS','SALDO_TONELADAS','TOTAL_VIAGENS_PREVISTAS','VIAGENS_REALIZADAS'].forEach(k=>{if(ix[k]===undefined)throw new Error('Cabeçalho ausente em OPERACOES: '+k);});
+    const rowIndex=grid.findIndex((r,i)=>i>0&&String(r[ix.ID]||'')===operacaoId);
+    if(rowIndex<1)throw new Error('Operação não encontrada.');
+    const row=grid[rowIndex],status=String(row[ix.STATUS]||'').toUpperCase();
+    if(['CONCLUIDA','CANCELADA','CANCELADO'].includes(status))throw new Error('Esta operação já está encerrada ou cancelada.');
+    const saldo=FT_CENTRO_num_(row[ix.SALDO_TONELADAS]);
+    const previstas=FT_CENTRO_num_(row[ix.TOTAL_VIAGENS_PREVISTAS]);
+    const realizadas=FT_CENTRO_num_(row[ix.VIAGENS_REALIZADAS]);
+    if(saldo>0.000001)throw new Error('Ainda existe saldo de '+saldo+' t. A operação não pode ser concluída.');
+    if(previstas>0&&realizadas<previstas)throw new Error('Existem viagens pendentes: '+realizadas+' de '+previstas+'.');
+    const parts=getSheet_('PARTICIPACAO_OPERACOES'),pm=FT_CENTRO_headerMapLocal_(parts);
+    const active=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']);
+    const activeRows=parts.getLastRow()>1?parts.getRange(2,1,parts.getLastRow()-1,parts.getLastColumn()).getValues():[];
+    const pending=activeRows.filter(r=>String(r[pm.OPERACAO_ID]||'')===operacaoId&&active.has(String(r[pm.STATUS_PARTICIPACAO]||'').toUpperCase()));
+    if(pending.length)throw new Error('Ainda existem '+pending.length+' participações ou convocações ativas. Resolva-as antes do encerramento.');
+    sh.getRange(rowIndex+1,ix.STATUS+1).setValue('CONCLUIDA');
+    auditar_(session,'CONFIRMAR_CONCLUSAO_OPERACAO','OPERACAO',operacaoId,observacao||'Conclusão confirmada pelo administrador. Saldo e viagens conferidos.');
+    return {ok:true,status:'CONCLUIDA',message:'Operação encerrada administrativamente. O histórico foi preservado.'};
+  } finally {lock.releaseLock();}
+}
+function FT_CENTRO_headerMapLocal_(sh) {
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],map={};
+  headers.forEach((v,i)=>{const k=String(v||'').trim().toUpperCase();if(k&&map[k]===undefined)map[k]=i;});
+  ['OPERACAO_ID','STATUS_PARTICIPACAO'].forEach(k=>{if(map[k]===undefined)throw new Error('Cabeçalho ausente em PARTICIPACAO_OPERACOES: '+k);});
+  return map;
+}
+
+
 
 /**
  * Migração aditiva dos campos logísticos da operação.
