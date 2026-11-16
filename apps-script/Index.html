@@ -348,12 +348,12 @@
     };
     const labels={
       OFERTADA:'PENDENTE',ACEITA:'ACEITA PELO MOTORISTA',ATIVO:'ESCALA CONFIRMADA',
-      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA (ENTREGA CONFIRMADA)',
-      EXPIRADA:'PRAZO ENCERRADO — ENTREGA NÃO CONFIRMADA',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
+      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA APÓS NOTIFICAÇÃO CONFIRMADA',
+      EXPIRADA:'PRAZO ENCERRADO — SEM RESPOSTA NO PORTAL',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
       CANCELADA:'CANCELADA',SAIU:'EM EXECUÇÃO',EM_VIAGEM:'EM VIAGEM',RETORNOU:'CONCLUÍDA'
     };
     const eventLabel=e=>{
-      const map={OFERTA_ENVIADA:'Convite registrado',OFERTA_RECUSADA:'Motorista recusou',ESCALA_CONFIRMADA:'Aceite/escala confirmada',OFERTA_EXPIRADA:'Prazo expirou',OFERTA_CANCELADA_REPROGRAMACAO:'Convite cancelado por reprogramação'};
+      const map={OFERTA_ENVIADA:'Convocação disponibilizada no portal',OFERTA_RECUSADA:'Motorista recusou',ESCALA_CONFIRMADA:'Aceite/escala confirmada',OFERTA_EXPIRADA:'Prazo expirou',OFERTA_CANCELADA_REPROGRAMACAO:'Convite cancelado por reprogramação'};
       return map[e.tipo]||String(e.tipo||'Evento').replace(/_/g,' ');
     };
     const eventLine=e=>'<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span style="color:var(--blue)">●</span><div><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div></div>';
@@ -619,7 +619,7 @@
     if(!row.classList.contains('hidden')){row.classList.add('hidden');return;}
     row.classList.remove('hidden');host.innerHTML='<span class="muted">Consultando histórico…</span>';
     google.script.run.withSuccessHandler(data=>{
-      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Prazo encerrado; entrega não confirmada',NAO_RESPONDEU:'Sem resposta após entrega confirmada',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
+      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Prazo encerrado sem resposta no portal',NAO_RESPONDEU:'Sem resposta após notificação confirmada',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
       const counts=data.counts||{},current=data.operacaoAtual,history=data.history||[],label=s=>labels[String(s||'').toUpperCase()]||String(s||'—');
       host.innerHTML='<div class="panel" style="margin:8px 0;border:1px solid #dbe5f0"><div class="panel-head"><h3 style="margin:0">Histórico de '+esc(data.motorista?.nome||'motorista')+'</h3><span class="badge '+(current?'badge-active':'badge-pending')+'">'+esc(label(data.statusAtual))+'</span></div><div class="panel-body"><div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat-card"><div><div class="stat-label">Convocações</div><div class="stat-value">'+esc(counts.convocacoes||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Aceites</div><div class="stat-value">'+esc(counts.aceitas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Recusas</div><div class="stat-value">'+esc(counts.recusadas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Sem resposta em 2h</div><div class="stat-value">'+esc(counts.expiradas||0)+'</div></div></div></div>'+
       (current?'<div class="notice"><strong>Operação atual:</strong> '+esc(current.nome||'Operação')+' · '+esc(current.origem||'')+' → '+esc(current.destino||'')+'</div>':'<div class="notice">Não há operação ativa vinculada a este motorista.</div>')+
@@ -766,7 +766,7 @@
     const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
     const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
     const visible=modo==='convocados'?called:rows;
-    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'PRAZO ENCERRADO · ENTREGA NÃO CONFIRMADA',NAO_RESPONDEU:'SEM RESPOSTA · ENTREGA CONFIRMADA',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
+    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'PRAZO ENCERRADO · SEM RESPOSTA NO PORTAL',NAO_RESPONDEU:'SEM RESPOSTA · NOTIFICAÇÃO CONFIRMADA',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
     const line=r=>{
       const p=calledByDriver[String(r.driverId||'')],st=p?String(p.camposPorNome?.STATUS_PARTICIPACAO||p.campos?.[3]||'').trim().toUpperCase():'';
       const invited=!!p,tone=st==='OFERTADA'?'background:#fff7e6;':'';
