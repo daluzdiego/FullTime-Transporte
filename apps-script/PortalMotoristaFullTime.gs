@@ -85,7 +85,7 @@ function obterPortalMotoristaFullTime(token) {
     const expires=rawExpiry instanceof Date?rawExpiry:new Date(rawExpiry);
     let status=String(r[pmap.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
-    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='EXPIRADA';
+    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
     const offerEvents=driverEvents.filter(e=>e.ofertaId===offerId);
     const responseEvent=offerEvents.find(e=>['OFERTA_RECUSADA','ESCALA_CONFIRMADA','OFERTA_EXPIRADA','OFERTA_CANCELADA_REPROGRAMACAO'].includes(e.tipo));
     return {
@@ -93,7 +93,7 @@ function obterPortalMotoristaFullTime(token) {
       criadaEm:pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM],
       ofertadaEm:(pmap.OFERTADA_EM!==undefined&&r[pmap.OFERTADA_EM])?r[pmap.OFERTADA_EM]:(pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM]),
       respondidaEm:pmap.RESPONDIDA_EM===undefined?'':r[pmap.RESPONDIDA_EM],
-      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',prazoEncerrado:status==='EXPIRADA',
+      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',prazoEncerrado:status==='EXPIRADA'||status==='NAO_RESPONDEU',
       agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
       observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||(pmap.MOTIVO!==undefined?r[pmap.MOTIVO]:'')||''),
       motivoResposta:pmap.MOTIVO===undefined?'':String(r[pmap.MOTIVO]||''),
