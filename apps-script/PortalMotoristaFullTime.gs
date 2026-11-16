@@ -140,12 +140,12 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     const expires=record[map.EXPIRA_EM] instanceof Date?record[map.EXPIRA_EM]:new Date(record[map.EXPIRA_EM]);
     if(!isFinite(expires.getTime())||expires.getTime()<=Date.now()){
       const now=new Date();
-      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
+      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
       if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      // A convocação fica disponível no portal por duas horas. Sem resposta nesse período, expira e a fila pode avançar.
-      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal.',autor:session.email,ofertaId});
+      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'prazo de 2 horas encerrado sem resposta no portal');
+      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:session.email,ofertaId});
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
-      return {ok:false,status:'EXPIRADA',message:'O prazo de resposta desta convocação terminou. A oferta foi encerrada e a fila automática seguirá para o próximo motorista.'};
+      return {ok:false,status:'NAO_RESPONDEU',message:'O prazo de duas horas terminou sem resposta. Você foi reposicionado ao final da fila de convocação.'};
     }
     const now=new Date(),note=texto_(observacao,500);
     sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ACEITA':'RECUSADA');
