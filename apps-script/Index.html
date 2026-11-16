@@ -330,9 +330,9 @@
     const localDay=d=>{
       if(!d)return '';
       const s=String(d).trim();
-      let m=s.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
+      let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
       if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
-      m=s.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{4})$/);
+      m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
       if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
       const x=d instanceof Date?d:new Date(d);
       return isNaN(x.getTime())?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
