@@ -417,7 +417,7 @@
     host.innerHTML='<div class="empty">Atualizando Centro de Operações…</div>';
     google.script.run.withSuccessHandler(data=>{
       if(currentPage!=='centro')return;
-      const k=data.indicadores||{},current=data.operacoes||[],future=data.futuras||[],late=data.atrasadas||[],done=data.concluidas||[],cancelled=data.canceladas||[];
+      const k=data.indicadores||{},current=(data.operacoes||[]).filter(o=>!o.atrasada),future=data.futuras||[],late=data.atrasadas||[],done=data.concluidas||[],cancelled=data.canceladas||[];
       const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
       const cards=[['Atuais',k.operacoesAtuais||0],['Futuras',k.operacoesFuturas||0],['Atrasadas',k.operacoesAtrasadas||0],['Conclusões sugeridas',k.sugestoesConclusao||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Toneladas movimentadas',num(k.toneladasMovimentadas)+' t']];
       const section=(title,items,empty)=>'<section style="margin-top:20px"><div class="panel-head"><h2>'+title+'</h2><span class="muted small">'+items.length+' operação(ões)</span></div>'+(items.length?'<div class="center-ops-grid">'+items.map(renderCardCentro).join('')+'</div>':'<div class="panel"><div class="empty">'+empty+'</div></div>')+'</section>';
