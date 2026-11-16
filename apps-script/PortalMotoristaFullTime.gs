@@ -53,6 +53,7 @@ function obterPortalMotoristaFullTime(token) {
     const id=String(r[omap.ID]||'');if(!id)return;
     ops[id]={
       id:id,status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
+      dataKey:omap.DATA_OPERACAO===undefined?'':FT_MOTORISTA_dateKey_(r[omap.DATA_OPERACAO]),
       cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
       origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
       produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
@@ -63,6 +64,10 @@ function obterPortalMotoristaFullTime(token) {
 
   // Eventos são consultados pelo vínculo autenticado e associados à oferta pelo OFERTA_ID.
   const eventSheet=getSheet_('EVENTOS_ESCALA'),emap=FT_MOTORISTA_headerMap_(eventSheet);
+  const requiredEventHeaders=['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','MOTIVO','REGISTRADO_POR','OFERTA_ID'];
+  requiredEventHeaders.forEach(k=>{
+    if(emap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em EVENTOS_ESCALA: '+k+'. Execute a auditoria estrutural antes de habilitar o histórico.');
+  });
   const eventRows=eventSheet.getLastRow()>1?eventSheet.getRange(2,1,eventSheet.getLastRow()-1,eventSheet.getLastColumn()).getValues():[];
   const driverEvents=eventRows.filter(r=>String(r[emap.MOTORISTA_ID]||'').trim()===motoristaId).map(r=>({
     id:String(r[emap.ID]||''),ofertaId:String(r[emap.OFERTA_ID]||''),
@@ -139,11 +144,13 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     if(String(record[map.STATUS_PARTICIPACAO]||'').toUpperCase()!=='OFERTADA')throw new Error('Esta oferta já foi respondida ou não está mais pendente.');
     const expires=record[map.EXPIRA_EM] instanceof Date?record[map.EXPIRA_EM]:new Date(record[map.EXPIRA_EM]);
     if(!isFinite(expires.getTime())||expires.getTime()<=Date.now()){
-      const now=new Date();
-      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
-      if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'prazo de 2 horas encerrado sem resposta no portal');
-      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:session.email,ofertaId});
+      if(typeof FT_AUTO_marcarSemResposta_==='function'){
+        FT_AUTO_marcarSemResposta_(sh,idx+1,record,map,session.email);
+      }else{
+        sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
+        FT_colocarMotoristaNoFinalDaFila_(motoristaId,'prazo de 2 horas encerrado sem resposta no portal');
+        FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:session.email,ofertaId});
+      }
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
       return {ok:false,status:'NAO_RESPONDEU',message:'O prazo de duas horas terminou sem resposta. Você foi reposicionado ao final da fila de convocação.'};
     }
