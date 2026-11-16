@@ -15,47 +15,120 @@ function FT_MOTORISTA_headerMap_(sh) {
   return map;
 }
 
+function FT_MOTORISTA_dateKey_(value) {
+  if(value===null||value===undefined||value==='')return '';
+  if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  const s=String(value).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+  m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  const d=new Date(s);
+  return isFinite(d.getTime())?Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'):'';
+}
+function FT_MOTORISTA_timeKey_(value) {
+  if(value===null||value===undefined||value==='')return '';
+  if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'HH:mm');
+  const s=String(value).trim(),m=s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  return m?String(m[1]).padStart(2,'0')+':'+m[2]:s;
+}
+
 function obterPortalMotoristaFullTime(token) {
-  const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES');
-  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
-  const have=new Set(parts.getRange(1,1,1,parts.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase()));
-  const missing=required.filter(h=>!have.has(h));if(missing.length)parts.getRange(1,parts.getLastColumn()+1,1,missing.length).setValues([missing]);
-  const pmap=FT_MOTORISTA_headerMap_(parts);
-  const rows=parts.getDataRange().getValues();
-  const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
+  const session=obterSessao_(token),motoristaId=exigirMotorista_(session);
+  const parts=getSheet_('PARTICIPACAO_OPERACOES'),pmap=FT_MOTORISTA_headerMap_(parts);
+  const required=['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO'];
+  required.forEach(k=>{if(pmap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em PARTICIPACAO_OPERACOES: '+k);});
+  // Leitura estrita: abrir o portal não cria colunas nem altera registros.
+  const rows=parts.getLastRow()>1?parts.getRange(2,1,parts.getLastRow()-1,parts.getLastColumn()).getValues():[];
+  const own=rows.filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
   const driverRecord=listarRegistros_('MOTORISTAS').find(d=>String(d.id||'').trim()===motoristaId);
   if(!driverRecord)throw new Error('O usuário está vinculado ao motorista '+motoristaId+', mas esse ID não foi encontrado na guia MOTORISTAS. Corrija MOTORISTA_ID na guia USUARIOS.');
   const driverFields=driverRecord.camposPorNome||{};
   const driverName=String(driverFields.NOME_COMPLETO||driverRecord.nome||session.nome||'Motorista');
-  const opsSheet=getSheet_('OPERACOES'), omap=FT_MOTORISTA_headerMap_(opsSheet), opRows=opsSheet.getDataRange().getValues();
+
+  const opsSheet=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(opsSheet);
+  const opRows=opsSheet.getLastRow()>1?opsSheet.getRange(2,1,opsSheet.getLastRow()-1,opsSheet.getLastColumn()).getValues():[];
   const ops={};
-  opRows.slice(1).forEach(r=>{ops[String(r[omap.ID]||'')]={
-    id:String(r[omap.ID]||''),status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
-    cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
-    origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
-    produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
-    dataEntrega:r[omap.DATA_ENTREGA]||'',janelaInicio:r[omap.JANELA_INICIO]||'',janelaFim:r[omap.JANELA_FIM]||'',
-    tempoEstimadoHoras:r[omap.TEMPO_ESTIMADO_HORAS]||'',volume:Number(r[omap.VOLUME_TOTAL_TONELADAS]||0)
-  };});
-  const now=Date.now(), offers=own.map(r=>{
-    const op=ops[String(r[pmap.OPERACAO_ID]||'')]||{};
-    const snapDate=String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10),snapStart=String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim(),snapEnd=String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
-    const currentDate=op.data instanceof Date?Utilities.formatDate(op.data,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op.data||'').slice(0,10);
-    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||snapStart!==String(op.janelaInicio||'').trim()||snapEnd!==String(op.janelaFim||'').trim());
-    const expires=r[pmap.EXPIRA_EM] instanceof Date?r[pmap.EXPIRA_EM]:new Date(r[pmap.EXPIRA_EM]);
-    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
+  opRows.forEach(r=>{
+    const id=String(r[omap.ID]||'');if(!id)return;
+    ops[id]={
+      id:id,status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
+      dataKey:omap.DATA_OPERACAO===undefined?'':FT_MOTORISTA_dateKey_(r[omap.DATA_OPERACAO]),
+      cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
+      origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
+      produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
+      dataEntrega:r[omap.DATA_ENTREGA]||'',janelaInicio:r[omap.JANELA_INICIO]||'',janelaFim:r[omap.JANELA_FIM]||'',
+      tempoEstimadoHoras:r[omap.TEMPO_ESTIMADO_HORAS]||'',volume:Number(r[omap.VOLUME_TOTAL_TONELADAS]||0)
+    };
+  });
+
+  // Eventos são consultados pelo vínculo autenticado e associados à oferta pelo OFERTA_ID.
+  const eventSheet=getSheet_('EVENTOS_ESCALA'),emap=FT_MOTORISTA_headerMap_(eventSheet);
+  const requiredEventHeaders=['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','MOTIVO','REGISTRADO_POR','OFERTA_ID'];
+  requiredEventHeaders.forEach(k=>{
+    if(emap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em EVENTOS_ESCALA: '+k+'. Execute a auditoria estrutural antes de habilitar o histórico.');
+  });
+  const eventRows=eventSheet.getLastRow()>1?eventSheet.getRange(2,1,eventSheet.getLastRow()-1,eventSheet.getLastColumn()).getValues():[];
+  const driverEvents=eventRows.filter(r=>String(r[emap.MOTORISTA_ID]||'').trim()===motoristaId).map(r=>({
+    id:String(r[emap.ID]||''),ofertaId:String(r[emap.OFERTA_ID]||''),
+    operacaoId:String(r[emap.OPERACAO_ID]||''),tipo:String(r[emap.TIPO_EVENTO]||'EVENTO'),
+    dataHora:r[emap.DATA_HORA]||'',motivo:String(r[emap.MOTIVO]||''),
+    registradoPor:String(r[emap.REGISTRADO_POR]||'')
+  })).sort((a,b)=>new Date(b.dataHora||0)-new Date(a.dataHora||0));
+
+  const now=Date.now();
+  const offers=own.map(r=>{
+    const offerId=String(r[pmap.ID]||''),opId=String(r[pmap.OPERACAO_ID]||''),op=ops[opId]||{};
+    const snapDate=pmap.DATA_OPERACAO_OFERTA===undefined?'':FT_MOTORISTA_dateKey_(r[pmap.DATA_OPERACAO_OFERTA]);
+    const snapStart=pmap.HORARIO_OPERACAO_OFERTA===undefined?'':FT_MOTORISTA_timeKey_(r[pmap.HORARIO_OPERACAO_OFERTA]);
+    const snapEnd=pmap.JANELA_FIM_OFERTA===undefined?'':FT_MOTORISTA_timeKey_(r[pmap.JANELA_FIM_OFERTA]);
+    const currentDate=FT_MOTORISTA_dateKey_(op.data);
+    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||
+      (!!snapStart&&snapStart!==FT_MOTORISTA_timeKey_(op.janelaInicio))||
+      (!!snapEnd&&snapEnd!==FT_MOTORISTA_timeKey_(op.janelaFim)));
+    const rawExpiry=pmap.EXPIRA_EM===undefined?'':r[pmap.EXPIRA_EM];
+    const expires=rawExpiry instanceof Date?rawExpiry:new Date(rawExpiry);
+    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
     else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
+    const offerEvents=driverEvents.filter(e=>e.ofertaId===offerId);
+    const responseEvent=offerEvents.find(e=>['OFERTA_RECUSADA','ESCALA_CONFIRMADA','OFERTA_EXPIRADA','OFERTA_CANCELADA_REPROGRAMACAO'].includes(e.tipo));
     return {
-      id:String(r[pmap.ID]||''),status:status,ofertadaEm:r[pmap.OFERTADA_EM]||r[pmap.CRIADO_EM]||'',
-      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
-      observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
-      operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
+      id:offerId,operacaoId:opId,status:status,
+      criadaEm:pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM],
+      ofertadaEm:(pmap.OFERTADA_EM!==undefined&&r[pmap.OFERTADA_EM])?r[pmap.OFERTADA_EM]:(pmap.CRIADO_EM===undefined?'':r[pmap.CRIADO_EM]),
+      respondidaEm:pmap.RESPONDIDA_EM===undefined?'':r[pmap.RESPONDIDA_EM],
+      expiraEm:rawExpiry,expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',prazoEncerrado:status==='EXPIRADA'||status==='NAO_RESPONDEU',
+      agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
+      observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||(pmap.MOTIVO!==undefined?r[pmap.MOTIVO]:'')||''),
+      motivoResposta:pmap.MOTIVO===undefined?'':String(r[pmap.MOTIVO]||''),
+      conjuntoId:pmap.CONJUNTO_ID===undefined?'':String(r[pmap.CONJUNTO_ID]||''),
+      operacao:op,eventos:offerEvents,
+      decisaoEm:(pmap.RESPONDIDA_EM!==undefined&&r[pmap.RESPONDIDA_EM])?r[pmap.RESPONDIDA_EM]:(responseEvent?responseEvent.dataHora:'')
     };
-  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
-  const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length};
-  return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
+  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||b.criadaEm||0)-new Date(a.ofertadaEm||a.criadaEm||0));
+
+  // Eventos sem linha de participação também permanecem visíveis no histórico do próprio motorista.
+  const offerIds=new Set(offers.map(o=>o.id));
+  const eventosAvulsos=driverEvents.filter(e=>!e.ofertaId||!offerIds.has(e.ofertaId)).map(e=>({
+    id:e.id,ofertaId:e.ofertaId,operacaoId:e.operacaoId,tipo:e.tipo,dataHora:e.dataHora,
+    motivo:e.motivo,operacao:ops[e.operacaoId]||{}
+  }));
+  const counts={
+    pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,
+    aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,
+    recusadas:offers.filter(o=>o.status==='RECUSADA').length,
+    expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length,
+    canceladas:offers.filter(o=>o.status==='CANCELADA_REPROGRAMACAO'||o.status==='CANCELADA').length,
+    total:offers.length
+  };
+  return {
+    user:{nome:driverName,email:session.email,perfil:session.perfil},
+    motoristaId,
+    hoje:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd'),
+    diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes,eventosVinculados:driverEvents.length},
+    ofertas:offers,eventos:eventosAvulsos,counts
+  };
 }
 
 function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao) {
@@ -72,13 +145,15 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     if(String(record[map.STATUS_PARTICIPACAO]||'').toUpperCase()!=='OFERTADA')throw new Error('Esta oferta já foi respondida ou não está mais pendente.');
     const expires=record[map.EXPIRA_EM] instanceof Date?record[map.EXPIRA_EM]:new Date(record[map.EXPIRA_EM]);
     if(!isFinite(expires.getTime())||expires.getTime()<=Date.now()){
-      const now=new Date();
-      sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
-      if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'não respondeu em 2 horas');
-      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de resposta encerrado.',autor:session.email,ofertaId});
+      if(typeof FT_AUTO_marcarSemResposta_==='function'){
+        FT_AUTO_marcarSemResposta_(sh,idx+1,record,map,session.email);
+      }else{
+        sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
+        FT_colocarMotoristaNoFinalDaFila_(motoristaId,'prazo de 2 horas encerrado sem resposta no portal');
+        FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal; motorista reposicionado ao final da fila.',autor:session.email,ofertaId});
+      }
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
-      return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
+      return {ok:false,status:'NAO_RESPONDEU',message:'O prazo de duas horas terminou sem resposta. Você foi reposicionado ao final da fila de convocação.'};
     }
     const now=new Date(),note=texto_(observacao,500);
     sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ACEITA':'RECUSADA');

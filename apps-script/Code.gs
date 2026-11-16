@@ -732,7 +732,8 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(movimentos.getLastColumn()<10 || ops.getLastColumn()<16) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
     movimentos.appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,'SIM',observacoes,session.login,viagens]);
     const novoSaldo=Math.max(0,saldo-toneladas);
-    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+    // Atingir saldo zero não encerra a operação: o administrador confirma após conferir viagens e retornos.
+    ops.getRange(idx+1,3).setValue('EM_ANDAMENTO');
     ops.getRange(idx+1,12).setValue(novoSaldo);
     const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
     const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
@@ -744,7 +745,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const totalTrips=Math.max(0,Math.floor(Number(op[tripsCol]||0)))+viagens;
     ops.getRange(idx+1,tripsCol+1).setValue(totalTrips);
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
+    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:'EM_ANDAMENTO',sugestaoConclusao:novoSaldo<=0.000001,message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'+(novoSaldo<=0.000001?' A operação permanece EM ANDAMENTO até a conferência e confirmação administrativa.':'')};
   } finally { lock.releaseLock(); }
 }
 function remanejarConjuntoOperacaoFullTime(token, data) {
