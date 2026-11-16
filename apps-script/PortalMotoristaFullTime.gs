@@ -166,7 +166,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       anterior:'OFERTADA',nova:resposta,motivo:note||'Resposta registrada pelo portal do motorista.',
       autor:session.email,ofertaId});
     auditar_(session,'RESPOSTA_OFERTA_MOTORISTA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId+' -> '+resposta);
-    return {ok:true,status:resposta==='ACEITA'?'ATIVO':'RECUSADA',message:resposta==='ACEITA'?'Aceite registrado. Aguarde a confirmação da escala pela administração.':'Recusa registrada. O próximo motorista será chamado automaticamente.'};
+    return {ok:true,status:resposta,message:resposta==='ACEITA'?'Aceite registrado. Aguarde a confirmação da escala pela administração.':'Recusa registrada. O próximo motorista será chamado automaticamente.'};
   } finally {lock.releaseLock();}
 }
 
