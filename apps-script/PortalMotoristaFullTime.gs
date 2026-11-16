@@ -181,8 +181,8 @@ function confirmarAceiteOfertaAdminFullTime(token, ofertaId) {
     if(idx<1)throw new Error('Oferta não encontrada.');
     const r=rows[idx],status=String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase();
     if(status!=='ACEITA')throw new Error('Somente ofertas aceitas pelo motorista podem ser confirmadas.');
-    const expires=r[map.EXPIRA_EM] instanceof Date?r[map.EXPIRA_EM]:new Date(r[map.EXPIRA_EM]);
-    if(!isFinite(expires.getTime())||expires.getTime()<Date.now())throw new Error('O prazo da oferta expirou. Não é possível ativar esta escala.');
+    // O prazo de 2 horas limita a resposta do motorista. Após status ACEITA,
+    // a decisão foi registrada dentro do prazo e aguarda apenas validação administrativa.
     const opSh=getSheet_('OPERACOES'),opGrid=opSh.getDataRange().getValues(),oh=opGrid[0].map(v=>String(v||'').trim().toUpperCase()),oi={};
     oh.forEach((h,i)=>{if(h&&oi[h]===undefined)oi[h]=i;});
     const op=opGrid.slice(1).find(x=>String(x[oi.ID]||'')===String(r[map.OPERACAO_ID]));
