@@ -142,11 +142,10 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       const now=new Date();
       sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('EXPIRADA');
       if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      // Sem confirmação de entrega, o prazo não prova que o motorista recebeu o convite.
-      // Não atribuímos ausência de resposta nem alteramos sua posição na fila.
-      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo encerrado; entrega da notificação não comprovada. Não classificar como ausência de resposta.',autor:session.email,ofertaId});
+      // A convocação fica disponível no portal por duas horas. Sem resposta nesse período, expira e a fila pode avançar.
+      FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'EXPIRADA',motivo:'Prazo de 2 horas encerrado sem resposta registrada no portal.',autor:session.email,ofertaId});
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
-      return {ok:false,status:'EXPIRADA',message:'O prazo foi encerrado, mas não há confirmação de entrega da notificação. A administração deverá verificar o envio antes de uma nova convocação.'};
+      return {ok:false,status:'EXPIRADA',message:'O prazo de resposta desta convocação terminou. A oferta foi encerrada e a fila automática seguirá para o próximo motorista.'};
     }
     const now=new Date(),note=texto_(observacao,500);
     sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue(resposta==='ACEITA'?'ACEITA':'RECUSADA');
