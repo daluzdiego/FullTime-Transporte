@@ -124,7 +124,6 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
   let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
   if(st==='OFERTADA'&&!FT_AUTO_agendaOfertaIgual_(r,m,agenda)){
    sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('CANCELADA_REPROGRAMACAO');
-   if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(new Date());
    r[m.STATUS_PARTICIPACAO]='CANCELADA_REPROGRAMACAO';st='CANCELADA_REPROGRAMACAO';
    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:st,motivo:'Data ou janela da operação foi alterada; oferta anterior cancelada para nova convocação.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
   }
@@ -159,7 +158,6 @@ function FT_processarFilasConvocacaoAutomatica(){
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n];let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(st==='OFERTADA'&&!FT_AUTO_agendaOfertaIgual_(r,m,agenda)){
       sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('CANCELADA_REPROGRAMACAO');r[m.STATUS_PARTICIPACAO]='CANCELADA_REPROGRAMACAO';
-      if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());
       FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'CANCELADA_REPROGRAMACAO',motivo:'Data ou janela da operação alterada; oferta anterior cancelada.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;
     }
     if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}
