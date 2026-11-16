@@ -327,6 +327,12 @@
     const orphanEvents=Array.isArray(dashboard?.eventos)?dashboard.eventos:[];
     const counts=dashboard?.counts||{};
     const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
+    const localDay=d=>{const x=d instanceof Date?d:new Date(String(d||'').length===10?String(d)+'T12:00:00':d);return isNaN(x.getTime())?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');};
+    const today=new Date(),todayKey=localDay(today);
+    const futureOffers=offers.filter(o=>{const k=localDay(o.operacao?.data);return k&&k>todayKey;});
+    const todayOffers=offers.filter(o=>localDay(o.operacao?.data)===todayKey);
+    const pastOffers=offers.filter(o=>{const k=localDay(o.operacao?.data);return !k||k<todayKey;});
+
     const cards=[
       ['Convites recebidos',counts.total??offers.length],
       ['Pendentes',counts.pendentes||0],
@@ -363,7 +369,11 @@
     return '<div class="page-head"><div><h1>Minhas ofertas e histórico</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
       (pending.length?'<h2 style="margin:22px 0 12px">Aguardando sua resposta</h2>':'')+
-      (offerCards||'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
+      (offers.length?[
+        futureOffers.length?'<h2 style="margin:22px 0 12px">Próximas operações ('+futureOffers.length+')</h2>'+futureOffers.map(renderOfferCard).join(''):'',
+        todayOffers.length?'<h2 style="margin:22px 0 12px">Operações de hoje ('+todayOffers.length+')</h2>'+todayOffers.map(renderOfferCard).join(''):'',
+        pastOffers.length?'<h2 style="margin:22px 0 12px">Convites e operações anteriores ('+pastOffers.length+')</h2>'+pastOffers.map(renderOfferCard).join(''):''
+      ].join(''):'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
   }
   function atualizarPortalMotorista(){
     const content=document.getElementById('content');
