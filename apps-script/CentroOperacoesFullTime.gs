@@ -47,7 +47,7 @@ function obterCentroOperacoesFullTime(token) {
   const all=ops.map(o=>{
     const id=String(o.ID||''),status=String(o.STATUS||'').toUpperCase();
     const relatedParts=parts.filter(p=>String(p.OPERACAO_ID||'')===id);
-    const related=relatedParts.filter(p=>['ATIVO','SAIU','EM_VIAGEM','ACEITA'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
+    const related=relatedParts.filter(p=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
     const operationMoves=moves.filter(m=>String(m.OPERACAO_ID||'')===id);
     const ton=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
     const trips=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS||(String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0);
@@ -108,9 +108,12 @@ function confirmarConclusaoOperacaoFullTime(token, operacaoId, observacao) {
     if(['CONCLUIDA','CANCELADA','CANCELADO'].includes(status))throw new Error('Esta operação já está encerrada ou cancelada.');
     const saldo=FT_CENTRO_num_(row[ix.SALDO_TONELADAS]);
     const previstas=FT_CENTRO_num_(row[ix.TOTAL_VIAGENS_PREVISTAS]);
-    const realizadas=FT_CENTRO_num_(row[ix.VIAGENS_REALIZADAS]);
+    const moves=FT_CENTRO_rows_('MOVIMENTACOES_OPERACAO').filter(m=>String(m.OPERACAO_ID||'')===operacaoId);
+    const trips=moves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS||(String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0);
+    const realizadas=trips||FT_CENTRO_num_(row[ix.VIAGENS_REALIZADAS]);
     if(saldo>0.000001)throw new Error('Ainda existe saldo de '+saldo+' t. A operação não pode ser concluída.');
-    if(previstas>0&&realizadas<previstas)throw new Error('Existem viagens pendentes: '+realizadas+' de '+previstas+'.');
+    if(previstas<=0)throw new Error('Informe o total de viagens previstas antes de concluir a operação.');
+    if(realizadas<previstas)throw new Error('Existem viagens pendentes: '+realizadas+' de '+previstas+'.');
     const parts=getSheet_('PARTICIPACAO_OPERACOES'),pm=FT_CENTRO_headerMapLocal_(parts);
     const active=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']);
     const activeRows=parts.getLastRow()>1?parts.getRange(2,1,parts.getLastRow()-1,parts.getLastColumn()).getValues():[];
