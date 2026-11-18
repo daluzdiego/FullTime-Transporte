@@ -33,7 +33,7 @@ function FT_MOTORISTA_timeKey_(value) {
   return m?String(m[1]).padStart(2,'0')+':'+m[2]:s;
 }
 
-function obterPortalMotoristaFullTime(token) {
+function obterPortalMotoristaFullTimeV2(token) {
   const session=obterSessao_(token),motoristaId=exigirMotorista_(session);
   const parts=getSheet_('PARTICIPACAO_OPERACOES'),pmap=FT_MOTORISTA_headerMap_(parts);
   const required=['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO'];
