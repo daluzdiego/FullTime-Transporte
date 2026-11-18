@@ -114,6 +114,29 @@ function loginFullTime(email, senha) {
   return { token: token, user: session };
 }
 
+/**
+ * Restaura a identidade da sessão após F5/reabertura da aba.
+ * Retorna somente os campos necessários à interface; não cria nem renova credenciais.
+ */
+function restaurarSessaoFullTime(token) {
+  const session = obterSessao_(token);
+  const perfil = String(session.perfil || '').trim().toUpperCase();
+  if (perfil !== 'ADMIN' && perfil !== 'MOTORISTA') {
+    throw new Error('Perfil de acesso inválido. Entre novamente.');
+  }
+  return {
+    user: {
+      id: String(session.id || ''),
+      login: String(session.login || ''),
+      email: String(session.email || ''),
+      nome: String(session.nome || ''),
+      perfil: perfil,
+      motoristaId: String(session.motoristaId || ''),
+      trocarSenha: session.trocarSenha === true
+    }
+  };
+}
+
 function encerrarSessaoFullTime(token) {
   const session = obterSessao_(token);
   auditar_(session, 'LOGOUT', 'SESSAO', '', 'Sessão encerrada');
