@@ -172,10 +172,15 @@
     }
     showAppShell();
     const isDriver=perfil==='MOTORISTA';
-    const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
+    const endpoint=isDriver?'obterPortalMotoristaFullTimeV2':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'operacoes';
     google.script.run.withSuccessHandler(data=>{
         const received=isDriver?data:parsePainelResponse(data);
+        if(isDriver&&(!received||!Array.isArray(received.ofertas))){
+          console.error('FT_PORTAL_CONTRATO_INVALIDO',JSON.stringify({tipo:typeof received,chaves:received&&typeof received==='object'?Object.keys(received):[]}));
+          renderLoadFailure(new Error('O servidor não entregou a lista de ofertas do motorista. Confirme a implantação do endpoint V2 e do arquivo PortalMotoristaFullTime.gs.'));
+          return;
+        }
         const arrayKeys=['motoristas','cavalos','carretas','conjuntos','operacoes','documentos'];
         const receivedCounts={};
         arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
@@ -441,7 +446,7 @@
         if(host)host.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
         toast(e.message||'Não foi possível atualizar.',true);
       }
-    }).obterPortalMotoristaFullTime(authToken);
+    }).obterPortalMotoristaFullTimeV2(authToken);
   }
   async function responderOfertaPortal(id,resposta){
     const acao=resposta==='ACEITA'?'aceitar':'recusar';
