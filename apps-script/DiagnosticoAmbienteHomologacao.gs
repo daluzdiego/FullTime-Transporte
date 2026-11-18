@@ -57,7 +57,7 @@ function verificarAmbienteHomologacaoFullTime() {
     'ENTRADA_OPERACOES_IA'
   ];
 
-  const authRequired = ['USUARIOS', 'AUDITORIA', 'TOKENS_RECUPERACAO'];
+  const authRequired = ['USUARIOS', 'AUDITORIA', 'RECUPERACAO_SENHA'];
 
   function inspectSpreadsheet(id, target, requiredTabs, label) {
     if (!id) return;
