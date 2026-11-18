@@ -12,11 +12,20 @@ const FT_CONFIG = {
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
 function conectarPlanilhaOperacionalFullTime() {
-  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
+  // Segurança: nunca sobrescrever o ID configurado. Em homologação, a propriedade
+  // deve continuar apontando para HOMOLOGACAO_FULLTIME_PRINCIPAL_20261118.
+  const props = PropertiesService.getScriptProperties();
+  const spreadsheetId = props.getProperty('FT_REGISTRY_DATABASE_ID');
+  const authId = props.getProperty('FT_DATABASE_ID');
+  if (!spreadsheetId) {
+    throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Defina a base de homologação nas propriedades do projeto.');
+  }
+  if (spreadsheetId === authId) {
+    throw new Error('Segurança: base operacional e base de autenticação não podem ser a mesma planilha.');
+  }
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
-  console.log('Fonte única conectada: ' + ss.getUrl());
-  console.log('Cadastros, operações e escala serão lidos e gravados diretamente nesta planilha.');
+  console.log('Base operacional já configurada (sem sobrescrever propriedades): ' + ss.getName());
+  console.log('ID operacional: ' + spreadsheetId);
   return ss.getUrl();
 }
 
@@ -969,9 +978,10 @@ function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
  * Auditoria somente leitura: não cria, renomeia nem altera cabeçalhos/dados.
  */
 function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
-  const expectedId='11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||'';
-  if(registryId!==expectedId) throw new Error('FT_REGISTRY_DATABASE_ID não aponta para a planilha principal autorizada.');
+  const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')||'';
+  if(!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+  if(registryId===authId) throw new Error('Segurança: base operacional e autenticação não podem ser a mesma planilha.');
   const ss=SpreadsheetApp.openById(registryId);
   const schemas={
     MOTORISTAS:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
