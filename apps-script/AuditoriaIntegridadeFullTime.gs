@@ -20,6 +20,13 @@ function FT_AUDITAR_INTEGRIDADE_HOMOLOGACAO_20261118() {
 
   const operational = SpreadsheetApp.openById(operationalId);
   const auth = SpreadsheetApp.openById(authId);
+  // Esta rotina é exclusiva da homologação: falha fechada se as propriedades apontarem
+  // para uma planilha que não esteja explicitamente identificada como HOMOLOGACAO.
+  const operationalName = String(operational.getName() || '').toUpperCase();
+  const authName = String(auth.getName() || '').toUpperCase();
+  if (operationalName.indexOf('HOMOLOGACAO') === -1 || authName.indexOf('HOMOLOGACAO') === -1) {
+    throw new Error('SEGURANÇA: auditoria de homologação bloqueada. As duas bases precisam estar identificadas como HOMOLOGACAO. Nenhuma alteração foi realizada.');
+  }
   const required = [
     'MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','OPERACOES',
     'PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','LOCAIS','REGRAS_OPERACIONAIS',
@@ -169,8 +176,13 @@ function FT_AUDITAR_INTEGRIDADE_HOMOLOGACAO_20261118() {
   });
   const reused = Array.from(equipmentUse.entries()).filter(x => x[1].length > 1)
     .map(x => ({ recurso: x[0].split(':')[0], conjuntos: x[1] }));
-  add(fakeActive.length ? 'CRITICO' : 'OK', 'CONJUNTOS_FICTICIOS_ATIVOS',
-    fakeActive.length ? 'Há conjuntos ativos identificados como fictícios/teste.' : 'Nenhum conjunto ativo foi identificado como fictício.',
+  // Cadastros fictícios ativos são esperados e necessários na homologação.
+  // Em ambiente explicitamente identificado como homologação, isso é informativo;
+  // fora desse ambiente a execução já é bloqueada pela validação de nome acima.
+  add(fakeActive.length ? 'INFO' : 'OK', 'CONJUNTOS_FICTICIOS_ATIVOS',
+    fakeActive.length
+      ? fakeActive.length + ' conjunto(s) ativo(s) identificado(s) como fictício(s), conforme esperado na base de homologação. Não desativar: são dados de teste.'
+      : 'Nenhum conjunto ativo foi identificado como fictício.',
     fakeActive);
   add(linkIssues.length ? 'CRITICO' : 'OK', 'VINCULOS_CONJUNTOS',
     linkIssues.length ? 'Há vínculos de conjuntos incompletos ou inválidos.' : 'Vínculos dos conjuntos ativos apontam para cadastros válidos.',
