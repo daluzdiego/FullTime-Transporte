@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - "fix/**"
+      - "homologacao/**"
     paths:
       - "apps-script/**/*.gs"
       - "apps-script/**/*.js"
