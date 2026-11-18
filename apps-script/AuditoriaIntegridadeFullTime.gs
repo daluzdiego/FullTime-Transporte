@@ -368,3 +368,129 @@ function FT_AUDITAR_INTEGRIDADE_HOMOLOGACAO_20261118() {
   Logger.log('FULLTIME_AUDITORIA_INTEGRIDADE_HOMOLOGACAO: ' + JSON.stringify(report));
   return report;
 }
+
+
+/**
+ * AUDITORIA FUNCIONAL DE VÍNCULOS DE LOGIN — SOMENTE LEITURA.
+ * Não grava, cria, exclui nem altera dados. O relatório não expõe logins,
+ * e-mails, nomes, IDs, CPFs, hashes ou tokens.
+ * Executar: FT_AUDITAR_VINCULOS_LOGIN_HOMOLOGACAO_20261118()
+ */
+function FT_AUDITAR_VINCULOS_LOGIN_HOMOLOGACAO_20261118() {
+  const props = PropertiesService.getScriptProperties();
+  const registryId = String(props.getProperty('FT_REGISTRY_DATABASE_ID') || '').trim();
+  const authId = String(props.getProperty('FT_DATABASE_ID') || '').trim();
+  if (!registryId || !authId || registryId === authId)
+    throw new Error('SEGURANÇA: propriedades das bases ausentes ou iguais. Nenhuma alteração realizada.');
+  const registry = SpreadsheetApp.openById(registryId);
+  const auth = SpreadsheetApp.openById(authId);
+  if (!/HOMOLOGACAO/i.test(registry.getName()) || !/HOMOLOGACAO/i.test(auth.getName()))
+    throw new Error('SEGURANÇA: auditoria permitida somente nas duas bases identificadas como HOMOLOGACAO.');
+  const read = (ss, name) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh || sh.getLastRow() < 1 || sh.getLastColumn() < 1)
+      throw new Error('Guia obrigatória ausente ou vazia: ' + name);
+    const grid = sh.getDataRange().getValues();
+    const ix = {};
+    (grid[0] || []).forEach((v, i) => {
+      const k = String(v == null ? '' : v).trim().toUpperCase();
+      if (k && ix[k] === undefined) ix[k] = i;
+    });
+    return { rows: grid.slice(1).filter(r => r.some(v => v !== '' && v !== null)), ix: ix };
+  };
+  const drivers = read(registry, 'MOTORISTAS');
+  const users = read(auth, 'USUARIOS');
+  const requiredDriver = ['ID','NOME_COMPLETO','EMAIL','STATUS'];
+  const requiredUser = ['ID','LOGIN','EMAIL','NOME','PERFIL','ATIVO','SALT','HASH_SENHA','MOTORISTA_ID'];
+  const missingDriver = requiredDriver.filter(k => drivers.ix[k] === undefined);
+  const missingUser = requiredUser.filter(k => users.ix[k] === undefined);
+  if (missingDriver.length || missingUser.length)
+    throw new Error('Cabeçalhos ausentes. MOTORISTAS=' + missingDriver.join(',') + '; USUARIOS=' + missingUser.join(','));
+  const s = v => String(v == null ? '' : v).trim();
+  const lower = v => s(v).toLowerCase();
+  const drows = drivers.rows.filter(r => s(r[drivers.ix.ID]));
+  const urows = users.rows.filter(r => s(r[users.ix.ID]));
+  const motorAccounts = urows.filter(r => s(r[users.ix.PERFIL]).toUpperCase() === 'MOTORISTA');
+  const driverById = new Map();
+  const duplicateDriverIds = new Set();
+  drows.forEach(r => {
+    const id = s(r[drivers.ix.ID]);
+    if (driverById.has(id)) duplicateDriverIds.add(id);
+    else driverById.set(id, r);
+  });
+  const userIds = new Set(), logins = new Set(), emails = new Set();
+  let duplicateUserIds = 0, duplicateLogins = 0, duplicateEmails = 0;
+  urows.forEach(r => {
+    const id = s(r[users.ix.ID]), login = lower(r[users.ix.LOGIN]), email = lower(r[users.ix.EMAIL]);
+    if (id && userIds.has(id)) duplicateUserIds++; else if (id) userIds.add(id);
+    if (login && logins.has(login)) duplicateLogins++; else if (login) logins.add(login);
+    if (email && emails.has(email)) duplicateEmails++; else if (email) emails.add(email);
+  });
+  const accountsPerDriver = new Map();
+  let inactiveAccounts = 0, missingDriverLinks = 0, emailMismatches = 0;
+  let nonTestEmails = 0, missingCredentials = 0, invalidDriverStatus = 0;
+  motorAccounts.forEach(a => {
+    const driverId = s(a[users.ix.MOTORISTA_ID]);
+    if (!driverId || !driverById.has(driverId)) { missingDriverLinks++; return; }
+    if (!accountsPerDriver.has(driverId)) accountsPerDriver.set(driverId, []);
+    accountsPerDriver.get(driverId).push(a);
+    if (a[users.ix.ATIVO] !== true) inactiveAccounts++;
+    const driver = driverById.get(driverId);
+    const userEmail = lower(a[users.ix.EMAIL]);
+    const driverEmail = lower(driver[drivers.ix.EMAIL]);
+    const login = lower(a[users.ix.LOGIN]);
+    if (!userEmail || userEmail !== driverEmail || login !== userEmail) emailMismatches++;
+    if (!/@(?:example|fulltime)\.test$/i.test(userEmail)) nonTestEmails++;
+    if (!s(a[users.ix.SALT]) || !s(a[users.ix.HASH_SENHA])) missingCredentials++;
+    if (!['ATIVO','APTO','REGULAR'].includes(s(driver[drivers.ix.STATUS]).toUpperCase())) invalidDriverStatus++;
+  });
+  let driversWithoutAccount = 0, driversWithMultipleAccounts = 0;
+  drows.forEach(r => {
+    const list = accountsPerDriver.get(s(r[drivers.ix.ID])) || [];
+    if (!list.length) driversWithoutAccount++;
+    if (list.length > 1) driversWithMultipleAccounts++;
+  });
+  const accountIds = new Set(motorAccounts.map(r => s(r[users.ix.MOTORISTA_ID])).filter(Boolean));
+  const accountForUnknownDriver = Array.from(accountIds).filter(id => !driverById.has(id)).length;
+  const checks = {
+    quantidadeMotoristas: drows.length === 40,
+    quantidadeContasMotoristas: motorAccounts.length === 40,
+    idsMotoristasUnicos: duplicateDriverIds.size === 0,
+    contasSemVinculoInexistente: missingDriverLinks === 0 && accountForUnknownDriver === 0,
+    umUsuarioPorMotorista: driversWithoutAccount === 0 && driversWithMultipleAccounts === 0,
+    contasAtivas: inactiveAccounts === 0,
+    emailsCorrespondentes: emailMismatches === 0,
+    emailsReservadosDeTeste: nonTestEmails === 0,
+    credenciaisPresentes: missingCredentials === 0,
+    motoristasAptos: invalidDriverStatus === 0,
+    idsUsuariosUnicos: duplicateUserIds === 0,
+    loginsUnicos: duplicateLogins === 0,
+    emailsUnicos: duplicateEmails === 0
+  };
+  const failures = Object.keys(checks).filter(k => !checks[k]);
+  const result = {
+    executadoEm: new Date().toISOString(),
+    modo: 'SOMENTE_LEITURA',
+    basesSeparadas: registryId !== authId,
+    contagens: { motoristas: drows.length, usuariosTotais: urows.length, contasMotoristas: motorAccounts.length },
+    verificacoes: checks,
+    contagensDeDivergencias: {
+      idsMotoristasDuplicados: duplicateDriverIds.size,
+      idsUsuariosDuplicados: duplicateUserIds,
+      loginsDuplicados: duplicateLogins,
+      emailsDuplicados: duplicateEmails,
+      contasInativas: inactiveAccounts,
+      vinculosAusentesOuInvalidos: missingDriverLinks + accountForUnknownDriver,
+      motoristasSemConta: driversWithoutAccount,
+      motoristasComMultiplasContas: driversWithMultipleAccounts,
+      emailsDivergentes: emailMismatches,
+      emailsForaDominioTeste: nonTestEmails,
+      credenciaisAusentes: missingCredentials,
+      motoristasNaoAptos: invalidDriverStatus
+    },
+    aprovado: failures.length === 0,
+    verificacoesReprovadas: failures
+  };
+  Logger.log('FULLTIME_AUDITORIA_VINCULOS_LOGIN: ' + JSON.stringify(result));
+  return result;
+}
