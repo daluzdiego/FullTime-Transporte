@@ -1,129 +1,358 @@
 /**
- * FULL TIME — Auditoria de integridade do MVP.
- * Somente leitura: não cria guias, não altera status e não modifica registros.
- * Executar pelo administrador no Apps Script depois de atualizar os arquivos.
+ * FULL TIME — Auditoria de integridade da homologação (arquitetura centralizada).
+ *
+ * SOMENTE LEITURA:
+ * - não cria, renomeia ou exclui guias;
+ * - não altera cadastros, status, filas, ofertas ou propriedades;
+ * - não instala nem remove gatilhos;
+ * - não registra CPF, telefone, e-mail, login, senha ou tokens no relatório.
+ *
+ * Executar manualmente no Apps Script:
+ * FT_AUDITAR_INTEGRIDADE_HOMOLOGACAO_20261118()
  */
-function auditarIntegridadeMvpFullTime(token) {
-  const session=obterSessao_(token);exigirAdmin_(session);
-  const requiredSheets=['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','CONJUNTO_OVERRIDES','OPERACOES','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','OFERTAS_CARGAS','EVENTOS_ESCALA','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','CARGAS','ESCALAS','ENTRADA_OPERACOES_IA'];
-  const report={executadoEm:new Date().toISOString(),modo:'SOMENTE_LEITURA',resumo:{criticos:0,alertas:0,informativos:0},verificacoes:[],contagens:{},problemas:[]};
-  function add(severity,code,message,details){
-    report.verificacoes.push({severidade:severity,codigo:code,mensagem:message,detalhes:details||[]});
-    if(severity==='CRITICO')report.resumo.criticos++;else if(severity==='ALERTA')report.resumo.alertas++;else report.resumo.informativos++;
-    if(severity!=='OK')report.problemas.push({severidade:severity,codigo:code,mensagem:message,detalhes:details||[]});
-  }
-  const sheets={};
-  requiredSheets.forEach(name=>{
-    try{const sh=getSheet_(name);sheets[name]=sh.getDataRange().getValues();report.contagens[name]=Math.max(0,sheets[name].length-1);}
-    catch(e){add('CRITICO','GUIA_AUSENTE','Não foi possível ler a guia '+name+'.',[e.message]);}
+function FT_AUDITAR_INTEGRIDADE_HOMOLOGACAO_20261118() {
+  const props = PropertiesService.getScriptProperties();
+  const operationalId = String(props.getProperty('FT_REGISTRY_DATABASE_ID') || '').trim();
+  const authId = String(props.getProperty('FT_DATABASE_ID') || '').trim();
+  if (!operationalId) throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Nenhuma alteração foi realizada.');
+  if (!authId) throw new Error('FT_DATABASE_ID não configurado. Nenhuma alteração foi realizada.');
+  if (operationalId === authId) throw new Error('ERRO CRÍTICO: base operacional e base de autenticação apontam para a mesma planilha.');
+
+  const operational = SpreadsheetApp.openById(operationalId);
+  const auth = SpreadsheetApp.openById(authId);
+  const required = [
+    'MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','OPERACOES',
+    'PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','LOCAIS','REGRAS_OPERACIONAIS',
+    'DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','ENTRADA_OPERACOES_IA'
+  ];
+  const report = {
+    executadoEm: new Date().toISOString(),
+    modo: 'SOMENTE_LEITURA',
+    bases: {
+      operacional: operational.getName(),
+      autenticacao: auth.getName(),
+      basesSeparadas: operationalId !== authId
+    },
+    resumo: { criticos: 0, alertas: 0, informativos: 0, aprovados: 0 },
+    contagens: {},
+    verificacoes: [],
+    problemas: [],
+    gatilhos: [],
+    filasPersistidas: {}
+  };
+  const add = (severity, code, message, details) => {
+    const item = { severidade: severity, codigo: code, mensagem: message, detalhes: details || [] };
+    report.verificacoes.push(item);
+    if (severity === 'CRITICO') report.resumo.criticos++;
+    else if (severity === 'ALERTA') report.resumo.alertas++;
+    else if (severity === 'INFO') report.resumo.informativos++;
+    else report.resumo.aprovados++;
+    if (severity !== 'OK' && severity !== 'INFO') report.problemas.push(item);
+  };
+  const read = (ss, name, mandatory) => {
+    const sh = ss.getSheetByName(name);
+    if (!sh) {
+      if (mandatory) add('CRITICO', 'GUIA_AUSENTE_' + name, 'Guia obrigatória ausente na base ' + ss.getName() + '.', []);
+      return null;
+    }
+    const grid = sh.getLastRow() && sh.getLastColumn()
+      ? sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues()
+      : [[]];
+    const headers = (grid[0] || []).map(v => String(v == null ? '' : v).trim().toUpperCase());
+    const ix = {};
+    headers.forEach((h, i) => { if (h && ix[h] === undefined) ix[h] = i; });
+    const rows = grid.slice(1).filter(r => r.some(v => v !== '' && v !== null));
+    report.contagens[name] = rows.length;
+    return { sheet: sh, headers: headers, ix: ix, rows: rows };
+  };
+  const val = (r, t, key) => t && t.ix[key] !== undefined ? r[t.ix[key]] : '';
+  const str = v => String(v == null ? '' : v).trim();
+  const norm = v => str(v).toUpperCase();
+  const digits = v => str(v).replace(/\D/g, '');
+  const mapById = t => {
+    const out = new Map();
+    if (t) t.rows.forEach(r => { const id = str(val(r, t, 'ID')); if (id && !out.has(id)) out.set(id, r); });
+    return out;
+  };
+  const duplicates = (t, key, normalizer) => {
+    const seen = new Map();
+    if (!t || t.ix[key] === undefined) return [];
+    t.rows.forEach((r, i) => {
+      const raw = str(val(r, t, key));
+      const k = normalizer ? normalizer(raw) : raw;
+      if (!k) return;
+      if (!seen.has(k)) seen.set(k, []);
+      seen.get(k).push(i + 2);
+    });
+    return Array.from(seen.entries()).filter(x => x[1].length > 1)
+      .map(x => ({ chave: key, ocorrencias: x[1].length, linhas: x[1] }));
+  };
+  const missingHeaders = (t, keys) => !t ? keys.slice() : keys.filter(k => t.ix[k] === undefined);
+
+  const data = {};
+  required.forEach(name => { data[name] = read(operational, name, true); });
+  const authUsers = read(auth, 'USUARIOS', true);
+
+  add('OK', 'BASES_SEPARADAS', 'Base operacional e base de autenticação são distintas.', []);
+  const expectedCounts = { MOTORISTAS: 40, CAVALOS: 40, CARRETAS: 40, CONJUNTOS: 40 };
+  Object.keys(expectedCounts).forEach(name => {
+    const actual = report.contagens[name] || 0;
+    add(actual === expectedCounts[name] ? 'OK' : 'ALERTA', 'QUANTIDADE_' + name,
+      name + ': ' + actual + ' registro(s); esperado(s) para homologação: ' + expectedCounts[name] + '.', []);
   });
-  let drivers=[],horses=[],trailers=[],sets=[];
-  try{
-    drivers=ftCadastroRowsAsLegacy_('MOTORISTAS');
-    horses=ftCadastroRowsAsLegacy_('CAVALOS');
-    trailers=ftCadastroRowsAsLegacy_('CARRETAS');
-    sets=ftCadastroRowsAsLegacy_('CONJUNTOS');
-  }catch(e){add('CRITICO','LEITURA_CADASTROS','Não foi possível ler os cadastros sincronizados do Bruno.',[e.message]);}
-  const byId=rows=>new Map(rows.filter(r=>String(r[0]||'')).map(r=>[String(r[0]),r]));
-  const driverById=byId(drivers),horseById=byId(horses),trailerById=byId(trailers),setById=byId(sets);
-  const activeSets=sets.filter(r=>String(r[2]||'').toUpperCase()==='ATIVO');
-  const used={MOTORISTA:{},CAVALO:{},CARRETA:{}},duplicateLinks=[],fakeActive=[],conditionIssues=[];
-  activeSets.forEach(r=>{
-    const id=String(r[0]||''),driver=String(r[3]||''),horse=String(r[4]||''),middle=String(r[5]||''),rear=String(r[6]||'');
-    const marker=(id+' '+r.slice(3).join(' ')).toUpperCase();
-    if(/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\.INVALID|NAO USAR EM OPERACAO|NÃO USAR EM OPERAÇÃO/.test(marker))fakeActive.push(id);
-    [['MOTORISTA',driver],['CAVALO',horse],['CARRETA',middle],['CARRETA',rear]].forEach(([kind,key])=>{if(!key)return;(used[kind][key]||(used[kind][key]=[])).push(id);});
-    if(!driverById.has(driver))duplicateLinks.push(id+': motorista não encontrado ('+driver+')');else if(String(driverById.get(driver)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': motorista não ativo ('+driver+')');
-    if(!horseById.has(horse))duplicateLinks.push(id+': cavalo não encontrado ('+horse+')');else if(String(horseById.get(horse)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': cavalo não ativo ('+horse+')');
-    [middle,rear].filter(Boolean).forEach(key=>{if(!trailerById.has(key))duplicateLinks.push(id+': carreta não encontrada ('+key+')');else if(String(trailerById.get(key)[2]).toUpperCase()!=='ATIVO')duplicateLinks.push(id+': carreta não ativa ('+key+')');});
-    if(!(Number(String(r[10]||'').replace(',','.'))>0))duplicateLinks.push(id+': capacidade útil inválida');
-    if(!ftConjuntoTemVinculoFixo_(r))duplicateLinks.push(id+': vínculo motorista/cavalo/carreta não está marcado como fixo.');
-    const condition=String(r[8]||'').trim().toUpperCase();
-    if(!condition)conditionIssues.push(id+': condição não inspecionada; não entra na escala automática.');
-    else if(condition==='APTO_COM_RESTRICAO')conditionIssues.push(id+': conjunto com restrição; exige avaliação/atribuição administrativa específica.');
-    else if(condition==='APTO'&&String(r[9]||'').trim())conditionIssues.push(id+': marcado APTO, mas ainda possui restrições cadastradas.');
-    else if(!['APTO','INDISPONIVEL'].includes(condition))conditionIssues.push(id+': condição operacional desconhecida ('+condition+').');
+
+  const drivers = data.MOTORISTAS, horses = data.CAVALOS, trailers = data.CARRETAS, sets = data.CONJUNTOS;
+  const headerRequirements = {
+    MOTORISTAS: ['ID','STATUS','NOME_COMPLETO','CPF','CNH_NUMERO','CNH_VALIDADE'],
+    CAVALOS: ['ID','STATUS','PLACA'],
+    CARRETAS: ['ID','STATUS','PLACA'],
+    CONJUNTOS: ['ID','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','CAPACIDADE_UTIL_TONELADAS'],
+    DOCUMENTOS: ['ID_DOCUMENTO','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','DATA_VALIDADE'],
+    OPERACOES: ['ID','STATUS','DATA_OPERACAO','TOTAL_VIAGENS_PREVISTAS'],
+    PARTICIPACAO_OPERACOES: ['ID','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','EXPIRA_EM','ORIGEM_OFERTA'],
+    MOVIMENTACOES_OPERACAO: ['ID','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','QUANTIDADE_VIAGENS'],
+    DISPONIBILIDADE_DIARIA: ['ID','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE'],
+    FILA_MOTORISTAS: ['ID','MOTORISTA_ID','CONJUNTO_ID','STATUS_FILA'],
+    EVENTOS_ESCALA: ['ID','DATA_HORA','TIPO_EVENTO','OPERACAO_ID','MOTORISTA_ID','CONJUNTO_ID','OFERTA_ID'],
+    ENTRADA_OPERACOES_IA: ['ID','STATUS_INTERPRETACAO']
+  };
+  Object.keys(headerRequirements).forEach(name => {
+    const absent = missingHeaders(data[name], headerRequirements[name]);
+    add(absent.length ? 'CRITICO' : 'OK', 'CABECALHOS_' + name,
+      absent.length ? 'Cabeçalhos necessários ausentes em ' + name + '.' : 'Cabeçalhos essenciais presentes em ' + name + '.',
+      absent);
   });
-  const reused=[];Object.keys(used).forEach(kind=>Object.keys(used[kind]).forEach(key=>{if(used[kind][key].length>1)reused.push(kind+' '+key+' usado nos conjuntos '+used[kind][key].join(', '));}));
-  add(fakeActive.length?'CRITICO':'OK','CONJUNTOS_FICTICIOS_ATIVOS',fakeActive.length?'Há conjuntos ativos com identificadores ou dados fictícios.':'Nenhum conjunto ativo foi identificado como fictício.',fakeActive);
-  add(duplicateLinks.length?'CRITICO':'OK','VINCULOS_CONJUNTOS',duplicateLinks.length?'Há vínculos de conjuntos inválidos ou incompletos.':'Os vínculos ativos apontam para cadastros ativos e capacidade preenchida.',duplicateLinks);
-  add(reused.length?'CRITICO':'OK','EQUIPAMENTOS_REUTILIZADOS',reused.length?'Motoristas ou equipamentos aparecem em mais de um conjunto ativo.':'Não há motorista/equipamento repetido entre conjuntos ativos.',reused);
-  add(conditionIssues.length?'ALERTA':'OK','CONDICAO_CONJUNTOS',conditionIssues.length?'Há conjuntos sem inspeção APTO ou com restrições que exigem avaliação.':'Condições dos conjuntos ativos estão registradas.',conditionIssues);
-  const syntheticCapacitySets=sets.filter(r=>/CAPACIDADE SINTÉTICA CALCULADA PARA TESTE/i.test(String(r[7]||''))).map(r=>String(r[0]||''));
-  add(syntheticCapacitySets.length?'ALERTA':'OK','CAPACIDADE_SINTETICA_CONJUNTOS',syntheticCapacitySets.length?'Há conjuntos cuja capacidade foi calculada com valores fictícios. Esses números não representam capacidade legal ou operacional.':'Nenhuma capacidade sintética derivada foi encontrada.',syntheticCapacitySets);
-  const participation=sheets.PARTICIPACAO_OPERACOES||[],activeParts=participation.slice(1).filter(r=>String(r[5]||'').toUpperCase()==='ATIVO');
-  const activeSetParts={},activeDriverParts={};
-  activeParts.forEach(r=>{const setId=String(r[3]||''),driverId=String(r[4]||'');if(setId)(activeSetParts[setId]||(activeSetParts[setId]=[])).push(String(r[2]||''));if(driverId)(activeDriverParts[driverId]||(activeDriverParts[driverId]=[])).push(String(r[2]||''));});
-  const overlapping=[];Object.keys(activeSetParts).forEach(id=>{if(activeSetParts[id].length>1)overlapping.push('Conjunto '+id+' ativo em operações: '+activeSetParts[id].join(', '));});
-  Object.keys(activeDriverParts).forEach(id=>{if(activeDriverParts[id].length>1)overlapping.push('Motorista '+id+' ativo em operações: '+activeDriverParts[id].join(', '));});
-  add(overlapping.length?'CRITICO':'OK','PARTICIPACOES_SIMULTANEAS',overlapping.length?'Há conjuntos ou motoristas em múltiplas operações ativas.':'Não há participações simultâneas duplicadas.',overlapping);
-  const availability=sheets.DISPONIBILIDADE_DIARIA||[],availabilityIssues=[],knownDriverIds=new Set(drivers.map(r=>String(r[0]||'')));
-  const dateKey=v=>{if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd');const s=String(v||'').trim();return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):'';};
-  const seenAvailability=new Set();
-  availability.slice(1).forEach((r,i)=>{
-    const d=dateKey(r[2]),driver=String(r[3]||''),status=String(r[4]||'').toUpperCase(),key=d+'|'+driver;
-    if(!d||!driver)availabilityIssues.push('Linha '+(i+2)+': data ou motorista ausente/inválido.');
-    if(driver&&!knownDriverIds.has(driver))availabilityIssues.push('Linha '+(i+2)+': motorista não encontrado ('+driver+').');
-    if(seenAvailability.has(key))availabilityIssues.push('Linha '+(i+2)+': disponibilidade duplicada para '+key+'.');
-    seenAvailability.add(key);
-    if(!['DISPONIVEL','INDISPONIVEL'].includes(status))availabilityIssues.push('Linha '+(i+2)+': status de disponibilidade inválido ('+status+').');
+
+  const cpfDuplicates = duplicates(drivers, 'CPF', digits);
+  const horsePlateDuplicates = duplicates(horses, 'PLACA', norm);
+  const trailerPlateDuplicates = duplicates(trailers, 'PLACA', norm);
+  const allPlates = [];
+  [horses, trailers].forEach(t => {
+    if (t && t.ix.PLACA !== undefined) t.rows.forEach((r, i) => {
+      const plate = norm(val(r, t, 'PLACA'));
+      if (plate) allPlates.push({ placa: plate, linha: i + 2 });
+    });
   });
-  if(availability.length<=1)add('ALERTA','DISPONIBILIDADE_AUSENTE','Ainda não há registros de disponibilidade de motoristas.',[]);
-  else add(availabilityIssues.length?'ALERTA':'OK','DISPONIBILIDADE',availabilityIssues.length?'Há inconsistências nos registros de disponibilidade.':'Os registros de disponibilidade têm data, motorista e status válidos.',availabilityIssues);
-  const ops=sheets.OPERACOES||[],loads=sheets.CARGAS||[],moves=sheets.MOVIMENTACOES_OPERACAO||[],offers=sheets.OFERTAS_CARGAS||[],scales=sheets.ESCALAS||[],events=sheets.EVENTOS_ESCALA||[];
-  const opIds=new Set(ops.slice(1).map(r=>String(r[0]||'')).filter(Boolean)),loadById=new Map(),loadsByOp={},orphanLoads=[],badTripCounts=[];
-  loads.slice(1).forEach((r,i)=>{
-    const id=String(r[0]||''),opId=String(r[20]||'');
-    if(id)loadById.set(id,r);
-    if(!opId||!opIds.has(opId))orphanLoads.push('Linha '+(i+2)+': carga '+id+' sem operação-pai válida ('+opId+').');
-    if(opId)(loadsByOp[opId]||(loadsByOp[opId]=[])).push(r);
+  const plateMap = new Map();
+  allPlates.forEach(x => { if (!plateMap.has(x.placa)) plateMap.set(x.placa, []); plateMap.get(x.placa).push(x.linha); });
+  const crossPlateDuplicates = Array.from(plateMap.entries()).filter(x => x[1].length > 1)
+    .map(x => ({ placa: x[0], linhas: x[1] }));
+  add(cpfDuplicates.length ? 'CRITICO' : 'OK', 'CPF_DUPLICADO',
+    cpfDuplicates.length ? 'Há CPFs repetidos em MOTORISTAS.' : 'Não há CPF duplicado nos cadastros de motoristas.',
+    cpfDuplicates.map(x => ({ ocorrencias: x.ocorrencias, linhas: x.linhas })));
+  add(crossPlateDuplicates.length ? 'CRITICO' : 'OK', 'PLACA_DUPLICADA',
+    crossPlateDuplicates.length ? 'Há placas repetidas entre cavalos e/ou carretas.' : 'Não há placas duplicadas entre cavalos e carretas.',
+    crossPlateDuplicates);
+
+  const driverById = mapById(drivers), horseById = mapById(horses), trailerById = mapById(trailers), setById = mapById(sets);
+  const active = v => ['ATIVO','APTO','REGULAR'].includes(norm(v));
+  const linkIssues = [], equipmentUse = new Map(), fakeActive = [];
+  if (sets) sets.rows.forEach((r, i) => {
+    if (!active(val(r, sets, 'STATUS'))) return;
+    const setId = str(val(r, sets, 'ID'));
+    const driverId = str(val(r, sets, 'MOTORISTA_ID'));
+    const horseId = str(val(r, sets, 'CAVALO_ID'));
+    const middleId = str(val(r, sets, 'CARRETA_MEIO_ID'));
+    const rearId = str(val(r, sets, 'CARRETA_FINAL_ID'));
+    const marker = [setId, driverId, horseId, middleId, rearId].join(' ').toUpperCase();
+    if (/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\.INVALID|NAO USAR|NÃO USAR/.test(marker)) fakeActive.push('linha ' + (i + 2));
+    [['MOTORISTA', driverId, driverById], ['CAVALO', horseId, horseById], ['CARRETA', middleId, trailerById], ['CARRETA', rearId, trailerById]].forEach(pair => {
+      const kind = pair[0], id = pair[1], lookup = pair[2];
+      if (!id) { if (kind !== 'CARRETA' || (middleId && rearId)) linkIssues.push('Conjunto na linha ' + (i + 2) + ': vínculo ' + kind + ' vazio.'); return; }
+      if (!lookup.has(id)) linkIssues.push('Conjunto na linha ' + (i + 2) + ': referência ' + kind + ' inexistente.');
+      else if (!active(val(lookup.get(id), kind === 'MOTORISTA' ? drivers : kind === 'CAVALO' ? horses : trailers, 'STATUS'))) linkIssues.push('Conjunto na linha ' + (i + 2) + ': referência ' + kind + ' não ativa.');
+      if (!equipmentUse.has(kind + ':' + id)) equipmentUse.set(kind + ':' + id, []);
+      equipmentUse.get(kind + ':' + id).push(setId || ('linha ' + (i + 2)));
+    });
+    const capacity = Number(String(val(r, sets, 'CAPACIDADE_UTIL_TONELADAS')).replace(',', '.'));
+    if (!(capacity > 0)) linkIssues.push('Conjunto na linha ' + (i + 2) + ': capacidade útil ausente ou inválida.');
   });
-  ops.slice(1).forEach((r,i)=>{
-    const id=String(r[0]||''),planned=Number(r[10]||0),children=(loadsByOp[id]||[]).length;
-    if(!Number.isInteger(planned)||planned<1||planned>30)badTripCounts.push('Operação '+id+': quantidade prevista fora de 1–30 ('+planned+').');
-    if(children!==planned)badTripCounts.push('Operação '+id+': '+planned+' viagens previstas, '+children+' registros-filhos encontrados.');
+  const reused = Array.from(equipmentUse.entries()).filter(x => x[1].length > 1)
+    .map(x => ({ recurso: x[0].split(':')[0], conjuntos: x[1] }));
+  add(fakeActive.length ? 'CRITICO' : 'OK', 'CONJUNTOS_FICTICIOS_ATIVOS',
+    fakeActive.length ? 'Há conjuntos ativos identificados como fictícios/teste.' : 'Nenhum conjunto ativo foi identificado como fictício.',
+    fakeActive);
+  add(linkIssues.length ? 'CRITICO' : 'OK', 'VINCULOS_CONJUNTOS',
+    linkIssues.length ? 'Há vínculos de conjuntos incompletos ou inválidos.' : 'Vínculos dos conjuntos ativos apontam para cadastros válidos.',
+    linkIssues);
+  add(reused.length ? 'CRITICO' : 'OK', 'RECURSOS_EM_MULTIPLOS_CONJUNTOS',
+    reused.length ? 'Motorista ou equipamento está associado a mais de um conjunto ativo.' : 'Não há recursos repetidos entre conjuntos ativos.',
+    reused);
+
+  const doc = data.DOCUMENTOS, docIssues = [], now = new Date();
+  if (doc) doc.rows.forEach((r, i) => {
+    const status = norm(val(r, doc, 'STATUS'));
+    const expiry = val(r, doc, 'DATA_VALIDADE');
+    const date = expiry instanceof Date ? expiry : (str(expiry) ? new Date(expiry) : null);
+    if (!status) docIssues.push('Documento na linha ' + (i + 2) + ': status ausente.');
+    if (date && isFinite(date.getTime()) && date < now && !['VENCIDO','EXPIRADO','INATIVO'].includes(status))
+      docIssues.push('Documento na linha ' + (i + 2) + ': validade vencida sem status correspondente.');
+    if (date && !isFinite(date.getTime())) docIssues.push('Documento na linha ' + (i + 2) + ': data de validade inválida.');
   });
-  add(orphanLoads.length?'CRITICO':'OK','CARGAS_SEM_OPERACAO',orphanLoads.length?'Há viagens sem operação-pai válida.':'Todas as viagens estão vinculadas a uma operação.',orphanLoads);
-  add(badTripCounts.length?'ALERTA':'OK','QUANTIDADE_VIAGENS',badTripCounts.length?'Há operações com quantidade de viagens divergente dos registros-filhos.':'Quantidade prevista e viagens-filhas conferem.',badTripCounts);
-  const movementIssues=[],actualByLoad={};
-  moves.slice(1).forEach((r,i)=>{
-    const opId=String(r[2]||''),loadId=String(r[9]||''),tonnes=Number(r[5]||0);
-    if(!opIds.has(opId))movementIssues.push('Movimentação linha '+(i+2)+': operação não encontrada ('+opId+').');
-    if(loadId){
-      const load=loadById.get(loadId);
-      if(!load)movementIssues.push('Movimentação linha '+(i+2)+': viagem não encontrada ('+loadId+').');
-      else if(String(load[20]||'')!==opId)movementIssues.push('Movimentação linha '+(i+2)+': viagem e operação não correspondem ('+loadId+').');
-      actualByLoad[loadId]=(actualByLoad[loadId]||0)+tonnes;
+  add(docIssues.length ? 'ALERTA' : 'OK', 'DOCUMENTOS_E_VALIDADES',
+    docIssues.length ? 'Há documentos com status ou validade que exigem conferência.' : 'Não foram encontradas inconsistências básicas de status/validade documental.',
+    docIssues);
+
+  const ops = data.OPERACOES, parts = data.PARTICIPACAO_OPERACOES, moves = data.MOVIMENTACOES_OPERACAO;
+  const opById = mapById(ops), partById = mapById(parts), operationIssues = [], partIssues = [], moveIssues = [];
+  if (ops) ops.rows.forEach((r, i) => {
+    const id = str(val(r, ops, 'ID'));
+    const planned = Number(String(val(r, ops, 'TOTAL_VIAGENS_PREVISTAS')).replace(',', '.'));
+    if (!id) operationIssues.push('Operação na linha ' + (i + 2) + ': ID ausente.');
+    if (!Number.isInteger(planned) || planned < 1) operationIssues.push('Operação na linha ' + (i + 2) + ': total de viagens previsto inválido.');
+  });
+  const activeDriverOps = new Map(), activeSetOps = new Map();
+  if (parts) parts.rows.forEach((r, i) => {
+    const opId = str(val(r, parts, 'OPERACAO_ID')), setId = str(val(r, parts, 'CONJUNTO_ID'));
+    const driverId = str(val(r, parts, 'MOTORISTA_ID')), status = norm(val(r, parts, 'STATUS_PARTICIPACAO'));
+    const origin = norm(val(r, parts, 'ORIGEM_OFERTA'));
+    if (!opById.has(opId)) partIssues.push('Participação na linha ' + (i + 2) + ': operação inexistente.');
+    if (!setById.has(setId)) partIssues.push('Participação na linha ' + (i + 2) + ': conjunto inexistente.');
+    if (!driverById.has(driverId)) partIssues.push('Participação na linha ' + (i + 2) + ': motorista inexistente.');
+    if (setById.has(setId) && str(val(setById.get(setId), sets, 'MOTORISTA_ID')) !== driverId)
+      partIssues.push('Participação na linha ' + (i + 2) + ': motorista diverge do motorista vinculado ao conjunto.');
+    if (['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(status)) {
+      if (driverId) { if (!activeDriverOps.has(driverId)) activeDriverOps.set(driverId, []); activeDriverOps.get(driverId).push(opId); }
+      if (setId) { if (!activeSetOps.has(setId)) activeSetOps.set(setId, []); activeSetOps.get(setId).push(opId); }
+    }
+    if (origin === 'FILA_AUTOMATICA' && status === 'OFERTADA') {
+      const raw = val(r, parts, 'EXPIRA_EM'), expiry = raw instanceof Date ? raw : new Date(raw);
+      if (!isFinite(expiry.getTime())) partIssues.push('Oferta automática na linha ' + (i + 2) + ': expiração ausente/inválida.');
+      else if (expiry <= now) partIssues.push('Oferta automática na linha ' + (i + 2) + ': continua OFERTADA após expirar.');
     }
   });
-  const actualWeightIssues=[];
-  loads.slice(1).forEach((r,i)=>{const id=String(r[0]||''),stored=Number(r[21]||0),sum=Number(actualByLoad[id]||0);if(Math.abs(stored-sum)>0.01)actualWeightIssues.push('Viagem '+id+': peso real armazenado '+stored+' t, soma das movimentações '+sum+' t (linha '+(i+2)+').');});
-  add(movementIssues.length?'ALERTA':'OK','MOVIMENTACOES_VINCULOS',movementIssues.length?'Há movimentações sem vínculo válido com operação/viagem.':'As movimentações apontam para operações e viagens válidas.',movementIssues);
-  add(actualWeightIssues.length?'ALERTA':'OK','PESO_REAL_VIAGENS',actualWeightIssues.length?'O peso real da viagem diverge da soma das movimentações.':'Peso real das viagens confere com as movimentações.',actualWeightIssues);
-  const offerIssues=[],pendingByOp={};const validOfferStatuses=['PENDENTE','ACEITA','RECUSOU','INDISPONIVEL','EXPIRADA'];
-  offers.slice(1).forEach((r,i)=>{
-    const opId=String(r[11]||''),status=String(r[6]||'').toUpperCase(),expiry=r[7] instanceof Date?r[7]:new Date(r[7]);
-    if(!opIds.has(opId))offerIssues.push('Oferta linha '+(i+2)+': operação não encontrada ('+opId+').');
-    if(!validOfferStatuses.includes(status))offerIssues.push('Oferta linha '+(i+2)+': status inválido ('+status+').');
-    if(status==='PENDENTE'){(pendingByOp[opId]||(pendingByOp[opId]=[])).push(String(r[0]||''));if(isFinite(expiry.getTime())&&expiry<=new Date())offerIssues.push('Oferta '+r[0]+': está pendente apesar de vencida.');}
+  const duplicateActive = [];
+  [ ['MOTORISTA', activeDriverOps], ['CONJUNTO', activeSetOps] ].forEach(pair => {
+    pair[1].forEach((operations, id) => {
+      const unique = Array.from(new Set(operations));
+      if (unique.length > 1) duplicateActive.push(pair[0] + ' associado a múltiplas operações: ' + id);
+    });
   });
-  Object.keys(pendingByOp).forEach(id=>{if(pendingByOp[id].length>1)offerIssues.push('Operação '+id+': múltiplas ofertas pendentes ('+pendingByOp[id].join(', ')+').');});
-  add(offerIssues.length?'ALERTA':'OK','OFERTAS_OPERACAO',offerIssues.length?'Há inconsistências no ciclo de ofertas.':'Ofertas possuem operação, status e prazo consistentes.',offerIssues);
-  const scaleIssues=[];
-  scales.slice(1).forEach((r,i)=>{const opId=String(r[12]||'');if(opId&&!opIds.has(opId))scaleIssues.push('Escala linha '+(i+2)+': operação não encontrada ('+opId+').');});
-  add(scaleIssues.length?'ALERTA':'OK','ESCALAS_OPERACAO',scaleIssues.length?'Há escalas com operação-pai ausente.':'As escalas com operação informada apontam para operações existentes.',scaleIssues);
-  const eventIssues=[];
-  events.slice(1).forEach((r,i)=>{const opId=String(r[10]||'');if(opId&&!opIds.has(opId))eventIssues.push('Evento linha '+(i+2)+': operação não encontrada ('+opId+').');});
-  add(eventIssues.length?'ALERTA':'OK','EVENTOS_OPERACAO',eventIssues.length?'Há eventos com operação inexistente.':'Os eventos com operação informada apontam para operações existentes.',eventIssues);
-  const overrides=sheets.CONJUNTO_OVERRIDES||[],overrideIssues=[],seenOverrides=new Set();
-  overrides.slice(1).forEach((r,i)=>{const id=String(r[0]||'');if(!id)return;if(seenOverrides.has(id))overrideIssues.push('Override duplicado para conjunto '+id+' (linha '+(i+2)+').');seenOverrides.add(id);if(!setById.has(id))overrideIssues.push('Override aponta para conjunto inexistente '+id+'.');if(r[3]!==''&&r[3]!=null&&!(Number(String(r[3]).replace(',','.'))>0))overrideIssues.push('Override de capacidade inválida para conjunto '+id+'.');});
-  add(overrideIssues.length?'ALERTA':'OK','OVERRIDES_CONJUNTOS',overrideIssues.length?'Há overrides duplicados ou inválidos.':'Overrides de conjuntos sem duplicidade ou referência inválida.',overrideIssues);
-  let docs=[],docsRead=true;
-  try{docs=ftReadBrunoRows_('DOCUMENTOS');}catch(e){docsRead=false;add('ALERTA','LEITURA_DOCUMENTOS','Não foi possível ler a base sincronizada de documentos.',[e.message]);}
-  const unvalidatedDocs=docs.filter(r=>!['VALIDO','APROVADO','ATIVO','REGULAR'].includes(String(r.STATUS||'').trim().toUpperCase()));
-  if(docsRead&&!docs.length)add('ALERTA','DOCUMENTOS_AUSENTES','Nenhum documento foi encontrado na base sincronizada.',[]);
-  else if(docsRead)add(unvalidatedDocs.length?'ALERTA':'OK','DOCUMENTOS_NAO_VALIDADOS',unvalidatedDocs.length?'Existem documentos sincronizados sem status reconhecido como válido.':'Todos os documentos lidos possuem status reconhecido como válido.',unvalidatedDocs.map(r=>String(r.ID_DOCUMENTO||'')+' — '+String(r.STATUS||'sem status')));
-  const fakeIds=[...drivers,...horses,...trailers].filter(r=>/TESTE|FICTICIO|FICTÍCIO|EXAMPLE\.INVALID/.test((String(r[0]||'')+' '+r.slice(3).join(' ')).toUpperCase())).map(r=>String(r[0]));
-  add(fakeIds.length?'ALERTA':'OK','CADASTROS_DE_TESTE',fakeIds.length?'Há cadastros fictícios/teste na base; eles devem permanecer isolados e nunca ser ativados.':'Nenhum cadastro fictício foi identificado.',fakeIds);
+  add(operationIssues.length ? 'ALERTA' : 'OK', 'OPERACOES', operationIssues.length ? 'Há operações sem ID ou quantidade de viagens válida.' : 'Operações possuem identificadores e quantidade de viagens válida.', operationIssues);
+  add(partIssues.length ? 'ALERTA' : 'OK', 'PARTICIPACOES_E_OFERTAS', partIssues.length ? 'Há participações/ofertas com referências ou prazos inconsistentes.' : 'Participações e ofertas possuem referências e prazos consistentes.', partIssues);
+  add(duplicateActive.length ? 'CRITICO' : 'OK', 'PARTICIPACOES_SIMULTANEAS', duplicateActive.length ? 'Motoristas ou conjuntos aparecem em mais de uma operação ativa.' : 'Não há motoristas/conjuntos em operações simultâneas.', duplicateActive);
+
+  if (moves) moves.rows.forEach((r, i) => {
+    const opId = str(val(r, moves, 'OPERACAO_ID'));
+    const partId = str(val(r, moves, 'PARTICIPACAO_ID'));
+    const setId = str(val(r, moves, 'CONJUNTO_ID'));
+    if (!opById.has(opId)) moveIssues.push('Movimentação na linha ' + (i + 2) + ': operação inexistente.');
+    if (!partById.has(partId)) moveIssues.push('Movimentação na linha ' + (i + 2) + ': participação inexistente.');
+    if (partById.has(partId) && str(val(partById.get(partId), parts, 'OPERACAO_ID')) !== opId)
+      moveIssues.push('Movimentação na linha ' + (i + 2) + ': operação diverge da participação.');
+    if (setId && !setById.has(setId)) moveIssues.push('Movimentação na linha ' + (i + 2) + ': conjunto inexistente.');
+    const tonnes = Number(String(val(r, moves, 'TONELADAS')).replace(',', '.'));
+    if (str(val(r, moves, 'TONELADAS')) && (!isFinite(tonnes) || tonnes < 0))
+      moveIssues.push('Movimentação na linha ' + (i + 2) + ': toneladas inválidas.');
+  });
+  add(moveIssues.length ? 'ALERTA' : 'OK', 'MOVIMENTACOES', moveIssues.length ? 'Há movimentações com referências ou quantidades inválidas.' : 'Movimentações apontam para operações e participações existentes.', moveIssues);
+
+  const availability = data.DISPONIBILIDADE_DIARIA, availabilityIssues = [], seenAvailability = new Set();
+  if (availability) availability.rows.forEach((r, i) => {
+    const driverId = str(val(r, availability, 'MOTORISTA_ID'));
+    const date = val(r, availability, 'DATA_OPERACAO');
+    const status = norm(val(r, availability, 'STATUS_DISPONIBILIDADE'));
+    const key = str(date instanceof Date ? Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd') : date) + '|' + driverId;
+    if (!driverById.has(driverId)) availabilityIssues.push('Disponibilidade na linha ' + (i + 2) + ': motorista inexistente.');
+    if (!str(date)) availabilityIssues.push('Disponibilidade na linha ' + (i + 2) + ': data ausente.');
+    if (seenAvailability.has(key)) availabilityIssues.push('Disponibilidade duplicada na linha ' + (i + 2) + '.');
+    seenAvailability.add(key);
+    if (!['DISPONIVEL','INDISPONIVEL'].includes(status)) availabilityIssues.push('Disponibilidade na linha ' + (i + 2) + ': status inválido.');
+  });
+  add(availabilityIssues.length ? 'ALERTA' : 'OK', 'DISPONIBILIDADE', availabilityIssues.length ? 'Há registros de disponibilidade inconsistentes.' : 'Registros de disponibilidade possuem motorista, data e status válidos.', availabilityIssues);
+
+  const queue = data.FILA_MOTORISTAS, queueIssues = [], queueDrivers = new Set();
+  if (queue) queue.rows.forEach((r, i) => {
+    const driverId = str(val(r, queue, 'MOTORISTA_ID')), setId = str(val(r, queue, 'CONJUNTO_ID'));
+    if (!driverById.has(driverId)) queueIssues.push('Fila na linha ' + (i + 2) + ': motorista inexistente.');
+    if (setId && !setById.has(setId)) queueIssues.push('Fila na linha ' + (i + 2) + ': conjunto inexistente.');
+    if (driverId && queueDrivers.has(driverId)) queueIssues.push('Fila contém motorista duplicado na linha ' + (i + 2) + '.');
+    if (driverId) queueDrivers.add(driverId);
+  });
+  add(queueIssues.length ? 'ALERTA' : 'OK', 'FILA_MOTORISTAS', queueIssues.length ? 'Há inconsistências na fila de motoristas.' : 'Fila sem referências inválidas ou motoristas duplicados.', queueIssues);
+
+  const eventIssues = [], events = data.EVENTOS_ESCALA;
+  if (events) events.rows.forEach((r, i) => {
+    const opId = str(val(r, events, 'OPERACAO_ID'));
+    const driverId = str(val(r, events, 'MOTORISTA_ID'));
+    const setId = str(val(r, events, 'CONJUNTO_ID'));
+    if (opId && !opById.has(opId)) eventIssues.push('Evento na linha ' + (i + 2) + ': operação inexistente.');
+    if (driverId && !driverById.has(driverId)) eventIssues.push('Evento na linha ' + (i + 2) + ': motorista inexistente.');
+    if (setId && !setById.has(setId)) eventIssues.push('Evento na linha ' + (i + 2) + ': conjunto inexistente.');
+  });
+  add(eventIssues.length ? 'ALERTA' : 'OK', 'EVENTOS_ESCALA', eventIssues.length ? 'Há eventos com referências inexistentes.' : 'Eventos possuem referências válidas.', eventIssues);
+
+  const ia = data.ENTRADA_OPERACOES_IA, iaIssues = [];
+  if (ia) ia.rows.forEach((r, i) => {
+    const status = norm(val(r, ia, 'STATUS_INTERPRETACAO'));
+    const opId = str(val(r, ia, 'OPERACAO_ID'));
+    if (['PROCESSADO','CONCLUIDO','CONCLUÍDO'].includes(status) && opId && !opById.has(opId))
+      iaIssues.push('Entrada IA na linha ' + (i + 2) + ': operação vinculada inexistente.');
+  });
+  add(iaIssues.length ? 'ALERTA' : 'OK', 'ENTRADA_OPERACOES_IA', iaIssues.length ? 'Há entradas processadas sem operação correspondente.' : 'Entradas processadas não apontam para operações inexistentes.', iaIssues);
+
+  const userIssues = [];
+  if (authUsers) {
+    const userRequired = ['ID','LOGIN','PERFIL','ATIVO','MOTORISTA_ID'];
+    const absent = missingHeaders(authUsers, userRequired);
+    if (absent.length) userIssues.push('Cabeçalhos ausentes em USUARIOS: ' + absent.join(', '));
+    else {
+      const logins = new Set(), accountDrivers = new Set();
+      authUsers.rows.forEach((r, i) => {
+        const profile = norm(val(r, authUsers, 'PERFIL'));
+        const login = norm(val(r, authUsers, 'LOGIN'));
+        const driverId = str(val(r, authUsers, 'MOTORISTA_ID'));
+        if (login && logins.has(login)) userIssues.push('Login duplicado em USUARIOS na linha ' + (i + 2) + '.');
+        if (login) logins.add(login);
+        if (profile === 'MOTORISTA' && driverId) {
+          if (!driverById.has(driverId)) userIssues.push('Conta de motorista na linha ' + (i + 2) + ': cadastro vinculado inexistente.');
+          if (accountDrivers.has(driverId)) userIssues.push('Mais de uma conta vinculada ao mesmo motorista (linha ' + (i + 2) + ').');
+          accountDrivers.add(driverId);
+        }
+      });
+    }
+  }
+  add(userIssues.length ? 'ALERTA' : 'OK', 'BASE_AUTENTICACAO', userIssues.length ? 'Há inconsistências na base de autenticação ou nos vínculos das contas.' : 'Base de autenticação separada; estrutura e vínculos básicos de usuários conferidos.', userIssues);
+
+  const triggerHandlers = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+  report.gatilhos = triggerHandlers.map(handler => ({ handler: handler }));
+  const queueTriggerCount = triggerHandlers.filter(h => h === 'FT_processarFilasConvocacaoAutomatica').length;
+  add(queueTriggerCount > 1 ? 'ALERTA' : 'INFO', 'GATILHO_FILA_AUTOMATICA',
+    queueTriggerCount > 1 ? 'Há gatilhos duplicados para o motor de convocação.' :
+    queueTriggerCount === 1 ? 'Existe um gatilho do motor de convocação.' :
+    'Não há gatilho permanente do motor de convocação. O motor cria esse gatilho ao iniciar uma convocação; isso não é falha se não houver fila ativa.',
+    []);
+  const expiryTriggerCount = triggerHandlers.filter(h => h === 'processarOfertasExpiradasSistema_').length;
+  add(expiryTriggerCount > 1 ? 'ALERTA' : 'INFO', 'GATILHO_EXPIRACAO',
+    expiryTriggerCount > 1 ? 'Há gatilhos duplicados de expiração.' :
+    expiryTriggerCount === 1 ? 'Existe gatilho para processar ofertas expiradas.' :
+    'Não foi encontrado gatilho separado processarOfertasExpiradasSistema_.',
+    []);
+
+  const queueRaw = props.getProperty('FT_AUTO_QUEUES_V1') || '';
+  if (queueRaw) {
+    try {
+      const persisted = JSON.parse(queueRaw);
+      const keys = Object.keys(persisted || {});
+      const statuses = {};
+      keys.forEach(k => {
+        const status = norm(persisted[k] && persisted[k].status || 'SEM_STATUS') || 'SEM_STATUS';
+        statuses[status] = (statuses[status] || 0) + 1;
+      });
+      report.filasPersistidas = { quantidade: keys.length, porStatus: statuses };
+      add('OK', 'ESTADO_FILAS_PERSISTIDAS', 'Estado persistido das filas foi lido e o JSON é válido.', []);
+    } catch (e) {
+      report.filasPersistidas = { quantidade: null, erro: 'JSON_INVALIDO' };
+      add('CRITICO', 'ESTADO_FILAS_INVALIDO', 'A propriedade FT_AUTO_QUEUES_V1 não contém JSON válido.', []);
+    }
+  } else {
+    report.filasPersistidas = { quantidade: 0, porStatus: {} };
+    add('INFO', 'ESTADO_FILAS_VAZIO', 'Não há estado persistido de filas automáticas.', []);
+  }
+
+  report.resumo.totalVerificacoes = report.verificacoes.length;
+  report.resumo.aprovadas = report.resumo.aprovados;
+  report.aprovadoParaProximaEtapa = report.resumo.criticos === 0 && report.resumo.alertas === 0;
+  Logger.log('FULLTIME_AUDITORIA_INTEGRIDADE_HOMOLOGACAO: ' + JSON.stringify(report));
   return report;
 }
