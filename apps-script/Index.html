@@ -457,13 +457,16 @@
   }
 
   function renderCentroOperacoes(){
-    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Acompanhe operações atuais, futuras, atrasadas e encerradas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Acompanhe operações atuais, futuras, atrasadas e encerradas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacaoCentro()">＋ Abrir operação</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
   }
   function renderCardCentro(o){
     const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
     const pct=o.viagensPrevistas>0?Math.min(100,Math.max(0,o.viagensRealizadas/o.viagensPrevistas*100)):0;
     const badge=o.atrasada?'<span class="badge badge-pending">ATRASADA</span>':'<span class="badge badge-active">'+esc(o.status)+'</span>';
-    const action=o.sugestaoConclusao?'<div class="notice" style="margin-top:12px"><strong>Conclusão sugerida.</strong> Saldo zerado, viagens conferidas e nenhuma participação ativa.<div class="form-actions"><button class="btn btn-primary" onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Conferir e encerrar operação</button></div></div>':'';
+    const canClose=!!o.sugestaoConclusao;
+    const action='<div class="center-op-actions" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">'+
+      (canClose?'<span class="small" style="color:var(--green)">Saldo zerado, viagens conferidas e nenhuma participação ativa.</span>':'<span class="small muted">Para encerrar: saldo zerado, viagens conferidas e nenhuma convocação ou participação ativa.</span>')+
+      '<button class="btn '+(canClose?'btn-primary':'btn-secondary')+'" '+(canClose?'':'disabled title="A operação ainda possui pendências para encerramento."')+' onclick="confirmarConclusaoCentro(\\''+esc(o.id)+'\\')">Encerrar operação</button></div>';
     return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+' · Início: '+esc(formatDate(o.data)||'não informado')+' · Previsão de término: '+esc(formatDate(o.previsaoTermino)||'não informada')+'</div></div>'+badge+'</div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Viagens <strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(0)+'% concluído</div></div><div class="center-op-metrics"><div class="center-op-metric"><span>Volume total</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Saldo</span><strong>'+esc(num(o.saldo))+' t</strong></div><div class="center-op-metric"><span>Conjuntos ativos</span><strong>'+esc(o.conjuntos.length)+'</strong></div></div><div class="center-op-meta"><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span><span>'+esc(o.produto||'Produto não informado')+'</span><span>'+esc(num(o.toneladasMovimentadas))+' t movimentadas</span></div>'+action+'<details class="center-op-sets"><summary>Ver conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';
   }
   function carregarCentroOperacoes(){
@@ -479,6 +482,15 @@
       const noDeadline=current.filter(o=>o.semPrevisao).length?'<div class="notice" style="margin-top:10px">'+current.filter(o=>o.semPrevisao).length+' operação(ões) em andamento sem previsão de término cadastrada. Cadastre a data limite para permitir alertas de atraso.</div>':'';
       host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div>'+lateNotice+noDeadline+section('Operações atuais',current,'Nenhuma operação atual.')+section('Operações futuras',future,'Nenhuma operação futura.')+section('Operações atrasadas',late,'Nenhuma operação atrasada.')+'<details class="panel" style="margin-top:20px"><summary class="panel-head"><h2>Histórico de operações concluídas ('+done.length+')</h2></summary><div class="panel-body">'+(done.length?'<div class="center-ops-grid">'+done.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação concluída.</div>')+'</div></details><details class="panel" style="margin-top:12px"><summary class="panel-head"><h2>Operações canceladas ('+cancelled.length+')</h2></summary><div class="panel-body">'+(cancelled.length?'<div class="center-ops-grid">'+cancelled.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação cancelada.</div>')+'</div></details>';
     }).withFailureHandler(err=>{host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';}).obterCentroOperacoesFullTime(authToken);
+  }
+  function abrirFormularioOperacaoCentro(){
+    renderPage('operacoes');
+    setTimeout(()=>{
+      const panel=document.querySelector('#content .ops-form-panel');
+      if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}
+      const first=document.querySelector('#content .ops-form-panel input[name="data"]');
+      if(first)first.focus({preventScroll:true});
+    },0);
   }
   async function confirmarConclusaoCentro(id){
     if(!await uiConfirm('O sistema identificou saldo zerado, viagens conferidas e nenhuma participação ativa. Confirma o encerramento definitivo desta operação?',{title:'Confirmar conclusão',ok:'Encerrar operação',danger:false}))return;
