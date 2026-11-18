@@ -132,6 +132,9 @@
   let toastTimer;
   let operacoesRefreshTimer=null;
   let operacoesRefreshBusy=false;
+  let portalRefreshTimer=null;
+  let portalRefreshBusy=false;
+  const PORTAL_REFRESH_MS=60*1000;
   let operacoesLastLoadedAt=0;
   const OPERACOES_REFRESH_MS=5*60*1000;
   const DOC_ALERT_DELAY_MS=24*60*60*1000;
@@ -162,8 +165,13 @@
     return data;
   }
   function loadApp(){
+    const perfil=String(currentUser?.perfil||'').trim().toUpperCase();
+    if(!['ADMIN','MOTORISTA'].includes(perfil)){
+      renderLoadFailure(new Error('Não foi possível identificar seu perfil autenticado. Atualize a sessão ou entre novamente.'));
+      return;
+    }
     showAppShell();
-    const isDriver=String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA';
+    const isDriver=perfil==='MOTORISTA';
     const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'operacoes';
     google.script.run.withSuccessHandler(data=>{
@@ -179,6 +187,8 @@
           currentUser={...currentUser,...(received.user||{}),...(isDriver?{motoristaId:received.motoristaId||currentUser?.motoristaId}:{})};
           paintNav();
           renderPage(currentPage);
+          if(isDriver) iniciarAtualizacaoAutomaticaPortal();
+          else pararAtualizacaoAutomaticaPortal();
         } catch(uiError) {
           console.error('FT_UI_RENDER_ERROR',uiError&&uiError.stack||uiError);
           renderLoadFailure(uiError);
@@ -287,8 +297,15 @@
       }
     }).withFailureHandler(err=>{operacoesRefreshBusy=false;console.warn('Atualização automática de operações falhou:',err&&err.message||err);}).obterPainelFullTime(authToken);
   }
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
-  window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)return;
+    if(currentPage==='operacoes')refreshOperacoes(true);
+    else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
+  });
+  window.addEventListener('focus',()=>{
+    if(currentPage==='operacoes')refreshOperacoes(true);
+    else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
+  });
   function renderPage(page){
     if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
       document.getElementById('topTitle').textContent='Área do motorista';
@@ -387,23 +404,43 @@
         pastOffers.length?'<h2 style="margin:22px 0 12px">Convites e operações anteriores ('+pastOffers.length+')</h2>'+pastOffers.map(renderOfferCard).join(''):''
       ].join(''):'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
   }
-  function atualizarPortalMotorista(){
+  function iniciarAtualizacaoAutomaticaPortal(){
+    pararAtualizacaoAutomaticaPortal();
+    portalRefreshTimer=setInterval(()=>{
+      if(!document.hidden&&currentPage==='portalMotorista')atualizarPortalMotorista(true);
+    },PORTAL_REFRESH_MS);
+  }
+  function pararAtualizacaoAutomaticaPortal(){
+    if(portalRefreshTimer){clearInterval(portalRefreshTimer);portalRefreshTimer=null;}
+    portalRefreshBusy=false;
+  }
+  function atualizarPortalMotorista(silencioso){
+    if(portalRefreshBusy||!authToken||String(currentUser?.perfil||'').toUpperCase()!=='MOTORISTA')return;
+    portalRefreshBusy=true;
     const content=document.getElementById('content');
-    if(content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
+    if(!silencioso&&content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
     google.script.run.withSuccessHandler(data=>{
-      if(!data||!Array.isArray(data.ofertas)){renderLoadFailure(new Error('Resposta inválida do portal: lista de ofertas ausente.'));return;}
+      portalRefreshBusy=false;
+      if(!data||!Array.isArray(data.ofertas)){
+        console.error('FT_PORTAL_RESPOSTA_INVALIDA');
+        if(!silencioso)renderLoadFailure(new Error('Resposta inválida do portal: lista de ofertas ausente.'));
+        return;
+      }
       dashboard=data;
       currentUser={...currentUser,...(data.user||{}),perfil:'MOTORISTA',motoristaId:data.motoristaId||currentUser?.motoristaId};
       paintNav();
-      document.getElementById('topTitle').textContent='Área do motorista';
-      document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
-      if(content)content.innerHTML=renderPortalMotorista();
-      console.info('FT_PORTAL_ATUALIZADO',JSON.stringify({motoristaId:data.motoristaId,ofertas:data.ofertas.length,diagnostico:data.diagnosticoVinculo||{}}));
-      toast('Ofertas atualizadas.');
+      const host=document.getElementById('content');
+      if(host&&currentPage==='portalMotorista')host.innerHTML=renderPortalMotorista();
+      console.info('FT_PORTAL_ATUALIZADO',JSON.stringify({ofertas:data.ofertas.length,diagnostico:data.diagnosticoVinculo||{}}));
+      if(!silencioso)toast('Ofertas atualizadas.');
     }).withFailureHandler(e=>{
+      portalRefreshBusy=false;
       console.error('FT_PORTAL_ATUALIZACAO_ERRO',e&&e.message||e);
-      if(content)content.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
-      toast(e.message||'Não foi possível atualizar.',true);
+      if(!silencioso){
+        const host=document.getElementById('content');
+        if(host)host.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
+        toast(e.message||'Não foi possível atualizar.',true);
+      }
     }).obterPortalMotoristaFullTime(authToken);
   }
   async function responderOfertaPortal(id,resposta){
@@ -909,8 +946,28 @@
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function maskCpf(v){const s=String(v||'');return s.length===11?s.slice(0,3)+'.***.***-'+s.slice(-2):(s||'—');}
   function formatDate(v){if(!v)return '—';const s=String(v).slice(0,10);const p=s.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;}
-  // Revalida uma sessão armazenada quando a página é reaberta.
-  if(authToken){document.getElementById('loginView').classList.add('hidden');showAppShell();loadApp();}
+  // Recupera o perfil no servidor antes de escolher o painel. Nunca presume ADMIN.
+  if(authToken){
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    google.script.run.withSuccessHandler(res=>{
+      if(!res||!res.user)throw new Error('Resposta de sessão inválida.');
+      currentUser=res.user;
+      if(currentUser.trocarSenha){
+        showAppShell();
+        document.getElementById('passwordModal').classList.remove('hidden');
+        return;
+      }
+      loadApp();
+    }).withFailureHandler(err=>{
+      console.warn('FT_SESSAO_RESTAURACAO_FALHOU',err&&err.message||err);
+      authToken='';currentUser=null;dashboard=null;
+      sessionStorage.removeItem('ft_token');
+      document.getElementById('appView').classList.add('hidden');
+      document.getElementById('loginView').classList.remove('hidden');
+      setLoginError('Sua sessão expirou. Entre novamente.');
+    }).restaurarSessaoFullTime(authToken);
+  }
 </script>
 </body>
 </html>
