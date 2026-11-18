@@ -122,15 +122,16 @@ function obterPortalMotoristaFullTimeV2(token) {
     canceladas:offers.filter(o=>o.status==='CANCELADA_REPROGRAMACAO'||o.status==='CANCELADA').length,
     total:offers.length
   };
-  return {
+  const payload = {
     user:{nome:driverName,email:session.email,perfil:session.perfil},
     motoristaId,
     hoje:Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd'),
     diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes,eventosVinculados:driverEvents.length},
     ofertas:offers,eventos:eventosAvulsos,counts
   };
+  // google.script.run exige dados serializáveis; datas viram strings ISO.
+  return JSON.parse(JSON.stringify(payload));
 }
-
 function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao) {
   const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
   ofertaId=texto_(ofertaId,120); resposta=String(resposta||'').trim().toUpperCase();
