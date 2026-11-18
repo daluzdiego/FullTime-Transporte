@@ -836,21 +836,25 @@
     const source=modo==='convocados'?called:rows;
     const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'PRAZO ENCERRADO',NAO_RESPONDEU:'SEM RESPOSTA · 2H',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
     const getStatus=r=>{const p=calledByDriver[String(r.driverId||'')];return p?String(p.camposPorNome?.STATUS_PARTICIPACAO||p.campos?.[3]||'').trim().toUpperCase():(r.eligible?'APTO':'PENDENTE');};
-    const line=r=>{const p=calledByDriver[String(r.driverId||'')],st=getStatus(r),invited=!!p,tone=st==='OFERTADA'?'background:#fff8e9;':'';
+    const line=r=>{
+      const p=calledByDriver[String(r.driverId||'')],st=getStatus(r),invited=!!p,tone=st==='OFERTADA'?'background:#fff8e9;':'';
       const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='CANCELADA_REPROGRAMACAO'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
-      return '<tr style="'+tone+'"><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';};
+      return '<tr style="'+tone+'"><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';
+    };
     const q=String(state.q||'').toLowerCase(),stFilter=String(state.status||'');
     const filtered=source.filter(r=>(!q||String(r.driverName||'').toLowerCase().includes(q))&&(!stFilter||getStatus(r)===stFilter));
     const pageSize=8,totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));state.page=Math.min(Math.max(1,state.page||1),totalPages);
     const pageRows=filtered.slice((state.page-1)*pageSize,state.page*pageSize);
     const options=['','APTO','OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA','NAO_RESPONDEU','CANCELADA_REPROGRAMACAO','PENDENTE'];
-    host.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">'+
-      '<button class="btn '+(modo==='todos'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'todos\')">Todos ('+rows.length+')</button>'+
-      '<button class="btn '+(modo==='convocados'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'convocados\')">Convocados ('+called.length+')</button>'+
-      '<div class="search" style="flex:1;min-width:220px"><span>⌕</span><input id="candidate-search-'+esc(id)+'" value="'+esc(state.q||'')+'" placeholder="Buscar motorista pelo nome" oninput="atualizarFiltroCandidatos(\''+esc(id)+'\',\''+modo+'\')"></div>'+
-      '<select id="candidate-status-'+esc(id)+'" onchange="atualizarFiltroCandidatos(\''+esc(id)+'\',\''+modo+'\')" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569">'+options.map(v=>'<option value="'+v+'" '+(stFilter===v?'selected':'')+'>'+(v||'Todos os status')+'</option>').join('')+'</select></div>'+
-      (pageRows.length?'<div class="table-wrap candidate-table-wrap"><table><thead><tr><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Situação</th></tr></thead><tbody>'+pageRows.map(line).join('')+'</tbody></table></div>':'<div class="empty">Nenhum motorista corresponde aos filtros.</div>')+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px"><span class="muted small">'+filtered.length+' resultado(s) · Página '+state.page+' de '+totalPages+' · '+eligible.length+' apto(s) ainda não convocado(s)+' · '+called.length+' convocação(ões)</span><div class="form-actions" style="margin:0"><button class="btn btn-secondary" '+(state.page<=1?'disabled':'')+' onclick="mudarPaginaCandidatos(\''+esc(id)+'\',-1,\''+modo+'\')">Anterior</button><button class="btn btn-secondary" '+(state.page>=totalPages?'disabled':'')+' onclick="mudarPaginaCandidatos(\''+esc(id)+'\',1,\''+modo+'\')">Próxima</button></div></div>';
+    host.innerHTML=`
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">
+        <button class="btn ${modo==='todos'?'btn-primary':'btn-secondary'}" onclick="renderListaCandidatosOperacao('${esc(id)}','todos')">Todos (${rows.length})</button>
+        <button class="btn ${modo==='convocados'?'btn-primary':'btn-secondary'}" onclick="renderListaCandidatosOperacao('${esc(id)}','convocados')">Convocados (${called.length})</button>
+        <div class="search" style="flex:1;min-width:220px"><span>⌕</span><input id="candidate-search-${esc(id)}" value="${esc(state.q||'')}" placeholder="Buscar motorista pelo nome" oninput="atualizarFiltroCandidatos('${esc(id)}','${modo}')"></div>
+        <select id="candidate-status-${esc(id)}" onchange="atualizarFiltroCandidatos('${esc(id)}','${modo}')" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569">${options.map(v=>'<option value="'+v+'" '+(stFilter===v?'selected':'')+'>'+(v||'Todos os status')+'</option>').join('')}</select>
+      </div>
+      ${pageRows.length?'<div class="table-wrap candidate-table-wrap"><table><thead><tr><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Situação</th></tr></thead><tbody>'+pageRows.map(line).join('')+'</tbody></table></div>':'<div class="empty">Nenhum motorista corresponde aos filtros.</div>'}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px"><span class="muted small">${filtered.length} resultado(s) · Página ${state.page} de ${totalPages} · ${eligible.length} apto(s) ainda não convocado(s) · ${called.length} convocação(ões)</span><div class="form-actions" style="margin:0"><button class="btn btn-secondary" ${state.page<=1?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',-1,'${modo}')">Anterior</button><button class="btn btn-secondary" ${state.page>=totalPages?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',1,'${modo}')">Próxima</button></div></div>`;
   }
 
   function showDetalhesOperacao(id){
