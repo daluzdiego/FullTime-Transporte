@@ -207,14 +207,26 @@ function confirmarAceiteOfertaAdminFullTime(token, ofertaId) {
 
 function listarOfertasAceitasAdminFullTime(token) {
   const session=obterSessao_(token);exigirAdmin_(session);
-  const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_MOTORISTA_headerMap_(sh),rows=sh.getDataRange().getValues();
-  const ops=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(ops),orows=ops.getDataRange().getValues(),byId={};
-  orows.slice(1).forEach(r=>byId[String(r[omap.ID]||'')]={nome:String(r[omap.NOME_OPERACAO]||''),origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||'')});
+  const sh=getSheet_('PARTICIPACAO_OPERACOES');
+  const map=FT_MOTORISTA_headerMap_(sh);
+  ['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','CONJUNTO_ID'].forEach(k=>{
+    if(map[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em PARTICIPACAO_OPERACOES: '+k);
+  });
+  const last=sh.getLastRow(),cols=sh.getLastColumn();
+  const rows=last>1?sh.getRange(2,1,last-1,cols).getValues():[];
+  const ops=getSheet_('OPERACOES'),omap=FT_MOTORISTA_headerMap_(ops);
+  ['ID','NOME_OPERACAO','ORIGEM','DESTINO'].forEach(k=>{
+    if(omap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em OPERACOES: '+k);
+  });
+  const olast=ops.getLastRow(),ocols=ops.getLastColumn();
+  const orows=olast>1?ops.getRange(2,1,olast-1,ocols).getValues():[],byId={};
+  orows.forEach(r=>{const id=String(r[omap.ID]||'');if(id)byId[id]={nome:String(r[omap.NOME_OPERACAO]||''),origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||'')};});
   const drivers=FT_CENTRO_rows_('MOTORISTAS'),driverNames={};
   drivers.forEach(d=>driverNames[String(d.ID)]=String(d.NOME_COMPLETO||''));
-  return rows.slice(1).filter(r=>['ACEITA','ATIVO'].includes(String(r[map.STATUS_PARTICIPACAO]||'').toUpperCase())).map(r=>{
-    const op=byId[String(r[map.OPERACAO_ID]||'')]||{};
-    return {id:String(r[map.ID]||''),motorista:driverNames[String(r[map.MOTORISTA_ID]||'')]||String(r[map.MOTORISTA_ID]||''),operacao:op.nome||String(r[map.OPERACAO_ID]||''),origem:op.origem||'',destino:op.destino||'',conjuntoId:String(r[map.CONJUNTO_ID]||''),aceitaEm:r[map.RESPONDIDA_EM]||''};
+  return rows.filter(r=>['ACEITA','ATIVO'].includes(String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase())).map(r=>{
+    const opId=String(r[map.OPERACAO_ID]||''),op=byId[opId]||{},dt=map.RESPONDIDA_EM===undefined?'':r[map.RESPONDIDA_EM];
+    const aceitaEm=dt instanceof Date&&isFinite(dt.getTime())?Utilities.formatDate(dt,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm:ss'):String(dt||'');
+    return {id:String(r[map.ID]||''),motorista:driverNames[String(r[map.MOTORISTA_ID]||'')]||String(r[map.MOTORISTA_ID]||''),operacao:op.nome||opId,origem:op.origem||'',destino:op.destino||'',conjuntoId:String(r[map.CONJUNTO_ID]||''),aceitaEm:aceitaEm};
   });
 }
 
