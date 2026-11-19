@@ -40,7 +40,11 @@ function FT_PESAGEM_getSheet_() {
 
 function FT_PESAGEM_num_(v) {
   if(typeof v==='number')return isFinite(v)?v:NaN;
-  const s=String(v==null?'':v).trim().replace(/\./g,'').replace(',','.');
+  let s=String(v==null?'':v).trim().replace(/\s/g,'');
+  if(!s)return NaN;
+  // Aceita formatos brasileiros (31.120,5) e decimais com ponto (31120.5).
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
   const n=Number(s);return isFinite(n)?n:NaN;
 }
 
@@ -105,6 +109,9 @@ function FT_PESAGEM_comparar_(sh, viagemId) {
  */
 function registrarPesagemViagemFullTime(token,data) {
   const session=FT_PESAGEM_requireAdmin_(token);data=data||{};
+  const lock=LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
   const viagemId=String(data.viagemId||'').trim(),etapa=String(data.etapa||'').trim().toUpperCase();
   const tara=FT_PESAGEM_num_(data.taraKg),bruto=FT_PESAGEM_num_(data.brutoKg);
   const ticketId=String(data.ticketId||'').trim(),motivoCorrecao=String(data.motivoCorrecao||'').trim();
@@ -120,9 +127,11 @@ function registrarPesagemViagemFullTime(token,data) {
   if(!fileId)throw new Error('O ticket ainda não possui arquivo original armazenado. Não é possível validar uma pesagem sem comprovante.');
   const linkedTrip=tm.VIAGEM_ID===undefined?'':String(ticket[tm.VIAGEM_ID]||'');
   if(linkedTrip&&linkedTrip!==viagemId)throw new Error('Este ticket já está vinculado a outra viagem.');
-  const inferred=String(ticket[tm.TIPO_TICKET]||'').toUpperCase();
-  if(inferred==='CARREGAMENTO'&&etapa!=='CARREGAMENTO')throw new Error('O tipo identificado no ticket é CARREGAMENTO e não corresponde à etapa informada.');
-  if(inferred==='DESCARGA'&&etapa!=='DESCARGA')throw new Error('O tipo identificado no ticket é DESCARGA e não corresponde à etapa informada.');
+  const inferred=String(ticket[tm.TIPO_TICKET]||'').trim().toUpperCase();
+  const ticketStage=({CARREGAMENTO:'CARREGAMENTO',ORIGEM:'CARREGAMENTO',DESCARGA:'DESCARGA',DESTINO:'DESCARGA'})[inferred]||'';
+  if(!ticketStage)throw new Error('O ticket precisa estar classificado como CARREGAMENTO/ORIGEM ou DESCARGA/DESTINO antes do registro.');
+  if(ticketStage!==etapa)throw new Error('O tipo do ticket ('+inferred+') não corresponde à etapa informada ('+etapa+').');
+  try { DriveApp.getFileById(fileId).getId(); } catch(e) { throw new Error('O arquivo original do ticket não está acessível no Drive: '+e.message); }
   const liquid=bruto-tara,now=new Date(),grid=sh.getDataRange().getValues();
   const setSheet=getSheet_('CONJUNTOS'),setMap=FT_PESAGEM_map_(setSheet),setRows=setSheet.getDataRange().getValues();
   const setRow=setRows.slice(1).find(r=>String(r[setMap.ID]||'')===link.conjuntoId);
@@ -145,17 +154,22 @@ function registrarPesagemViagemFullTime(token,data) {
   const id=Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
   const fields={ID:id,CRIADO_EM:now,VIAGEM_ID:viagemId,OPERACAO_ID:link.operacaoId,PARTICIPACAO_ID:link.participacaoId,
     MOTORISTA_ID:link.motoristaId,CONJUNTO_ID:link.conjuntoId,ETAPA:etapa,DATA_HORA_PESAGEM:data.dataHoraPesagem?new Date(data.dataHoraPesagem):now,
-    TARA_KG:tara,BRUTO_KG:bruto,LIQUIDO_KG:liquid,TICKET_ID:ticketId,DRIVE_FILE_ID:String(data.driveFileId||''),
+    TARA_KG:tara,BRUTO_KG:bruto,LIQUIDO_KG:liquid,TICKET_ID:ticketId,DRIVE_FILE_ID:fileId,
     HASH_ARQUIVO:String(data.hashArquivo||''),STATUS_REGISTRO:'ATIVO',STATUS_CONFERENCIA:'AGUARDANDO_SEGUNDA_PESAGEM',
-    EXCESSO_CAPACIDADE:'NAO',JUSTIFICATIVA_EXCESSO:'',APROVADO_POR:'',APROVADO_EM:'',
+    EXCESSO_CAPACIDADE:!capacityConfigured?'CAPACIDADE_NAO_CONFIGURADA':capacityExceeded?'SIM':'NAO',
+    JUSTIFICATIVA_EXCESSO:capacityReason,APROVADO_POR:'',APROVADO_EM:'',
     SUBSTITUI_PESAGEM_ID:supersedes,MOTIVO_CORRECAO:motivoCorrecao,REGISTRADO_POR:session.email||session.login};
   Object.keys(fields).forEach(k=>{if(map[k]!==undefined)row[map[k]]=fields[k];});
   sh.appendRow(row);
   if(tm.VIAGEM_ID!==undefined)tickets.getRange(ticketIndex+1,tm.VIAGEM_ID+1).setValue(viagemId);
   if(tm.STATUS_LEITURA!==undefined)tickets.getRange(ticketIndex+1,tm.STATUS_LEITURA+1).setValue('PESAGEM_REGISTRADA');
   const comparison=FT_PESAGEM_comparar_(sh,viagemId);
-  return {ok:true,pesagemId:id,pesoLiquidoKg:liquid,pesoLiquidoToneladas:liquid/1000,comparacao:comparison,
+  return {ok:true,pesagemId:id,pesoLiquidoKg:liquid,pesoLiquidoToneladas:liquid/1000,
+    capacidade:{configurada:capacityConfigured,excedida:capacityExceeded,limiteLegalToneladas:isFinite(legalCap)?legalCap:null,
+      limiteOperacionalToneladas:isFinite(operationalCap)?operationalCap:null,justificativa:capacityReason},
+    comparacao:comparison,
     message:comparison.completa?(comparison.dentroTolerancia?'Duas pesagens registradas. Aguardando aprovação administrativa.':'Divergência superior a 10%. Bruno deve analisar e decidir.'):'Pesagem registrada. Aguardando o ticket da outra etapa.'};
+  } finally { lock.releaseLock(); }
 }
 
 /** Aprovação administrativa após as duas pesagens; divergência >10% exige justificativa. */
@@ -167,7 +181,10 @@ function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
   if(!comparison.dentroTolerancia&&!justificativa)throw new Error('A divergência ultrapassa 10%. Registre a justificativa administrativa para decidir.');
   const map=FT_PESAGEM_map_(sh),grid=sh.getDataRange().getValues();
   const activeRows=grid.slice(1).filter(r=>String(r[map.VIAGEM_ID]||'')===viagemId&&String(r[map.STATUS_REGISTRO]||'ATIVO').toUpperCase()==='ATIVO');
-  if(activeRows.some(r=>String(r[map.EXCESSO_CAPACIDADE]||'')==='CAPACIDADE_NAO_CONFIGURADA'))throw new Error('Capacidade legal e operacional do conjunto ainda não foi configurada. A aprovação da pesagem está bloqueada até o cadastro dos limites.');
+  const byStage={CARREGAMENTO:activeRows.filter(r=>String(r[map.ETAPA]||'').toUpperCase()==='CARREGAMENTO'),
+    DESCARGA:activeRows.filter(r=>String(r[map.ETAPA]||'').toUpperCase()==='DESCARGA')};
+  if(byStage.CARREGAMENTO.length!==1||byStage.DESCARGA.length!==1)throw new Error('A aprovação exige exatamente uma pesagem ativa de carregamento e uma de descarga.');
+  if(activeRows.some(r=>String(r[map.EXCESSO_CAPACIDADE]||'')==='CAPACIDADE_NAO_CONFIGURADA'))throw new Error('Capacidade legal e operacional do conjunto ainda não foi configurada. A aprovação está bloqueada.');
   if(activeRows.some(r=>String(r[map.EXCESSO_CAPACIDADE]||'')==='SIM'&&!String(r[map.JUSTIFICATIVA_EXCESSO]||'').trim())&&!justificativa)throw new Error('Existe excesso de capacidade sem justificativa administrativa.');
 
   grid.slice(1).forEach((r,i)=>{
@@ -178,7 +195,73 @@ function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
     if(justificativa&&map.JUSTIFICATIVA_CONFERENCIA!==undefined)sh.getRange(i+2,map.JUSTIFICATIVA_CONFERENCIA+1).setValue(justificativa);
   });
   return {ok:true,viagemId,comparacao:comparison,status:comparison.dentroTolerancia?'APROVADA':'APROVADA_COM_DIVERGENCIA',
-    message:'Conferência aprovada e auditada. A conclusão da viagem deve ser registrada pelo fluxo operacional.'};
+    message:'Conferência aprovada e auditada. A viagem ainda depende da conclusão pelo fluxo operacional.'};
+}
+
+/** Conclui uma viagem somente após dois tickets vinculados e conferência aprovada. */
+function concluirViagemComPesagensFullTime(token,viagemId,observacoes) {
+  const session=FT_PESAGEM_requireAdmin_(token);
+  viagemId=String(viagemId||'').trim();
+  observacoes=String(observacoes||'').trim();
+  if(!viagemId)throw new Error('Informe a viagem.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    const tripSh=getSheet_('VIAGENS'),tripMap=FT_PESAGEM_map_(tripSh),tripGrid=tripSh.getDataRange().getValues();
+    ['ID','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','STATUS','PESO_REAL_TONELADAS','FIM_REAL','ATUALIZADA_EM','ATUALIZADA_POR'].forEach(k=>{
+      if(tripMap[k]===undefined)throw new Error('Cabeçalho obrigatório ausente em VIAGENS: '+k);
+    });
+    const tripIndex=tripGrid.findIndex((r,i)=>i>0&&String(r[tripMap.ID]||'')===viagemId);
+    if(tripIndex<1)throw new Error('Viagem não encontrada.');
+    const trip=tripGrid[tripIndex],tripStatus=String(trip[tripMap.STATUS]||'').toUpperCase();
+    if(['CONCLUIDA','CONCLUÍDA','FINALIZADA','CANCELADA','CANCELADA_ADMIN'].includes(tripStatus))throw new Error('A viagem já está concluída ou cancelada.');
+    const pesSh=FT_PESAGEM_getSheet_(),pesMap=FT_PESAGEM_map_(pesSh),pesGrid=pesSh.getDataRange().getValues();
+    const active=pesGrid.slice(1).filter(r=>String(r[pesMap.VIAGEM_ID]||'')===viagemId&&String(r[pesMap.STATUS_REGISTRO]||'ATIVO').toUpperCase()==='ATIVO');
+    const load=active.filter(r=>String(r[pesMap.ETAPA]||'').toUpperCase()==='CARREGAMENTO');
+    const unload=active.filter(r=>String(r[pesMap.ETAPA]||'').toUpperCase()==='DESCARGA');
+    if(load.length!==1||unload.length!==1)throw new Error('A conclusão exige exatamente um ticket de carregamento e um de descarga ativos.');
+    if(!['APROVADA','APROVADA_COM_DIVERGENCIA'].includes(String(load[0][pesMap.STATUS_CONFERENCIA]||'').toUpperCase())||
+       !['APROVADA','APROVADA_COM_DIVERGENCIA'].includes(String(unload[0][pesMap.STATUS_CONFERENCIA]||'').toUpperCase())) {
+      throw new Error('A conferência administrativa dos dois tickets ainda não foi aprovada.');
+    }
+    const ticketIds=[String(load[0][pesMap.TICKET_ID]||''),String(unload[0][pesMap.TICKET_ID]||'')];
+    if(!ticketIds[0]||!ticketIds[1]||ticketIds[0]===ticketIds[1])throw new Error('Os dois tickets precisam ser distintos e estar vinculados às pesagens.');
+    const tickets=getSheet_('TICKETS'),ticketMap=FT_PESAGEM_map_(tickets),ticketGrid=tickets.getDataRange().getValues();
+    ticketIds.forEach(id=>{
+      const tr=ticketGrid.find((r,i)=>i>0&&String(r[ticketMap.ID]||'')===id);
+      if(!tr||String(tr[ticketMap.VIAGEM_ID]||'')!==viagemId||!String(tr[ticketMap.DRIVE_FILE_ID]||''))throw new Error('Um dos tickets não está vinculado à viagem ou perdeu o comprovante original.');
+    });
+    const realTon=Number(unload[0][pesMap.LIQUIDO_KG])/1000;
+    if(!(realTon>0&&isFinite(realTon)))throw new Error('Peso líquido de descarga inválido.');
+    const opSh=getSheet_('OPERACOES'),opMap=FT_PESAGEM_map_(opSh),opGrid=opSh.getDataRange().getValues();
+    const opIndex=opGrid.findIndex((r,i)=>i>0&&String(r[opMap.ID]||'')===String(trip[tripMap.OPERACAO_ID]||''));
+    if(opIndex<1)throw new Error('Operação vinculada à viagem não encontrada.');
+    const op=opGrid[opIndex],saldo=Number(op[opMap.SALDO_TONELADAS]||0);
+    if(!['ABERTA','EM_ANDAMENTO'].includes(String(op[opMap.STATUS]||'').toUpperCase()))throw new Error('A operação não está aberta para receber a conclusão.');
+    if(realTon>saldo+0.000001)throw new Error('O peso líquido da descarga excede o saldo da operação.');
+    const partSh=getSheet_('PARTICIPACAO_OPERACOES'),partMap=FT_PESAGEM_map_(partSh),partGrid=partSh.getDataRange().getValues();
+    const partIndex=partGrid.findIndex((r,i)=>i>0&&String(r[partMap.ID]||'')===String(trip[tripMap.PARTICIPACAO_ID]||''));
+    if(partIndex<1)throw new Error('Participação vinculada à viagem não encontrada.');
+    const moveSh=getSheet_('MOVIMENTACOES_OPERACAO'),moveMap=FT_PESAGEM_map_(moveSh),moveRow=new Array(moveSh.getLastColumn()).fill('');
+    const moveFields={ID:Utilities.getUuid(),DATA_HORA:new Date(),OPERACAO_ID:String(trip[tripMap.OPERACAO_ID]||''),
+      PARTICIPACAO_ID:String(trip[tripMap.PARTICIPACAO_ID]||''),CONJUNTO_ID:String(trip[tripMap.CONJUNTO_ID]||''),
+      TONELADAS:realTon,VIAGEM_CONCLUIDA:'SIM',OBSERVACOES:observacoes||'Conclusão com pesagens aprovadas: '+ticketIds.join(' / '),
+      REGISTRADO_POR:session.email||session.login,QUANTIDADE_VIAGENS:1};
+    Object.keys(moveFields).forEach(k=>{if(moveMap[k]!==undefined)moveRow[moveMap[k]]=moveFields[k];});
+    moveSh.appendRow(moveRow);
+    tripSh.getRange(tripIndex+1,tripMap.STATUS+1).setValue('CONCLUIDA');
+    tripSh.getRange(tripIndex+1,tripMap.PESO_REAL_TONELADAS+1).setValue(realTon);
+    tripSh.getRange(tripIndex+1,tripMap.FIM_REAL+1).setValue(new Date());
+    tripSh.getRange(tripIndex+1,tripMap.ATUALIZADA_EM+1).setValue(new Date());
+    tripSh.getRange(tripIndex+1,tripMap.ATUALIZADA_POR+1).setValue(session.email||session.login);
+    const saldoNovo=Math.max(0,saldo-realTon);
+    opSh.getRange(opIndex+1,opMap.SALDO_TONELADAS+1).setValue(saldoNovo);
+    if(opMap.STATUS!==undefined)opSh.getRange(opIndex+1,opMap.STATUS+1).setValue('EM_ANDAMENTO');
+    if(opMap.VIAGENS_REALIZADAS!==undefined)opSh.getRange(opIndex+1,opMap.VIAGENS_REALIZADAS+1).setValue(Math.max(0,Number(op[opMap.VIAGENS_REALIZADAS]||0))+1);
+    if(partMap.TONELADAS_MOVIMENTADAS!==undefined)partSh.getRange(partIndex+1,partMap.TONELADAS_MOVIMENTADAS+1).setValue(Math.max(0,Number(partGrid[partIndex][partMap.TONELADAS_MOVIMENTADAS]||0))+realTon);
+    if(partMap.VIAGENS_CONCLUIDAS!==undefined)partSh.getRange(partIndex+1,partMap.VIAGENS_CONCLUIDAS+1).setValue(Math.max(0,Number(partGrid[partIndex][partMap.VIAGENS_CONCLUIDAS]||0))+1);
+    return {ok:true,viagemId,toneladasDescarga:realTon,saldoOperacao:saldoNovo,viagensConcluidas:1,status:'CONCLUIDA',
+      message:'Viagem concluída após aprovação dos dois tickets e conferência administrativa.'};
+  } finally {lock.releaseLock();}
 }
 
 /** Teste puro de regra; não lê nem grava planilhas. */
