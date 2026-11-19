@@ -465,9 +465,12 @@
     const badge=o.atrasada?'<span class="badge badge-pending">ATRASADA</span>':'<span class="badge badge-active">'+esc(o.status)+'</span>';
     const canClose=!!o.sugestaoConclusao;
     const isOpen=['ABERTA','EM_ANDAMENTO'].includes(String(o.status||'').toUpperCase());
+    const status=String(o.status||'').toUpperCase();
+    const canStart=status==='ABERTA'&&o.conjuntos.some(s=>String(s.status||'').toUpperCase()==='ATIVO');
     const action=isOpen?'<div class="center-op-actions" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 16px;border-top:1px solid var(--line)">'+
-      (canClose?'<span class="small" style="color:var(--green)">Operação pronta para encerramento.</span>':'<span class="small muted">Encerramento liberado após zerar o saldo, conferir as viagens e finalizar participações ativas.</span>')+
-      '<button class="btn '+(canClose?'btn-primary':'btn-secondary')+'" '+(canClose?'':'disabled title="Ainda existem pendências operacionais."')+' onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Fechar operação</button></div>':'';
+      (status==='ABERTA'?'<span class="small muted">Inicie somente depois de confirmar a escala de pelo menos um motorista.</span>':(canClose?'<span class="small" style="color:var(--green)">Operação pronta para encerramento.</span>':'<span class="small muted">Encerramento liberado após zerar o saldo, conferir as viagens e finalizar participações ativas.</span>'))+
+      (status==='ABERTA'?'<button class="btn btn-primary" '+(canStart?'':'disabled title="Confirme a escala de um motorista antes de iniciar."')+' onclick="iniciarOperacaoCentro(\''+esc(o.id)+'\')">▶ Iniciar operação</button>':'')+
+      '<button class="btn '+(canClose?'btn-primary':'btn-secondary')+'" '+(canClose?'':'disabled title="Ainda existem pendências operacionais."')+' onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Encerrar operação</button></div>':'';
     return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+' · Início: '+esc(formatDate(o.data)||'não informado')+' · Previsão de término: '+esc(formatDate(o.previsaoTermino)||'não informada')+'</div></div>'+badge+'</div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Viagens <strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(0)+'% concluído</div></div><div class="center-op-metrics"><div class="center-op-metric"><span>Volume total</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Saldo</span><strong>'+esc(num(o.saldo))+' t</strong></div><div class="center-op-metric"><span>Conjuntos ativos</span><strong>'+esc(o.conjuntos.length)+'</strong></div></div><div class="center-op-meta"><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span><span>'+esc(o.produto||'Produto não informado')+'</span><span>'+esc(num(o.toneladasMovimentadas))+' t movimentadas</span></div>'+action+'<details class="center-op-sets"><summary>Ver conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';
   }
   function carregarCentroOperacoes(){
@@ -493,11 +496,20 @@
       if(first)first.focus({preventScroll:true});
     },0);
   }
+  async function iniciarOperacaoCentro(id){
+    if(!await uiConfirm('A operação passará de ABERTA para EM ANDAMENTO. O início ficará registrado no histórico. Confirma?',{title:'Iniciar operação',ok:'Iniciar operação'}))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação iniciada.');carregarCentroOperacoes();})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível iniciar a operação.',true))
+      .iniciarOperacaoFullTime(authToken,id);
+  }
   async function confirmarConclusaoCentro(id){
-    if(!await uiConfirm('O sistema identificou saldo zerado, viagens conferidas e nenhuma participação ativa. Confirma o encerramento definitivo desta operação?',{title:'Confirmar conclusão',ok:'Encerrar operação',danger:false}))return;
+    const first=await uiConfirm('ATENÇÃO: você está prestes a encerrar definitivamente esta operação. O encerramento só será permitido se saldo, viagens e participações estiverem conferidos. Deseja continuar?',{title:'Atenção — encerramento de operação',ok:'Continuar para confirmação',danger:true});
+    if(!first)return;
+    const second=await uiConfirm('CONFIRMAÇÃO FINAL: esta ação encerrará a operação e a moverá para o histórico. Tem certeza de que deseja ENCERRAR esta operação?',{title:'Confirmação final obrigatória',ok:'SIM, ENCERRAR OPERAÇÃO',danger:true});
+    if(!second)return;
     google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação encerrada.');carregarCentroOperacoes();})
       .withFailureHandler(e=>toast(e.message||'Não foi possível encerrar a operação.',true))
-      .confirmarConclusaoOperacaoFullTime(authToken,id,'Conclusão conferida e confirmada no Centro de Operações.');
+      .confirmarConclusaoOperacaoFullTime(authToken,id,'Encerramento confirmado em duas etapas no Centro de Operações.');
   }
   function renderSolicitacoes(){
     return `
