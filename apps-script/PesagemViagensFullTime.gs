@@ -12,7 +12,7 @@ const FT_PESAGEM_HEADERS_ = Object.freeze([
   'ETAPA','DATA_HORA_PESAGEM','TARA_KG','BRUTO_KG','LIQUIDO_KG','TICKET_ID','DRIVE_FILE_ID',
   'HASH_ARQUIVO','STATUS_REGISTRO','STATUS_CONFERENCIA','DIVERGENCIA_KG','DIVERGENCIA_PERCENTUAL',
   'EXCESSO_CAPACIDADE','JUSTIFICATIVA_EXCESSO','APROVADO_POR','APROVADO_EM',
-  'SUBSTITUI_PESAGEM_ID','MOTIVO_CORRECAO','REGISTRADO_POR'
+  'SUBSTITUI_PESAGEM_ID','MOTIVO_CORRECAO','JUSTIFICATIVA_CONFERENCIA','REGISTRADO_POR'
 ]);
 
 function FT_PESAGEM_map_(sh) {
@@ -175,7 +175,7 @@ function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
     sh.getRange(i+2,map.STATUS_CONFERENCIA+1).setValue(comparison.dentroTolerancia?'APROVADA':'APROVADA_COM_DIVERGENCIA');
     sh.getRange(i+2,map.APROVADO_POR+1).setValue(session.email||session.login);
     sh.getRange(i+2,map.APROVADO_EM+1).setValue(new Date());
-    if(justificativa)sh.getRange(i+2,map.MOTIVO_CORRECAO+1).setValue(justificativa);
+    if(justificativa&&map.JUSTIFICATIVA_CONFERENCIA!==undefined)sh.getRange(i+2,map.JUSTIFICATIVA_CONFERENCIA+1).setValue(justificativa);
   });
   return {ok:true,viagemId,comparacao:comparison,status:comparison.dentroTolerancia?'APROVADA':'APROVADA_COM_DIVERGENCIA',
     message:'Conferência aprovada e auditada. A conclusão da viagem deve ser registrada pelo fluxo operacional.'};
