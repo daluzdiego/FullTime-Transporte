@@ -461,3 +461,51 @@ function vincularEmailMotorista01HomologacaoFullTime() {
   Logger.log('EMAIL MOTORISTA 01 HOMOLOGACAO: '+JSON.stringify(result));
   return result;
 }
+
+/**
+ * BACKUP INTEGRAL DA HOMOLOGAÇÃO — somente leitura nas bases de origem.
+ * Copia todas as guias das bases operacional e de autenticação para um único arquivo.
+ * Exige que ambas as planilhas tenham HOMOLOGACAO no nome para impedir cópia acidental de produção.
+ */
+function fazerBackupIntegralHomologacaoFullTime() {
+  const props=PropertiesService.getScriptProperties();
+  const operationalId=props.getProperty('FT_REGISTRY_DATABASE_ID');
+  const authId=props.getProperty('FT_DATABASE_ID');
+  if(!operationalId||!authId)throw new Error('IDs das bases de homologação não configurados.');
+  if(operationalId===authId)throw new Error('As bases operacional e de autenticação deveriam estar separadas. Backup cancelado.');
+  const operational=SpreadsheetApp.openById(operationalId);
+  const auth=SpreadsheetApp.openById(authId);
+  const sources=[
+    {ss:operational,prefix:'OPER_'},
+    {ss:auth,prefix:'AUTH_'}
+  ];
+  sources.forEach(x=>{
+    if(!/HOMOLOGACAO/i.test(x.ss.getName()))throw new Error('Proteção: a planilha '+x.ss.getName()+' não está identificada como HOMOLOGACAO. Nenhum backup foi criado.');
+  });
+  const stamp=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd_HHmmss');
+  const backup=SpreadsheetApp.create('BACKUP INTEGRAL FULLTIME HOMOLOGACAO '+stamp);
+  const initial=backup.getSheets()[0];
+  let copied=0;
+  const manifest=[];
+  sources.forEach(source=>{
+    source.ss.getSheets().forEach(original=>{
+      const copy=original.copyTo(backup);
+      let name=(source.prefix+original.getName()).slice(0,99);
+      let suffix=1, candidate=name;
+      while(backup.getSheetByName(candidate)){candidate=(name.slice(0,94)+'_'+suffix++).slice(0,99);}
+      copy.setName(candidate);
+      manifest.push({origem:source.ss.getName(),guiaOriginal:original.getName(),guiaBackup:candidate,linhas:original.getLastRow(),colunas:original.getLastColumn()});
+      copied++;
+    });
+  });
+  if(!copied)throw new Error('Nenhuma guia foi copiada. Backup cancelado.');
+  backup.deleteSheet(initial);
+  const index=backup.insertSheet('MANIFESTO');
+  index.getRange(1,1,1,5).setValues([['BASE_ORIGEM','GUIA_ORIGINAL','GUIA_BACKUP','LINHAS','COLUNAS']]);
+  if(manifest.length)index.getRange(2,1,manifest.length,5).setValues(manifest.map(x=>[x.origem,x.guiaOriginal,x.guiaBackup,x.linhas,x.colunas]));
+  index.setFrozenRows(1);
+  index.getRange(1,1,1,5).setFontWeight('bold');
+  const result={ok:true,modo:'BACKUP_INTEGRAL_SEM_ALTERAR_ORIGENS',backupId:backup.getId(),backupUrl:backup.getUrl(),guiasCopiadas:copied,bases:[{nome:operational.getName(),id:operationalId},{nome:auth.getName(),id:authId}],manifesto:manifest};
+  Logger.log('FULL TIME — BACKUP INTEGRAL: '+JSON.stringify(result));
+  return result;
+}
