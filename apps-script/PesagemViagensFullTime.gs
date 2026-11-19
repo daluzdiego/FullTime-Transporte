@@ -49,10 +49,19 @@ function FT_PESAGEM_requireAdmin_(token) {
 }
 
 /** Preparação aditiva da guia de pesagens. Não limpa nem altera registros existentes. */
+function FT_PESAGEM_prepararCapacidades_() {
+  const sh=getSheet_('CONJUNTOS');
+  const map=FT_PESAGEM_map_(sh);
+  const required=['CAPACIDADE_LEGAL_TONELADAS','CAPACIDADE_OPERACIONAL_TONELADAS','CAPACIDADE_VALIDADA_EM','CAPACIDADE_VALIDADA_POR'];
+  const missing=required.filter(k=>map[k]===undefined);
+  if(missing.length)sh.getRange(1,sh.getLastColumn()+1,1,missing.length).setValues([missing]);
+  return FT_PESAGEM_map_(sh);
+}
 function prepararGuiaPesagensFullTime(token) {
   FT_PESAGEM_requireAdmin_(token);
   const sh=FT_PESAGEM_getSheet_();
-  return {ok:true,guia:sh.getName(),cabecalhos:FT_PESAGEM_HEADERS_.length,registros:Math.max(0,sh.getLastRow()-1),modo:'ADITIVO_SEM_LIMPEZA'};
+  FT_PESAGEM_prepararCapacidades_();
+  return {ok:true,guia:sh.getName(),cabecalhos:FT_PESAGEM_HEADERS_.length,registros:Math.max(0,sh.getLastRow()-1),guiaCapacidades:'CONJUNTOS',modo:'ADITIVO_SEM_LIMPEZA'};
 }
 
 /** Retorna o vínculo da viagem e impede pesagem em viagem inexistente. */
@@ -102,11 +111,29 @@ function registrarPesagemViagemFullTime(token,data) {
   if(!viagemId||!['CARREGAMENTO','DESCARGA'].includes(etapa))throw new Error('Informe a viagem e a etapa CARREGAMENTO ou DESCARGA.');
   if(!(tara>=0&&bruto>tara))throw new Error('Pesos inválidos: o bruto deve ser maior que a tara e ambos devem estar em kg.');
   const link=FT_PESAGEM_viagem_(viagemId),sh=FT_PESAGEM_getSheet_(),map=FT_PESAGEM_map_(sh);
-  if(ticketId){
-    const tickets=getSheet_('TICKETS'),tm=FT_PESAGEM_map_(tickets),all=tickets.getDataRange().getValues();
-    if(tm.ID===undefined||!all.slice(1).some(r=>String(r[tm.ID]||'')===ticketId))throw new Error('Ticket de origem não encontrado na guia TICKETS.');
-  }
+  if(!ticketId)throw new Error('Vincule o ticket original recebido antes de registrar a pesagem.');
+  const tickets=getSheet_('TICKETS'),tm=FT_PESAGEM_map_(tickets),ticketRows=tickets.getDataRange().getValues();
+  if(tm.ID===undefined||tm.DRIVE_FILE_ID===undefined)throw new Error('A guia TICKETS não possui os campos ID e DRIVE_FILE_ID.');
+  const ticketIndex=ticketRows.findIndex((r,i)=>i>0&&String(r[tm.ID]||'')===ticketId);
+  if(ticketIndex<1)throw new Error('Ticket de origem não encontrado na guia TICKETS.');
+  const ticket=ticketRows[ticketIndex],fileId=String(ticket[tm.DRIVE_FILE_ID]||'');
+  if(!fileId)throw new Error('O ticket ainda não possui arquivo original armazenado. Não é possível validar uma pesagem sem comprovante.');
+  const linkedTrip=tm.VIAGEM_ID===undefined?'':String(ticket[tm.VIAGEM_ID]||'');
+  if(linkedTrip&&linkedTrip!==viagemId)throw new Error('Este ticket já está vinculado a outra viagem.');
+  const inferred=String(ticket[tm.TIPO_TICKET]||'').toUpperCase();
+  if(inferred==='CARREGAMENTO'&&etapa!=='CARREGAMENTO')throw new Error('O tipo identificado no ticket é CARREGAMENTO e não corresponde à etapa informada.');
+  if(inferred==='DESCARGA'&&etapa!=='DESCARGA')throw new Error('O tipo identificado no ticket é DESCARGA e não corresponde à etapa informada.');
   const liquid=bruto-tara,now=new Date(),grid=sh.getDataRange().getValues();
+  const setSheet=getSheet_('CONJUNTOS'),setMap=FT_PESAGEM_map_(setSheet),setRows=setSheet.getDataRange().getValues();
+  const setRow=setRows.slice(1).find(r=>String(r[setMap.ID]||'')===link.conjuntoId);
+  const legalCap=setRow&&setMap.CAPACIDADE_LEGAL_TONELADAS!==undefined?FT_PESAGEM_num_(setRow[setMap.CAPACIDADE_LEGAL_TONELADAS]):NaN;
+  const operationalCap=setRow&&setMap.CAPACIDADE_OPERACIONAL_TONELADAS!==undefined?FT_PESAGEM_num_(setRow[setMap.CAPACIDADE_OPERACIONAL_TONELADAS]):NaN;
+  const liquidTon=liquid/1000;
+  const capacityConfigured=legalCap>0&&operationalCap>0;
+  const capacityExceeded=capacityConfigured&&(liquidTon>legalCap||liquidTon>operationalCap);
+  const capacityReason=String(data.justificativaExcesso||'').trim();
+  if(capacityExceeded&&!capacityReason)throw new Error('ALERTA DE CAPACIDADE: carga de '+liquidTon.toFixed(3)+' t excede limite legal ('+legalCap+') ou operacional ('+operationalCap+') do conjunto. Informe justificativa para continuar.');
+
   const previous=grid.slice(1).filter(r=>String(r[map.VIAGEM_ID]||'')===viagemId&&String(r[map.ETAPA]||'').toUpperCase()===etapa&&String(r[map.STATUS_REGISTRO]||'ATIVO').toUpperCase()==='ATIVO');
   if(previous.length&&!motivoCorrecao)throw new Error('Já existe pesagem ativa nesta etapa. Informe o motivo para registrar uma correção; o histórico será preservado.');
   const supersedes=previous.length?String(previous[previous.length-1][map.ID]||''):'';
@@ -124,6 +151,8 @@ function registrarPesagemViagemFullTime(token,data) {
     SUBSTITUI_PESAGEM_ID:supersedes,MOTIVO_CORRECAO:motivoCorrecao,REGISTRADO_POR:session.email||session.login};
   Object.keys(fields).forEach(k=>{if(map[k]!==undefined)row[map[k]]=fields[k];});
   sh.appendRow(row);
+  if(tm.VIAGEM_ID!==undefined)tickets.getRange(ticketIndex+1,tm.VIAGEM_ID+1).setValue(viagemId);
+  if(tm.STATUS_LEITURA!==undefined)tickets.getRange(ticketIndex+1,tm.STATUS_LEITURA+1).setValue('PESAGEM_REGISTRADA');
   const comparison=FT_PESAGEM_comparar_(sh,viagemId);
   return {ok:true,pesagemId:id,pesoLiquidoKg:liquid,pesoLiquidoToneladas:liquid/1000,comparacao:comparison,
     message:comparison.completa?(comparison.dentroTolerancia?'Duas pesagens registradas. Aguardando aprovação administrativa.':'Divergência superior a 10%. Bruno deve analisar e decidir.'):'Pesagem registrada. Aguardando o ticket da outra etapa.'};
@@ -137,6 +166,10 @@ function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
   if(!comparison.completa)throw new Error('A viagem precisa ter os tickets de carregamento e descarga antes da aprovação.');
   if(!comparison.dentroTolerancia&&!justificativa)throw new Error('A divergência ultrapassa 10%. Registre a justificativa administrativa para decidir.');
   const map=FT_PESAGEM_map_(sh),grid=sh.getDataRange().getValues();
+  const activeRows=grid.slice(1).filter(r=>String(r[map.VIAGEM_ID]||'')===viagemId&&String(r[map.STATUS_REGISTRO]||'ATIVO').toUpperCase()==='ATIVO');
+  if(activeRows.some(r=>String(r[map.EXCESSO_CAPACIDADE]||'')==='CAPACIDADE_NAO_CONFIGURADA'))throw new Error('Capacidade legal e operacional do conjunto ainda não foi configurada. A aprovação da pesagem está bloqueada até o cadastro dos limites.');
+  if(activeRows.some(r=>String(r[map.EXCESSO_CAPACIDADE]||'')==='SIM'&&!String(r[map.JUSTIFICATIVA_EXCESSO]||'').trim())&&!justificativa)throw new Error('Existe excesso de capacidade sem justificativa administrativa.');
+
   grid.slice(1).forEach((r,i)=>{
     if(String(r[map.VIAGEM_ID]||'')!==viagemId||String(r[map.STATUS_REGISTRO]||'ATIVO').toUpperCase()!=='ATIVO')return;
     sh.getRange(i+2,map.STATUS_CONFERENCIA+1).setValue(comparison.dentroTolerancia?'APROVADA':'APROVADA_COM_DIVERGENCIA');
