@@ -176,6 +176,8 @@ function registrarPesagemViagemFullTime(token,data) {
 function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
   const session=FT_PESAGEM_requireAdmin_(token);viagemId=String(viagemId||'').trim();justificativa=String(justificativa||'').trim();
   if(!viagemId)throw new Error('Informe a viagem.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
   const sh=FT_PESAGEM_getSheet_(),comparison=FT_PESAGEM_comparar_(sh,viagemId);
   if(!comparison.completa)throw new Error('A viagem precisa ter os tickets de carregamento e descarga antes da aprovação.');
   if(!comparison.dentroTolerancia&&!justificativa)throw new Error('A divergência ultrapassa 10%. Registre a justificativa administrativa para decidir.');
@@ -196,6 +198,7 @@ function aprovarConferenciaPesagemViagemFullTime(token,viagemId,justificativa) {
   });
   return {ok:true,viagemId,comparacao:comparison,status:comparison.dentroTolerancia?'APROVADA':'APROVADA_COM_DIVERGENCIA',
     message:'Conferência aprovada e auditada. A viagem ainda depende da conclusão pelo fluxo operacional.'};
+  } finally {lock.releaseLock();}
 }
 
 /** Conclui uma viagem somente após dois tickets vinculados e conferência aprovada. */
@@ -228,7 +231,11 @@ function concluirViagemComPesagensFullTime(token,viagemId,observacoes) {
     const tickets=getSheet_('TICKETS'),ticketMap=FT_PESAGEM_map_(tickets),ticketGrid=tickets.getDataRange().getValues();
     ticketIds.forEach(id=>{
       const tr=ticketGrid.find((r,i)=>i>0&&String(r[ticketMap.ID]||'')===id);
-      if(!tr||String(tr[ticketMap.VIAGEM_ID]||'')!==viagemId||!String(tr[ticketMap.DRIVE_FILE_ID]||''))throw new Error('Um dos tickets não está vinculado à viagem ou perdeu o comprovante original.');
+      const pesagem=active.find(p=>String(p[pesMap.TICKET_ID]||'')===id);
+      if(!tr||String(tr[ticketMap.VIAGEM_ID]||'')!==viagemId||!String(tr[ticketMap.DRIVE_FILE_ID]||'')||
+         !pesagem||String(tr[ticketMap.DRIVE_FILE_ID]||'')!==String(pesagem[pesMap.DRIVE_FILE_ID]||'')) {
+        throw new Error('Um dos tickets não está vinculado à viagem ou o arquivo original não corresponde ao comprovante registrado na pesagem.');
+      }
     });
     const realTon=Number(unload[0][pesMap.LIQUIDO_KG])/1000;
     if(!(realTon>0&&isFinite(realTon)))throw new Error('Peso líquido de descarga inválido.');
@@ -256,7 +263,9 @@ function concluirViagemComPesagensFullTime(token,viagemId,observacoes) {
     const saldoNovo=Math.max(0,saldo-realTon);
     opSh.getRange(opIndex+1,opMap.SALDO_TONELADAS+1).setValue(saldoNovo);
     if(opMap.STATUS!==undefined)opSh.getRange(opIndex+1,opMap.STATUS+1).setValue('EM_ANDAMENTO');
-    if(opMap.VIAGENS_REALIZADAS!==undefined)opSh.getRange(opIndex+1,opMap.VIAGENS_REALIZADAS+1).setValue(Math.max(0,Number(op[opMap.VIAGENS_REALIZADAS]||0))+1);
+    const tripsCol=opMap.VIAGENS_REALIZADAS!==undefined?opMap.VIAGENS_REALIZADAS:opMap.TOTAL_VIAGENS_CONCLUIDAS;
+    if(tripsCol!==undefined)opSh.getRange(opIndex+1,tripsCol+1).setValue(Math.max(0,Number(op[tripsCol]||0))+1);
+    if(opMap.TOTAL_TONELADAS_REALIZADAS!==undefined)opSh.getRange(opIndex+1,opMap.TOTAL_TONELADAS_REALIZADAS+1).setValue(Math.max(0,Number(op[opMap.TOTAL_TONELADAS_REALIZADAS]||0))+realTon);
     if(partMap.TONELADAS_MOVIMENTADAS!==undefined)partSh.getRange(partIndex+1,partMap.TONELADAS_MOVIMENTADAS+1).setValue(Math.max(0,Number(partGrid[partIndex][partMap.TONELADAS_MOVIMENTADAS]||0))+realTon);
     if(partMap.VIAGENS_CONCLUIDAS!==undefined)partSh.getRange(partIndex+1,partMap.VIAGENS_CONCLUIDAS+1).setValue(Math.max(0,Number(partGrid[partIndex][partMap.VIAGENS_CONCLUIDAS]||0))+1);
     return {ok:true,viagemId,toneladasDescarga:realTon,saldoOperacao:saldoNovo,viagensConcluidas:1,status:'CONCLUIDA',
