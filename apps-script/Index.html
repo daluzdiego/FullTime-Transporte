@@ -738,10 +738,21 @@
   function carregarOfertasAceitasAdmin(){
     const host=document.getElementById('acceptedOffersAdmin');if(!host)return;
     host.innerHTML='<div class="empty">Consultando ofertas aceitas…</div>';
+    let finalizado=false;
+    const limite=window.setTimeout(()=>{
+      if(finalizado||!document.getElementById('acceptedOffersAdmin'))return;
+      host.innerHTML='<div class="notice">A consulta está demorando mais que o esperado. Nenhum registro foi alterado. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
+    },30000);
     google.script.run.withSuccessHandler(rows=>{
+      finalizado=true;window.clearTimeout(limite);
       if(!document.getElementById('acceptedOffersAdmin'))return;
+      if(!Array.isArray(rows)){host.innerHTML='<div class="notice">Resposta inválida do servidor. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';return;}
       host.innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Operação</th><th>Trecho</th><th>Conjunto</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.motorista)+'</td><td>'+esc(r.operacao)+'</td><td>'+esc(r.origem)+' → '+esc(r.destino)+'</td><td>'+esc(r.conjuntoId)+'</td><td><button class="btn btn-primary" onclick="confirmarAceiteAdmin(\''+esc(r.id)+'\')">Confirmar escala</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum aceite aguardando confirmação.</div>';
-    }).withFailureHandler(e=>{host.innerHTML='<div class="notice">'+esc(e.message||'Falha ao consultar aceites.')+'</div>';}).listarOfertasAceitasAdminFullTime(authToken);
+    }).withFailureHandler(e=>{
+      finalizado=true;window.clearTimeout(limite);
+      if(!document.getElementById('acceptedOffersAdmin'))return;
+      host.innerHTML='<div class="notice">'+esc(e&&e.message?e.message:'Falha ao consultar aceites.')+' <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
+    }).listarOfertasAceitasAdminFullTime(authToken);
   }
   async function confirmarAceiteAdmin(id){
     if(!await uiConfirm('O conjunto ficará ATIVO na operação.',{title:'Confirmar escala',ok:'Confirmar escala'}))return;
