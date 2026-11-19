@@ -1,4 +1,31 @@
 /**
+ * Início administrativo explícito da operação.
+ * Exige ao menos uma escala já confirmada (participação ATIVO).
+ */
+function iniciarOperacaoFullTime(token, operacaoId) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  operacaoId=texto_(operacaoId,100);
+  if(!operacaoId)throw new Error('Informe a operação que será iniciada.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try {
+    const sh=getSheet_('OPERACOES'),grid=sh.getDataRange().getValues();
+    const headers=(grid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),ix={};
+    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    ['ID','STATUS'].forEach(k=>{if(ix[k]===undefined)throw new Error('Cabeçalho ausente em OPERACOES: '+k);});
+    const rowIndex=grid.findIndex((r,i)=>i>0&&String(r[ix.ID]||'')===operacaoId);
+    if(rowIndex<1)throw new Error('Operação não encontrada.');
+    const status=String(grid[rowIndex][ix.STATUS]||'').trim().toUpperCase();
+    if(status!=='ABERTA')throw new Error('Somente operações ABERTAS podem ser iniciadas. Status atual: '+(status||'não informado')+'.');
+    const parts=FT_CENTRO_rows_('PARTICIPACAO_OPERACOES');
+    const active=parts.filter(p=>String(p.OPERACAO_ID||'')===operacaoId&&String(p.STATUS_PARTICIPACAO||'').toUpperCase()==='ATIVO');
+    if(!active.length)throw new Error('Confirme a escala de pelo menos um motorista antes de iniciar a operação.');
+    sh.getRange(rowIndex+1,ix.STATUS+1).setValue('EM_ANDAMENTO');
+    auditar_(session,'INICIAR_OPERACAO','OPERACAO',operacaoId,'Operação iniciada após confirmação de escala; participações ativas: '+active.length+'.');
+    return {ok:true,status:'EM_ANDAMENTO',message:'Operação iniciada. '+active.length+' conjunto(s) confirmado(s) em operação.'};
+  } finally {lock.releaseLock();}
+}
+
+/**
  * FULL TIME — CENTRO DE OPERAÇÕES V1
  * Leitura consolidada por cabeçalho. Não altera nem sobrescreve registros.
  * Distâncias e pesos só são exibidos quando informados no cadastro/operação.
