@@ -285,3 +285,98 @@ function testarCalculoDivergenciaPesagemFullTime() {
   if(!ok)throw new Error('Falha no teste de cálculo de divergência.');
   return {ok,testes:results.length,resultados:results,modo:'SEM_ACESSO_A_PLANILHAS'};
 }
+
+
+/**
+ * Cria cenário isolado de homologação com operação, participação, viagem e dois tickets fictícios.
+ * Não altera nem apaga registros existentes. Os arquivos gerados são identificados como TESTE.
+ * Executar somente no projeto/base HOMOLOGACAO.
+ */
+function criarCenarioTicketsFicticiosFullTime(token) {
+  const session=FT_PESAGEM_requireAdmin_(token);
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  const createdFiles=[];
+  try {
+    const dbId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    const ss=SpreadsheetApp.openById(dbId);
+    if(!/HOMOLOGACAO/i.test(ss.getName()))throw new Error('Bloqueado: a base vinculada não está identificada como HOMOLOGACAO.');
+    const now=new Date(),tag='FTTEST-PESAGEM-'+Utilities.getUuid().slice(0,8).toUpperCase();
+    const id=prefix=>prefix+'-'+Utilities.getUuid().replace(/-/g,'').slice(0,16).toUpperCase();
+    const append=(sheetName,obj)=>{
+      const sh=getSheet_(sheetName),map=FT_PESAGEM_map_(sh),row=new Array(sh.getLastColumn()).fill('');
+      Object.keys(obj).forEach(k=>{if(map[k]!==undefined)row[map[k]]=obj[k];});
+      sh.appendRow(row);return sh;
+    };
+    FT_PESAGEM_prepararCapacidades_();
+    const sets=getSheet_('CONJUNTOS'),setMap=FT_PESAGEM_map_(sets),setRows=sets.getDataRange().getValues();
+    const chosen=setRows.slice(1).find(r=>Number(r[setMap.CAPACIDADE_UTIL_TONELADAS])>=32&&String(r[setMap.STATUS]||'').toUpperCase()==='ATIVO');
+    if(!chosen)throw new Error('Não há conjunto fictício ativo com capacidade útil mínima de 32 toneladas.');
+    const conjuntoId=String(chosen[setMap.ID]),motoristaId=String(chosen[setMap.MOTORISTA_ID]||'');
+    if(!motoristaId)throw new Error('O conjunto selecionado não possui motorista vinculado.');
+    const legalCol=setMap.CAPACIDADE_LEGAL_TONELADAS,operCol=setMap.CAPACIDADE_OPERACIONAL_TONELADAS;
+    sets.getRange(setRows.findIndex(r=>String(r[setMap.ID])===conjuntoId)+1,legalCol+1).setValue(40);
+    sets.getRange(setRows.findIndex(r=>String(r[setMap.ID])===conjuntoId)+1,operCol+1).setValue(40);
+    const validatedAtCol=setMap.CAPACIDADE_VALIDADA_EM,validatedByCol=setMap.CAPACIDADE_VALIDADA_POR;
+    if(validatedAtCol!==undefined)sets.getRange(setRows.findIndex(r=>String(r[setMap.ID])===conjuntoId)+1,validatedAtCol+1).setValue(now);
+    if(validatedByCol!==undefined)sets.getRange(setRows.findIndex(r=>String(r[setMap.ID])===conjuntoId)+1,validatedByCol+1).setValue(session.email||session.login||'ADMIN_HOMOLOGACAO');
+
+    const operationId=id('FTTEST-OP'),participationId=id('FTTEST-PART'),tripId=id('FTTEST-VIAGEM');
+    append('OPERACOES',{ID:operationId,CRIADO_EM:now,STATUS:'EM_ANDAMENTO',DATA_OPERACAO:now,
+      CLIENTE:'CLIENTE FICTÍCIO — TESTE DE PESAGEM',NOME_OPERACAO:tag,ORIGEM:'ORIGEM FICTÍCIA — TESTE',
+      DESTINO:'DESTINO FICTÍCIO — TESTE',CATEGORIA:'HOMOLOGACAO',VOLUME_TOTAL_TONELADAS:100,
+      TOTAL_VIAGENS_PREVISTAS:1,SALDO_TONELADAS:100,OBSERVACOES:tag+' — NÃO É OPERAÇÃO REAL',
+      CRIADO_POR:'HOMOLOGACAO',ID_EXTERNO:operationId,TOTAL_VIAGENS_CONCLUIDAS:0,TOTAL_TONELADAS_REALIZADAS:0,
+      PRIORIDADE:'NORMAL',TIPO_OPERACAO:'TRANSPORTE DIRETO'});
+    append('PARTICIPACAO_OPERACOES',{ID:participationId,CRIADO_EM:now,OPERACAO_ID:operationId,
+      CONJUNTO_ID:conjuntoId,MOTORISTA_ID:motoristaId,STATUS_PARTICIPACAO:'ATIVA',
+      TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:tag,REGISTRADO_POR:'HOMOLOGACAO',
+      VIAGENS_PREVISTAS:1,TONELADAS_PREVISTAS:31.23,VIAGENS_INICIADAS:1,ATUALIZADO_EM:now,ATUALIZADO_POR:'HOMOLOGACAO'});
+    append('VIAGENS',{ID:tripId,CRIADO_EM:now,OPERACAO_ID:operationId,PARTICIPACAO_ID:participationId,
+      SEQUENCIA_OPERACAO:1,SEQUENCIA_MOTORISTA:1,MOTORISTA_ID:motoristaId,CONJUNTO_ID:conjuntoId,
+      STATUS:'EM_ANDAMENTO',ORIGEM_DESCRICAO:'ORIGEM FICTÍCIA — '+tag,
+      DESTINO_DESCRICAO:'DESTINO FICTÍCIO — '+tag,PESO_PREVISTO_TONELADAS:32,
+      OBSERVACOES:tag+' — VIAGEM EXCLUSIVA DE HOMOLOGAÇÃO',ATUALIZADA_EM:now,ATUALIZADA_POR:'HOMOLOGACAO'});
+
+    const ticketSpecs=[
+      {type:'CARREGAMENTO',tara:17600,bruto:48720,stage:'ORIGEM'},
+      {type:'DESCARGA',tara:17580,bruto:48810,stage:'DESTINO'}
+    ];
+    const tickets=[];
+    ticketSpecs.forEach(spec=>{
+      const ticketId=id('FTTEST-TICKET');
+      const fileName=tag+'_'+spec.type+'.txt';
+      const body=[
+        'FULL TIME — COMPROVANTE FICTÍCIO DE PESAGEM',
+        'AMBIENTE: HOMOLOGAÇÃO — SEM VALIDADE OPERACIONAL',
+        'IDENTIFICADOR: '+tag,
+        'ETAPA: '+spec.stage+' ('+spec.type+')',
+        'VIAGEM TESTE: '+tripId,
+        'MOTORISTA TESTE: '+motoristaId,
+        'CONJUNTO TESTE: '+conjuntoId,
+        'DATA/HORA: '+now.toISOString(),
+        'TARA: '+spec.tara+' kg',
+        'PESO BRUTO: '+spec.bruto+' kg',
+        'PESO LÍQUIDO: '+(spec.bruto-spec.tara)+' kg',
+        'DOCUMENTO GERADO AUTOMATICAMENTE PARA HOMOLOGAÇÃO. NÃO REPRESENTA TICKET REAL.'
+      ].join('\n');
+      const file=DriveApp.createFile(fileName,body,MimeType.PLAIN_TEXT);createdFiles.push(file);
+      const ticket={ID:ticketId,RECEBIDO_EM:now,TELEFONE_REMETENTE:'TESTE',
+        MOTORISTA_ID:motoristaId,TIPO_TICKET:spec.type,MEDIA_ID:'SIMULACAO_'+tag,
+        DRIVE_FILE_ID:file.getId(),DRIVE_FILE_URL:file.getUrl(),NOME_ARQUIVO:fileName,
+        MIME_TYPE:MimeType.PLAIN_TEXT,STATUS_LEITURA:'AGUARDANDO_CONFERENCIA',
+        DATA_HORA_EXTRAIDA:now,CONFIANCA_LEITURA:1,ERRO_VALIDACAO:'',
+        METADADOS_JSON:JSON.stringify({origem:'SIMULADOR_HOMOLOGACAO',tag,etapa:spec.stage,
+          taraKg:spec.tara,pesoBrutoKg:spec.bruto,pesoLiquidoKg:spec.bruto-spec.tara}),
+        VIAGEM_ID:''};
+      append('TICKETS',ticket);tickets.push({ticketId,fileId:file.getId(),fileUrl:file.getUrl(),
+        nome:fileName,tipo:spec.type,taraKg:spec.tara,pesoBrutoKg:spec.bruto,pesoLiquidoKg:spec.bruto-spec.tara});
+    });
+    return {ok:true,ambiente:'HOMOLOGACAO',tag,operacaoId:operationId,participacaoId:participationId,
+      viagemId:tripId,motoristaId,conjuntoId,capacidadeLegalToneladas:40,
+      capacidadeOperacionalToneladas:40,tickets,
+      proximoPasso:'Use registrarPesagemViagemFullTime(token,{viagemId,etapa,taraKg,brutoKg,ticketId}) para cada ticket. Depois confira e aprove administrativamente.'};
+  } catch(e) {
+    createdFiles.forEach(file=>{try{file.setTrashed(true);}catch(ignore){}});
+    throw e;
+  } finally {lock.releaseLock();}
+}
