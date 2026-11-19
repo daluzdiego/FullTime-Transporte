@@ -283,7 +283,9 @@ function testarCalculoDivergenciaPesagemFullTime() {
   const results=tests.map(t=>{const actual=Math.abs(t.a-t.b)/t.a*100;return {entrada:t,resultado:actual,aprovado:Math.abs(actual-t.expected)<0.00001};});
   const ok=results.every(x=>x.aprovado);
   if(!ok)throw new Error('Falha no teste de cálculo de divergência.');
-  return {ok,testes:results.length,resultados:results,modo:'SEM_ACESSO_A_PLANILHAS'};
+  const relatorio={ok,testes:results.length,resultados:results,modo:'SEM_ACESSO_A_PLANILHAS'};
+  console.log(JSON.stringify(relatorio,null,2));
+  return relatorio;
 }
 
 
