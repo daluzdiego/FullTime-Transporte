@@ -742,6 +742,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
   if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
   if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
   if(!(viagens>0&&viagens<=10000)) throw new Error('Informe a quantidade de viagens concluídas nesta movimentação.');
+  throw new Error('REGISTRO BLOQUEADO: o fluxo antigo registra viagens por quantidade agregada e não comprova os tickets de carregamento e descarga. Registre e aprove as duas pesagens e conclua cada viagem individualmente pelo fluxo concluirViagemComPesagensFullTime(). Nenhuma movimentação foi gravada.');
   const lock=LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
