@@ -437,8 +437,8 @@
       return;
     }
     const titles={centro:'Centro de Operações',motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
-    document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
+    document.getElementById('topTitle').textContent=page==='operacoes'?'':(titles[page]||'Full Time');
+    document.getElementById('topSubtitle').textContent=page==='operacoes'?'':page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='centro') { c.innerHTML=renderCentroOperacoes(); carregarCentroOperacoes(); }
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
