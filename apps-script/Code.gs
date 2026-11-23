@@ -710,7 +710,8 @@ function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), toneladasPorViagem=Number(String(data.toneladasPorViagem||'').replace(',','.'));
+  const viagensPrevistas=toneladasPorViagem>0?Math.ceil(volume/toneladasPorViagem):0;
   const observacoes=texto_(data.observacoes,1000);
   const produto=texto_(data.produto,160), distanciaKm=Number(String(data.distanciaKm||'').replace(',','.'));
   const dataEntrega=texto_(data.dataEntrega,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
@@ -725,13 +726,14 @@ function salvarOperacaoFullTime(token, data) {
   if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipoOperacao)) throw new Error('Tipo de operação inválido.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
+  if(!(toneladasPorViagem>0&&isFinite(toneladasPorViagem))) throw new Error('Informe a carga estimada por viagem, em toneladas.');
+  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('A quantidade calculada de viagens é inválida. Revise o volume e a carga estimada por viagem.');
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
   if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
   ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
-  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; carga estimada/viagem='+toneladasPorViagem+' t; viagens calculadas='+viagensPrevistas);
+  return {ok:true,id:id,viagensPrevistas:viagensPrevistas,toneladasPorViagem:toneladasPorViagem,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) calculadas automaticamente, considerando '+toneladasPorViagem+' t por viagem.'};
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
