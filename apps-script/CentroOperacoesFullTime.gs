@@ -75,13 +75,16 @@ function obterCentroOperacoesFullTime(token) {
   const trailers=FT_CENTRO_rows_('CARRETAS'),sets=FT_CENTRO_rows_('CONJUNTOS');
   const byId=a=>Object.fromEntries(a.map(x=>[String(x.ID||''),x]));
   const dBy=byId(drivers),hBy=byId(horses),tBy=byId(trailers),sBy=byId(sets);
+  const partsByOp={},movesByOp={};
+  parts.forEach(p=>{const id=String(p.OPERACAO_ID||'');if(!partsByOp[id])partsByOp[id]=[];partsByOp[id].push(p);});
+  moves.forEach(m=>{const id=String(m.OPERACAO_ID||'');if(!movesByOp[id])movesByOp[id]=[];movesByOp[id].push(m);});
   const today=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyy-MM-dd');
   const activeStatuses=new Set(['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE','SUSPENSA','CONCLUSAO_PENDENTE']);
   const all=ops.map(o=>{
     const id=String(o.ID||''),status=String(o.STATUS||'').toUpperCase();
-    const relatedParts=parts.filter(p=>String(p.OPERACAO_ID||'')===id);
+    const relatedParts=partsByOp[id]||[];
     const related=relatedParts.filter(p=>['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
-    const operationMoves=moves.filter(m=>String(m.OPERACAO_ID||'')===id);
+    const operationMoves=movesByOp[id]||[];
     const ton=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
     const trips=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS||(String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0);
     const previstas=FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS);
@@ -105,7 +108,9 @@ function obterCentroOperacoesFullTime(token) {
       const h=hBy[String(s.CAVALO_ID||'')]||{},t1=tBy[String(s.CARRETA_MEIO_ID||'')]||{},t2=tBy[String(s.CARRETA_FINAL_ID||'')]||{};
       const trailerTare=FT_CENTRO_num_(t1.TARA_TONELADAS)+FT_CENTRO_num_(t2.TARA_TONELADAS);
       const trailerCap=FT_CENTRO_num_(t1.CAPACIDADE_CARGA_TONELADAS)+FT_CENTRO_num_(t2.CAPACIDADE_CARGA_TONELADAS);
-      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),cavaloTara:FT_CENTRO_num_(h.TARA_TONELADAS),cavaloPbtc:FT_CENTRO_num_(h.PBTC_MAX_TONELADAS),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||'')};
+      const rawUpdate=p.ATUALIZADA_EM||p.ATUALIZADO_EM||p.DATA_ATUALIZACAO||p.RESPONDIDA_EM||p.SAIDA_EM||p.RETORNO_EM||'';
+      const lastUpdate=rawUpdate instanceof Date&&isFinite(rawUpdate.getTime())?Utilities.formatDate(rawUpdate,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm'):String(rawUpdate||'');
+      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),cavaloTara:FT_CENTRO_num_(h.TARA_TONELADAS),cavaloPbtc:FT_CENTRO_num_(h.PBTC_MAX_TONELADAS),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||''),ultimaAtualizacao:lastUpdate};
     });
     return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status,data:String(o.DATA_OPERACAO||''),previsaoTermino:String(o.DATA_ENTREGA||''),atrasada,semPrevisao,sugestaoConclusao,grupo,origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:FT_CENTRO_num_(o.VOLUME_TOTAL_TONELADAS),saldo,viagensPrevistas:previstas,viagensRealizadas:realizadas,toneladasMovimentadas:ton,conjuntos,criteriosConclusao:{saldoConferido,viagensConferidas,semPendencias}};
   });
@@ -115,7 +120,7 @@ function obterCentroOperacoesFullTime(token) {
   const totalTon=current.reduce((n,o)=>n+o.toneladasMovimentadas,0);
   return {
     user:session,atualizadoEm:new Date().toISOString(),hoje:today,
-    indicadores:{operacoesAtuais:current.length,operacoesFuturas:future.length,operacoesAtrasadas:late.length,sugestoesConclusao:all.filter(o=>o.sugestaoConclusao).length,conjuntosEmOperacao:current.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:current.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},
+    indicadores:{operacoesAtuais:current.length,operacoesFuturas:future.length,operacoesAtrasadas:late.length,sugestoesConclusao:all.filter(o=>o.sugestaoConclusao).length,conjuntosEmOperacao:current.reduce((n,o)=>n+o.conjuntos.length,0),motoristasEmOperacao:current.reduce((n,o)=>n+o.conjuntos.filter(s=>['ATIVO','SAIU','EM_VIAGEM'].includes(String(s.status||'').toUpperCase())).length,0),viagensPendentes:current.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},
     operacoes:current,futuras:future,atrasadas:late,concluidas:all.filter(o=>o.grupo==='CONCLUIDAS'),canceladas:all.filter(o=>o.grupo==='CANCELADAS'),historico:all.filter(o=>['CONCLUIDAS','CANCELADAS'].includes(o.grupo))
   };
 }
