@@ -60,8 +60,41 @@
     .operation-fullscreen .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
     .operation-fullscreen #operationFullscreenButton{position:fixed;top:12px;right:12px;z-index:99999;box-shadow:0 4px 18px rgba(0,0,0,.18)}
   
-/* Centro de Operações: painel compacto */
-.center-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0 18px}.center-kpi{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 16px;min-width:0}.center-kpi .stat-label{font-size:12px;color:var(--muted)}.center-kpi .stat-value{font-size:25px;font-weight:800;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.center-ops-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.center-op-card{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);min-width:0;overflow:hidden}.center-op-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:15px 16px 10px}.center-op-head h2{font-size:15px;margin:0 0 4px}.center-op-route{padding:0 16px 13px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.center-op-progress{padding:0 16px 14px}.center-progress-track{height:8px;background:#edf1f6;border-radius:20px;overflow:hidden;margin:7px 0 5px}.center-progress-fill{height:100%;background:var(--green);border-radius:20px;max-width:100%}.center-op-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 16px 14px}.center-op-metric{background:#f7f9fc;border-radius:9px;padding:9px 10px;min-width:0}.center-op-metric span{display:block;color:var(--muted);font-size:11px}.center-op-metric strong{display:block;font-size:14px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.center-op-meta{display:flex;gap:7px;flex-wrap:wrap;padding:0 16px 14px}.center-op-meta span{font-size:11px;background:#f1f5f9;color:#475569;padding:5px 8px;border-radius:20px}.center-op-sets{border-top:1px solid var(--line);padding:10px 16px}.center-op-sets summary{cursor:pointer;color:var(--blue-dark);font-size:12px;font-weight:700}.center-op-sets .table-wrap{margin-top:10px}.center-op-sets table{font-size:12px}.center-op-sets th,.center-op-sets td{padding:8px}.ops-list-panel{margin-bottom:18px}.driver-list-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;margin:0 0 16px;background:linear-gradient(120deg,#eef4ff,#f8fbff);border:1px solid #dce8fb;border-radius:16px}.driver-list-summary h2{margin:5px 0 4px;font-size:20px}.driver-list-summary p{margin:0}.driver-total{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:86px;padding:12px 18px;background:#fff;border:1px solid #dce8fb;border-radius:12px}.driver-total strong{font-size:26px;color:var(--blue)}.driver-total span{font-size:11px;color:var(--muted)}.driver-list-panel .table-wrap{border:1px solid var(--line);border-radius:12px}.driver-list-panel table{border-collapse:separate;border-spacing:0}.driver-list-panel tbody tr.driver-row:hover{background:#f8fbff}.driver-name-cell{display:flex;align-items:center;gap:12px;min-width:220px}.driver-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#e8f0ff;color:var(--blue);font-weight:700}.candidate-table-wrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:12px}.candidate-table-wrap thead th{position:sticky;top:0;z-index:1}.center-section>.panel-head{align-items:center}.center-archives>details>summary{cursor:pointer;list-style:none}.center-archives>details>summary::-webkit-details-marker{display:none}.center-archives>details>summary:after{content:'＋';margin-left:auto;color:var(--muted)}.center-archives>details[open]>summary:after{content:'−'}.ops-form-panel{margin-top:18px}.ops-form-panel>summary{cursor:pointer;list-style:none}.ops-form-panel>summary::-webkit-details-marker{display:none}.ops-form-panel[open]>summary{border-bottom:1px solid var(--line)}@media(max-width:1050px){.center-ops-grid{grid-template-columns:1fr}.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.center-kpis{gap:8px}.center-kpi{padding:11px}.center-kpi .stat-value{font-size:21px}.center-op-metrics{gap:5px;padding-left:12px;padding-right:12px}.center-op-head,.center-op-route,.center-op-progress,.center-op-meta{padding-left:12px;padding-right:12px}}
+/* Centro de Operações — painel de acompanhamento */
+.center-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.center-kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 12px;min-width:0}
+.center-kpi .stat-label{font-size:11px;color:var(--muted)}
+.center-kpi .stat-value{font-size:20px;font-weight:750;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.center-ops-panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.center-ops-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;flex-wrap:wrap}
+.center-ops-table{width:100%;border-collapse:collapse;font-size:12px}
+.center-ops-table th,.center-ops-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:middle}
+.center-ops-table th{background:#f4f6f9;color:#475569;font-size:11px;white-space:nowrap}
+.center-ops-table tbody tr.center-op-row{cursor:pointer}
+.center-ops-table tbody tr.center-op-row:hover{background:#f7faff}
+.center-ops-table tbody tr.center-op-row[aria-expanded="true"]{background:#edf4ff}
+.center-op-toggle{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--blue-dark);font-weight:800;cursor:pointer;padding:3px}
+.center-op-toggle .chevron{display:inline-block;transition:transform .15s}
+.center-op-toggle[aria-expanded="true"] .chevron{transform:rotate(90deg)}
+.center-op-progress-cell{min-width:150px}
+.center-op-progress-cell .center-progress-track{height:7px;background:#edf1f6;border-radius:20px;overflow:hidden;margin:5px 0 2px}
+.center-op-progress-cell .center-progress-fill{height:100%;background:var(--green);border-radius:20px;max-width:100%}
+.center-op-detail-row td{padding:0 10px 12px;background:#f8faff}
+.center-op-driver-panel{border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.center-op-driver-panel h3{font-size:13px;margin:0;padding:10px 12px;border-bottom:1px solid var(--line)}
+.center-op-driver-table{width:100%;border-collapse:collapse;font-size:12px}
+.center-op-driver-table th,.center-op-driver-table td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
+.center-op-driver-table th{background:#f4f6f9;color:#475569;font-size:11px}
+.center-op-driver-table tr:last-child td{border-bottom:0}
+.center-op-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.center-op-status{display:inline-block;padding:4px 8px;border-radius:6px;background:#edf1f6;color:#334155;font-size:10px;font-weight:750;white-space:nowrap}
+.center-op-status.is-active{background:#e7f6ec;color:#176b37}
+.center-op-status.is-waiting{background:#fff4d6;color:#8a5a00}
+.center-op-status.is-alert{background:#fde8e8;color:#a12626}
+.center-refresh-note{font-size:11px;color:var(--muted);white-space:nowrap}
+.center-archives{margin-top:14px}
+@media(max-width:1150px){.center-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.center-ops-panel{overflow-x:auto}.center-ops-table{min-width:900px}}
+@media(max-width:650px){.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.center-ops-toolbar{align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -312,6 +345,7 @@
     else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
   });
   function renderPage(page){
+    if(page!=='centro'&&window.__ftCentroRefreshTimer){window.clearInterval(window.__ftCentroRefreshTimer);window.__ftCentroRefreshTimer=null;}
     if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
       document.getElementById('topTitle').textContent='Área do motorista';
       document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
@@ -457,35 +491,62 @@
   }
 
   function renderCentroOperacoes(){
-    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Acompanhe operações atuais, futuras, atrasadas e encerradas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacaoCentro()">＋ Abrir operação</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+    return '<div class="page-head" style="margin-bottom:8px"><div><h1>Centro de Operações</h1><p>Visão operacional das operações em andamento.</p></div><div class="head-actions"><span class="center-refresh-note">Atualização automática a cada 5 minutos</span><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacaoCentro()">＋ Abrir operação</button></div></div><div id="centroResumo"><div class="empty">Carregando painel operacional…</div></div>';
   }
   function renderCardCentro(o){
-    const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
+    const num=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2});
     const pct=o.viagensPrevistas>0?Math.min(100,Math.max(0,o.viagensRealizadas/o.viagensPrevistas*100)):0;
-    const badge=o.atrasada?'<span class="badge badge-pending">ATRASADA</span>':'<span class="badge badge-active">'+esc(o.status)+'</span>';
-    const canClose=!!o.sugestaoConclusao;
-    const isOpen=['ABERTA','EM_ANDAMENTO'].includes(String(o.status||'').toUpperCase());
     const status=String(o.status||'').toUpperCase();
+    const statusLabel=o.atrasada?'ATRASADA':status==='ABERTA'?'AGUARDANDO ESCALA':status.replace(/_/g,' ');
+    const statusClass=o.atrasada?'is-alert':status==='ABERTA'?'is-waiting':'is-active';
+    const canClose=!!o.sugestaoConclusao;
     const canStart=status==='ABERTA'&&o.conjuntos.some(s=>String(s.status||'').toUpperCase()==='ATIVO');
-    const action=isOpen?'<div class="center-op-actions" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 16px;border-top:1px solid var(--line)">'+
-      (status==='ABERTA'?'<span class="small muted">Inicie somente depois de confirmar a escala de pelo menos um motorista.</span>':(canClose?'<span class="small" style="color:var(--green)">Operação pronta para encerramento.</span>':'<span class="small muted">Encerramento liberado após zerar o saldo, conferir as viagens e finalizar participações ativas.</span>'))+
-      (status==='ABERTA'?'<button class="btn btn-primary" '+(canStart?'':'disabled title="Confirme a escala de um motorista antes de iniciar."')+' onclick="iniciarOperacaoCentro(\''+esc(o.id)+'\')">▶ Iniciar operação</button>':'')+
-      '<button class="btn '+(canClose?'btn-primary':'btn-secondary')+'" '+(canClose?'':'disabled title="Ainda existem pendências operacionais."')+' onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Encerrar operação</button></div>':'';
-    return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+' · Início: '+esc(formatDate(o.data)||'não informado')+' · Previsão de término: '+esc(formatDate(o.previsaoTermino)||'não informada')+'</div></div>'+badge+'</div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Viagens <strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(0)+'% concluído</div></div><div class="center-op-metrics"><div class="center-op-metric"><span>Volume total</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Saldo</span><strong>'+esc(num(o.saldo))+' t</strong></div><div class="center-op-metric"><span>Conjuntos ativos</span><strong>'+esc(o.conjuntos.length)+'</strong></div></div><div class="center-op-meta"><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span><span>'+esc(o.produto||'Produto não informado')+'</span><span>'+esc(num(o.toneladasMovimentadas))+' t movimentadas</span></div>'+action+'<details class="center-op-sets"><summary>Ver conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';
+    const drivers=o.conjuntos||[];
+    const driverRows=drivers.length?drivers.map(s=>{
+      const st=String(s.status||'').toUpperCase();
+      const label=st==='EM_VIAGEM'?'Em viagem':st==='SAIU'?'Saiu para operação':st==='ATIVO'?'Escalado':st.replace(/_/g,' ').toLowerCase();
+      const cls=['EM_VIAGEM','SAIU'].includes(st)?'is-active':st==='ATIVO'?'is-waiting':'';
+      const last=s.ultimaAtualizacao?formatDate(s.ultimaAtualizacao):s.saida?formatDate(s.saida):s.retorno?formatDate(s.retorno):'—';
+      return '<tr><td><strong>'+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(o.nome||'—')+'</td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+esc(last)+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
+    const actions='<div class="center-op-actions">'+(status==='ABERTA'?'<button class="btn btn-primary" '+(canStart?'':'disabled title="Confirme a escala de pelo menos um motorista antes de iniciar."')+' onclick="iniciarOperacaoCentro(\''+esc(o.id)+'\')">▶ Iniciar operação</button>':'')+'<button class="btn btn-secondary" '+(canClose?'':'disabled title="Saldo, viagens e participações ainda possuem pendências."')+' onclick="confirmarConclusaoCentro(\''+esc(o.id)+'\')">Encerrar operação</button></div>';
+    return '<tr class="center-op-row" data-op-row="'+esc(o.id)+'" onclick="alternarDetalhesOperacaoCentro(\''+esc(o.id)+'\')" aria-expanded="false"><td><button class="center-op-toggle" type="button" tabindex="-1"><span class="chevron">▶</span><strong>'+esc(o.nome||'Operação')+'</strong></button></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+drivers.length+'</td><td class="center-op-progress-cell"><strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+' viagens</strong><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span class="muted small">'+pct.toFixed(0)+'%</span></td><td><strong>'+esc(num(o.toneladasMovimentadas))+' / '+esc(num(o.volumeTotal))+' TON</strong><div class="muted small">Saldo: '+esc(num(o.saldo))+' TON</div></td><td><span class="center-op-status '+statusClass+'">'+esc(statusLabel)+'</span></td></tr><tr class="center-op-detail-row" data-op-detail="'+esc(o.id)+'" hidden><td colspan="6"><div class="center-op-driver-panel"><h3>Motoristas da operação '+esc(o.nome||'')+' ('+drivers.length+')</h3><table class="center-op-driver-table"><thead><tr><th>Motorista</th><th>Operação</th><th>Conjunto</th><th>Situação atual</th><th>Origem / Destino</th><th>Última atualização</th></tr></thead><tbody>'+driverRows+'</tbody></table>'+actions+'</div></td></tr>';
+  }
+  function alternarDetalhesOperacaoCentro(id){
+    const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
+    const detail=document.querySelector('[data-op-detail="'+CSS.escape(String(id))+'"]');
+    if(!row||!detail)return;
+    const open=detail.hidden;
+    detail.hidden=!open;row.setAttribute('aria-expanded',open?'true':'false');
+    const toggle=row.querySelector('.center-op-toggle');if(toggle)toggle.setAttribute('aria-expanded',open?'true':'false');
   }
   function carregarCentroOperacoes(){
     const host=document.getElementById('centroResumo');if(!host||!authToken)return;
-    host.innerHTML='<div class="empty">Atualizando Centro de Operações…</div>';
+    const expanded=Array.from(host.querySelectorAll('[data-op-detail]')).filter(el=>!el.hidden).map(el=>el.getAttribute('data-op-detail'));
+    if(!host.dataset.loaded)host.innerHTML='<div class="empty">Carregando painel operacional…</div>';
     google.script.run.withSuccessHandler(data=>{
+      if(currentPage!=='centro'||!document.getElementById('centroResumo'))return;
+      const k=data.indicadores||{},allCurrent=[...(data.operacoes||[]),...(data.atrasadas||[])];
+      const unique=Array.from(new Map(allCurrent.map(o=>[String(o.id),o])).values());
+      const priority=o=>{const st=String(o.status||'').toUpperCase();return ['EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE','SUSPENSA','CONCLUSAO_PENDENTE'].includes(st)?0:st==='ABERTA'?1:2;};
+      unique.sort((a,b)=>priority(a)-priority(b)||String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+      const future=data.futuras||[],done=data.concluidas||[],cancelled=data.canceladas||[];
+      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+      const awaiting=unique.filter(o=>String(o.status||'').toUpperCase()==='ABERTA'&&!o.conjuntos.length).length;
+      const cards=[['Operações em andamento',k.operacoesAtuais||unique.length],['Motoristas em operação',k.conjuntosEmOperacao||0],['Aguardando escala',awaiting],['Viagens pendentes',k.viagensPendentes||0],['Movimentadas hoje',num(k.toneladasMovimentadas)+' TON']];
+      const table=items=>items.length?'<div class="center-ops-panel"><table class="center-ops-table"><thead><tr><th>Operação</th><th>Origem / Destino</th><th>Conjuntos</th><th>Progresso</th><th>Movimentação</th><th>Status</th></tr></thead><tbody>'+items.map(renderCardCentro).join('')+'</tbody></table></div>':'<div class="panel"><div class="empty">Nenhuma operação em andamento.</div></div>';
+      const archive=(title,items)=>'<details class="panel" style="margin-top:10px"><summary class="panel-head"><h2>'+title+' ('+items.length+')</h2><span class="muted small">Consultar</span></summary><div class="panel-body">'+(items.length?'<div class="center-ops-panel"><table class="center-ops-table"><thead><tr><th>Operação</th><th>Origem / Destino</th><th>Conjuntos</th><th>Progresso</th><th>Movimentação</th><th>Status</th></tr></thead><tbody>'+items.map(renderCardCentro).join('')+'</tbody></table></div>':'<div class="empty">Nenhum registro.</div>')+'</div></details>';
+      host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div><section class="center-section"><div class="center-ops-toolbar"><div><h2 style="margin:0">Operações em acompanhamento ('+unique.length+')</h2><span class="muted small">Operações em andamento aparecem primeiro.</span></div><span class="center-refresh-note">Atualização automática a cada 5 minutos · '+esc(new Date(data.atualizadoEm||Date.now()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))+'</span></div>'+table(unique)+'</section>'+(future.length?'<section class="center-section" style="margin-top:14px"><div class="panel-head"><h2>Próximas operações ('+future.length+')</h2></div>'+table(future)+'</section>':'')+archive('Histórico concluído',done)+archive('Operações canceladas',cancelled);
+      host.dataset.loaded='1';
+      expanded.forEach(id=>{const detail=host.querySelector('[data-op-detail="'+CSS.escape(id)+'"]'),row=host.querySelector('[data-op-row="'+CSS.escape(id)+'"]');if(detail){detail.hidden=false;if(row)row.setAttribute('aria-expanded','true');const t=row&&row.querySelector('.center-op-toggle');if(t)t.setAttribute('aria-expanded','true');}});
+    }).withFailureHandler(err=>{
       if(currentPage!=='centro')return;
-      const k=data.indicadores||{},current=(data.operacoes||[]).filter(o=>!o.atrasada),future=data.futuras||[],late=data.atrasadas||[],done=data.concluidas||[],cancelled=data.canceladas||[];
-      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
-      const cards=[['Atuais',k.operacoesAtuais||0],['Futuras',k.operacoesFuturas||0],['Atrasadas',k.operacoesAtrasadas||0],['Conclusões sugeridas',k.sugestoesConclusao||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Toneladas movimentadas',num(k.toneladasMovimentadas)+' t']];
-      const section=(title,items,empty)=>'<section class="center-section" style="margin-top:22px"><div class="panel-head"><div><h2>'+title+'</h2><span class="muted small">'+items.length+' operação(ões)</span></div></div>'+(items.length?'<div class="center-ops-grid">'+items.map(renderCardCentro).join('')+'</div>':'<div class="panel"><div class="empty">'+empty+'</div></div>')+'</section>';
-      const lateNotice=late.length?'<div class="notice" style="margin-top:14px"><strong>'+late.length+' operação(ões) com prazo ultrapassado.</strong> Confira a necessidade de reprogramação.</div>':'';
-      const noDeadline=current.filter(o=>o.semPrevisao).length?'<div class="notice" style="margin-top:10px">'+current.filter(o=>o.semPrevisao).length+' operação(ões) em andamento sem previsão de término.</div>':'';
-      host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div>'+lateNotice+noDeadline+section('Em andamento',current,'Nenhuma operação em andamento.')+section('Próximas operações',future,'Nenhuma operação futura.')+section('Atenção necessária',late,'Nenhuma operação atrasada.')+'<div class="center-archives"><details class="panel" style="margin-top:22px"><summary class="panel-head"><h2>Histórico concluído ('+done.length+')</h2><span class="muted small">Consultar</span></summary><div class="panel-body">'+(done.length?'<div class="center-ops-grid">'+done.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação concluída.</div>')+'</div></details><details class="panel" style="margin-top:10px"><summary class="panel-head"><h2>Operações canceladas ('+cancelled.length+')</h2><span class="muted small">Consultar</span></summary><div class="panel-body">'+(cancelled.length?'<div class="center-ops-grid">'+cancelled.map(renderCardCentro).join('')+'</div>':'<div class="empty">Nenhuma operação cancelada.</div>')+'</div></details></div>';
-    }).withFailureHandler(err=>{host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';}).obterCentroOperacoesFullTime(authToken);
+      if(!host.dataset.loaded)host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';
+      else toast(err.message||'Falha ao atualizar o Centro de Operações.',true);
+    }).obterCentroOperacoesFullTime(authToken);
+    if(!window.__ftCentroRefreshTimer){
+      window.__ftCentroRefreshTimer=window.setInterval(()=>{if(currentPage==='centro'&&!document.hidden)carregarCentroOperacoes();},300000);
+    }
   }
   function abrirFormularioOperacaoCentro(){
     renderPage('operacoes');
