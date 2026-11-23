@@ -177,6 +177,17 @@
     .ops-table{min-width:1000px;border-collapse:separate;border-spacing:0;table-layout:auto}.ops-table th{background:#edf3fa;color:#49617e;font-size:10px;padding:12px 11px}.ops-table td{padding:12px 11px;font-size:11px;color:#263d58;border-bottom:1px solid #e9eef5}.ops-table tbody tr.ops-row:nth-child(even){background:#f7faff}.ops-table tbody tr.ops-row:hover{background:#edf5ff}.ops-name-button{display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;text-align:left;color:#123e77;min-width:150px}.ops-name-button strong{display:block;font-size:12px;color:#123e77}.ops-name-button small,.ops-subline{display:block;font-size:10px;color:#71839a;margin-top:4px}.ops-row-chevron{font-size:22px;line-height:12px;color:#345e8c;transition:transform .15s}.ops-route-cell{white-space:nowrap;color:#35516f}.ops-route-arrow{color:#7d91a9;padding:0 4px}.ops-progress{display:flex;align-items:center;gap:8px;min-width:115px}.ops-progress-track{height:7px;flex:1;min-width:55px;border-radius:10px;background:#dce5ef;overflow:hidden}.ops-progress-track span{display:block;height:100%;border-radius:10px;background:#2467b8}.ops-progress b{font-size:10px;color:#234b7b}.ops-detail-btn{min-height:30px;padding:5px 10px;font-size:10px}.ops-details-row td{background:#f1f6fc;padding:10px 12px 14px}.ops-form-panel{max-width:none;margin-top:15px}.ops-form-panel .panel-head{cursor:pointer}.ops-form-panel .panel-head h2{font-size:14px}
     @media(max-width:1100px){.ops-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ops-page-head{align-items:flex-start}}
     @media(max-width:700px){.ops-page-head{display:block}.ops-head-actions{margin-top:12px}.ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ops-kpi{padding:10px;min-height:70px}.ops-kpi strong{font-size:20px}.ops-kpi small{font-size:10px}.ops-toolbar{align-items:stretch}.ops-search{min-width:100%}.ops-toolbar select{flex:1;min-width:0}.ops-page-head h1{font-size:22px}}
+
+    /* Cabeçalho único do Centro de Operações */
+    .topbar{min-height:72px;height:auto;flex-wrap:nowrap;gap:14px}
+    .top-right{display:flex;align-items:center;gap:14px;min-width:0}
+    .center-top-meta{display:flex;align-items:center;gap:10px;white-space:nowrap;min-width:0}
+    .center-top-meta>strong{font-size:14px;color:#163657}
+    .center-top-meta .center-live{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:#e2f7eb;color:#087449;font-size:10px;font-weight:800}
+    .center-top-meta .center-live i{width:7px;height:7px;border-radius:50%;background:#15945e;display:inline-block}
+    .center-top-meta small{font-size:11px;color:#64748b}
+    @media(max-width:1100px){.center-top-meta{gap:7px}.center-top-meta>strong{font-size:12px}.center-top-meta small{font-size:10px}}
+    @media(max-width:760px){.topbar{align-items:flex-start;padding:12px 14px;flex-wrap:wrap}.top-right{width:100%;justify-content:flex-end;flex-wrap:wrap}.center-top-meta{order:0;flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap}.today{order:1}.top-right>.btn{order:2}}
 </style>
 </head>
 <body>
@@ -204,7 +215,7 @@
       <div class="sidebar-bottom"><div class="user-line"><div class="avatar" id="avatar">D</div><div class="user-meta"><strong id="sideUser">Administrador</strong><span id="sideRole">Administrador</span></div><button class="icon-btn" title="Sair" onclick="logout()">↪</button></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
+      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
       <div class="content" id="content"></div>
     </main>
   </section>
@@ -437,8 +448,9 @@
       return;
     }
     const titles={centro:'Centro de Operações',motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
-    document.getElementById('topTitle').textContent=page==='operacoes'?'':(titles[page]||'Full Time');
-    document.getElementById('topSubtitle').textContent=page==='operacoes'?'':page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
+    const centerMeta=document.getElementById('centerTopMeta');if(centerMeta)centerMeta.classList.toggle('hidden',page!=='centro');
+    document.getElementById('topTitle').textContent=(page==='operacoes'||page==='centro')?'':(titles[page]||'Full Time');
+    document.getElementById('topSubtitle').textContent=(page==='operacoes'||page==='centro')?'':page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='centro') { c.innerHTML=renderCentroOperacoes(); carregarCentroOperacoes(); }
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
@@ -575,7 +587,7 @@
   }
 
   function renderCentroOperacoes(){
-    return '<section class="center-hero"><div class="center-hero-main"><div class="center-hero-icon">▣</div><div><h1>Centro de Operações</h1><p>Visão operacional em tempo real das operações.</p></div></div><div class="center-hero-meta"><span class="center-live">AO VIVO</span><span class="center-refresh-note">Atualização automática a cada 5 minutos<br><span id="centroUltimaAtualizacao">Carregando dados…</span></span></div></section><div id="centroResumo"><div class="empty">Carregando painel operacional…</div></div>';
+    return '<div id="centroResumo"><div class="empty">Carregando painel operacional…</div></div>';
   }
   function renderCardCentro(o){
     const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
@@ -623,7 +635,7 @@
       const table=items=>items.length?'<div class="center-ops-panel"><div class="table-wrap"><table class="center-ops-table"><thead><tr><th>Operação</th><th>Origem / Destino</th><th>Conjuntos</th><th>Progresso</th><th>Movimentação</th><th>Status</th></tr></thead><tbody>'+items.map(renderCardCentro).join('')+'</tbody></table></div></div>':'<div class="center-ops-panel"><div class="empty">Nenhuma operação em andamento.</div></div>';
       const archive=(title,items)=>'<details class="panel center-archives"><summary class="panel-head"><h2>'+title+' ('+items.length+')</h2><span class="muted small">Consultar</span></summary><div class="panel-body">'+(items.length?table(items):'<div class="empty">Nenhum registro.</div>')+'</div></details>';
       host.innerHTML='<div class="center-kpi-strip">'+cards.map(x=>'<div class="center-kpi"><span class="center-kpi-icon">'+x[0]+'</span><div><div class="stat-label">'+esc(x[1])+'</div><div class="stat-value">'+esc(x[2])+'</div></div></div>').join('')+'<div class="center-kpi-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacaoCentro()">＋ Operação</button></div></div><div class="center-section-title"><h2>Operações em acompanhamento ('+unique.length+')</h2><span>EM ANDAMENTO PRIMEIRO · ATUALIZAÇÃO A CADA 5 MIN</span></div>'+table(unique)+(future.length?archive('Próximas operações',future):'')+archive('Histórico concluído',done)+archive('Operações canceladas',cancelled);
-      const stamp=document.getElementById('centroUltimaAtualizacao');if(stamp)stamp.textContent='Última atualização: '+new Date(data.atualizadoEm||Date.now()).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const stamp=document.getElementById('centerTopLastUpdated');if(stamp)stamp.textContent=new Date(data.atualizadoEm||Date.now()).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
       host.dataset.loaded='1';
       expanded.forEach(id=>{const detail=host.querySelector('[data-op-detail="'+CSS.escape(id)+'"]'),row=host.querySelector('[data-op-row="'+CSS.escape(id)+'"]');if(detail){detail.hidden=false;if(row)row.setAttribute('aria-expanded','true');const t=row&&row.querySelector('.center-op-toggle');if(t)t.setAttribute('aria-expanded','true');}});
     }).withFailureHandler(err=>{
