@@ -735,6 +735,45 @@ function salvarOperacaoFullTime(token, data) {
   auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; carga estimada/viagem='+toneladasPorViagem+' t; viagens calculadas='+viagensPrevistas);
   return {ok:true,id:id,viagensPrevistas:viagensPrevistas,toneladasPorViagem:toneladasPorViagem,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) calculadas automaticamente, considerando '+toneladasPorViagem+' t por viagem.'};
 }
+
+/**
+ * Atualiza dados de planejamento somente enquanto a operação está ABERTA
+ * e ainda não possui participações, viagens ou movimentações.
+ * Preserva o saldo e os registros financeiros; não permite editar operação em execução.
+ */
+function editarOperacaoFullTime(token, data) {
+  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
+  const id=texto_(data.operacaoId,100);
+  if(!id)throw new Error('Identificador da operação não informado.');
+  const lock=LockService.getScriptLock();lock.waitLock(15000);
+  try {
+    const sh=getSheet_('OPERACOES'),grid=sh.getDataRange().getValues(),headers=(grid[0]||[]).map(h=>String(h||'').trim().toUpperCase()),ix={};
+    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
+    const rowIndex=grid.findIndex((r,i)=>i>0&&String(r[ix.ID]||'')===id);
+    if(rowIndex<1)throw new Error('Operação não encontrada.');
+    const row=grid[rowIndex],status=String(row[ix.STATUS]||'').trim().toUpperCase();
+    if(status!=='ABERTA')throw new Error('Somente operações ainda ABERTAS podem ser editadas.');
+    const hasLinked=(sheetName,header)=>{const x=getSheet_(sheetName),v=x.getDataRange().getValues(),h=(v[0]||[]).map(z=>String(z||'').trim().toUpperCase()),col=h.indexOf(header);return col>=0&&v.slice(1).some(r=>String(r[col]||'')===id);};
+    if(hasLinked('PARTICIPACAO_OPERACOES','OPERACAO_ID')||hasLinked('VIAGENS','OPERACAO_ID')||hasLinked('MOVIMENTACOES_OPERACAO','OPERACAO_ID'))throw new Error('Esta operação já possui equipe, viagens ou movimentações vinculadas. Não é seguro alterar seu planejamento inicial.');
+    const dataOp=texto_(data.data,10),cliente=texto_(data.cliente,120),nome=texto_(data.nome,160),origem=texto_(data.origem,160),destino=texto_(data.destino,160);
+    const categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(),tipo=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
+    const volume=Number(String(data.volumeTotal||'').replace(',','.')),porViagem=Number(String(data.toneladasPorViagem||'').replace(',','.'));
+    const viagens=porViagem>0?Math.ceil(volume/porViagem):0;
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dataOp)||!cliente||!nome||!origem||!destino)throw new Error('Preencha data, cliente, nome, origem e destino corretamente.');
+    if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria))throw new Error('Categoria inválida.');
+    if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipo))throw new Error('Tipo de operação inválido.');
+    if(!(volume>0&&isFinite(volume)&&porViagem>0&&isFinite(porViagem)&&viagens>0&&viagens<=100000))throw new Error('Volume ou carga estimada por viagem inválidos.');
+    const entrega=texto_(data.dataEntrega,10),inicio=texto_(data.janelaInicio,5),fim=texto_(data.janelaFim,5);
+    const fields={DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,TIPO_OPERACAO:tipo,
+      VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagens,SALDO_TONELADAS:volume,OBSERVACOES:texto_(data.observacoes,1000),
+      PRODUTO_SERVICO:texto_(data.produto,160),DISTANCIA_KM:data.distanciaKm?Number(String(data.distanciaKm).replace(',','.')):'',
+      DATA_ENTREGA:entrega,JANELA_INICIO:inicio,JANELA_FIM:fim,TEMPO_ESTIMADO_HORAS:data.tempoEstimadoHoras?Number(String(data.tempoEstimadoHoras).replace(',','.')):''};
+    Object.keys(fields).forEach(k=>{if(ix[k]!==undefined)sh.getRange(rowIndex+1,ix[k]+1).setValue(fields[k]);});
+    auditar_(session,'EDITAR','OPERACAO',id,'Planejamento inicial atualizado; volume='+volume+' t; carga estimada/viagem='+porViagem+' t; viagens recalculadas='+viagens);
+    return {ok:true,id:id,viagensPrevistas:viagens,message:'Planejamento da operação atualizado com segurança.'};
+  } finally {lock.releaseLock();}
+}
+
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
