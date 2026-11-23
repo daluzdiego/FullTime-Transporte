@@ -195,6 +195,15 @@
     .ops-detail-tabs{display:flex;gap:5px;overflow-x:auto;padding:8px 10px;background:#f0f5fc;border-bottom:1px solid #dce7f4}.ops-detail-tabs button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:9px 12px;border:1px solid #d1deee;border-radius:8px;background:#fff;color:#294766;font-size:11px;font-weight:700}.ops-detail-tabs button.active{background:#1769e0;border-color:#1769e0;color:#fff}.ops-tab-panel{padding:12px;background:#f7faff}.ops-detail-grid{display:grid;grid-template-columns:1.05fr 1.35fr 1.15fr 1fr;gap:10px}.ops-info-card{min-width:0;padding:12px;border:1px solid #d8e4f2;border-radius:10px;background:#fff}.ops-info-card h3{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #e8eef6;font-size:12px;color:#173b66}.ops-info-line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #edf2f8;font-size:10px}.ops-info-line span{color:#60748e}.ops-info-line strong{color:#1c3554;text-align:right}.ops-info-note{font-size:10px;line-height:1.5;color:#5d7390;padding-top:8px}.ops-movement-values{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.ops-movement-values>div{text-align:center;border-right:1px solid #e5edf6}.ops-movement-values>div:last-child{border:0}.ops-movement-values strong{display:block;font-size:14px;color:#142f52}.ops-movement-values small{display:block;margin-top:4px;color:#70839a;font-size:9px}.ops-movement-card .ops-progress-track{display:block;margin-top:14px}.ops-wide-card{grid-column:span 2}.ops-wide-card p{font-size:11px;line-height:1.5;color:#526b88;margin:6px 0 10px}.ops-tab-intro{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;border:1px solid #dce7f3;border-radius:9px;background:#fff}.ops-tab-intro>div{flex:1;min-width:180px}.ops-tab-intro h3{font-size:13px;margin:0 0 4px;color:#183b64}.ops-tab-intro p{font-size:10px;color:#627792;margin:0}.ops-tab-intro label{font-size:10px;color:#5d718b}.ops-tab-intro input{width:65px;padding:7px;border:1px solid #d6e1ef;border-radius:7px}.ops-inner-table{width:100%;min-width:650px;border-collapse:collapse}.ops-inner-table th,.ops-inner-table td{padding:9px 10px;font-size:10px;text-align:left;border-bottom:1px solid #e8eef5}.ops-inner-table th{background:#edf3fa;color:#4a6380}.ops-empty-state,.ops-loading{padding:24px 16px;text-align:center;border:1px dashed #cbd9e9;border-radius:9px;background:#fff;color:#5b718d;font-size:11px;line-height:1.6}.ops-empty-state strong{display:block;color:#193e68;font-size:13px;margin-bottom:5px}.ops-empty-state p{max-width:700px;margin:5px auto}.ops-history-list{display:grid;gap:8px}.ops-history-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #e0e9f3;border-radius:8px}.ops-history-dot{width:8px;height:8px;border-radius:50%;background:#276bb5}.ops-history-item strong,.ops-history-item small{display:block;font-size:11px}.ops-history-item small{margin-top:3px;color:#71849b}.ops-loading{border:0}
     @media(max-width:1200px){.ops-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.ops-detail-grid{grid-template-columns:1fr}.ops-wide-card{grid-column:span 1}.ops-detail-heading{align-items:flex-start}.ops-detail-actions{width:100%}.ops-detail-actions .btn{flex:1}.ops-detail-tabs button{padding:8px 10px}}
+
+    .topbar.operations-topbar{background:#082b59;color:#fff;border-bottom:1px solid #17477f}
+    .topbar.operations-topbar .top-title,.topbar.operations-topbar .top-heading,.topbar.operations-topbar .top-right{color:#fff}
+    .topbar.operations-topbar .today{background:transparent;color:#fff;border-color:rgba(255,255,255,.38)}
+    .topbar.operations-topbar .today *{color:#fff}
+    .topbar.operations-topbar .btn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
+    .topbar.operations-topbar .btn:hover{background:rgba(255,255,255,.12);color:#fff}
+    .topbar.operations-topbar .menu-toggle span{background:#fff}
+ 
 </style>
 </head>
 <body>
@@ -445,6 +454,7 @@
     else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
   });
   function renderPage(page){
+    const topbar=document.querySelector('.topbar');if(topbar)topbar.classList.toggle('operations-topbar',page==='operacoes');
     const appRoot=document.getElementById('appView');
     if(appRoot)appRoot.classList.toggle('center-dashboard',page==='centro'&&String(currentUser?.perfil||'').toUpperCase()==='ADMIN');
     if(page!=='centro'&&window.__ftCentroRefreshTimer){window.clearInterval(window.__ftCentroRefreshTimer);window.__ftCentroRefreshTimer=null;}
