@@ -120,7 +120,7 @@ function obterCentroOperacoesFullTime(token) {
   const totalTon=current.reduce((n,o)=>n+o.toneladasMovimentadas,0);
   return {
     user:session,atualizadoEm:new Date().toISOString(),hoje:today,
-    indicadores:{operacoesAtuais:current.length,operacoesFuturas:future.length,operacoesAtrasadas:late.length,sugestoesConclusao:all.filter(o=>o.sugestaoConclusao).length,conjuntosEmOperacao:current.reduce((n,o)=>n+o.conjuntos.length,0),motoristasEmOperacao:current.reduce((n,o)=>n+o.conjuntos.filter(s=>['ATIVO','SAIU','EM_VIAGEM'].includes(String(s.status||'').toUpperCase())).length,0),viagensPendentes:current.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},
+    indicadores:{operacoesAtuais:current.length,operacoesEmAndamento:current.filter(o=>['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(String(o.status||'').toUpperCase())).length,operacoesFuturas:future.length,operacoesAtrasadas:late.length,sugestoesConclusao:all.filter(o=>o.sugestaoConclusao).length,conjuntosEmOperacao:current.reduce((n,o)=>n+o.conjuntos.length,0),motoristasEmOperacao:current.reduce((n,o)=>n+o.conjuntos.filter(s=>['ATIVO','SAIU','EM_VIAGEM'].includes(String(s.status||'').toUpperCase())).length,0),viagensPendentes:current.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},
     operacoes:current,futuras:future,atrasadas:late,concluidas:all.filter(o=>o.grupo==='CONCLUIDAS'),canceladas:all.filter(o=>o.grupo==='CANCELADAS'),historico:all.filter(o=>['CONCLUIDAS','CANCELADAS'].includes(o.grupo))
   };
 }
