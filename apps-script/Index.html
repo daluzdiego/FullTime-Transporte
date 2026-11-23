@@ -164,6 +164,19 @@
 .center-archives{margin-top:12px}
 @media(max-width:1200px){.center-kpi-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.center-kpi-actions{justify-content:flex-start}}
 @media(max-width:700px){#appView.center-dashboard .content{padding:0 10px 24px}.center-hero{margin:0 -10px 10px;padding:14px}.center-hero h1{font-size:18px}.center-hero-meta{gap:8px}.center-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.center-section-title h2{font-size:16px}}
+
+    /* Identidade visual FullTime — navegação e tela Operações */
+    .sidebar{background:#08264a;color:#e7effb;border-right:1px solid #173b64;padding:22px 12px}
+    .sidebar .brand{padding:0 10px 30px;color:#fff}.sidebar .brand small{color:#b9cce4}.sidebar .brand-mark{background:#1458b8;color:#fff}
+    .nav-label{color:#91a9c7}.nav button{color:#d7e4f5;border-color:transparent}.nav button:hover{background:#123b68;color:#fff}.nav button.active{background:#1459bd;border-color:#236fd3;color:#fff}
+    .sidebar-bottom{border-top-color:#24476e}.user-meta span{color:#b9cce4}.avatar{background:#1769e0;color:#fff}.sidebar .icon-btn{background:#10365f;border-color:#315477;color:#fff}
+    .ops-page{max-width:1600px;margin:0 auto}.ops-page-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 20px}.ops-page-head h1{font-size:26px;letter-spacing:-.04em;margin:0 0 5px;color:#102b4c}.ops-page-head p{font-size:13px;color:#60738d;margin:0;line-height:1.5}.ops-eyebrow{font-size:10px;letter-spacing:.13em;font-weight:800;color:#55718f;margin-bottom:6px}.ops-head-actions{display:flex;gap:9px;flex-wrap:wrap}.ops-head-actions .btn{min-height:38px;padding:8px 13px}
+    .ops-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}.ops-kpi{display:flex;align-items:center;gap:12px;min-height:82px;padding:14px 16px;background:#fff;border:1px solid #dce5f0;border-radius:12px;box-shadow:0 3px 12px rgba(17,45,79,.035)}.ops-kpi-icon{width:38px;height:38px;flex:0 0 38px;border:1px solid #d9e4f2;border-radius:10px;display:grid;place-items:center;color:#345b89;font-size:19px}.ops-kpi strong{display:block;font-size:24px;line-height:1.05;color:#102b4c}.ops-kpi small{display:block;margin-top:5px;color:#667b95;font-size:11px}
+    .ops-list-panel{border-radius:13px;box-shadow:0 5px 20px rgba(17,45,79,.045)}.ops-list-head{padding:15px 18px}.ops-list-head h2{font-size:15px;color:#163657}.ops-live-label{font-size:11px;color:#60738d;display:flex;align-items:center;gap:7px}.ops-live-label i{width:7px;height:7px;border-radius:50%;background:#19976a;display:inline-block}.ops-list-panel .panel-body{padding:14px 16px 18px}
+    .ops-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:13px}.ops-search{display:flex;align-items:center;gap:8px;flex:1;min-width:230px;height:40px;padding:0 11px;border:1px solid #dce5ef;border-radius:9px;color:#60738d;background:#fff}.ops-search input{width:100%;border:0;outline:0!important;height:36px;background:transparent;color:#18324f;font-size:12px}.ops-toolbar select{height:40px;min-width:155px;padding:0 30px 0 11px;border:1px solid #dce5ef;border-radius:9px;background:#fff;color:#294461;font-size:12px}
+    .ops-table{min-width:1000px;border-collapse:separate;border-spacing:0;table-layout:auto}.ops-table th{background:#edf3fa;color:#49617e;font-size:10px;padding:12px 11px}.ops-table td{padding:12px 11px;font-size:11px;color:#263d58;border-bottom:1px solid #e9eef5}.ops-table tbody tr.ops-row:nth-child(even){background:#f7faff}.ops-table tbody tr.ops-row:hover{background:#edf5ff}.ops-name-button{display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;text-align:left;color:#123e77;min-width:150px}.ops-name-button strong{display:block;font-size:12px;color:#123e77}.ops-name-button small,.ops-subline{display:block;font-size:10px;color:#71839a;margin-top:4px}.ops-row-chevron{font-size:22px;line-height:12px;color:#345e8c;transition:transform .15s}.ops-route-cell{white-space:nowrap;color:#35516f}.ops-route-arrow{color:#7d91a9;padding:0 4px}.ops-progress{display:flex;align-items:center;gap:8px;min-width:115px}.ops-progress-track{height:7px;flex:1;min-width:55px;border-radius:10px;background:#dce5ef;overflow:hidden}.ops-progress-track span{display:block;height:100%;border-radius:10px;background:#2467b8}.ops-progress b{font-size:10px;color:#234b7b}.ops-detail-btn{min-height:30px;padding:5px 10px;font-size:10px}.ops-details-row td{background:#f1f6fc;padding:10px 12px 14px}.ops-form-panel{max-width:none;margin-top:15px}.ops-form-panel .panel-head{cursor:pointer}.ops-form-panel .panel-head h2{font-size:14px}
+    @media(max-width:1100px){.ops-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ops-page-head{align-items:flex-start}}
+    @media(max-width:700px){.ops-page-head{display:block}.ops-head-actions{margin-top:12px}.ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ops-kpi{padding:10px;min-height:70px}.ops-kpi strong{font-size:20px}.ops-kpi small{font-size:10px}.ops-toolbar{align-items:stretch}.ops-search{min-width:100%}.ops-toolbar select{flex:1;min-width:0}.ops-page-head h1{font-size:22px}}
 </style>
 </head>
 <body>
@@ -936,35 +949,90 @@
 
   function renderOperacoes(){
     const ops=dashboard?.operacoes||[];
-    const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
-    const categoryLabel={PADRAO:'Seleção equilibrada',ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};const typeLabel={DESCARGA_NAVIO:'Descarga de navio',TRANSFERENCIA_FABRICAS:'Transferência entre fábricas',REMOCAO_INTERNA:'Remoção interna',OUTRA:'Outra'};
+    const categoryLabel={PADRAO:'Seleção equilibrada',ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Prazo de navio'};
+    const typeLabel={DESCARGA_NAVIO:'Descarga de navio',TRANSFERENCIA_FABRICAS:'Transferência entre fábricas',REMOCAO_INTERNA:'Remoção interna',OUTRA:'Outra'};
+    const norm=v=>String(v||'').trim().toUpperCase();
+    const statusCount=(...values)=>ops.filter(o=>values.includes(norm(o.status))).length;
+    const total=ops.length, active=statusCount('EM_ANDAMENTO','EM EXECUCAO','EM EXECUÇÃO'), formation=statusCount('EM_FORMACAO','EM FORMAÇÃO','PENDENTE_REVISAO','PENDENTE REVISÃO'), waiting=statusCount('ABERTA','AGUARDANDO_INICIO','AGUARDANDO INÍCIO'), done=statusCount('CONCLUIDA','CONCLUÍDA','ENCERRADA');
+    const rows=ops.map(o=>{
+      const oid=esc(o.id),name=String(o.campos?.[2]||'Operação sem nome'),client=String(o.campos?.[1]||''),origin=String(o.campos?.[3]||''),dest=String(o.campos?.[4]||'');
+      const planned=Math.max(0,Number(o.viagensPrevistas||0)),completed=Math.max(0,Number(o.viagensRealizadas||0)),remaining=Math.max(0,Number(o.viagensRestantes??(planned-completed)));
+      const progress=planned?Math.min(100,Math.round(completed/planned*100)):0;
+      const search=[name,client,origin,dest,o.status,o.tipoOperacao,o.campos?.[5]].join(' ').toLocaleLowerCase('pt-BR');
+      const route=esc(origin)+' <span class="ops-route-arrow">→</span> '+esc(dest);
+      return `<tr class="ops-row" data-search="${esc(search)}" data-status="${esc(norm(o.status))}" data-category="${esc(norm(o.campos?.[5]))}">
+        <td><button class="ops-name-button" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')"><span class="ops-row-chevron">›</span><span><strong>${esc(name)}</strong><small>${esc(client)}</small></span></button></td>
+        <td class="ops-route-cell">${route}</td>
+        <td>${esc(formatDate(o.campos?.[0]))}</td>
+        <td><strong>${esc(o.campos?.[6]||'0')} t</strong><small class="ops-subline">Saldo: ${esc(o.campos?.[8]||'0')} t</small></td>
+        <td><div class="ops-progress"><div class="ops-progress-track"><span style="width:${progress}%"></span></div><b>${progress}%</b></div><small class="ops-subline">${completed} de ${planned} viagens</small></td>
+        <td><strong>${planned}</strong><small class="ops-subline">${remaining} restantes</small></td>
+        <td>${statusBadge(o.status)}</td>
+        <td><button class="btn btn-secondary ops-detail-btn" onclick="showDetalhesOperacao('${oid}')">Detalhes</button></td>
+      </tr><tr id="details-row-${oid}" class="ops-details-row" style="display:none"><td colspan="8"><div id="details-content-${oid}"></div></td></tr>`;
+    }).join('');
     return `
-      <div class="page-head"><div><h1>Operações</h1><p>Controle o volume, as viagens previstas, as viagens realizadas e o saldo restante de cada operação.</p></div></div>
-      <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
-      <div class="panel ops-list-panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria de escala</th><th>Tipo de operação</th><th>Volume inicial</th><th>Saldo</th><th>Viagens previstas</th><th>Realizadas</th><th>Restantes</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>{const oid=esc(o.id);return `<tr id="op-row-${oid}"><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(typeLabel[o.tipoOperacao]||o.tipoOperacao||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${esc(o.viagensPrevistas||0)}</td><td>${esc(o.viagensRealizadas||0)}</td><td>${esc(o.viagensRestantes||0)}</td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')">DETALHES</button> <button class="icon-btn" title="Registrar movimentação" onclick="showMovimentacao('${oid}')">＋</button></td></tr><tr id="details-row-${oid}" style="display:none"><td colspan="11"><div id="details-content-${oid}"></div></td></tr>`}).join(''):'<tr><td colspan="11"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Use o formulário abaixo para cadastrar a primeira operação.</div></td></tr>'}
-      </tbody></table></div></div></div>
-      <details class="panel form-panel ops-form-panel"><summary class="panel-head"><h2>＋ Nova operação</h2><span class="badge badge-pending">Saldo por toneladas · abrir formulário</span></summary><div class="panel-body">
-        <form onsubmit="saveOperacao(event)"><div class="form-grid">
-          <div class="field"><label>Data *</label><input name="data" type="date" required></div>
-          <div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120"></div>
-          <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
-          <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
-          <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
-          <div class="field"><label>Produto / material</label><input name="produto" maxlength="160" placeholder="Ex.: fertilizante, grãos, minério"></div>
-          <div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1" placeholder="Informada/validada"></div>
-          <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div>
-          <div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
-          <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div>
-          <div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
-          <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
-          <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"></div>
-          <div class="field"><label>Carga estimada por viagem (toneladas) *</label><input name="toneladasPorViagem" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"><div class="muted small" id="previsaoViagensOperacao">Informe a carga média estimada para calcular automaticamente as viagens.</div></div>
-          <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
-        </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
-      </div></details>
-      <div id="operacaoActionPanel"></div>`;
+      <section class="ops-page">
+        <div class="ops-page-head"><div><div class="ops-eyebrow">GESTÃO DE TRANSPORTE</div><h1>Operações</h1><p>Acompanhe o planejamento, a formação das escalas, as viagens e o saldo de cada operação.</p></div><div class="ops-head-actions"><button class="btn btn-secondary" onclick="atualizarTelaOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacao()">＋ Nova operação</button></div></div>
+        <div class="ops-kpis">
+          <article class="ops-kpi"><span class="ops-kpi-icon">▦</span><div><strong>${total}</strong><small>Operações cadastradas</small></div></article>
+          <article class="ops-kpi"><span class="ops-kpi-icon">◷</span><div><strong>${formation}</strong><small>Em formação / revisão</small></div></article>
+          <article class="ops-kpi"><span class="ops-kpi-icon">Ⅱ</span><div><strong>${waiting}</strong><small>Aguardando início</small></div></article>
+          <article class="ops-kpi"><span class="ops-kpi-icon">▶</span><div><strong>${active}</strong><small>Em andamento</small></div></article>
+          <article class="ops-kpi"><span class="ops-kpi-icon">✓</span><div><strong>${done}</strong><small>Concluídas</small></div></article>
+        </div>
+        <div class="panel ops-list-panel">
+          <div class="panel-head ops-list-head"><div><h2>Controle de operações</h2><span class="muted small" id="ops-result-count">${total} operação(ões)</span></div><div class="ops-live-label"><i></i> Dados da base operacional</div></div>
+          <div class="panel-body">
+            <div class="ops-toolbar"><label class="ops-search">⌕ <input id="ops-search" type="search" placeholder="Buscar operação, cliente ou rota..." oninput="filtrarTabelaOperacoes()"></label>
+              <select id="ops-status-filter" aria-label="Filtrar por status" onchange="filtrarTabelaOperacoes()"><option value="">Todos os status</option><option value="ABERTA">Aberta</option><option value="EM_ANDAMENTO">Em andamento</option><option value="EM_FORMACAO">Em formação</option><option value="PENDENTE_REVISAO">Pendente revisão</option><option value="CONCLUIDA">Concluída</option></select>
+              <select id="ops-category-filter" aria-label="Filtrar por categoria" onchange="filtrarTabelaOperacoes()"><option value="">Todas as categorias</option><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Prazo de navio</option></select>
+            </div>
+            <div class="table-wrap ops-table-wrap"><table class="ops-table"><thead><tr><th>Operação / cliente</th><th>Origem → destino</th><th>Data</th><th>Volume / saldo</th><th>Progresso</th><th>Viagens</th><th>Status</th><th>Ação</th></tr></thead><tbody id="ops-table-body">${rows||'<tr><td colspan="8"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Cadastre uma operação para iniciar o planejamento e a formação da escala.</div></td></tr>'}</tbody></table></div>
+            <div id="ops-empty-filter" class="empty hidden"><strong>Nenhuma operação encontrada</strong>Altere os filtros ou o texto da busca.</div>
+          </div>
+        </div>
+        <details class="panel form-panel ops-form-panel" id="ops-new-form"><summary class="panel-head"><h2>＋ Cadastrar nova operação</h2><span class="badge badge-pending">Planejamento inicial</span></summary><div class="panel-body">
+          <form onsubmit="saveOperacao(event)"><div class="form-grid">
+            <div class="field"><label>Data *</label><input name="data" type="date" required></div>
+            <div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120"></div>
+            <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
+            <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
+            <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
+            <div class="field"><label>Produto / material</label><input name="produto" maxlength="160" placeholder="Ex.: fertilizante, grãos, minério"></div>
+            <div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1" placeholder="Informada/validada"></div>
+            <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div>
+            <div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
+            <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div>
+            <div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
+            <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
+            <div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
+            <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"></div>
+            <div class="field"><label>Carga estimada por viagem (toneladas) *</label><input name="toneladasPorViagem" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"><div class="muted small" id="previsaoViagensOperacao">Informe a carga média estimada para calcular automaticamente as viagens.</div></div>
+            <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
+          </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
+        </div></details>
+        <div id="operacaoActionPanel"></div>
+      </section>`;
   }
+  function filtrarTabelaOperacoes(){
+    const q=String(document.getElementById('ops-search')?.value||'').trim().toLocaleLowerCase('pt-BR');
+    const status=String(document.getElementById('ops-status-filter')?.value||'').toUpperCase();
+    const category=String(document.getElementById('ops-category-filter')?.value||'').toUpperCase();
+    const rows=Array.from(document.querySelectorAll('#ops-table-body tr.ops-row'));
+    let visible=0;
+    rows.forEach(row=>{const match=(!q||String(row.dataset.search||'').includes(q))&&(!status||row.dataset.status===status)&&(!category||row.dataset.category===category);row.style.display=match?'':'none';const detail=document.getElementById(row.id.replace('op-row-','details-row-'));if(detail&&!match)detail.style.display='none';if(match)visible++;});
+    document.getElementById('ops-result-count').textContent=visible+' de '+rows.length+' operação(ões)';
+    document.getElementById('ops-empty-filter').classList.toggle('hidden',visible>0||rows.length===0);
+  }
+  function abrirFormularioOperacao(){
+    const form=document.getElementById('ops-new-form');if(form){form.open=true;form.scrollIntoView({behavior:'smooth',block:'start'});}
+  }
+  function atualizarTelaOperacoes(){
+    const btn=event?.currentTarget;if(btn){btn.disabled=true;btn.textContent='Atualizando…';}
+    google.script.run.withSuccessHandler(data=>{dashboard=parsePainelResponse(data);renderPage('operacoes');toast('Operações atualizadas.');}).withFailureHandler(e=>{if(btn){btn.disabled=false;btn.textContent='↻ Atualizar';}toast(e.message||'Não foi possível atualizar as operações.',true);}).obterPainelFullTime(authToken);
+  }
+
   function atualizarPrevisaoViagensOperacao(form){
     const volume=Number(form.elements.volumeTotal?.value||0),carga=Number(form.elements.toneladasPorViagem?.value||0),host=document.getElementById('previsaoViagensOperacao');
     if(!host)return;
