@@ -265,11 +265,11 @@ function prepararBaseOperacionalFullTime() {
     } else if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
-      const prefix = row.every((v,i) => headers[i] === v);
+      const prefix = headers.every((h,i) => row[i] === h);
       if (prefix && row.length < headers.length) {
         sh.getRange(1,row.length+1,1,headers.length-row.length).setValues([headers.slice(row.length)]);
-      } else if (row.length !== headers.length || headers.some((h,i) => row[i] !== h)) {
-        throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
+      } else if (!prefix) {
+        throw new Error('A guia ' + name + ' já existe com cabeçalhos incompatíveis. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
       }
     }
     sh.setFrozenRows(1);
