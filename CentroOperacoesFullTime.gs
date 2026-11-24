@@ -112,3 +112,61 @@ function FT_prepararCamposLogisticosOperacao20261110() {
   sh.setFrozenRows(1);
   return {ok:true,adicionados:missing,preservados:true,totalColunas:finalHeaders.length,message:missing.length?'Campos logísticos adicionados ao final de OPERACOES.':'Todos os campos logísticos já existem.'};
 }
+
+
+/** Início administrativo auditável da operação. */
+function iniciarOperacaoFullTime(token, operacaoId) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  operacaoId = String(operacaoId || '').trim();
+  if (!operacaoId) throw new Error('Selecione uma operação.');
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const sh = getSheet_('OPERACOES');
+    const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+    const map = {}; headers.forEach((h,i)=>{const k=FT_CENTRO_norm_(h);if(k&&map[k]===undefined)map[k]=i;});
+    ['ID','STATUS'].forEach(k=>{if(map[k]===undefined)throw new Error('Coluna obrigatória ausente em OPERACOES: '+k);});
+    const rows = sh.getDataRange().getValues();
+    let row = -1;
+    for(let i=1;i<rows.length;i++) if(String(rows[i][map.ID]||'')===operacaoId){row=i+1;break;}
+    if(row<2) throw new Error('Operação não encontrada.');
+    const status=String(sh.getRange(row,map.STATUS+1).getValue()||'').trim().toUpperCase();
+    if(status!=='ABERTA') throw new Error('Somente operações ABERTAS podem ser iniciadas. Status atual: '+status);
+    sh.getRange(row,map.STATUS+1).setValue('EM_ANDAMENTO');
+    if(map.INICIADA_EM!==undefined) sh.getRange(row,map.INICIADA_EM+1).setValue(new Date());
+    if(typeof auditar_==='function') auditar_(session,'INICIAR_OPERACAO','OPERACAO',operacaoId,'ABERTA -> EM_ANDAMENTO');
+    return {ok:true,message:'Operação iniciada e registrada no histórico.'};
+  } finally { lock.releaseLock(); }
+}
+
+/** Encerramento administrativo: exige viagens previstas cumpridas e nenhuma participação pendente/ativa. */
+function confirmarConclusaoOperacaoFullTime(token, operacaoId, justificativa) {
+  const session = obterSessao_(token); exigirAdmin_(session);
+  operacaoId = String(operacaoId || '').trim();
+  justificativa = String(justificativa || '').trim().slice(0,500);
+  if (!operacaoId) throw new Error('Selecione uma operação.');
+  if (!justificativa) throw new Error('Informe a confirmação/justificativa do encerramento.');
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const sh = getSheet_('OPERACOES');
+    const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+    const map = {}; headers.forEach((h,i)=>{const k=FT_CENTRO_norm_(h);if(k&&map[k]===undefined)map[k]=i;});
+    ['ID','STATUS','TOTAL_VIAGENS_PREVISTAS'].forEach(k=>{if(map[k]===undefined)throw new Error('Coluna obrigatória ausente em OPERACOES: '+k);});
+    const rows = sh.getDataRange().getValues();
+    let row = -1, record = null;
+    for(let i=1;i<rows.length;i++) if(String(rows[i][map.ID]||'')===operacaoId){row=i+1;record=rows[i];break;}
+    if(row<2) throw new Error('Operação não encontrada.');
+    const status=String(record[map.STATUS]||'').trim().toUpperCase();
+    if(!['EM_ANDAMENTO','ABERTA'].includes(status)) throw new Error('A operação não pode ser encerrada no status '+status+'.');
+    const parts = FT_CENTRO_rows_('PARTICIPACAO_OPERACOES');
+    const active = parts.filter(p=>String(p.OPERACAO_ID||'')===operacaoId && ['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
+    if(active.length) throw new Error('Ainda existem '+active.length+' participação(ões) pendente(s) ou ativa(s). Resolva as convocações antes de encerrar.');
+    const center = obterCentroOperacoesFullTime(token);
+    const op = (center.operacoes||[]).find(o=>String(o.id)===operacaoId);
+    if(!op) throw new Error('Não foi possível conferir os indicadores da operação.');
+    if(op.viagensRealizadas < op.viagensPrevistas) throw new Error('Viagens realizadas ('+op.viagensRealizadas+') abaixo das previstas ('+op.viagensPrevistas+'). Confira as movimentações antes do encerramento.');
+    sh.getRange(row,map.STATUS+1).setValue('CONCLUIDA');
+    if(map.CONCLUIDA_EM!==undefined) sh.getRange(row,map.CONCLUIDA_EM+1).setValue(new Date());
+    if(typeof auditar_==='function') auditar_(session,'ENCERRAR_OPERACAO','OPERACAO',operacaoId,justificativa+' | carregado='+op.toneladasMovimentadas+' t | saldo residual='+op.saldo+' t');
+    return {ok:true,message:'Operação encerrada. O volume carregado e eventual saldo residual permanecem registrados.'};
+  } finally { lock.releaseLock(); }
+}
