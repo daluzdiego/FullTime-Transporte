@@ -83,3 +83,29 @@ Executar somente em ambiente de homologação, com mensagem fictícia.
 - [ ] Confirmar que o retorno registra qual modelo respondeu, sem registrar a chave da API.
 - [ ] Confirmar que erros HTTP 400/401/402/403 não acionam fallback, pois exigem correção de requisição, autenticação ou cobrança.
 - [ ] Executar `testarConexaoGeminiFullTime()` e verificar qual modelo está conseguindo gerar texto no momento.
+
+
+## MVP — seis execuções de preparação e homologação
+
+**Importante:** sincronize primeiro todos os arquivos do branch `fulltime-2.0` no Apps Script. Não execute reconstruções que limpem a planilha de produção. As duas primeiras rotinas são aditivas e não apagam dados.
+
+1. `prepararBaseOperacionalFullTime()` — confere/prepara as guias operacionais previstas, preservando linhas e cabeçalhos adicionais compatíveis.
+2. `prepararEstruturaMvpDestinosFullTime()` — cria `DESTINOS_OPERACAO` e acrescenta `ID_DESTINO` ao fim de `MOVIMENTACOES_OPERACAO`.
+3. `auditarMvpDestinosFullTime()` — deve retornar `ok: true`, sem alertas.
+4. `testarRegrasMvpDestinosFullTime()` — teste sem escrita: 800 t com destinos 120/100/300/50/90 (660 t distribuídas, 140 t não destinadas), destino único e bloqueio de excesso.
+5. `testarConexaoGeminiFullTime()` — verifica geração real e modelos alternativos; não lê nem grava solicitações.
+6. Homologação funcional pela interface: criar uma operação fictícia pelo formulário **Cadastro manual completo — sem IA**, com 800 t e cinco destinos; confirmar que aparecem 660 t distribuídas e 140 t não destinadas; designar um conjunto de teste e registrar entrega em um destino; conferir redução simultânea do saldo do destino e da operação. Depois, registrar uma solicitação fictícia e testar **IA → Revisar → Aprovar → Gerar operação**, verificando os mesmos destinos. Não usar dados reais até concluir os testes.
+
+### Casos obrigatórios de aceite
+
+- [ ] Destino único e múltiplos destinos.
+- [ ] Soma dos destinos acima do total deve ser bloqueada.
+- [ ] Volume não distribuído permanece no saldo geral.
+- [ ] Entrega não pode exceder saldo do destino nem saldo geral.
+- [ ] Operação com destinos não pode usar endpoint antigo sem `ID_DESTINO`.
+- [ ] IA indisponível não bloqueia o formulário manual.
+- [ ] IA não aprova nem cria operação automaticamente.
+- [ ] Solicitação preserva mensagem original e permite reprocessamento.
+- [ ] Cancelamento exige motivo, bloqueia novas entregas e preserva histórico.
+- [ ] Reabertura exige justificativa e nova conferência operacional.
+- [ ] Regressão de operações legadas sem destinos continua usando movimentação antiga.
