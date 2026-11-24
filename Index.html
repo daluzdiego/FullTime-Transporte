@@ -195,6 +195,20 @@
     .ops-detail-tabs{display:flex;gap:5px;overflow-x:auto;padding:8px 10px;background:#f0f5fc;border-bottom:1px solid #dce7f4}.ops-detail-tabs button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:9px 12px;border:1px solid #d1deee;border-radius:8px;background:#fff;color:#294766;font-size:11px;font-weight:700}.ops-detail-tabs button.active{background:#1769e0;border-color:#1769e0;color:#fff}.ops-tab-panel{padding:12px;background:#f7faff}.ops-detail-grid{display:grid;grid-template-columns:1.05fr 1.35fr 1.15fr 1fr;gap:10px}.ops-info-card{min-width:0;padding:12px;border:1px solid #d8e4f2;border-radius:10px;background:#fff}.ops-info-card h3{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #e8eef6;font-size:12px;color:#173b66}.ops-info-line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #edf2f8;font-size:10px}.ops-info-line span{color:#60748e}.ops-info-line strong{color:#1c3554;text-align:right}.ops-info-note{font-size:10px;line-height:1.5;color:#5d7390;padding-top:8px}.ops-movement-values{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.ops-movement-values>div{text-align:center;border-right:1px solid #e5edf6}.ops-movement-values>div:last-child{border:0}.ops-movement-values strong{display:block;font-size:14px;color:#142f52}.ops-movement-values small{display:block;margin-top:4px;color:#70839a;font-size:9px}.ops-movement-card .ops-progress-track{display:block;margin-top:14px}.ops-wide-card{grid-column:span 2}.ops-wide-card p{font-size:11px;line-height:1.5;color:#526b88;margin:6px 0 10px}.ops-tab-intro{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;border:1px solid #dce7f3;border-radius:9px;background:#fff}.ops-tab-intro>div{flex:1;min-width:180px}.ops-tab-intro h3{font-size:13px;margin:0 0 4px;color:#183b64}.ops-tab-intro p{font-size:10px;color:#627792;margin:0}.ops-tab-intro label{font-size:10px;color:#5d718b}.ops-tab-intro input{width:65px;padding:7px;border:1px solid #d6e1ef;border-radius:7px}.ops-inner-table{width:100%;min-width:650px;border-collapse:collapse}.ops-inner-table th,.ops-inner-table td{padding:9px 10px;font-size:10px;text-align:left;border-bottom:1px solid #e8eef5}.ops-inner-table th{background:#edf3fa;color:#4a6380}.ops-empty-state,.ops-loading{padding:24px 16px;text-align:center;border:1px dashed #cbd9e9;border-radius:9px;background:#fff;color:#5b718d;font-size:11px;line-height:1.6}.ops-empty-state strong{display:block;color:#193e68;font-size:13px;margin-bottom:5px}.ops-empty-state p{max-width:700px;margin:5px auto}.ops-history-list{display:grid;gap:8px}.ops-history-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #e0e9f3;border-radius:8px}.ops-history-dot{width:8px;height:8px;border-radius:50%;background:#276bb5}.ops-history-item strong,.ops-history-item small{display:block;font-size:11px}.ops-history-item small{margin-top:3px;color:#71849b}.ops-loading{border:0}
     @media(max-width:1200px){.ops-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.ops-detail-grid{grid-template-columns:1fr}.ops-wide-card{grid-column:span 1}.ops-detail-heading{align-items:flex-start}.ops-detail-actions{width:100%}.ops-detail-actions .btn{flex:1}.ops-detail-tabs button{padding:8px 10px}}
+
+    /* Identidade visual global: todas as guias usam o cabeçalho azul institucional. */
+    #appView .topbar{background:#082b5c;border-bottom:1px solid #173f70;color:#f8fbff}
+    #appView .top-title,#appView #topSubtitle{color:#fff}
+    #appView #topSubtitle{opacity:.82}
+    #appView .today{background:#103967;border-color:#31577f;color:#dbeafe}
+    #appView .top-right>.btn{background:transparent;color:#fff;border-color:#41648b}
+    #appView .top-right>.btn:hover{background:rgba(255,255,255,.1)}
+    #appView .menu-toggle{background:#103967;border-color:#41648b}
+    #appView .menu-toggle span{background:#fff}
+    .sol-dest-row{border:1px solid #dbe5f0;border-radius:10px;padding:12px;margin:10px 0;background:#fbfdff}
+    .sol-dest-row .form-grid{gap:10px}
+    .manual-destination-row{border:1px solid #dbe5f0;border-radius:10px;padding:12px;margin:10px 0;background:#fbfdff}
+    .receipt-preview{max-width:220px;max-height:180px;object-fit:contain;border:1px solid #dbe5f0;border-radius:8px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -772,9 +786,32 @@
     const host=document.getElementById('solAnaliseResultado');if(!host)return;
     const approvalReady=pending.length===0 && x.status==='AGUARDANDO_APROVACAO';
     const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>'<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" maxlength="500" oninput="ocultarAprovacaoAteSalvar()" value="'+esc(d[k]||'')+'"></div>').join('');
+    const destinationRows=Array.isArray(d.destinos)?d.destinos:[];
+    const destinationsHtml=destinationRows.map((dest,i)=>htmlDestinoRevisaoFullTime(dest,i)).join('');
+    const saldoConfirmado=String(d.saldoNaoDistribuidoConfirmado||'').toUpperCase()==='SIM';
     const pendingHtml=pending.length?'<div class="notice" style="margin:14px 0"><strong>Não é possível aprovar ainda. Corrija estas pendências:</strong><ul>'+pending.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul><span>O botão APROVAR só será liberado depois de salvar a revisão e validar todos os campos.</span></div>':(x.status==='AGUARDANDO_APROVACAO'?'<div class="notice" style="margin:14px 0"><strong>Validação concluída.</strong> Todos os campos obrigatórios foram preenchidos. O botão de aprovação está liberado.</div>':'<div class="notice" style="margin:14px 0"><strong>Validação ainda não concluída.</strong> Salve a revisão para o servidor conferir os campos obrigatórios e informar o que falta.</div>');
-    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados da solicitação</h3><div class="form-grid">'+fields+'</div>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button>'+(approvalReady?'<button id="solApproveButton" class="btn btn-primary" type="button" onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button>':'<span id="solApproveLocked" class="muted small">Aprovação bloqueada até validar e salvar todos os campos.</span>')+'</div></form></div></div>';
+    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados da solicitação</h3><div class="form-grid">'+fields+'</div><h3 style="margin-top:18px">Destinos e volumes</h3><div id="solEditDestinations">'+destinationsHtml+'</div><button class="btn btn-secondary" type="button" onclick="adicionarDestinoRevisaoFullTime()">＋ Adicionar destino</button><label class="field" style="display:flex;align-items:center;gap:9px;margin-top:12px"><input id="solEditSaldoConfirmado" type="checkbox" '+(saldoConfirmado?'checked':'')+' onchange="ocultarAprovacaoAteSalvar()" style="width:auto"> Confirmo que o saldo não distribuído pode permanecer sem destino nesta etapa.</label>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button>'+(approvalReady?'<button id="solApproveButton" class="btn btn-primary" type="button" onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button>':'<span id="solApproveLocked" class="muted small">Aprovação bloqueada até validar e salvar todos os campos.</span>')+'</div></form></div></div>';
     host.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function htmlDestinoRevisaoFullTime(dest,index){
+    dest=dest||{};
+    return '<div class="sol-dest-row"><div class="form-grid">'+
+      '<div class="field"><label>Empresa / recebedor</label><input data-destino="cliente" value="'+esc(dest.cliente||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Local de entrega</label><input data-destino="local" value="'+esc(dest.local||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Cidade / UF</label><input data-destino="cidadeUf" value="'+esc(dest.cidadeUf||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Volume (t)</label><input data-destino="volume" type="number" min="0" step="0.01" value="'+esc(dest.volume||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Data prevista</label><input data-destino="dataPrevista" type="date" value="'+esc(dest.dataPrevista||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Observações</label><input data-destino="observacoes" value="'+esc(dest.observacoes||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<input type="hidden" data-destino="evidenciaVolume" value="'+esc(dest.evidenciaVolume||'')+'"></div>'+
+      '<button class="btn btn-secondary" type="button" onclick="removerDestinoRevisaoFullTime(this)">Remover destino</button></div>';
+  }
+  function adicionarDestinoRevisaoFullTime(){
+    const host=document.getElementById('solEditDestinations');if(!host)return;
+    host.insertAdjacentHTML('beforeend',htmlDestinoRevisaoFullTime({},host.querySelectorAll('.sol-dest-row').length));
+    ocultarAprovacaoAteSalvar();
+  }
+  function removerDestinoRevisaoFullTime(button){
+    button.closest('.sol-dest-row')?.remove();ocultarAprovacaoAteSalvar();
   }
   function ocultarAprovacaoAteSalvar(){
     const btn=document.getElementById('solApproveButton');if(btn)btn.remove();
@@ -784,8 +821,12 @@
     ev.preventDefault();
     const dados={};
     Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    const pendingField=document.getElementById('solEditPending');
-    const pending=pendingField?pendingField.value.split(/\n/).map(s=>s.trim()).filter(Boolean):[];
+    dados.destinos=Array.from(document.querySelectorAll('#solEditDestinations .sol-dest-row')).map(row=>{
+      const get=key=>row.querySelector('[data-destino="'+key+'"]')?.value?.trim()||'';
+      return {cliente:get('cliente'),local:get('local'),cidadeUf:get('cidadeUf'),volume:get('volume'),dataPrevista:get('dataPrevista'),observacoes:get('observacoes'),evidenciaVolume:get('evidenciaVolume')};
+    });
+    dados.saldoNaoDistribuidoConfirmado=document.getElementById('solEditSaldoConfirmado')?.checked?'SIM':'';
+    const pending=[];
     const questions=document.getElementById('solEditQuestions').value;
     google.script.run.withSuccessHandler(res=>{
       const current=solicitacoesFullTime.find(s=>s.id===id);
@@ -809,7 +850,7 @@
     const host=document.getElementById('solAnaliseResultado');
     if(host)host.innerHTML='<div class="notice">A IA está analisando a mensagem e verificando informações faltantes. Aguarde…</div>';
     google.script.run.withSuccessHandler(res=>{
-      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>'+(res&&res.aguardandoIA?'Análise adiada — solicitação preservada.':'A análise não foi concluída.')+'</strong><br>'+esc(res&&res.mensagem||'Tente novamente mais tarde.')+'</div>';carregarSolicitacoesFullTime();return;}
+      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>'+(res&&res.aguardandoIA?'Análise adiada — solicitação preservada.':'A análise não foi concluída.')+'</strong><br>'+esc(res&&res.mensagem||'Tente novamente mais tarde.')+(res&&res.detalhe?'<p class="small">Detalhe técnico: '+esc(res.detalhe)+'</p>':'')+'</div>';carregarSolicitacoesFullTime();return;}
       const a=res.analise||{}, d=a.dados||{};
       const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Viagens previstas',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
       const fields=Object.keys(labels).filter(k=>String(d[k]||'').trim()).map(k=>'<div style="padding:9px 10px;border-bottom:1px solid #edf0f5"><div class="muted small">'+esc(labels[k])+'</div><strong>'+esc(d[k])+'</strong></div>').join('');
