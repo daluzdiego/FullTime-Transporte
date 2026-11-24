@@ -103,3 +103,85 @@ function listarRecibosViagemFullTime(token,operacaoId){
     return {id:String(r[map.ID]||''),data:r[map.RECEBIDO_EM] instanceof Date?r[map.RECEBIDO_EM].toISOString():String(r[map.RECEBIDO_EM]||''),motoristaId:String(r[map.MOTORISTA_ID]||''),tipo:String(r[map.TIPO_RECIBO]||''),url:String(r[map.DRIVE_URL]||''),nome:String(r[map.NOME_ARQUIVO]||''),status:String(r[map.STATUS]||''),destinoId:String(r[map.DESTINO_ID]||''),observacoes:String(r[map.OBSERVACOES]||'')};
   }).reverse();
 }
+
+
+/**
+ * TESTE 1 — valida estrutura de TICKETS e acesso à pasta do Drive.
+ * SOMENTE LEITURA: não cria guias/pastas, não altera cabeçalhos e não grava linhas.
+ */
+function testarEstruturaRecibosViagemFullTime() {
+  var props = PropertiesService.getScriptProperties();
+  var databaseId = String(props.getProperty('FT_REGISTRY_DATABASE_ID') || '').trim();
+  var folderId = String(props.getProperty('FT_TICKET_DRIVE_FOLDER_ID') || '').trim();
+  var result = {
+    ok: false,
+    somenteLeitura: true,
+    planilhaConfigurada: !!databaseId,
+    guiaEncontrada: false,
+    guia: 'TICKETS',
+    colunas: 0,
+    cabecalhosCanonicosEsperados: FT_TICKET_HEADERS_20261124.length,
+    cabecalhosAusentes: [],
+    duplicados: [],
+    cabecalhosVazios: [],
+    pastaIdConfigurada: !!folderId,
+    pastaDriveAcessivel: false,
+    erros: []
+  };
+
+  try {
+    if (!databaseId) throw new Error('Propriedade FT_REGISTRY_DATABASE_ID não configurada.');
+    var ss = SpreadsheetApp.openById(databaseId);
+    var sh = ss.getSheetByName('TICKETS');
+    if (!sh) throw new Error('A guia TICKETS não existe. Este teste não a criará.');
+    result.guiaEncontrada = true;
+    result.colunas = sh.getLastColumn();
+
+    if (result.colunas < 1) {
+      result.erros.push('A guia TICKETS não possui cabeçalho.');
+    } else {
+      var headers = sh.getRange(1, 1, 1, result.colunas).getDisplayValues()[0];
+      var counts = {};
+      headers.forEach(function(value, index) {
+        var key = String(value || '').trim().toUpperCase();
+        if (!key) {
+          result.cabecalhosVazios.push(index + 1);
+          return;
+        }
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      Object.keys(counts).forEach(function(key) {
+        if (counts[key] > 1) result.duplicados.push({ cabecalho: key, quantidade: counts[key] });
+      });
+      result.cabecalhosAusentes = FT_TICKET_HEADERS_20261124.filter(function(key) {
+        return !counts[key];
+      });
+      if (result.cabecalhosAusentes.length) result.erros.push('Existem cabeçalhos canônicos ausentes.');
+      if (result.duplicados.length) result.erros.push('Existem cabeçalhos duplicados.');
+      if (result.cabecalhosVazios.length) result.erros.push('Existem posições de cabeçalho vazias.');
+    }
+
+    if (!folderId) {
+      result.erros.push('Propriedade FT_TICKET_DRIVE_FOLDER_ID não configurada.');
+    } else {
+      try {
+        var folder = DriveApp.getFolderById(folderId);
+        result.pastaDriveAcessivel = folder.getId() === folderId;
+        result.pastaDrive = folder.getName();
+      } catch (driveError) {
+        result.erros.push('Pasta do Drive inacessível: ' + driveError.message);
+      }
+    }
+  } catch (error) {
+    result.erros.push(error.message || String(error));
+  }
+
+  result.ok = result.erros.length === 0 &&
+    result.guiaEncontrada &&
+    result.cabecalhosAusentes.length === 0 &&
+    result.duplicados.length === 0 &&
+    result.cabecalhosVazios.length === 0 &&
+    result.pastaDriveAcessivel;
+  Logger.log('FT_TESTE_ESTRUTURA_RECIBOS ' + JSON.stringify(result));
+  return result;
+}
