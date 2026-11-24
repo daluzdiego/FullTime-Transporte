@@ -1,29 +1,89 @@
 /**
- * MOTOR DE INTERPRETAÇÃO DE SOLICITAÇÕES — FULLTIME
- * Usa Gemini API via UrlFetchApp. Não cria OPERACOES nem CARGAS.
+ * FULL TIME — MOTOR DE INTERPRETAÇÃO DE SOLICITAÇÕES
+ *
+ * Compatível com o contrato canônico de ENTRADA_OPERACOES_IA (18 colunas)
+ * definido em SolicitaçõesFullTime.gs.
+ *
+ * Persistência:
+ * - Mensagem original: MENSAGEM_BRUTA (nunca sobrescrita pela IA).
+ * - Resultado, dados, pendências, perguntas e histórico: INTERPRETACAO_JSON.
+ * - Situação: STATUS_INTERPRETACAO.
+ *
+ * A IA interpreta e prepara a revisão. Não aprova nem cria operação.
  * Configuração: Script Properties > FT_GEMINI_API_KEY.
  */
 var FT_SOL_AI = {
   MODEL: 'gemini-3.8-flash',
+  FALLBACK_MODELS: ['gemini-3.7-flash', 'gemini-3.5-flash-lite'],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
-  MAX_TEXT: 30000
+  MAX_TEXT: 30000,
+  MAX_RETRIES: 4
 };
 
+/**
+ * Confere o contrato antes de qualquer leitura/escrita da solicitação.
+ * ftSolCols_ retorna índices de coluna iniciados em 1.
+ */
+function ftSolAIRequireColumns_(columns, names) {
+  var missing = names.filter(function (name) {
+    return !columns[name] || columns[name] < 1;
+  });
+  if (missing.length) {
+    throw new Error(
+      'Contrato ENTRADA_OPERACOES_IA incompatível com o motor de IA. ' +
+      'Cabeçalho(s) ausente(s): ' + missing.join(', ') +
+      '. Esperado o contrato canônico de 18 colunas.'
+    );
+  }
+}
+
+/** Converte o JSON de metadados para um objeto consistente. */
+function ftSolAIMetadata_(rowValues, columns) {
+  var meta = ftSolMeta_(rowValues, columns);
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) meta = {};
+  if (!meta.solicitacao || typeof meta.solicitacao !== 'object') meta.solicitacao = {};
+  return meta;
+}
+
+/**
+ * Interpreta uma solicitação já registrada.
+ * Não altera MENSAGEM_BRUTA e não cria operação/carga.
+ */
 function analisarSolicitacaoIAFullTime(token, id) {
-  var session = obterSessao_(token); exigirAdmin_(session);
+  var session = obterSessao_(token);
+  exigirAdmin_(session);
+
   id = ftSolText_(id, 180);
   if (!id) throw new Error('Informe o identificador da solicitação.');
 
   var apiKey = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  if (!apiKey) throw new Error('A chave da IA ainda não foi configurada. Cadastre FT_GEMINI_API_KEY nas Propriedades do script.');
+  if (!apiKey || !String(apiKey).trim()) {
+    throw new Error(
+      'A chave da IA não está configurada. Cadastre FT_GEMINI_API_KEY nas Propriedades do script.'
+    );
+  }
 
-  var sh = ftSolSheet_(), c = ftSolCols_(sh), last = sh.getLastRow();
+  var sh = ftSolSheet_();
+  var columns = ftSolCols_(sh);
+  ftSolAIRequireColumns_(columns, [
+    'ID', 'MENSAGEM_BRUTA', 'STATUS_INTERPRETACAO', 'INTERPRETACAO_JSON'
+  ]);
+
+  var last = sh.getLastRow();
   if (last < 2) throw new Error('Não existem solicitações para analisar.');
-  var ids = sh.getRange(2, c.ID, last - 1, 1).getDisplayValues(), row = -1;
-  for (var i = 0; i < ids.length; i++) if (ids[i][0] === id) { row = i + 2; break; }
+
+  var ids = sh.getRange(2, columns.ID, last - 1, 1).getDisplayValues();
+  var row = -1;
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === id) {
+      row = i + 2;
+      break;
+    }
+  }
   if (row < 0) throw new Error('Solicitação não encontrada.');
 
-  var original = String(sh.getRange(row, c.TEXTO_ORIGINAL).getValue() || '').slice(0, FT_SOL_AI.MAX_TEXT);
+  var original = String(sh.getRange(row, columns.MENSAGEM_BRUTA).getValue() || '')
+    .slice(0, FT_SOL_AI.MAX_TEXT);
   if (!original.trim()) throw new Error('A solicitação não possui mensagem original.');
 
   var prompt = [
@@ -32,9 +92,14 @@ function analisarSolicitacaoIAFullTime(token, id) {
     'Regras obrigatórias:',
     '- Não invente nem complete dados ausentes. Use string vazia quando não houver informação.',
     '- Preserve números, unidades, nomes e locais como foram informados.',
-    '- Não transforme "amanhã" em uma data sem uma referência de data confiável. Registre a expressão literal em dataColetaTexto e sinalize a data absoluta como pendente.',
-    '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que 4500 toneladas sejam por caminhão.',
-    '- Origem e destino precisam ser locais identificáveis. "Porto" ou "unidade" sem endereço/localidade específica podem exigir confirmação.',
+    '- Não transforme "amanhã" em uma data sem uma referência de data confiável. Registre a expressão literal em dataColetaTexto e deixe dataColeta vazia.',
+    '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que o peso informado seja por caminhão.',
+    '- Em operações ligadas a navio, não confunda o volume total da carga do navio com o volume contratado pela Full Time. O volume da operação deve ser somente a quantidade que a Full Time efetivamente transportará, conforme informado; se não estiver claro, deixe pendente e pergunte. Nunca deduza que toda a carga do navio pertence à operação.',
+    '- Pesos de balança podem variar. Preserve o peso real informado, não exija igualdade exata com estimativas e não recomende bloquear viagem por divergência de pesagem. Sinalize diferenças para conferência humana.',
+    '- Uma mesma operação pode ter vários destinos de entrega. Extraia cada empresa/local e seu volume em dados.destinos; não crie uma operação separada por empresa.',
+    '- O volume dos destinos somados não pode exceder o volume total. Se faltar distribuição, mantenha volume não distribuído e sinalize a pendência.',
+    '- Se houver somente um destino, retorne uma única entrada em dados.destinos. Se não houver destino, retorne [].',
+    '- Origem precisa ser identificável. "Porto" sem terminal/cidade pode exigir confirmação; cada destino precisa de empresa, local e volume quando informado.',
     '- Identifique ambiguidades, contradições e dados que precisam ser confirmados.',
     '- Faça perguntas objetivas, uma por lacuna relevante. Não pergunte novamente o que já está claro.',
     '- Não declare transporte aprovado ou confirmado.',
@@ -45,6 +110,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     '  "cliente": string, "contato": string, "produto": string, "tipoCarga": string,',
     '  "volume": string, "unidadeVolume": string, "volumePorViagem": string, "viagensPrevistas": string,',
     '  "origem": string, "origemDetalhada": string, "destino": string, "destinoDetalhado": string,',
+    '  "destinos": [{"cliente": string, "local": string, "cidadeUf": string, "volume": string, "dataPrevista": string, "observacoes": string}],',
     '  "dataColetaTexto": string, "dataColeta": string, "horarioColeta": string,',
     '  "dataEntregaTexto": string, "dataEntrega": string, "horarioEntrega": string,',
     '  "tipoOperacao": string, "categoria": string, "nomeOperacao": string, "veiculoSolicitado": string, "frequencia": string,',
@@ -64,228 +130,385 @@ function analisarSolicitacaoIAFullTime(token, id) {
   try {
     generated = ftSolGenerateAIText_(prompt);
   } catch (apiError) {
-    var failureMessage = String(apiError && apiError.message || apiError).slice(0,1500);
-    ftSolMarkWaitingAI_(sh, id, session.login, failureMessage);
+    var failureMessage = String(apiError && apiError.message || apiError).slice(0, 1500);
+    ftSolMarkWaitingAI_(sh, id, session.login || 'ADMIN', failureMessage);
     return {
-      ok:false,
-      aguardandoIA:true,
-      id:id,
-      status:'AGUARDANDO_IA',
-      mensagem:'A solicitação foi preservada. O serviço de IA está indisponível no momento. Você pode tentar novamente mais tarde.',
-      detalhe:failureMessage
+      ok: false,
+      aguardandoIA: true,
+      id: id,
+      status: 'AGUARDANDO_IA',
+      mensagem: 'A solicitação foi preservada. O serviço de IA está indisponível no momento. Você pode tentar novamente mais tarde.',
+      detalhe: failureMessage
     };
   }
-  var raw = generated.text;
+
+  var raw = String(generated && generated.text || '').trim();
   if (!raw) throw new Error('A IA não retornou conteúdo analisável.');
 
   var result;
-  try { result = JSON.parse(raw.replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'')); }
-  catch (e) { console.error('JSON IA inválido: ' + raw.slice(0,2000)); throw new Error('A IA respondeu em formato inesperado. Tente novamente.'); }
+  try {
+    result = JSON.parse(
+      raw.replace(/^\s*\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`\s*$/, '')
+    );
+  } catch (parseError) {
+    console.error('JSON IA inválido: ' + raw.slice(0, 1500));
+    throw new Error('A IA respondeu em formato inesperado. A mensagem original foi preservada; tente novamente.');
+  }
 
-  if (!result.dados || typeof result.dados !== 'object' ||
-      !Array.isArray(result.camposPendentes) || !Array.isArray(result.perguntas) ||
+  if (!result.dados || typeof result.dados !== 'object' || Array.isArray(result.dados) ||
+      !Array.isArray(result.camposPendentes) ||
+      !Array.isArray(result.perguntas) ||
       !Array.isArray(result.ambiguidades)) {
     throw new Error('A análise da IA não contém todos os campos estruturados esperados.');
   }
 
-  var pending = result.camposPendentes.map(function(x){ return ftSolText_(x,100); }).filter(Boolean);
-  // A IA nunca libera aprovação se um requisito operacional estiver vazio ou inválido.
-  ftSolComputeMissingFields_(result.dados).forEach(function(x){if(pending.indexOf(x)<0)pending.push(x);});
-  var questions = result.perguntas.map(function(x){ return ftSolText_(x,500); }).filter(Boolean);
+  var allowed = [
+    'cliente', 'contato', 'produto', 'tipoCarga', 'volume', 'unidadeVolume',
+    'volumePorViagem', 'viagensPrevistas', 'origem', 'origemDetalhada',
+    'destino', 'destinoDetalhado', 'dataColetaTexto', 'dataColeta',
+    'horarioColeta', 'dataEntregaTexto', 'dataEntrega', 'horarioEntrega',
+    'tipoOperacao', 'categoria', 'nomeOperacao', 'veiculoSolicitado',
+    'frequencia', 'restricoes', 'observacoes'
+  ];
+  var data = {};
+  allowed.forEach(function (key) {
+    data[key] = ftSolText_(result.dados[key], 500);
+  });
+  data.destinos = Array.isArray(result.dados.destinos) ? result.dados.destinos.slice(0,50).map(function (x) { x=x||{}; return {cliente:ftSolText_(x.cliente||x.empresa,160),local:ftSolText_(x.local||x.destino||x.endereco,220),cidadeUf:ftSolText_(x.cidadeUf||x.cidade,120),volume:ftSolText_(x.volume||x.volumePrevisto,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)}; }) : [];
+
+  var pending = result.camposPendentes
+    .map(function (value) { return ftSolText_(value, 250); })
+    .filter(Boolean);
+
+  // Regras determinísticas do sistema prevalecem sobre a classificação da IA.
+  ftSolComputeMissingFields_(data).forEach(function (missing) {
+    if (pending.indexOf(missing) < 0) pending.push(missing);
+  });
+
+  var questions = result.perguntas
+    .map(function (value) { return ftSolText_(value, 500); })
+    .filter(Boolean);
+  var ambiguities = result.ambiguidades
+    .map(function (value) { return ftSolText_(value, 500); })
+    .filter(Boolean);
+
   var analysis = {
-    resumo: ftSolText_(result.resumo,1500),
-    dados: result.dados,
-    ambiguidades: result.ambiguidades.map(function(x){return ftSolText_(x,500);}).filter(Boolean),
-    prontoParaRevisao: result.prontoParaRevisao === true,
+    resumo: ftSolText_(result.resumo, 1500),
+    dados: data,
+    ambiguidades: ambiguities,
+    prontoParaRevisao: pending.length === 0 && result.prontoParaRevisao === true,
     analisadoEm: new Date().toISOString(),
-    modelo: generated.model,
-    provedor: generated.provider
+    modelo: generated.model || FT_SOL_AI.MODEL,
+    provedor: generated.provider || 'Google Gemini'
   };
 
-  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
   try {
-    // Reconfere o ID sob bloqueio antes de persistir a análise.
-    var freshLast = sh.getLastRow(), freshIds = freshLast > 1 ? sh.getRange(2,c.ID,freshLast-1,1).getDisplayValues() : [];
+    // Revalida o registro sob bloqueio para impedir gravação em linha incorreta.
+    var freshLast = sh.getLastRow();
+    var freshIds = freshLast > 1 ?
+      sh.getRange(2, columns.ID, freshLast - 1, 1).getDisplayValues() : [];
     var target = -1;
-    for (var j=0;j<freshIds.length;j++) if (freshIds[j][0] === id) { target=j+2; break; }
+    for (var j = 0; j < freshIds.length; j++) {
+      if (String(freshIds[j][0]) === id) {
+        target = j + 2;
+        break;
+      }
+    }
     if (target < 0) throw new Error('A solicitação deixou de existir durante a análise.');
 
-    sh.getRange(target,c.DADOS_EXTRAIDOS_JSON).setValue(JSON.stringify(analysis));
-    sh.getRange(target,c.CAMPOS_PENDENTES_JSON).setValue(JSON.stringify(pending));
-    sh.getRange(target,c.PERGUNTAS_IA).setValue(questions.join('\n'));
-    sh.getRange(target,c.STATUS_ENTRADA).setValue(pending.length ? 'EM_COLETA' : 'AGUARDANDO_APROVACAO');
-    sh.getRange(target,c.ATUALIZADO_EM).setValue(new Date());
-    var history = [];
-    try { history = JSON.parse(sh.getRange(target,c.HISTORICO_JSON).getValue() || '[]'); } catch(e) {}
-    history.push(ftSolEvent_('ANALISE_IA_CONCLUIDA',session.login,
-      'Provedor '+generated.provider+' / modelo '+generated.model+'; '+pending.length+' campo(s) pendente(s); '+questions.length+' pergunta(s).'));
-    sh.getRange(target,c.HISTORICO_JSON).setValue(JSON.stringify(history));
-  } finally { lock.releaseLock(); }
+    var values = sh.getRange(target, 1, 1, sh.getLastColumn()).getValues()[0];
+    var meta = ftSolAIMetadata_(values, columns);
+    var solicitation = meta.solicitacao;
+
+    meta.dados = data;
+    meta.analise = analysis;
+    solicitation.camposPendentes = pending;
+    solicitation.perguntas = questions.join('\n');
+    solicitation.statusEntrada = pending.length ? 'EM_COLETA' : 'AGUARDANDO_APROVACAO';
+    solicitation.atualizadoEm = new Date().toISOString();
+    solicitation.erroIA = '';
+    solicitation.historico = Array.isArray(solicitation.historico) ? solicitation.historico : [];
+    solicitation.historico.push(ftSolEvent_(
+      'ANALISE_IA_CONCLUIDA',
+      session.login || 'ADMIN',
+      'Provedor ' + analysis.provedor + ' / modelo ' + analysis.modelo +
+      '; ' + pending.length + ' pendência(s); ' + questions.length + ' pergunta(s).'
+    ));
+
+    sh.getRange(target, columns.STATUS_INTERPRETACAO)
+      .setValue(pending.length ? 'EM_COLETA' : 'AGUARDANDO_APROVACAO');
+    sh.getRange(target, columns.INTERPRETACAO_JSON).setValue(JSON.stringify(meta));
+  } finally {
+    lock.releaseLock();
+  }
 
   return {
-    ok:true, id:id, status:pending.length?'EM_COLETA':'AGUARDANDO_APROVACAO',
-    analise:analysis, camposPendentes:pending, perguntas:questions
+    ok: true,
+    id: id,
+    status: pending.length ? 'EM_COLETA' : 'AGUARDANDO_APROVACAO',
+    analise: analysis,
+    dadosExtraidos: analysis,
+    camposPendentes: pending,
+    perguntas: questions,
+    ambiguidades: ambiguities
   };
 }
 
-/** Diagnóstico seguro: informa se a chave está presente, sem revelar seu conteúdo. */
+/** Diagnóstico seguro: nunca devolve a chave nem parte dela. */
 function diagnosticarConfiguracaoIAFullTime(token) {
-  var session = obterSessao_(token); exigirAdmin_(session);
+  var session = obterSessao_(token);
+  exigirAdmin_(session);
   var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  return {ok:true, provedor:'Google Gemini', modelo:FT_SOL_AI.MODEL, chaveConfigurada:!!key, contingencia:'REPROCESSAMENTO_MANUAL_SEM_CUSTO'};
+  return {
+    ok: true,
+    provedor: 'Google Gemini',
+    modelo: FT_SOL_AI.MODEL,
+    chaveConfigurada: !!(key && String(key).trim()),
+    propriedade: FT_SOL_AI.KEY_PROPERTY,
+    contingencia: 'REPROCESSAMENTO_MANUAL_SEM_CUSTO'
+  };
 }
 
-
 /**
- * TESTE CONTROLADO DE CONEXÃO GEMINI.
- * Executar manualmente pelo editor do Apps Script, como proprietário.
- * Não lê solicitações, não grava planilhas e nunca registra a chave nos logs.
+ * Teste isolado de conexão. Não lê solicitações nem grava planilhas.
+ * Nunca registra a chave nos logs.
  */
 function testarConexaoGeminiFullTime() {
   var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
   if (!key || !String(key).trim()) {
-    var semChave = { ok:false, etapa:'CONFIGURACAO', mensagem:'Propriedade FT_GEMINI_API_KEY ausente ou vazia.' };
-    console.log(JSON.stringify(semChave));
-    return semChave;
+    var missing = {
+      ok: false,
+      etapa: 'CONFIGURACAO',
+      mensagem: 'Propriedade FT_GEMINI_API_KEY ausente ou vazia.'
+    };
+    console.log(JSON.stringify(missing));
+    return missing;
   }
 
   var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var headers = { 'x-goog-api-key': String(key).trim() };
-  var resultado = {
-    ok:false,
-    chaveConfigurada:true,
-    modelo:FT_SOL_AI.MODEL,
-    etapas:{},
-    observacao:'Teste isolado; nenhuma solicitação operacional foi lida ou alterada.'
+  var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
+  var result = {
+    ok: false,
+    chaveConfigurada: true,
+    modeloPrincipal: FT_SOL_AI.MODEL,
+    modelosAlternativos: FT_SOL_AI.FALLBACK_MODELS || [],
+    etapas: {},
+    observacao: 'Teste isolado; nenhuma solicitação operacional foi lida ou alterada.'
   };
 
-  // Etapa 1: confirma autenticação e acesso aos metadados do modelo.
-  var meta;
-  try {
-    meta = UrlFetchApp.fetch(base + encodeURIComponent(FT_SOL_AI.MODEL), {
-      method:'get', headers:headers, muteHttpExceptions:true
-    });
-    var metaCode = meta.getResponseCode();
-    resultado.etapas.autenticacaoModelo = {
-      http:metaCode,
-      ok:metaCode >= 200 && metaCode < 300
-    };
-    if (metaCode < 200 || metaCode >= 300) {
-      resultado.etapas.autenticacaoModelo.detalhe = ftGeminiErroSeguro_(meta.getContentText());
-      resultado.mensagem = 'Falha ao autenticar ou consultar o modelo. Veja etapas.autenticacaoModelo.detalhe.';
-      console.log(JSON.stringify(resultado));
-      return resultado;
+  for (var i = 0; i < models.length; i++) {
+    var model = models[i];
+    var entry = result.etapas[model] = { autenticacao: null, geracao: null };
+    try {
+      var modelResponse = UrlFetchApp.fetch(base + encodeURIComponent(model), {
+        method: 'get',
+        headers: headers,
+        muteHttpExceptions: true
+      });
+      var modelCode = modelResponse.getResponseCode();
+      entry.autenticacao = { http: modelCode, ok: modelCode >= 200 && modelCode < 300 };
+      if (modelCode < 200 || modelCode >= 300) {
+        entry.autenticacao.detalhe = ftGeminiErroSeguro_(modelResponse.getContentText());
+        continue;
+      }
+
+      var generation = UrlFetchApp.fetch(
+        base + encodeURIComponent(model) + ':generateContent',
+        {
+          method: 'post',
+          contentType: 'application/json',
+          headers: headers,
+          muteHttpExceptions: true,
+          payload: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'Responda somente: TESTE_OK' }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 20 }
+          })
+        }
+      );
+
+      var code = generation.getResponseCode();
+      var body = generation.getContentText();
+      entry.geracao = { http: code, ok: code >= 200 && code < 300 };
+      if (code >= 200 && code < 300) {
+        var parsed = JSON.parse(body);
+        var text = parsed && parsed.candidates && parsed.candidates[0] &&
+          parsed.candidates[0].content && parsed.candidates[0].content.parts ?
+          parsed.candidates[0].content.parts.map(function (part) {
+            return part.text || '';
+          }).join('') : '';
+        entry.geracao.respostaRecebida = !!text;
+        entry.geracao.resposta = String(text).slice(0, 100);
+        if (text) {
+          result.ok = true;
+          result.modeloDisponivel = model;
+          result.mensagem = model === FT_SOL_AI.MODEL ?
+            'Modelo principal autenticado e gerando texto.' :
+            'Modelo alternativo autenticado e gerando texto. O principal está indisponível neste momento.';
+          break;
+        }
+      } else {
+        entry.geracao.detalhe = ftGeminiErroSeguro_(body);
+      }
+    } catch (error) {
+      entry.erro = String(error && error.message || error).slice(0, 1000);
     }
-  } catch (e) {
-    resultado.etapas.autenticacaoModelo = {ok:false, mensagem:String(e.message || e)};
-    resultado.mensagem = 'Falha de rede na consulta do modelo.';
-    console.log(JSON.stringify(resultado));
-    return resultado;
   }
 
-  // Etapa 2: geração mínima, sem dados de clientes ou operações.
-  try {
-    var geracao = UrlFetchApp.fetch(base + encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent', {
-      method:'post',
-      contentType:'application/json',
-      headers:headers,
-      muteHttpExceptions:true,
-      payload:JSON.stringify({
-        contents:[{role:'user',parts:[{text:'Responda somente: TESTE_OK'}]}],
-        generationConfig:{temperature:0,maxOutputTokens:20}
-      })
-    });
-    var code = geracao.getResponseCode();
-    var body = geracao.getContentText();
-    resultado.etapas.geracao = {http:code,ok:code >= 200 && code < 300};
-    if (code >= 200 && code < 300) {
-      var parsed = JSON.parse(body);
-      var txt = parsed && parsed.candidates && parsed.candidates[0] &&
-        parsed.candidates[0].content && parsed.candidates[0].content.parts ?
-        parsed.candidates[0].content.parts.map(function(p){return p.text || '';}).join('') : '';
-      resultado.etapas.geracao.respostaRecebida = !!txt;
-      resultado.etapas.geracao.resposta = String(txt).slice(0,100);
-      resultado.ok = !!txt;
-      resultado.mensagem = resultado.ok ?
-        'Conexão, autenticação e geração de texto funcionando.' :
-        'O modelo respondeu HTTP 2xx, mas não retornou texto. Verifique o corpo da resposta no log de execução.';
-    } else {
-      resultado.etapas.geracao.detalhe = ftGeminiErroSeguro_(body);
-      resultado.mensagem = 'A chave conseguiu consultar o modelo, mas a geração falhou. Isso separa autenticação de cota/disponibilidade.';
-    }
-  } catch (e) {
-    resultado.etapas.geracao = {ok:false,mensagem:String(e.message || e)};
-    resultado.mensagem = 'Falha de rede ou leitura na etapa de geração.';
+  if (!result.ok) {
+    result.mensagem = 'Nenhum dos modelos testados conseguiu gerar texto. A chave foi reconhecida; consulte os HTTPs registrados por modelo.';
   }
-
-  console.log(JSON.stringify(resultado));
-  return resultado;
+  console.log(JSON.stringify(result));
+  return result;
 }
 
 /** Extrai mensagem de erro da API sem registrar cabeçalhos ou credenciais. */
 function ftGeminiErroSeguro_(body) {
   try {
-    var obj = JSON.parse(String(body || ''));
-    return obj && obj.error && obj.error.message ?
-      String(obj.error.message).slice(0,1000) : String(body || '').slice(0,1000);
-  } catch (e) {
-    return String(body || '').slice(0,1000);
+    var parsed = JSON.parse(String(body || ''));
+    return parsed && parsed.error && parsed.error.message ?
+      String(parsed.error.message).slice(0, 1000) :
+      String(body || '').slice(0, 1000);
+  } catch (error) {
+    return String(body || '').slice(0, 1000);
   }
 }
 
-
 /**
- * Registra falha transitória sem descartar ou sobrescrever a mensagem original.
- * A solicitação fica disponível para nova tentativa manual, sem custo adicional.
+ * Registra falha transitória sem descartar a mensagem original.
+ * Mantém a solicitação pronta para nova tentativa manual.
  */
 function ftSolMarkWaitingAI_(sh, id, login, message) {
-  var c = ftSolCols_(sh), lock = LockService.getScriptLock();
+  var columns = ftSolCols_(sh);
+  ftSolAIRequireColumns_(columns, ['ID', 'STATUS_INTERPRETACAO', 'INTERPRETACAO_JSON']);
+
+  var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var last=sh.getLastRow(), ids=last>1?sh.getRange(2,c.ID,last-1,1).getDisplayValues():[];
-    var row=-1;
-    for(var i=0;i<ids.length;i++) if(ids[i][0]===id){row=i+2;break;}
-    if(row<0) throw new Error('Solicitação não encontrada ao registrar indisponibilidade da IA.');
-    sh.getRange(row,c.STATUS_ENTRADA).setValue('AGUARDANDO_IA');
-    sh.getRange(row,c.ERRO_PROCESSAMENTO).setValue(String(message||'Serviço de IA indisponível').slice(0,1500));
-    sh.getRange(row,c.ATUALIZADO_EM).setValue(new Date());
-    var hist=[];
-    try{hist=JSON.parse(sh.getRange(row,c.HISTORICO_JSON).getValue()||'[]');}catch(e){}
-    hist.push(ftSolEvent_('IA_INDISPONIVEL_AGUARDANDO_REPROCESSAMENTO',login,String(message||'').slice(0,500)));
-    sh.getRange(row,c.HISTORICO_JSON).setValue(JSON.stringify(hist));
-  } finally { lock.releaseLock(); }
+    var last = sh.getLastRow();
+    var ids = last > 1 ?
+      sh.getRange(2, columns.ID, last - 1, 1).getDisplayValues() : [];
+    var row = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === id) {
+        row = i + 2;
+        break;
+      }
+    }
+    if (row < 0) throw new Error('Solicitação não encontrada ao registrar indisponibilidade da IA.');
+
+    var values = sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0];
+    var meta = ftSolAIMetadata_(values, columns);
+    var solicitation = meta.solicitacao;
+    var safeMessage = String(message || 'Serviço de IA indisponível').slice(0, 1500);
+
+    solicitation.statusEntrada = 'AGUARDANDO_IA';
+    solicitation.erroIA = safeMessage;
+    solicitation.atualizadoEm = new Date().toISOString();
+    solicitation.historico = Array.isArray(solicitation.historico) ? solicitation.historico : [];
+    solicitation.historico.push(ftSolEvent_(
+      'IA_INDISPONIVEL_AGUARDANDO_REPROCESSAMENTO',
+      login || 'SISTEMA',
+      safeMessage.slice(0, 500)
+    ));
+
+    sh.getRange(row, columns.STATUS_INTERPRETACAO).setValue('AGUARDANDO_IA');
+    sh.getRange(row, columns.INTERPRETACAO_JSON).setValue(JSON.stringify(meta));
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
- * Gemini único provedor nesta fase. Sem chamadas pagas alternativas.
- * Mantém retentativas limitadas para indisponibilidades transitórias.
+ * Gemini como provedor único nesta fase.
+ * Retentativas limitadas apenas para erros transitórios.
  */
 function ftSolGenerateAIText_(prompt) {
-  var key=PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  if(!key) throw new Error('FT_GEMINI_API_KEY não está configurada.');
-  var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+
-    encodeURIComponent(FT_SOL_AI.MODEL)+':generateContent';
-  var options={
-    method:'post',
-    contentType:'application/json',
-    headers:{'x-goog-api-key':String(key).trim()},
-    muteHttpExceptions:true,
-    payload:JSON.stringify({
-      contents:[{role:'user',parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.1,responseMimeType:'application/json'}
-    })
-  };
-  var response,code,body,max=3;
-  for(var attempt=1;attempt<=max;attempt++){
-    response=UrlFetchApp.fetch(endpoint,options);
-    code=response.getResponseCode(); body=response.getContentText();
-    if([429,500,502,503,504].indexOf(code)<0||attempt===max) break;
-    Utilities.sleep(Math.pow(2,attempt)*1000);
+  var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
+  if (!key || !String(key).trim()) {
+    throw new Error('FT_GEMINI_API_KEY não está configurada.');
   }
-  if(code<200||code>=300) throw new Error('Gemini HTTP '+code+': '+ftGeminiErroSeguro_(body));
-  var env=JSON.parse(body);
-  var textOut=env&&env.candidates&&env.candidates[0]&&env.candidates[0].content&&env.candidates[0].content.parts?
-    env.candidates[0].content.parts.map(function(p){return p.text||'';}).join(''):'';
-  if(!textOut) throw new Error('Gemini não retornou texto.');
-  return {text:textOut,provider:'Google Gemini',model:FT_SOL_AI.MODEL};
+
+  var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  var headers = { 'x-goog-api-key': String(key).trim() };
+  var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
+  var failures = [];
+
+  for (var modelIndex = 0; modelIndex < models.length; modelIndex++) {
+    var model = models[modelIndex];
+    var endpoint = base + encodeURIComponent(model) + ':generateContent';
+    var options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: headers,
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json'
+        }
+      })
+    };
+
+    var response = null;
+    var code = 0;
+    var body = '';
+    for (var attempt = 1; attempt <= FT_SOL_AI.MAX_RETRIES; attempt++) {
+      response = UrlFetchApp.fetch(endpoint, options);
+      code = response.getResponseCode();
+      body = response.getContentText();
+
+      if (code >= 200 && code < 300) break;
+      var transientError = [408, 429, 500, 502, 503, 504].indexOf(code) >= 0;
+      if (!transientError || attempt === FT_SOL_AI.MAX_RETRIES) break;
+
+      // Backoff exponencial com jitter para reduzir colisões de novas tentativas.
+      var delay = Math.min(30000, Math.pow(2, attempt - 1) * 2000);
+      Utilities.sleep(delay + Math.floor(Math.random() * 750));
+    }
+
+    if (code >= 200 && code < 300) {
+      var envelope;
+      try {
+        envelope = JSON.parse(body);
+      } catch (error) {
+        throw new Error('Gemini (' + model + ') retornou HTTP válido, mas o corpo não é JSON válido.');
+      }
+
+      var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
+        envelope.candidates[0].content && envelope.candidates[0].content.parts ?
+        envelope.candidates[0].content.parts.map(function (part) {
+          return part.text || '';
+        }).join('') : '';
+
+      if (textOut) {
+        return {
+          text: textOut,
+          provider: 'Google Gemini',
+          model: model,
+          fallback: model !== FT_SOL_AI.MODEL
+        };
+      }
+
+      var blockReason = envelope && envelope.candidates && envelope.candidates[0] &&
+        envelope.candidates[0].finishReason;
+      throw new Error(
+        'Gemini (' + model + ') não retornou texto.' +
+        (blockReason ? ' Motivo: ' + blockReason : '')
+      );
+    }
+
+    failures.push(model + ' HTTP ' + code + ': ' + ftGeminiErroSeguro_(body));
+    // Erros de autenticação, requisição ou cobrança não são resolvidos trocando de modelo.
+    if ([400, 401, 402, 403].indexOf(code) >= 0) {
+      throw new Error(failures[failures.length - 1]);
+    }
+  }
+
+  throw new Error(
+    'Todos os modelos Gemini configurados falharam. ' + failures.join(' | ')
+  );
 }
