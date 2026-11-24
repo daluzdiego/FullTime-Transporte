@@ -52,19 +52,29 @@ function ftSolAIMetadata_(rowValues, columns) {
  * Não altera MENSAGEM_BRUTA e não cria operação/carga.
  */
 /** Confere se o volume atribuído a um destino está sustentado por trecho literal da mensagem. */
-function ftSolEvidenceNorm_(value) {
-  return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
-}
 function ftSolVerifyDestinationVolumeEvidence_(original, destination) {
   destination = destination || {};
   var quote = ftSolText_(destination.evidenciaVolume, 700);
-  var quoteNorm = ftSolEvidenceNorm_(quote), originalNorm = ftSolEvidenceNorm_(original);
-  var amount = ftSolNumber_(destination.volume), tokens = quote.match(/\\d+(?:[.,]\\d+)?/g) || [];
-  var amountFound = amount > 0 && tokens.some(function(token) { return Math.abs(ftSolNumber_(token) - amount) < 0.000001; });
-  var identity = [destination.cliente, destination.local, destination.cidadeUf].map(ftSolEvidenceNorm_).filter(function(v) { return v.length >= 3; });
-  var identityFound = identity.some(function(v) { return quoteNorm.indexOf(v) >= 0; });
-  return {valid:!!quote && originalNorm.indexOf(quoteNorm) >= 0 && amountFound && identityFound, quote:quote, reason:!quote?'Trecho comprobatório ausente.':originalNorm.indexOf(quoteNorm)<0?'Trecho não aparece literalmente na mensagem original.':!identityFound?'Trecho não vincula o volume ao destino.':!amountFound?'Trecho não contém o volume informado.':''};
+  var amount = ftSolNumber_(destination.volume);
+  var numericTokens = quote.split(/[^0-9.,]+/).filter(Boolean);
+  var amountFound = amount > 0 && numericTokens.some(function(token) {
+    return Math.abs(ftSolNumber_(token) - amount) < 0.000001;
+  });
+  var lowerQuote = quote.toLowerCase();
+  var identityFound = [destination.cliente, destination.local, destination.cidadeUf].some(function(value) {
+    value = String(value || '').trim().toLowerCase();
+    return value.length >= 3 && lowerQuote.indexOf(value) >= 0;
+  });
+  return {
+    valid: !!quote && original.indexOf(quote) >= 0 && amountFound && identityFound,
+    quote: quote,
+    reason: !quote ? 'Trecho comprobatório ausente.' :
+      original.indexOf(quote) < 0 ? 'Trecho não aparece literalmente na mensagem original.' :
+      !identityFound ? 'Trecho não vincula o volume ao destino.' :
+      !amountFound ? 'Trecho não contém o volume informado.' : ''
+  };
 }
+
 function analisarSolicitacaoIAFullTime(token, id) {
   var session = obterSessao_(token);
   exigirAdmin_(session);
