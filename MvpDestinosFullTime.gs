@@ -13,6 +13,7 @@ function ftMvpNum_(v){var s=String(v==null?'':v).trim().replace(/[^0-9,.-]/g,'')
 function ftMvpText_(v,max){return String(v==null?'':v).replace(/\\u0000/g,'').trim().slice(0,max||500);}
 function ftMvpDate_(v){var s=ftMvpText_(v,10);if(!s)return '';if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)||isNaN(new Date(s+'T12:00:00').getTime()))throw new Error('Data inválida: '+s);return s;}
 function ftMvpSheet_(name){return getSheet_(name);}
+function ftMvpHasDestinations_(operationId){var sh=ftMvpSheet_('DESTINOS_OPERACAO'),m=ftMvpMap_(sh),last=sh.getLastRow();if(last<2)return false;var col=ftMvpCol_(m,'OPERACAO_ID')+1;return sh.getRange(2,col,last-1,1).getDisplayValues().some(function(r){return String(r[0])===String(operationId);});}
 function ftMvpReadRows_(sh){var last=sh.getLastRow(),width=sh.getLastColumn();if(last<2)return [];var map=ftMvpMap_(sh),values=sh.getRange(2,1,last-1,width).getValues();return values.map(function(r,i){return {row:i+2,values:r,map:map};});}
 function ftMvpWriteObject_(sh,obj){var map=ftMvpMap_(sh),row=new Array(sh.getLastColumn()).fill('');Object.keys(obj).forEach(function(k){var ix=map[ftMvpNorm_(k)];if(ix!==undefined)row[ix]=obj[k];});sh.appendRow(row);}
 function ftMvpAudit_(session,action,opId,detail){if(typeof auditar_==='function')auditar_(session,action,'OPERACAO',opId,detail);}
