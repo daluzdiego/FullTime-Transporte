@@ -112,7 +112,7 @@ function cancelarOperacaoFullTime(token,operacaoId,motivo){
  var s=obterSessao_(token);exigirAdmin_(s);operacaoId=ftMvpText_(operacaoId,100);motivo=ftMvpText_(motivo,500);if(!operacaoId||!motivo)throw new Error('Informe operação e motivo obrigatório.');
  var sh=ftMvpSheet_('OPERACOES'),m=ftMvpMap_(sh),rows=ftMvpReadRows_(sh),r=rows.find(function(x){return String(x.values[ftMvpCol_(m,'ID')])===operacaoId;});if(!r)throw new Error('Operação não encontrada.');
  var st=String(r.values[ftMvpCol_(m,'STATUS')]||'');if(st==='CANCELADA')throw new Error('Operação já está cancelada.');if(st==='CONCLUIDA')throw new Error('Operação concluída não pode ser cancelada por este fluxo; solicite ajuste auditado.');
- sh.getRange(r.row,ftMvpCol_(m,'STATUS')+1).setValue('CANCELADA');var obsCol=m.OBSERVACOES;if(obsCol!==undefined)sh.getRange(r.row,obsCol+1).setValue((String(r.values[obsCol]||'')+' | CANCELADA: '+motivo+' | '+new Date().toISOString()).slice(0,2000));
+ sh.getRange(r.row,ftMvpCol_(m,'STATUS')+1).setValue('CANCELADA');if(typeof FT_AUTO_CANCELAR_OPERACAO_==='function')FT_AUTO_CANCELAR_OPERACAO_(operacaoId,motivo);var obsCol=m.OBSERVACOES;if(obsCol!==undefined)sh.getRange(r.row,obsCol+1).setValue((String(r.values[obsCol]||'')+' | CANCELADA: '+motivo+' | '+new Date().toISOString()).slice(0,2000));
  _ftMvpAuditSafe_(s,'CANCELAR_OPERACAO',operacaoId,motivo);return {ok:true,message:'Operação cancelada. Histórico preservado; novas entregas e convocações devem ser bloqueadas.'};
 }
 function reabrirOperacaoFullTime(token,operacaoId,motivo){
