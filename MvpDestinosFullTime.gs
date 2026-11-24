@@ -89,7 +89,7 @@ function registrarEntregaDestinoFullTime(token,data){
   var dest=ftMvpSheet_('DESTINOS_OPERACAO'),dm=ftMvpMap_(dest),drows=ftMvpReadRows_(dest),di=drows.find(function(r){return String(r.values[ftMvpCol_(dm,'ID')])===destId&&String(r.values[ftMvpCol_(dm,'OPERACAO_ID')])===opId;});if(!di)throw new Error('Destino não pertence a esta operação.');
   var destBalance=ftMvpNum_(di.values[ftMvpCol_(dm,'SALDO_TONELADAS')]);if(tons>destBalance+0.000001)throw new Error('Entrega excede o saldo do destino ('+destBalance+' t).');
   var sets=listarRegistros_('CONJUNTOS'),set=sets.find(function(x){return String(x.id)===setId;});if(!set||String(set.status)!=='ATIVO')throw new Error('Conjunto não está ativo.');
-  var fields=set.campos||[];if(String(fields[7]||'').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO.');
+  var fields=set.campos||[];if(String(fields[5]||'').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO.');
   var parts=ftMvpSheet_('PARTICIPACAO_OPERACOES'),pm=ftMvpMap_(parts),prows=ftMvpReadRows_(parts),part=prows.find(function(r){return String(r.values[ftMvpCol_(pm,'OPERACAO_ID')])===opId&&String(r.values[ftMvpCol_(pm,'CONJUNTO_ID')])===setId&&String(r.values[ftMvpCol_(pm,'STATUS_PARTICIPACAO')])==='ATIVO';});if(!part)throw new Error('Conjunto precisa estar designado e ativo nesta operação.');
   var moves=ftMvpSheet_('MOVIMENTACOES_OPERACAO'),mm=ftMvpMap_(moves),move={ID:Utilities.getUuid(),DATA_HORA:new Date(),OPERACAO_ID:opId,PARTICIPACAO_ID:part.values[ftMvpCol_(pm,'ID')],CONJUNTO_ID:setId,TONELADAS:tons,VIAGEM_CONCLUIDA:'SIM',OBSERVACOES:obs,REGISTRADO_POR:session.login||'ADMIN',QUANTIDADE_VIAGENS:trips,ID_DESTINO:destId};
   FT_MVP_MOV_HEADERS.forEach(function(k){ftMvpCol_(mm,k);});ftMvpWriteObject_(moves,move);
