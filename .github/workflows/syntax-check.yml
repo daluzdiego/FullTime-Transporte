@@ -1,0 +1,19 @@
+name: Full Time syntax checks
+on:
+  push:
+    branches: [fulltime-2.0]
+  pull_request:
+    branches: [fulltime-2.0]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate Apps Script and browser JavaScript syntax
+        run: node scripts/check-syntax.mjs
