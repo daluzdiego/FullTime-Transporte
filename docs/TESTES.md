@@ -54,3 +54,23 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Não cadastrar documentos reais até aprovação dos controles de segurança.
 - [ ] Testar com duas sessões administrativas antes de uso conjunto.
 - [ ] Documentar como restaurar a base e recuperar acesso.
+
+
+## Solicitações — entrada e interpretação Gemini
+
+Executar somente em ambiente de homologação, com mensagem fictícia.
+
+- [ ] Confirmar que `ENTRADA_OPERACOES_IA` possui exatamente os 18 cabeçalhos do contrato canônico.
+- [ ] Registrar uma solicitação pelo painel e confirmar que a mensagem original foi gravada em `MENSAGEM_BRUTA`.
+- [ ] Executar `testarConexaoGeminiFullTime()`; confirmar autenticação e geração de texto sem expor a chave nos logs.
+- [ ] Executar a ação **IA** em uma solicitação fictícia.
+- [ ] Confirmar que a análise usa `MENSAGEM_BRUTA`, grava os dados e o histórico dentro de `INTERPRETACAO_JSON` e atualiza `STATUS_INTERPRETACAO`.
+- [ ] Confirmar que a mensagem original permanece idêntica após a análise.
+- [ ] Confirmar que campos ausentes são listados como pendências e impedem aprovação.
+- [ ] Confirmar que a análise não cria uma operação nem uma carga.
+- [ ] Simular indisponibilidade da API e confirmar status `AGUARDANDO_IA`, registro do erro em metadados e preservação da mensagem.
+- [ ] Reexecutar a análise após indisponibilidade e confirmar que a solicitação pode ser processada novamente.
+- [ ] Abrir **Revisar**, editar os dados e salvar; confirmar persistência em `INTERPRETACAO_JSON`.
+- [ ] Aprovar somente depois de preencher os requisitos operacionais; conferir que a conversão é uma ação separada e idempotente.
+
+**Contrato do módulo:** `SolicitacoesFullTime.gs` define os 18 cabeçalhos; `InterpretacaoSolicitacoesFullTime.gs` deve consumir apenas esses cabeçalhos e o objeto JSON de metadados. Não criar colunas paralelas como `TEXTO_ORIGINAL`, `DADOS_EXTRAIDOS_JSON`, `CAMPOS_PENDENTES_JSON`, `PERGUNTAS_IA` ou `HISTORICO_JSON`.
