@@ -1150,7 +1150,7 @@
     host.innerHTML='<section class="ops-detail-shell"><div class="ops-detail-heading"><div><span class="ops-detail-symbol">▣</span><strong>'+esc(op.nome||op.campos?.[2]||'Operação')+'</strong><span class="ops-status-pill">'+esc(status.replace(/_/g,' '))+'</span></div><div class="ops-detail-actions"><button class="btn btn-primary" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\'escala\');document.getElementById(\'candidate-list-'+esc(id)+'\')?.scrollIntoView({behavior:\'smooth\',block:\'center\'})">⚙ Gerar Escala</button><button class="btn btn-secondary" onclick="abrirEscalasOperacao(\''+esc(id)+'\')">⇄ Alterar Escala</button><span class="ops-confirmed '+(confirmed?'':'is-pending')+'">✓ '+(confirmed?'Escala Confirmada':'Escala não confirmada')+'</span><button class="btn btn-secondary" disabled title="Edição de operação ainda não possui rotina de atualização segura no backend.">✎ Editar</button><button class="btn btn-danger" onclick="confirmarConclusaoCentro(\''+esc(id)+'\')">⚑ Encerrar Operação</button></div></div>'+
       '<nav class="ops-detail-tabs">'+tabs.map(t=>'<button data-op-tab="'+t[0]+'" class="'+(t[0]===activeTab?'active':'')+'" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\''+t[0]+'\')"><span>'+t[1]+'</span>'+t[2]+'</button>').join('')+'</nav>'+
       '<div class="ops-tab-panel" data-op-panel="resumo">'+renderResumoOperacao(id,op,parts,candidates)+'</div>'+
-      '<div class="ops-tab-panel hidden" data-op-panel="escala"><div class="ops-tab-intro"><div><h3>Formação automática da escala</h3><p>'+aptos+' motorista(s)/conjunto(s) apto(s) identificados pela validação atual.</p></div><label>Vagas <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="'+Math.max(1,Math.min(40,aptos||1))+'"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação</button></div><div id="auto-status-'+esc(id)+'"></div><div id="candidate-list-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="escala"><div class="ops-tab-intro"><div><h3>Formação automática da escala</h3><p>'+aptos+' motorista(s)/conjunto(s) apto(s) identificados pela validação atual.</p></div><label>Motoristas desejados <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="'+Math.max(1,Math.min(40,aptos||1))+'"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação</button></div><div id="auto-status-'+esc(id)+'"></div><div id="candidate-list-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="equipe"><div id="op-equipe-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="viagens"><div id="op-viagens-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="pesagens"><div id="op-pesagens-'+esc(id)+'"></div></div>'+
@@ -1187,11 +1187,11 @@
     }
     const input=document.getElementById('auto-slots-'+operacaoId);
     const slots=Math.floor(Number(input?.value||0));
-    if(slots<1||slots>40){toast('Informe de 1 a 40 vagas.',true);return;}
+    if(slots<1||slots>40){toast('Informe de 1 a 40 motoristas.',true);return;}
     if(button){button.disabled=true;button.textContent='Preparando convocação…';}
     if(host)host.innerHTML='<div class="notice">Aguardando confirmação para iniciar a fila automática…</div>';
     try{
-      const confirmed=await uiConfirm('Você solicitou a convocação de '+slots+' motorista(s). O sistema enviará ofertas aos elegíveis, respeitando a ordem de prioridade. Cada motorista terá 2 horas para responder. Recusas e expirações liberam a próxima pessoa da fila.',{title:'Confirmar convocação automática',ok:'Iniciar convocação'});
+      const confirmed=await uiConfirm('Você solicitou a escala de '+slots+' motorista(s). O sistema enviará ofertas aos elegíveis, respeitando a ordem de prioridade. Cada motorista terá 2 horas para responder. Recusas e expirações liberam a próxima pessoa da fila.',{title:'Confirmar convocação automática',ok:'Iniciar convocação'});
       if(!confirmed){if(host)host.innerHTML='';return;}
       if(host)host.innerHTML='<div class="notice">Iniciando fila e registrando as primeiras ofertas…</div>';
       google.script.run.withSuccessHandler(res=>{
