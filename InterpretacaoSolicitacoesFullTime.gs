@@ -14,7 +14,7 @@
  */
 var FT_SOL_AI = {
   MODEL: 'gemini-3.5-flash-lite',
-  FALLBACK_MODELS: [],
+  FALLBACK_MODELS: ['gemini-3.8-flash'],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000,
   MAX_RETRIES: 1,
@@ -228,6 +228,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
   if (data.destinos.length && data.saldoNaoDistribuido > 0.000001) {
     var residualQuestion = 'Há ' + data.saldoNaoDistribuido + ' toneladas sem destino confirmado. Qual destino receberá esse saldo, ou ele deve permanecer sem distribuição?';
     if (!result.camposPendentes.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.camposPendentes.push('Confirmar a destinação do saldo não distribuído (' + data.saldoNaoDistribuido + ' t)');
+    if (pending.indexOf('Confirmar a destinação do saldo não distribuído (' + data.saldoNaoDistribuido + ' t)') < 0) pending.push('Confirmar a destinação do saldo não distribuído (' + data.saldoNaoDistribuido + ' t)');
     if (!result.perguntas.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.perguntas.push(residualQuestion);
   }
   var questions = result.perguntas
@@ -492,7 +493,7 @@ function ftSolGenerateAIText_(prompt) {
       muteHttpExceptions: true, timeoutSeconds: timeoutSeconds,
       payload: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
+        generationConfig: { responseMimeType: 'application/json' }
       })
     };
     var attemptStarted = Date.now();
