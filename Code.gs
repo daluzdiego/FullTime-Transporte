@@ -405,7 +405,7 @@ function getSheet_(name) {
   // Fonte única: planilha principal. Somente autenticação e auditoria ficam na base interna.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','DESTINOS_OPERACAO','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','DESTINOS_OPERACAO','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA','TICKETS'];
   const authTabs = ['USUARIOS','AUDITORIA','TOKENS_RECUPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
