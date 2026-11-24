@@ -775,8 +775,18 @@
   function solDateToIsoFullTime(value){const v=String(value||'').trim();const m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];return v;}
   function mascararDataSolicitacaoFullTime(input){let v=String(input.value||'').replace(/\D/g,'').slice(0,8);if(v.length>4)v=v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);else if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);input.value=v;}
   function renderDestinosEdicaoFullTime(destinos,pending){
-    destinos=Array.isArray(destinos)?destinos:[];if(!destinos.length)destinos=[{cliente:'',local:'',cidadeUf:'',volume:'',dataPrevista:'',observacoes:''}];
-    return destinos.map((d,i)=>'<div class="panel" style="padding:14px;margin:10px 0" data-sol-destino><div style="display:flex;justify-content:space-between;align-items:center"><strong>Destino '+(i+1)+'</strong><button type="button" class="btn btn-secondary" onclick="removerDestinoSolicitacaoFullTime(this)">Remover</button></div><div class="form-grid"><div class="'+(invalid('Empresa do destino')?'field field-pending':'field')+'"><label>Empresa / cliente do destino</label><input data-dest="cliente" maxlength="160" value="'+esc(d.cliente||'')+'"></div><div class="'+(invalid('Local do destino')?'field field-pending':'field')+'"><label>Local / endereço</label><input data-dest="local" maxlength="220" value="'+esc(d.local||'')+'"></div><div class="field"><label>Cidade / UF</label><input data-dest="cidadeUf" maxlength="120" value="'+esc(d.cidadeUf||'')+'"></div><div class="'+(invalid('Volume do destino')?'field field-pending':'field')+'"><label>Volume destinado (t)</label><input data-dest="volume" type="number" min="0.01" step="0.01" inputmode="decimal" value="'+esc(d.volume||'')+'"></div><div class="field"><label>Data prevista</label><input data-dest="dataPrevista" type="date" value="'+esc(solDateToIsoFullTime(d.dataPrevista||''))+'"></div><div class="field"><label>Observações do destino</label><input data-dest="observacoes" maxlength="500" value="'+esc(d.observacoes||'')+'"></div></div></div>';}).join('');
+    destinos=Array.isArray(destinos)?destinos:[];pending=Array.isArray(pending)?pending:[];
+    if(!destinos.length)destinos=[{cliente:'',local:'',cidadeUf:'',volume:'',dataPrevista:'',observacoes:''}];
+    return destinos.map((d,i)=>{
+      const ix=i+1,invalid=term=>pending.some(p=>String(p).includes(term+' '+ix));
+      return '<div class="panel" style="padding:14px;margin:10px 0" data-sol-destino><div style="display:flex;justify-content:space-between;align-items:center"><strong>Destino '+ix+'</strong><button type="button" class="btn btn-secondary" onclick="removerDestinoSolicitacaoFullTime(this)">Remover</button></div><div class="form-grid">'+
+      '<div class="'+(invalid('Empresa do destino')?'field field-pending':'field')+'"><label>Empresa / cliente do destino</label><input data-dest="cliente" maxlength="160" value="'+esc(d.cliente||'')+'"></div>'+
+      '<div class="'+(invalid('Local do destino')?'field field-pending':'field')+'"><label>Local / endereço</label><input data-dest="local" maxlength="220" value="'+esc(d.local||'')+'"></div>'+
+      '<div class="field"><label>Cidade / UF</label><input data-dest="cidadeUf" maxlength="120" value="'+esc(d.cidadeUf||'')+'"></div>'+
+      '<div class="'+(invalid('Volume do destino')?'field field-pending':'field')+'"><label>Volume destinado (t)</label><input data-dest="volume" type="number" min="0.01" step="0.01" inputmode="decimal" value="'+esc(d.volume||'')+'"></div>'+
+      '<div class="field"><label>Data prevista</label><input data-dest="dataPrevista" type="date" value="'+esc(solDateToIsoFullTime(d.dataPrevista||''))+'"></div>'+
+      '<div class="field"><label>Observações do destino</label><input data-dest="observacoes" maxlength="500" value="'+esc(d.observacoes||'')+'"></div></div></div>';
+    }).join('');
   }
   function lerDestinosSolicitacaoFullTime(){
     const host=document.getElementById('solDestinosEditor');if(!host)return [];
