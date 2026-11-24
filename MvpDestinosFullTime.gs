@@ -35,8 +35,8 @@ function prepararEstruturaMvpDestinosFullTime(){
 }
 
 /** Cadastro estruturado/manual. Mesmo contrato de operação criada pela IA, sem chamar Gemini. */
-function salvarOperacaoComDestinosFullTime(token,data){
- var session=obterSessao_(token);exigirAdmin_(session);data=data||{};
+function salvarOperacaoComDestinosFullTime(token,data){var session=obterSessao_(token);exigirAdmin_(session);return ftMvpCreateOperationForSession_(session,data);}
+function ftMvpCreateOperationForSession_(session,data){data=data||{};
  var date=ftMvpDate_(data.data),client=ftMvpText_(data.cliente,120),name=ftMvpText_(data.nome,160),origin=ftMvpText_(data.origem,180);
  var volume=ftMvpNum_(data.volumeTotal),trips=Math.floor(ftMvpNum_(data.viagensPrevistas)),product=ftMvpText_(data.produto,160),type=ftMvpText_(data.tipoOperacao||'OUTRA',40).toUpperCase(),category=ftMvpText_(data.categoria||'PADRAO',40).toUpperCase();
  var destinations=Array.isArray(data.destinos)?data.destinos:[];
