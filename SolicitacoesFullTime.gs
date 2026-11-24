@@ -38,7 +38,7 @@ function ftSolComputeMissingFields_(d){
  if(!ftSolText_(d.tipoOperacao,80))m.push('Tipo de operação');
  if(!ftSolText_(d.origemDetalhada||d.origem,160))m.push('Origem identificável (local e cidade/UF)');
  var destinos=Array.isArray(d.destinos)?d.destinos:[];if(!destinos.length&&!ftSolText_(d.destinoDetalhado||d.destino,160))m.push('Pelo menos um destino identificável (local e cidade/UF)');
- if(destinos.length){var soma=0;destinos.forEach(function(x,i){if(!ftSolText_(x.cliente,160))m.push('Empresa do destino '+(i+1));if(!ftSolText_(x.local||x.destino,220))m.push('Local do destino '+(i+1));var q=ftSolNumber_(x.volume);if(!(q>0))m.push('Volume do destino '+(i+1));soma+=q;});if(ftSolNumber_(d.volume)>0&&soma>ftSolNumber_(d.volume)+0.000001)m.push('Soma dos volumes dos destinos excede o volume total');}
+ if(destinos.length){var soma=0;destinos.forEach(function(x,i){if(!ftSolText_(x.cliente,160))m.push('Empresa do destino '+(i+1));if(!ftSolText_(x.local||x.destino,220))m.push('Local do destino '+(i+1));var q=ftSolNumber_(x.volume);if(!(q>0))m.push('Volume do destino '+(i+1));soma+=q;});if(ftSolNumber_(d.volume)>0&&soma>ftSolNumber_(d.volume)+0.000001)m.push('Soma dos volumes dos destinos excede o volume total');else if(ftSolNumber_(d.volume)>0&&soma<ftSolNumber_(d.volume)-0.000001)m.push('Volume total não distribuído entre destinos');}
  if(!(ftSolNumber_(d.volume)>0))m.push('Peso/volume total numérico maior que zero');
  if(!(ftSolNumber_(d.volumePorViagem)>0)&&!(ftSolNumber_(d.viagensPrevistas)>0))m.push('Volume por viagem ou quantidade prevista de viagens');
  if(['t','ton','tonelada','toneladas'].indexOf(ftSolText_(d.unidadeVolume,30).toLowerCase())<0)m.push('Unidade do peso confirmada em toneladas (t)');
@@ -145,7 +145,7 @@ function testarValidacaoManualSolicitacaoFullTime(){
   {cliente:'Empresa 5',local:'Unidade 5, Pelotas - RS',volume:'90'}
  ]};
  var complete=ftSolComputeMissingFields_(base),over=JSON.parse(JSON.stringify(base));over.destinos[4].volume='100';
- var incomplete=JSON.parse(JSON.stringify(base));incomplete.destinos[2].local='';
- var result={ok:complete.length===0&&ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0&&ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;}),casos:{cincoDestinosSemPendencia:complete.length===0,excessoDeDistribuicaoBloqueado:ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0,localAusenteDetectado:ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})}};
+ var incomplete=JSON.parse(JSON.stringify(base));incomplete.destinos[2].local='';var under=JSON.parse(JSON.stringify(base));under.destinos[4].volume='80';
+ var result={ok:complete.length===0&&ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0&&ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})&&ftSolComputeMissingFields_(under).indexOf('Volume total não distribuído entre destinos')>=0,casos:{cincoDestinosSemPendencia:complete.length===0,excessoDeDistribuicaoBloqueado:ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0,volumeNaoDistribuidoSinalizado:ftSolComputeMissingFields_(under).indexOf('Volume total não distribuído entre destinos')>=0,localAusenteDetectado:ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})}};
  console.log(JSON.stringify(result));return result;
 }
