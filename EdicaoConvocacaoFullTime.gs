@@ -26,17 +26,21 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
       }
     }
     if (!old) throw new Error('Convocação não encontrada.');
-    if (String(old[map.STATUS_PARTICIPACAO] || '').trim().toUpperCase() !== 'OFERTADA') {
-      throw new Error('Esta convocação já foi respondida ou confirmada. Somente ofertas pendentes podem ser substituídas por esta função.');
+    const currentStatus = String(old[map.STATUS_PARTICIPACAO] || '').trim().toUpperCase();
+    const replaceable = ['OFERTADA','RECUSADA','NAO_RESPONDEU','EXPIRADA'];
+    if (replaceable.indexOf(currentStatus) < 0) {
+      throw new Error('Esta participação já foi confirmada ou está em execução. O vínculo confirmado não pode ser alterado.');
     }
 
-    const expRaw = old[map.EXPIRA_EM];
-    const exp = expRaw instanceof Date ? expRaw : new Date(expRaw);
-    if (!exp || !isFinite(exp.getTime()) || exp.getTime() <= Date.now()) {
-      sh.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue('NAO_RESPONDEU');
-      if (map.RESPONDIDA_EM !== undefined) sh.getRange(rowNumber, map.RESPONDIDA_EM + 1).setValue(new Date());
-      FT_colocarMotoristaNoFinalDaFila_(old[map.MOTORISTA_ID], 'oferta expirou durante tentativa de substituição');
-      throw new Error('O prazo da convocação expirou. Atualize a escala antes de fazer outra alteração.');
+    if (currentStatus === 'OFERTADA') {
+      const expRaw = old[map.EXPIRA_EM];
+      const exp = expRaw instanceof Date ? expRaw : new Date(expRaw);
+      if (!exp || !isFinite(exp.getTime()) || exp.getTime() <= Date.now()) {
+        sh.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue('NAO_RESPONDEU');
+        if (map.RESPONDIDA_EM !== undefined) sh.getRange(rowNumber, map.RESPONDIDA_EM + 1).setValue(new Date());
+        FT_colocarMotoristaNoFinalDaFila_(old[map.MOTORISTA_ID], 'oferta expirou durante tentativa de substituição');
+        throw new Error('O prazo da convocação expirou. Atualize a escala antes de fazer outra alteração.');
+      }
     }
 
     const operacaoId = String(old[map.OPERACAO_ID] || '');
@@ -76,10 +80,13 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
 
     const now = new Date();
     const oldDriverId = String(old[map.MOTORISTA_ID] || '');
-    sh.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue('CANCELADA_SUBSTITUICAO');
-    if (map.RESPONDIDA_EM !== undefined) sh.getRange(rowNumber, map.RESPONDIDA_EM + 1).setValue(now);
-    if (map.MOTIVO !== undefined) sh.getRange(rowNumber, map.MOTIVO + 1).setValue('Convocação substituída por administrador. Motivo: ' + motivo);
-    if (map.OBSERVACOES_OFERTA !== undefined) sh.getRange(rowNumber, map.OBSERVACOES_OFERTA + 1).setValue('Substituída em ' + now.toISOString() + ' por ' + session.login + '. ' + motivo);
+    // Oferta pendente é cancelada; recusa/expiração permanece intacta no histórico.
+    if (currentStatus === 'OFERTADA') {
+      sh.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue('CANCELADA_SUBSTITUICAO');
+      if (map.RESPONDIDA_EM !== undefined) sh.getRange(rowNumber, map.RESPONDIDA_EM + 1).setValue(now);
+      if (map.MOTIVO !== undefined) sh.getRange(rowNumber, map.MOTIVO + 1).setValue('Convocação substituída por administrador. Motivo: ' + motivo);
+      if (map.OBSERVACOES_OFERTA !== undefined) sh.getRange(rowNumber, map.OBSERVACOES_OFERTA + 1).setValue('Substituída em ' + now.toISOString() + ' por ' + session.login + '. ' + motivo);
+    }
 
     const oldOrigin = String(old[map.ORIGEM_OFERTA] || '').trim().toUpperCase();
     const isAutoQueue = oldOrigin === 'FILA_AUTOMATICA';
@@ -138,9 +145,47 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
       motoristaAnteriorId: oldDriverId, motoristaNovoId: newDriverId,
       conjuntoAnteriorId: oldSetId, conjuntoNovoId: novoConjuntoId,
       status: 'OFERTADA',
-      message: 'Convocação substituída. A nova pessoa receberá uma oferta e precisará aceitá-la; a escala ainda não está confirmada.'
+      message: 'Substituição registrada. A nova convocação está pendente de aceite; a escala ainda não está confirmada.'
     };
   } finally {
     lock.releaseLock();
   }
+}
+
+
+/** Retira uma convocação ainda pendente sem apagar seu histórico. */
+function FT_cancelarConvocacaoPendenteFullTime(token, ofertaId, motivo) {
+  const session = obterSessao_(token);
+  exigirAdmin_(session);
+  ofertaId = texto_(ofertaId, 120);
+  motivo = texto_(motivo || 'Retirada administrativa antes do aceite.', 500);
+  if (!ofertaId) throw new Error('Informe a convocação.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = getSheet_('PARTICIPACAO_OPERACOES');
+    const map = FT_CONV_ensureHeaders_(sh, FT_CONVOCACAO_CFG_20261110.PARTICIPACAO_HEADERS);
+    const rows = sh.getDataRange().getValues();
+    let rowNumber = -1, record = null;
+    for (let i=1;i<rows.length;i++) if (String(rows[i][map.ID]||'')===ofertaId) { rowNumber=i+1; record=rows[i]; break; }
+    if (!record) throw new Error('Convocação não encontrada.');
+    if (String(record[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase()!=='OFERTADA') {
+      throw new Error('Somente uma convocação aguardando resposta pode ser retirada. Participações confirmadas são bloqueadas.');
+    }
+    const expiryRaw=record[map.EXPIRA_EM],expiry=expiryRaw instanceof Date?expiryRaw.getTime():new Date(expiryRaw).getTime();
+    if (!isFinite(expiry)||expiry<=Date.now()) throw new Error('A convocação expirou. Atualize a escala antes de retirar.');
+    const opId=String(record[map.OPERACAO_ID]||''),now=new Date();
+    sh.getRange(rowNumber,map.STATUS_PARTICIPACAO+1).setValue('CANCELADA_ADMIN');
+    if(map.RESPONDIDA_EM!==undefined)sh.getRange(rowNumber,map.RESPONDIDA_EM+1).setValue(now);
+    if(map.MOTIVO!==undefined)sh.getRange(rowNumber,map.MOTIVO+1).setValue('Retirada administrativa. '+motivo);
+    if(map.OBSERVACOES_OFERTA!==undefined)sh.getRange(rowNumber,map.OBSERVACOES_OFERTA+1).setValue('Retirada em '+now.toISOString()+' por '+(session.login||'ADMIN')+'. '+motivo);
+    const origin=String(record[map.ORIGEM_OFERTA]||'').trim().toUpperCase();
+    if(origin==='FILA_AUTOMATICA'&&typeof FT_AUTO_READ_==='function'&&typeof FT_AUTO_WRITE_==='function'){
+      const queues=FT_AUTO_READ_(),q=queues[opId];
+      if(q&&q.status==='EM_ANDAMENTO'){q.pendentes=(q.pendentes||[]).filter(id=>String(id)!==ofertaId);FT_AUTO_WRITE_(queues);}
+    }
+    FT_CONV_appendEvent_({tipo:'OFERTA_RETIRADA_ADMIN',operacaoId:opId,motoristaId:record[map.MOTORISTA_ID],conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'CANCELADA_ADMIN',motivo:motivo,autor:session.login||'ADMIN',ofertaId:ofertaId});
+    auditar_(session,'RETIRAR_CONVOCACAO_PENDENTE','OPERACAO',opId,'Oferta '+ofertaId+' retirada. '+motivo);
+    return {ok:true,status:'CANCELADA_ADMIN',message:'Convocação retirada. O histórico foi preservado e nenhum aceite foi alterado.'};
+  } finally { lock.releaseLock(); }
 }
