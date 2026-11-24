@@ -725,6 +725,7 @@
       </div></details>
       <div class="panel" style="margin-top:16px"><div class="panel-head"><h2>Controle administrativo da operação</h2><span class="muted small">Cancelamento e reabertura auditáveis</span></div><div class="panel-body"><div class="form-grid"><div class="field"><label>Operação *</label><select id="operationAdminSelect"><option value="">Selecione</option>${ops.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome||o.campos[2]||o.id)+' · '+esc(o.status)+'</option>').join('')}</select></div><div class="field"><label>Ação</label><div class="form-actions"><button class="btn btn-secondary" type="button" onclick="cancelarOperacaoUI(document.getElementById('operationAdminSelect').value)">Cancelar operação</button><button class="btn btn-secondary" type="button" onclick="reabrirOperacaoUI(document.getElementById('operationAdminSelect').value)">Reabrir operação</button></div></div></div></div></div>
       <div id="operacaoActionPanel"></div>
+    `;
   }
   let manualMvpDestinationCount=0;
   function addManualMvpDestination(){
