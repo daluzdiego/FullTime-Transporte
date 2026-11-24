@@ -51,6 +51,20 @@ function ftSolAIMetadata_(rowValues, columns) {
  * Interpreta uma solicitação já registrada.
  * Não altera MENSAGEM_BRUTA e não cria operação/carga.
  */
+/** Confere se o volume atribuído a um destino está sustentado por trecho literal da mensagem. */
+function ftSolEvidenceNorm_(value) {
+  return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
+}
+function ftSolVerifyDestinationVolumeEvidence_(original, destination) {
+  destination = destination || {};
+  var quote = ftSolText_(destination.evidenciaVolume, 700);
+  var quoteNorm = ftSolEvidenceNorm_(quote), originalNorm = ftSolEvidenceNorm_(original);
+  var amount = ftSolNumber_(destination.volume), tokens = quote.match(/\\d+(?:[.,]\\d+)?/g) || [];
+  var amountFound = amount > 0 && tokens.some(function(token) { return Math.abs(ftSolNumber_(token) - amount) < 0.000001; });
+  var identity = [destination.cliente, destination.local, destination.cidadeUf].map(ftSolEvidenceNorm_).filter(function(v) { return v.length >= 3; });
+  var identityFound = identity.some(function(v) { return quoteNorm.indexOf(v) >= 0; });
+  return {valid:!!quote && originalNorm.indexOf(quoteNorm) >= 0 && amountFound && identityFound, quote:quote, reason:!quote?'Trecho comprobatório ausente.':originalNorm.indexOf(quoteNorm)<0?'Trecho não aparece literalmente na mensagem original.':!identityFound?'Trecho não vincula o volume ao destino.':!amountFound?'Trecho não contém o volume informado.':''};
+}
 function analisarSolicitacaoIAFullTime(token, id) {
   var session = obterSessao_(token);
   exigirAdmin_(session);
@@ -176,8 +190,18 @@ function analisarSolicitacaoIAFullTime(token, id) {
   allowed.forEach(function (key) {
     data[key] = ftSolText_(result.dados[key], 500);
   });
-  data.destinos = Array.isArray(result.dados.destinos) ? result.dados.destinos.slice(0,50).map(function (x) { x=x||{}; return {cliente:ftSolText_(x.cliente||x.empresa,160),local:ftSolText_(x.local||x.destino||x.endereco,220),cidadeUf:ftSolText_(x.cidadeUf||x.cidade,120),volume:ftSolText_(x.volume||x.volumePrevisto,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)}; }) : [];
+  data.destinos = Array.isArray(result.dados.destinos) ? result.dados.destinos.slice(0,50).map(function (x) { x=x||{}; return {cliente:ftSolText_(x.cliente||x.empresa,160),local:ftSolText_(x.local||x.destino||x.endereco,220),cidadeUf:ftSolText_(x.cidadeUf||x.cidade,120),volume:ftSolText_(x.volume||x.volumePrevisto,40),evidenciaVolume:ftSolText_(x.evidenciaVolume,700),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)}; }) : [];
 
+  // Volume só é aceito quando existe evidência literal que o vincule ao destino.
+  data.destinos.forEach(function(destination, index) {
+    if (!destination.volume) return;
+    var evidence = ftSolVerifyDestinationVolumeEvidence_(original, destination);
+    if (!evidence.valid) {
+      destination.volume = '';
+      var pendingEvidence = 'Volume do destino ' + (index + 1) + ' não comprovado na mensagem original';
+      if (!result.camposPendentes.some(function(x) { return String(x).indexOf('Volume do destino ' + (index + 1)) === 0; })) result.camposPendentes.push(pendingEvidence);
+    }
+  });
   var pending = result.camposPendentes
     .map(function (value) { return ftSolText_(value, 250); })
     .filter(Boolean);
@@ -187,7 +211,14 @@ function analisarSolicitacaoIAFullTime(token, id) {
     if (pending.indexOf(missing) < 0) pending.push(missing);
   });
 
-  var questions = result.perguntas
+  var totalDeclared = ftSolNumber_(data.volume);
+  var distributed = data.destinos.reduce(function(sum, destination) { return sum + ftSolNumber_(destination.volume); }, 0);
+  data.saldoNaoDistribuido = totalDeclared > 0 ? Math.max(0, totalDeclared - distributed) : 0;
+  if (data.destinos.length && data.saldoNaoDistribuido > 0.000001) {
+    var residualQuestion = 'Há ' + data.saldoNaoDistribuido + ' toneladas sem destino confirmado. Qual destino receberá esse saldo, ou ele deve permanecer sem distribuição?';
+    if (!result.camposPendentes.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.camposPendentes.push('Confirmar a destinação do saldo não distribuído (' + data.saldoNaoDistribuido + ' t)');
+    if (!result.perguntas.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.perguntas.push(residualQuestion);
+  }
     .map(function (value) { return ftSolText_(value, 500); })
     .filter(Boolean);
   var ambiguities = result.ambiguidades
