@@ -24,7 +24,7 @@ function ftSolEnsureHeaders_(sh){
 }
 function ftSolText_(v,max){return String(v==null?'':v).replace(/\u0000/g,'').trim().slice(0,max);}
 function ftSolJson_(v,fallback){if(v==null||v==='')return fallback;if(typeof v!=='string')return v;try{return JSON.parse(v);}catch(e){throw new Error('JSON inválido nos dados da solicitação.');}}
-function ftSolCols_(sh){var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],m={};h.forEach(function(v,i){m[String(v).trim()]=i+1;});return m;}
+function ftSolCols_(sh){var lastCol=sh.getLastColumn();if(!lastCol)throw new Error('A guia ENTRADA_OPERACOES_IA está sem cabeçalhos. Nenhum dado foi alterado.');var h=sh.getRange(1,1,1,lastCol).getDisplayValues()[0],m={};h.forEach(function(v,i){var k=String(v||'').trim().toUpperCase();if(k)m[k]=i+1;});return m;}
 function ftSolEvent_(acao,autor,detalhe){return {em:new Date().toISOString(),acao:acao,autor:autor||'SISTEMA',detalhe:detalhe||''};}
 function ftSolMeta_(row,c){var raw=row[c.INTERPRETACAO_JSON-1];var meta={};try{meta=JSON.parse(raw||'{}')||{};}catch(e){};if(!meta.solicitacao)meta.solicitacao={};return meta;}
 function ftSolPutMeta_(sh,row,c,meta){sh.getRange(row,c.INTERPRETACAO_JSON).setValue(JSON.stringify(meta));}
