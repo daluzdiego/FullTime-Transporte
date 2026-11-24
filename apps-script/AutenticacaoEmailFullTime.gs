@@ -154,20 +154,3 @@ function redefinirSenhaPorTokenFullTime(token,novaSenha) {
   auditar_(session,'RECUPERACAO_SENHA','USUARIO',String(urows[userIndex][umap.ID]),'Senha redefinida por link de uso único.');
   return {ok:true,message:'Senha redefinida com sucesso. Entre usando seu e-mail e a nova senha.'};
 }
-
-/**
- * Preparação aditiva e isolada da guia de recuperação de senha.
- * Não altera usuários, senhas, e-mails, sessões ou auditoria.
- * Seguro para executar uma vez na base de autenticação de homologação.
- */
-function FT_AUTH_prepararGuiaRecuperacaoHomologacao() {
-  const sh = FT_AUTH_ensureResetSheet_();
-  return {
-    ok: true,
-    planilha: sh.getParent().getName(),
-    guia: sh.getName(),
-    cabecalhos: FT_AUTH_EMAIL_CONFIG_20261111.RESET_HEADERS,
-    linhasExistentes: Math.max(0, sh.getLastRow() - 1),
-    mensagem: 'Guia RECUPERACAO_SENHA conferida/criada sem alterar usuários ou senhas.'
-  };
-}
