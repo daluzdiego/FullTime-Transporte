@@ -6,12 +6,12 @@
 var FT_MVP_DESTINOS_HEADERS = ['ID','CRIADO_EM','OPERACAO_ID','ORDEM_ENTREGA','CLIENTE_DESTINO','LOCAL_ENTREGA','CIDADE_UF','VOLUME_PREVISTO_TONELADAS','VOLUME_ENTREGUE_TONELADAS','SALDO_TONELADAS','STATUS','DATA_PREVISTA','OBSERVACOES'];
 var FT_MVP_MOV_HEADERS = ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS','ID_DESTINO'];
 
-function ftMvpNorm_(v){return String(v==null?'':v).trim().toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^A-Z0-9_]/g,'');}
+function ftMvpNorm_(v){return String(v==null?'':v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9_]/g,'');}
 function ftMvpMap_(sh){var h=sh.getLastColumn()?sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0]:[],m={};h.forEach(function(v,i){var k=ftMvpNorm_(v);if(k&&m[k]===undefined)m[k]=i;});return m;}
 function ftMvpCol_(map,name){var n=ftMvpNorm_(name);if(map[n]===undefined)throw new Error('Coluna obrigatória ausente: '+name);return map[n];}
-function ftMvpNum_(v){var s=String(v==null?'':v).trim().replace(/[^0-9,.-]/g,'');if(!s)return 0;if(s.indexOf(',')>=0&&s.indexOf('.')>=0)s=s.replace(/\\./g,'').replace(',','.');else if(s.indexOf(',')>=0)s=s.replace(',','.');return Number(s);}
-function ftMvpText_(v,max){return String(v==null?'':v).replace(/\\u0000/g,'').trim().slice(0,max||500);}
-function ftMvpDate_(v){var s=ftMvpText_(v,10);if(!s)return '';if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)||isNaN(new Date(s+'T12:00:00').getTime()))throw new Error('Data inválida: '+s);return s;}
+function ftMvpNum_(v){var s=String(v==null?'':v).trim().replace(/[^0-9,.-]/g,'');if(!s)return 0;if(s.indexOf(',')>=0&&s.indexOf('.')>=0)s=s.replace(/\./g,'').replace(',','.');else if(s.indexOf(',')>=0)s=s.replace(',','.');return Number(s);}
+function ftMvpText_(v,max){return String(v==null?'':v).replace(/\u0000/g,'').trim().slice(0,max||500);}
+function ftMvpDate_(v){var s=ftMvpText_(v,10);if(!s)return '';if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||isNaN(new Date(s+'T12:00:00').getTime()))throw new Error('Data inválida: '+s);return s;}
 function ftMvpSheet_(name){return getSheet_(name);}
 function ftMvpHasDestinations_(operationId){var id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');if(!id)return false;var ss=SpreadsheetApp.openById(id),sh=ss.getSheetByName('DESTINOS_OPERACAO');if(!sh||sh.getLastRow()<2)return false;var m=ftMvpMap_(sh),col=ftMvpCol_(m,'OPERACAO_ID')+1;return sh.getRange(2,col,sh.getLastRow()-1,1).getDisplayValues().some(function(r){return String(r[0])===String(operationId);});}
 function ftMvpReadRows_(sh){var last=sh.getLastRow(),width=sh.getLastColumn();if(last<2)return [];var map=ftMvpMap_(sh),values=sh.getRange(2,1,last-1,width).getValues();return values.map(function(r,i){return {row:i+2,values:r,map:map};});}
