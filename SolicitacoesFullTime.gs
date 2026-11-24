@@ -113,8 +113,8 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
  var s=obterSessao_(token);exigirAdmin_(s);var sh=ftSolSheet_(),c=ftSolCols_(sh),row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
  var status=String(sh.getRange(row,c.STATUS_INTERPRETACAO).getValue()||'');if(status!=='APROVADA')throw new Error('A solicitação precisa estar APROVADA antes de gerar uma operação.');
  var meta=ftSolMeta_(sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],c),m=meta.solicitacao||{},existing=String(sh.getRange(row,c.OPERACAO_ID).getValue()||'');if(existing)return {ok:true,duplicada:true,idOperacao:existing,message:'Esta solicitação já gerou a operação '+existing+'. Nenhuma duplicata foi criada.'};
- var d=ftSolValidateForApproval_(sh,c,row),date=ftSolText_(d.dataColeta,10),weight=ftSolNumber_(d.volume),perTrip=ftSolNumber_(d.volumePorViagem),planned=ftSolNumber_(d.viagensPrevistas);
- if(!(planned>0)&&perTrip>0)planned=Math.ceil(weight/perTrip);planned=Math.floor(planned);if(!(planned>0&&planned<=100000))throw new Error('Não foi possível calcular as viagens previstas. Informe a quantidade de viagens ou o volume por viagem.');
+ var d=ftSolValidateForApproval_(sh,c,row),date=ftSolNormalizeDate_(d.dataColeta),weight=ftSolNumber_(d.volume),perTrip=ftSolNumber_(d.volumePorViagem),planned=ftSolNumber_(d.viagensPrevistas),drivers=Math.floor(ftSolNumber_(d.motoristasNecessarios));
+ if(!(planned>0)&&perTrip>0)planned=Math.ceil(weight/perTrip);planned=Math.floor(planned);if(!(planned>=0&&planned<=100000))planned=0;
  var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'],type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
  var categories=['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'],category=String(d.categoria||'PADRAO').toUpperCase();if(categories.indexOf(category)<0)category='PADRAO';
  var origin=ftSolText_(d.origemDetalhada||d.origem,180),destinations=Array.isArray(d.destinos)?d.destinos:[];
