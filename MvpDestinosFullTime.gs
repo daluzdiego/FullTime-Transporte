@@ -106,6 +106,7 @@ function registrarEntregaDestinoFullTime(token,data){
   var operationTotal=ftMvpNum_(oi.values[ftMvpCol_(om,'VOLUME_TOTAL_TONELADAS')]);
   var operationMovesBefore=ftMvpReadRows_(moves).filter(function(r){return String(r.values[ftMvpCol_(mm,'OPERACAO_ID')])===opId;});
   var movedBefore=operationMovesBefore.reduce(function(sum,r){return sum+ftMvpNum_(r.values[ftMvpCol_(mm,'TONELADAS')]);},0);
+  movedBefore=Math.max(0,movedBefore-tons); // A movimentação atual já foi gravada; remove-a para calcular o acumulado anterior.
   var newTotal=operationTotal-(movedBefore+tons);
   dest.getRange(di.row,ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')+1).setValue(newDestDelivered);
   dest.getRange(di.row,ftMvpCol_(dm,'SALDO_TONELADAS')+1).setValue(Math.max(0,newDest));
