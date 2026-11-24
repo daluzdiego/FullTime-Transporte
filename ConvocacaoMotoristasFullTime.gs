@@ -53,6 +53,11 @@ function FT_CONV_set_(row, map, key, value) {
   row[i] = value;
 }
 
+// Compatibilidade com versões implantadas que chamam o nome legado com underscore.
+function FT_CONV_append_Event_(data) {
+  return FT_CONV_appendEvent_(data);
+}
+
 function FT_CONV_appendEvent_(data) {
   const sh = getSheet_(FT_CONVOCACAO_CFG_20261110.EVENTOS);
   const map = FT_CONV_ensureHeaders_(sh, FT_CONVOCACAO_CFG_20261110.EVENT_HEADERS);
