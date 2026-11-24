@@ -533,3 +533,29 @@ function ftSolGenerateAIText_(prompt) {
   throw new Error('Não foi possível concluir a análise dentro do limite de segurança (' +
     Math.round(total / 1000) + 's). ' + failures.join(' | '));
 }
+
+
+/** Teste determinístico sem Gemini e sem gravar planilhas: o volume inventado para Porto Alegre deve ser rejeitado. */
+function testarProtecaoVolumeDestinosFullTime() {
+  var original = [
+    'Destino 1 — Pelotas/RS. Volume: 60 toneladas.',
+    'Destino 2 — Canguçu/RS. Volume: 45 toneladas.',
+    'Destino 3 — Bagé/RS. Volume: 35 toneladas.',
+    'Destino 4 — Santa Maria/RS. Volume: 50 toneladas.',
+    'Destino 5 — Porto Alegre/RS. Volume previsto: não informado.'
+  ].join('\\n');
+  var destinations = [
+    {cliente:'Unidade Pelotas',local:'Distrito Industrial',cidadeUf:'Pelotas/RS',volume:'60',evidenciaVolume:'Destino 1 — Pelotas/RS. Volume: 60 toneladas.'},
+    {cliente:'Unidade Canguçu',local:'Área Industrial',cidadeUf:'Canguçu/RS',volume:'45',evidenciaVolume:'Destino 2 — Canguçu/RS. Volume: 45 toneladas.'},
+    {cliente:'Unidade Bagé',local:'Distrito Industrial',cidadeUf:'Bagé/RS',volume:'35',evidenciaVolume:'Destino 3 — Bagé/RS. Volume: 35 toneladas.'},
+    {cliente:'Unidade Santa Maria',local:'Distrito Industrial',cidadeUf:'Santa Maria/RS',volume:'50',evidenciaVolume:'Destino 4 — Santa Maria/RS. Volume: 50 toneladas.'},
+    {cliente:'Unidade Porto Alegre',local:'Distrito Industrial',cidadeUf:'Porto Alegre/RS',volume:'50',evidenciaVolume:'Destino 5 — Porto Alegre/RS. Volume: 50 toneladas.'}
+  ];
+  var checks = destinations.map(function(d){return ftSolVerifyDestinationVolumeEvidence_(original,d).valid;});
+  destinations.forEach(function(d,i){if(!checks[i])d.volume='';});
+  var distributed = destinations.reduce(function(sum,d){return sum+ftSolNumber_(d.volume);},0);
+  var result = {ok:checks.slice(0,4).every(Boolean)&&checks[4]===false&&distributed===190,sucessoDestinos:checks.slice(0,4).filter(Boolean).length,destino5Rejeitado:checks[4]===false,volumeDistribuido:distributed,saldoNaoDistribuido:240-distributed};
+  if(!result.ok)throw new Error('Falha no teste de evidência de volume: '+JSON.stringify(result));
+  Logger.log('FT_TESTE_PROTECAO_VOLUME_DESTINOS '+JSON.stringify(result));
+  return result;
+}
