@@ -71,7 +71,7 @@ function _ftMvpAuditSafe_(s,a,id,d){try{ftMvpAudit_(s,a,id,d);}catch(e){console.
 
 function listarDestinosOperacaoFullTime(token,operacaoId){
  var s=obterSessao_(token);exigirAdmin_(s);operacaoId=ftMvpText_(operacaoId,100);if(!operacaoId)throw new Error('Informe a operação.');
- var sh=ftMvpSheet_('DESTINOS_OPERACAO'),map=ftMvpMap_(sh),rows=ftMvpReadRows_(sh),get=function(r,k){var i=map[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
+ var ssId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');if(!ssId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');var sh=SpreadsheetApp.openById(ssId).getSheetByName('DESTINOS_OPERACAO');if(!sh)return [];var map=ftMvpMap_(sh),rows=ftMvpReadRows_(sh),get=function(r,k){var i=map[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
  return rows.filter(function(r){return String(get(r,'OPERACAO_ID'))===operacaoId;}).map(function(r){return {id:String(get(r,'ID')),ordem:Number(get(r,'ORDEM_ENTREGA')||0),cliente:String(get(r,'CLIENTE_DESTINO')||''),local:String(get(r,'LOCAL_ENTREGA')||''),cidadeUf:String(get(r,'CIDADE_UF')||''),previsto:ftMvpNum_(get(r,'VOLUME_PREVISTO_TONELADAS')),entregue:ftMvpNum_(get(r,'VOLUME_ENTREGUE_TONELADAS')),saldo:ftMvpNum_(get(r,'SALDO_TONELADAS')),status:String(get(r,'STATUS')||''),dataPrevista:String(get(r,'DATA_PREVISTA')||''),observacoes:String(get(r,'OBSERVACOES')||'')};}).sort(function(a,b){return a.ordem-b.ordem;});
 }
 
