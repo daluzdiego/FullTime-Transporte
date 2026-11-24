@@ -679,7 +679,7 @@ function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
+  const volume=Number(String(data.volumeTotal||'').replace(',','.'));
   const observacoes=texto_(data.observacoes,1000);
   const produto=texto_(data.produto,160), distanciaKm=Number(String(data.distanciaKm||'').replace(',','.'));
   const dataEntrega=texto_(data.dataEntrega,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
@@ -694,13 +694,12 @@ function salvarOperacaoFullTime(token, data) {
   if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipoOperacao)) throw new Error('Tipo de operação inválido.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
   if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
-  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
-  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
+  ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:0,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; quantidade de motoristas será definida na escala automática.');
+  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t. A quantidade de motoristas será definida na escala automática e as viagens serão estimadas pela capacidade dos conjuntos.'};
 }
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
@@ -831,7 +830,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   opHeaders.forEach((h,i)=>{if(h&&opIx[h]===undefined)opIx[h]=i;});
   const opRow=opGrid.slice(1).find(r=>String(r[opIx.ID]||'')===String(operacaoId));
   if(!opRow) throw new Error('Operação não encontrada.');
-  const op={id:String(opRow[opIx.ID]),data:opRow[opIx.DATA_OPERACAO],categoria:String(opRow[opIx.CATEGORIA]||'PADRAO'),volumeTotal:Number(opRow[opIx.VOLUME_TOTAL_TONELADAS]||0),viagensPrevistas:Number(opRow[opIx.TOTAL_VIAGENS_PREVISTAS]||0)};
+  const op={id:String(opRow[opIx.ID]),data:opRow[opIx.DATA_OPERACAO],categoria:String(opRow[opIx.CATEGORIA]||'PADRAO'),volumeTotal:Number(opRow[opIx.VOLUME_TOTAL_TONELADAS]||0)};
   const operationDay=FT_dataChaveElegibilidade_(op.data);
   const sets=listarRegistros_('CONJUNTOS'), drivers=listarRegistros_('MOTORISTAS'), driverById={};
   drivers.forEach(d=>driverById[String(d.id)]=d);
@@ -886,7 +885,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   const queueGrid=getSheet_('FILA_MOTORISTAS').getDataRange().getValues(),qh=(queueGrid[0]||[]).map(v=>String(v||'').trim().toUpperCase()),qi={};
   qh.forEach((h,i)=>{if(h&&qi[h]===undefined)qi[h]=i;});
   const queueByDriver={};queueGrid.slice(1).forEach(r=>{const did=String(r[qi.MOTORISTA_ID]||'');if(did)queueByDriver[did]=r;});
-  const volume=Math.max(0,Number(op.volumeTotal)||0),trips=Math.max(0,Number(op.viagensPrevistas)||0),averageLoad=trips>0?volume/trips:0;
+  const volume=Math.max(0,Number(op.volumeTotal)||0);
   const candidates=sets.map(s=>{
     const f=s.camposPorNome||{},did=String(f.MOTORISTA_ID||''),driver=driverById[did],df=driver?.camposPorNome||{};
     const cap=Number(String(f.CAPACIDADE_UTIL_TONELADAS||'').replace(',','.'))||0,condition=String(f.ESTADO_CONSERVACAO||'').trim().toUpperCase();
@@ -895,7 +894,7 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const categoryValid=hasTrailer?category==='E':['C','D','E'].includes(category);
     const tox=toxByDriver[did],toxValid=!!tox&&tox.validStatus&&!!tox.expiry&&(!operationDay||tox.expiry>=operationDay);
     const availability=availabilityForDay[did]||'NAO_INFORMADA',availabilityOk=availability!=='INDISPONIVEL';
-    const capacityOk=cap>0&&(!averageLoad||cap>=averageLoad),setBusy=busySets.has(String(s.id)),driverBusy=busyDrivers.has(did);
+    const capacityOk=cap>0,setBusy=busySets.has(String(s.id)),driverBusy=busyDrivers.has(did);
     const hist=historyByDriver[did]||{operations:new Set(),days:new Set(),today:0,last:''},queue=queueByDriver[did],reasons=[];
     if(!driver||driver.status!=='ATIVO')reasons.push('Motorista não está aprovado/ativo');
     if(s.status!=='ATIVO')reasons.push('Conjunto não está ativo');
