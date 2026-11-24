@@ -28,6 +28,15 @@ Aplicação de gestão e escala de operações de transporte, construída com Go
 
 Arquivos de sincronização Bruno e a rotina antiga de reconstrução foram retirados da branch ativa para evitar que sejam executados por engano.
 
+
+### Contrato do módulo de solicitações e IA
+
+A guia `ENTRADA_OPERACOES_IA` possui contrato canônico de 18 colunas, documentado em `docs/CONTRATO_CANONICO_CABECALHOS.md`. A mensagem recebida é preservada em `MENSAGEM_BRUTA`; dados interpretados, perguntas, pendências e histórico ficam dentro do JSON da coluna `INTERPRETACAO_JSON`; o estado fica em `STATUS_INTERPRETACAO`. Não criar colunas paralelas para o motor de IA.
+
+O motor `InterpretacaoSolicitacoesFullTime.gs` usa `FT_GEMINI_API_KEY` em Script Properties e o modelo `gemini-3.8-flash`. A análise não aprova nem cria operação. Para validar a conexão, executar `testarConexaoGeminiFullTime()`; para validar o fluxo completo, seguir a seção “Solicitações — entrada e interpretação Gemini” em `docs/TESTES.md`.
+
+**Importante:** atualizar o Git não publica automaticamente o Apps Script. O arquivo corrigido precisa ser sincronizado para o projeto Apps Script antes de testar a aplicação implantada.
+
 ## Guias operacionais esperadas
 
 `MOTORISTAS`, `CAVALOS`, `CARRETAS`, `CONJUNTOS`, `DOCUMENTOS`, `OPERACOES`, `PARTICIPACAO_OPERACOES`, `MOVIMENTACOES_OPERACAO`, `LOCAIS`, `REGRAS_OPERACIONAIS`, `DISPONIBILIDADE_DIARIA`, `FILA_MOTORISTAS`, `EVENTOS_ESCALA` e `ENTRADA_OPERACOES_IA`.
