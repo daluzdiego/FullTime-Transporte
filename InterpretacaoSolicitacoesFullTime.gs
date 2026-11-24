@@ -457,3 +457,78 @@ function ftSolGenerateAIText_(prompt) {
   }
   throw new Error('A IA não concluiu após '+models.length+' modelo(s) e até '+maxAttempts+' tentativa(s) por modelo. '+failures.join(' | ').slice(0,3500));
 }
+
+
+/**
+ * TESTE ISOLADO DE INTERPRETAÇÃO COM IA.
+ * Usa uma mensagem fictícia e chama o mesmo motor Gemini da produção.
+ * Não lê nem grava planilhas, não cria solicitação ou operação e não aprova nada.
+ */
+function testarInterpretacaoSolicitacaoFullTime() {
+  var sample = [
+    'Cliente: Comercial Exemplo Ltda.',
+    'Precisamos transportar farelo de soja do Terminal Portuário de Rio Grande/RS.',
+    'A carga total do navio é de 800 toneladas, mas o volume contratado pela Full Time é de 660 toneladas.',
+    'Distribuição contratada: Destino A, empresa Alfa, 120 t; Destino B, empresa Beta, 100 t; Destino C, empresa Gama, 300 t; Destino D, empresa Delta, 50 t; Destino E, empresa Épsilon, 90 t.',
+    'Previsão de coleta: amanhã.',
+    'Operação de descarga de navio. Ainda não informaram quantidade de viagens nem volume por viagem.'
+  ].join('\\n');
+
+  var prompt = [
+    'Analise a solicitação de transporte abaixo. Responda somente JSON válido, sem markdown.',
+    'Não invente dados. Extraia uma única operação com vários destinos.',
+    'Em operação ligada a navio, diferencie o total da carga do navio do volume contratado pela transportadora. O volume da operação deve ser somente o contratado pela Full Time.',
+    'Não converta "amanhã" em data absoluta: preencha dataColetaTexto com "amanhã" e deixe dataColeta vazio.',
+    'Não confunda volume total com quantidade de viagens. Se viagens e volume por viagem não foram informados, deixe ambos vazios e sinalize pendência.',
+    'Não aprove nem crie operação.',
+    'Formato obrigatório:',
+    '{"resumo":string,"dados":{"cliente":string,"produto":string,"tipoCarga":string,"volume":string,"unidadeVolume":string,"volumePorViagem":string,"viagensPrevistas":string,"origem":string,"origemDetalhada":string,"destino":string,"destinoDetalhado":string,"destinos":[{"cliente":string,"local":string,"cidadeUf":string,"volume":string,"dataPrevista":string,"observacoes":string}],"dataColetaTexto":string,"dataColeta":string,"tipoOperacao":string,"observacoes":string},"camposPendentes":[string],"ambiguidades":[string],"perguntas":[string],"prontoParaRevisao":boolean}',
+    'SOLICITAÇÃO FICTÍCIA:',
+    sample
+  ].join('\\n');
+
+  var generated = ftSolGenerateAIText_(prompt);
+  var raw = String(generated && generated.text || '').trim();
+  var clean = raw.replace(/^\\s*`{3}(?:json)?\\s*/i, '').replace(/\\s*`{3}\\s*$/, '');
+  var parsed = JSON.parse(clean);
+  var d = parsed.dados || {};
+  var destinations = Array.isArray(d.destinos) ? d.destinos : [];
+  var sum = destinations.reduce(function(total, item) {
+    return total + ftSolNumber_(item && item.volume);
+  }, 0);
+  var checks = {
+    jsonValido: !!parsed && typeof parsed === 'object',
+    clienteIdentificado: /Comercial Exemplo/i.test(String(d.cliente || '')),
+    volumeContratado660t: Math.abs(ftSolNumber_(d.volume) - 660) < 0.001,
+    naoConfundiuCargaNavio800t: Math.abs(ftSolNumber_(d.volume) - 800) >= 0.001,
+    cincoDestinosExtraidos: destinations.length === 5,
+    somaDestinos660t: Math.abs(sum - 660) < 0.001,
+    origemIdentificada: /Rio Grande/i.test(String(d.origemDetalhada || d.origem || '')),
+    dataRelativaPreservada: /amanh/i.test(String(d.dataColetaTexto || '')) && !String(d.dataColeta || '').trim(),
+    viagensNaoInventadas: !String(d.viagensPrevistas || '').trim() && !String(d.volumePorViagem || '').trim(),
+    pendenciaDeViagensSinalizada: Array.isArray(parsed.camposPendentes) &&
+      parsed.camposPendentes.some(function(x) { return /viagem/i.test(String(x)); })
+  };
+  var failed = Object.keys(checks).filter(function(key) { return checks[key] !== true; });
+  var result = {
+    ok: failed.length === 0,
+    teste: 'INTERPRETACAO_IA_ISOLADA',
+    modelo: generated.model || FT_SOL_AI.MODEL,
+    provedor: generated.provider || 'Google Gemini',
+    duracaoMs: generated.durationMs || null,
+    tentativas: generated.attempt || null,
+    verificacoes: checks,
+    falhas: failed,
+    resumoIA: ftSolText_(parsed.resumo, 1000),
+    volumeInterpretado: d.volume || '',
+    quantidadeDestinos: destinations.length,
+    somaDestinos: sum,
+    dataColetaTexto: d.dataColetaTexto || '',
+    dataColeta: d.dataColeta || '',
+    camposPendentes: Array.isArray(parsed.camposPendentes) ? parsed.camposPendentes : [],
+    observacao: 'Mensagem fictícia. Nenhuma planilha foi lida ou alterada; nenhuma solicitação/operação foi criada ou aprovada.'
+  };
+  console.log(JSON.stringify(result));
+  if (!result.ok) throw new Error('Teste de interpretação da IA reprovado: ' + failed.join(', '));
+  return result;
+}
