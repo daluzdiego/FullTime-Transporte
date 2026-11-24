@@ -30,7 +30,8 @@ function ftSolMeta_(row,c){var raw=row[c.INTERPRETACAO_JSON-1];var meta={};try{m
 function ftSolPutMeta_(sh,row,c,meta){sh.getRange(row,c.INTERPRETACAO_JSON).setValue(JSON.stringify(meta));}
 function ftSolFindRow_(sh,c,id){var last=sh.getLastRow();if(last<2)return -1;var ids=sh.getRange(2,c.ID,last-1,1).getDisplayValues();for(var i=0;i<ids.length;i++)if(ids[i][0]===id)return i+2;return -1;}
 function ftSolDate_(v){if(v instanceof Date)return Utilities.formatDate(v,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss');return v==null?'':String(v);}
-function ftSolNormalizeDate_(value){var s=ftSolText_(value,20);var m=s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);if(m)s=m[3]+'-'+m[2]+'-'+m[1];return s;}\nfunction ftSolNumber_(value){var s=String(value==null?'':value).trim().replace(/[^0-9,.-]/g,'');if(!s)return 0;if(s.indexOf(',')!==-1&&s.indexOf('.')!==-1)s=s.replace(/\./g,'').replace(',','.');else if(s.indexOf(',')!==-1)s=s.replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');var n=Number(s);return Number.isFinite(n)?n:0;}
+function ftSolNormalizeDate_(value){var s=ftSolText_(value,20);var m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)s=m[3]+'-'+m[2]+'-'+m[1];return s;}
+function ftSolNumber_(value){var s=String(value==null?'':value).trim().replace(/[^0-9,.-]/g,'');if(!s)return 0;if(s.indexOf(',')!==-1&&s.indexOf('.')!==-1)s=s.replace(/\./g,'').replace(',','.');else if(s.indexOf(',')!==-1)s=s.replace(',','.');else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');var n=Number(s);return Number.isFinite(n)?n:0;}
 function ftSolComputeMissingFields_(d){
  d=d||{};var m=[];
  if(!ftSolText_(d.cliente,120))m.push('Cliente');
