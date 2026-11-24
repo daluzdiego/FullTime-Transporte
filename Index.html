@@ -828,10 +828,12 @@
     }
   }
   async function cancelarOperacaoUI(id){
+    if(!id){toast('Selecione uma operação.',true);return;}
     const motivo=await uiPrompt('Informe o motivo do cancelamento. A operação e seu histórico serão preservados.',{title:'Cancelar operação',label:'Motivo obrigatório',ok:'Cancelar operação'});if(motivo===null||!String(motivo).trim())return;
     google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Falha ao cancelar operação.',true)).cancelarOperacaoFullTime(authToken,id,motivo);
   }
   async function reabrirOperacaoUI(id){
+    if(!id){toast('Selecione uma operação.',true);return;}
     const motivo=await uiPrompt('Justifique a reabertura. Revise escala e destinos antes de retomar.',{title:'Reabrir operação',label:'Justificativa obrigatória',ok:'Reabrir'});if(motivo===null||!String(motivo).trim())return;
     google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Falha ao reabrir operação.',true)).reabrirOperacaoFullTime(authToken,id,motivo);
   }
