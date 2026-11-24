@@ -106,7 +106,7 @@ function FT_processarFilasConvocacaoAutomatica(){
  try{
   const queues=FT_AUTO_READ_(),sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_prepararCabecalhosAgenda_(sh),rows=sh.getDataRange().getValues();let created=0;
   Object.keys(queues).forEach(opId=>{
-   const q=queues[opId];if(!q||q.status!=='EM_ANDAMENTO')return;FT_AUTO_RECONCILIAR_FILA_(opId,q);if(q.status!=='EM_ANDAMENTO')return;const agenda=FT_AUTO_agendaAtual_(opId);let pending=q.pendentes.slice();
+   const q=queues[opId];if(!q||q.status!=='EM_ANDAMENTO')return;FT_AUTO_RECONCILIAR_FILA_(opId,q);if(q.status!=='EM_ANDAMENTO')return;const agenda=FT_AUTO_agendaAtual_(opId);let pending=[];
    q.pendentes.forEach(id=>{
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n];let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(st==='OFERTADA'&&!FT_AUTO_agendaOfertaIgual_(r,m,agenda)){
