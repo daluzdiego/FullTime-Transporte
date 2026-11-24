@@ -219,6 +219,10 @@ function FT_adicionarConvocadoManualFullTime(token, operacaoId, conjuntoId, moti
     const candidates=ordenarCandidatosOperacaoFullTime(token,operacaoId),candidate=candidates.find(x=>String(x.id)===conjuntoId);
     if(!candidate||candidate.eligible!==true)throw new Error('O conjunto não está elegível. Atualize a análise de candidatos e confira documentos, capacidade e disponibilidade.');
     const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_CONV_ensureHeaders_(sh,FT_CONVOCACAO_CFG_20261110.PARTICIPACAO_HEADERS),rows=sh.getDataRange().getValues();
+    if(queue&&Number(queue.vagas)>0){
+      const occupied=rows.slice(1).filter(r=>String(r[map.OPERACAO_ID]||'')===operacaoId&&['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase())).length;
+      if(occupied>=Number(queue.vagas))throw new Error('Todas as vagas configuradas para esta escala já estão ocupadas. Não é possível adicionar convocados além do limite.');
+    }
     const driverId=String(candidate.driverId||'');
     const conflict=rows.slice(1).some(r=>{
       const status=String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
