@@ -471,7 +471,7 @@
     ev.preventDefault();
     const dados={};
     Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
+    // Pendências são recalculadas no servidor; não dependemos de um controle inexistente na interface.
     const questions=document.getElementById('solEditQuestions').value;
     google.script.run.withSuccessHandler(res=>{
       const current=solicitacoesFullTime.find(s=>s.id===id);
