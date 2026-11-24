@@ -67,3 +67,20 @@ Ela cria backup da planilha principal, aponta `FT_REGISTRY_DATABASE_ID` para a p
 - Restrinja o acesso às planilhas e ao aplicativo.
 - Faça homologação ponta a ponta antes de liberar operações reais.
 - Mantenha backups e valide restauração antes de qualquer limpeza de dados reais.
+
+## MVP de operações com múltiplos destinos
+
+A operação representa a carga/serviço total (por exemplo, um navio com 800 t) e pode possuir um ou vários destinos. Os volumes são registrados em `DESTINOS_OPERACAO`; a soma distribuída não pode ultrapassar o total, e o saldo não destinado permanece visível na operação. Entregas de operações multidestino exigem `ID_DESTINO` e atualizam o saldo do destino e o saldo geral.
+
+O formulário **Cadastro manual completo — sem IA** cria a mesma estrutura operacional sem depender de Gemini. A IA interpreta a mensagem, pode extrair uma lista de destinos e preenche a revisão; nunca aprova nem cria operação automaticamente. Cancelamento e reabertura exigem justificativa e preservam auditoria.
+
+### Preparação e homologação
+
+1. Sincronizar todos os arquivos deste branch no Apps Script.
+2. Executar `prepararBaseOperacionalFullTime()`.
+3. Executar `prepararEstruturaMvpDestinosFullTime()`.
+4. Executar `auditarMvpDestinosFullTime()` e exigir `ok: true`.
+5. Executar `testarRegrasMvpDestinosFullTime()`.
+6. Executar `testarConexaoGeminiFullTime()` e concluir os testes funcionais descritos em `docs/TESTES.md`.
+
+Não executar rotinas de reconstrução/limpeza na planilha de produção para homologar estas mudanças. Commit no GitHub não publica automaticamente no Apps Script.
