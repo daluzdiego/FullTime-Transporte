@@ -26,13 +26,13 @@ Executar com dados fictícios, em implantação de teste, antes de cadastrar dad
 - [ ] Aprovar, inativar e reativar.
 - [ ] Confirmar entradas de auditoria para ações administrativas.
 
-## Caminhões
+## Cavalos mecânicos e carretas
 
-- [ ] Criar caminhão de teste com placa válida.
+- [ ] Criar cavalo mecânico de teste com placa válida.
 - [ ] Confirmar status `PENDENTE_REVISAO`.
 - [ ] Tentar cadastrar a mesma placa novamente; o sistema deve bloquear.
 - [ ] Testar placa inválida, ano inválido e capacidade zero/negativa.
-- [ ] Testar RENAVAM vazio e com 11 dígitos; valor incorreto deve ser recusado.
+- [ ] Criar carretas de teste e validar tipo, tara e capacidade.
 - [ ] Pesquisar por placa/modelo e filtrar por status.
 - [ ] Editar, aprovar, inativar e reativar.
 - [ ] Confirmar auditoria.
