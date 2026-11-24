@@ -14,12 +14,12 @@
  */
 var FT_SOL_AI = {
   MODEL: 'gemini-3.5-flash-lite',
-  FALLBACK_MODELS: [],
+  FALLBACK_MODELS: ['gemini-3.8-flash', 'gemini-3.7-flash'],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000,
-  MAX_RETRIES: 1,
-  REQUEST_TIMEOUT_SECONDS: 20,
-  TOTAL_BUDGET_MS: 90000
+  MAX_RETRIES: 2,
+  REQUEST_TIMEOUT_SECONDS: 16,
+  TOTAL_BUDGET_MS: 150000
 };
 
 /**
@@ -430,61 +430,105 @@ function ftSolMarkWaitingAI_(sh, id, login, message) {
  * Retentativas limitadas apenas para erros transitórios.
  */
 function ftSolGenerateAIText_(prompt) {
-  var startedAt = Date.now();
-  var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  if (!key || !String(key).trim()) throw new Error('FT_GEMINI_API_KEY não está configurada.');
-  var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
-  var headers = { 'x-goog-api-key': String(key).trim() };
-  var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
-  var failures = [];
-  for (var modelIndex = 0; modelIndex < models.length; modelIndex++) {
-    var elapsed = Date.now() - startedAt;
-    if (elapsed >= FT_SOL_AI.TOTAL_BUDGET_MS) { failures.push('ORÇAMENTO_TOTAL_EXCEDIDO após ' + elapsed + 'ms'); break; }
-    var model = models[modelIndex];
-    var endpoint = base + encodeURIComponent(model) + ':generateContent';
-    var remaining = FT_SOL_AI.TOTAL_BUDGET_MS - elapsed;
-    var timeoutSeconds = Math.max(1, Math.min(FT_SOL_AI.REQUEST_TIMEOUT_SECONDS, Math.floor(remaining / 1000)));
-    var options = {
-      method: 'post', contentType: 'application/json', headers: headers,
-      muteHttpExceptions: true, timeoutSeconds: timeoutSeconds,
-      payload: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
-      })
-    };
-    var attemptStarted = Date.now();
-    console.log('[FT_IA] INICIO modelo=' + model + ' timeout=' + timeoutSeconds + 's');
-    try {
-      var response = UrlFetchApp.fetch(endpoint, options);
-      var code = response.getResponseCode(), body = response.getContentText();
-      console.log('[FT_IA] RESPOSTA modelo=' + model + ' http=' + code + ' duracaoMs=' + (Date.now() - attemptStarted));
-      if (code >= 200 && code < 300) {
-        var envelope;
-        try { envelope = JSON.parse(body); } catch (error) { throw new Error('Gemini (' + model + ') retornou corpo JSON inválido.'); }
-        var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
-          envelope.candidates[0].content && envelope.candidates[0].content.parts ?
-          envelope.candidates[0].content.parts.map(function (part) { return part.text || ''; }).join('') : '';
-        if (textOut) {
-          console.log('[FT_IA] SUCESSO modelo=' + model + ' totalMs=' + (Date.now() - startedAt));
-          return { text: textOut, provider: 'Google Gemini', model: model,
-            fallback: model !== FT_SOL_AI.MODEL, durationMs: Date.now() - startedAt };
+  var startedAt=Date.now(),key=PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
+  if(!key||!String(key).trim())throw new Error('FT_GEMINI_API_KEY não está configurada.');
+  var base='https://generativelanguage.googleapis.com/v1beta/models/',headers={'x-goog-api-key':String(key).trim()};
+  var models=[FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS||[]),failures=[],maxAttempts=Math.max(1,Number(FT_SOL_AI.MAX_RETRIES)||2),transientCodes=[408,425,429,500,502,503,504];
+  for(var mi=0;mi<models.length;mi++){
+    var model=models[mi],endpoint=base+encodeURIComponent(model)+':generateContent';
+    for(var attempt=1;attempt<=maxAttempts;attempt++){
+      var remaining=FT_SOL_AI.TOTAL_BUDGET_MS-(Date.now()-startedAt);if(remaining<5000){failures.push('ORÇAMENTO_TOTAL_EXCEDIDO');break;}
+      var timeoutSeconds=Math.max(5,Math.min(FT_SOL_AI.REQUEST_TIMEOUT_SECONDS,Math.floor(remaining/1000)));
+      console.log('[FT_IA] Tentativa '+attempt+'/'+maxAttempts+' modelo='+model+' timeout='+timeoutSeconds+'s');
+      try{
+        var response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',headers:headers,muteHttpExceptions:true,timeoutSeconds:timeoutSeconds,payload:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{temperature:0.1,responseMimeType:'application/json'}})});
+        var code=response.getResponseCode(),body=response.getContentText();console.log('[FT_IA] Resposta modelo='+model+' tentativa='+attempt+' HTTP='+code+' duracaoMs='+(Date.now()-startedAt));
+        if(code>=200&&code<300){
+          var envelope=JSON.parse(body),candidate=envelope&&envelope.candidates&&envelope.candidates[0],parts=candidate&&candidate.content&&candidate.content.parts,textOut=parts?parts.map(function(p){return p.text||'';}).join(''):'';
+          if(textOut){console.log('[FT_IA] SUCESSO modelo='+model+' tentativa='+attempt);return {text:textOut,provider:'Google Gemini',model:model,fallback:mi>0,durationMs:Date.now()-startedAt,attempt:attempt};}
+          failures.push(model+' tentativa '+attempt+': resposta sem texto');
+        }else{
+          var detail=ftGeminiErroSeguro_(body);failures.push(model+' tentativa '+attempt+' HTTP '+code+': '+detail);console.warn('[FT_IA] FALHA modelo='+model+' tentativa='+attempt+' HTTP='+code+' detalhe='+detail.slice(0,300));
+          if([400,401,402,403,404].indexOf(code)>=0||transientCodes.indexOf(code)<0)break;
         }
-        var reason = envelope && envelope.candidates && envelope.candidates[0] && envelope.candidates[0].finishReason;
-        failures.push(model + ' HTTP ' + code + ': resposta sem texto' + (reason ? ' (' + reason + ')' : ''));
-      } else {
-        var detail = ftGeminiErroSeguro_(body);
-        failures.push(model + ' HTTP ' + code + ': ' + detail);
-        console.warn('[FT_IA] FALHA modelo=' + model + ' http=' + code + ' detalhe=' + detail.slice(0, 500));
-        if ([400, 401, 402, 403].indexOf(code) >= 0) break;
-      }
-    } catch (error) {
-      var message = String(error && error.message || error).slice(0, 1000);
-      failures.push(model + ' ERRO: ' + message);
-      console.warn('[FT_IA] EXCECAO modelo=' + model + ' detalhe=' + message);
+      }catch(error){var msg=String(error&&error.message||error).slice(0,500);failures.push(model+' tentativa '+attempt+' erro: '+msg);console.warn('[FT_IA] EXCECAO modelo='+model+' tentativa='+attempt+' '+msg);}
+      if(attempt<maxAttempts&&Date.now()-startedAt<FT_SOL_AI.TOTAL_BUDGET_MS-5000)Utilities.sleep(Math.min(1500*attempt,3000));
     }
   }
-  var total = Date.now() - startedAt;
-  console.error('[FT_IA] FALHA_FINAL totalMs=' + total + ' detalhes=' + failures.join(' | '));
-  throw new Error('Não foi possível concluir a análise dentro do limite de segurança (' +
-    Math.round(total / 1000) + 's). ' + failures.join(' | '));
+  throw new Error('A IA não concluiu após '+models.length+' modelo(s) e até '+maxAttempts+' tentativa(s) por modelo. '+failures.join(' | ').slice(0,3500));
+}
+
+
+/**
+ * TESTE ISOLADO DE INTERPRETAÇÃO COM IA.
+ * Usa uma mensagem fictícia e chama o mesmo motor Gemini da produção.
+ * Não lê nem grava planilhas, não cria solicitação ou operação e não aprova nada.
+ */
+function testarInterpretacaoSolicitacaoFullTime() {
+  var sample = [
+    'Cliente: Comercial Exemplo Ltda.',
+    'Precisamos transportar farelo de soja do Terminal Portuário de Rio Grande/RS.',
+    'A carga total do navio é de 800 toneladas, mas o volume contratado pela Full Time é de 660 toneladas.',
+    'Distribuição contratada: Destino A, empresa Alfa, 120 t; Destino B, empresa Beta, 100 t; Destino C, empresa Gama, 300 t; Destino D, empresa Delta, 50 t; Destino E, empresa Épsilon, 90 t.',
+    'Previsão de coleta: amanhã.',
+    'Operação de descarga de navio. Ainda não informaram quantidade de viagens nem volume por viagem.'
+  ].join('\\n');
+
+  var prompt = [
+    'Analise a solicitação de transporte abaixo. Responda somente JSON válido, sem markdown.',
+    'Não invente dados. Extraia uma única operação com vários destinos.',
+    'Em operação ligada a navio, diferencie o total da carga do navio do volume contratado pela transportadora. O volume da operação deve ser somente o contratado pela Full Time.',
+    'Não converta "amanhã" em data absoluta: preencha dataColetaTexto com "amanhã" e deixe dataColeta vazio.',
+    'Não confunda volume total com quantidade de viagens. Se viagens e volume por viagem não foram informados, deixe ambos vazios e sinalize pendência.',
+    'Não aprove nem crie operação.',
+    'Formato obrigatório:',
+    '{"resumo":string,"dados":{"cliente":string,"produto":string,"tipoCarga":string,"volume":string,"unidadeVolume":string,"volumePorViagem":string,"viagensPrevistas":string,"origem":string,"origemDetalhada":string,"destino":string,"destinoDetalhado":string,"destinos":[{"cliente":string,"local":string,"cidadeUf":string,"volume":string,"dataPrevista":string,"observacoes":string}],"dataColetaTexto":string,"dataColeta":string,"tipoOperacao":string,"observacoes":string},"camposPendentes":[string],"ambiguidades":[string],"perguntas":[string],"prontoParaRevisao":boolean}',
+    'SOLICITAÇÃO FICTÍCIA:',
+    sample
+  ].join('\\n');
+
+  var generated = ftSolGenerateAIText_(prompt);
+  var raw = String(generated && generated.text || '').trim();
+  var clean = raw.replace(/^\\s*`{3}(?:json)?\\s*/i, '').replace(/\\s*`{3}\\s*$/, '');
+  var parsed = JSON.parse(clean);
+  var d = parsed.dados || {};
+  var destinations = Array.isArray(d.destinos) ? d.destinos : [];
+  var sum = destinations.reduce(function(total, item) {
+    return total + ftSolNumber_(item && item.volume);
+  }, 0);
+  var checks = {
+    jsonValido: !!parsed && typeof parsed === 'object',
+    clienteIdentificado: /Comercial Exemplo/i.test(String(d.cliente || '')),
+    volumeContratado660t: Math.abs(ftSolNumber_(d.volume) - 660) < 0.001,
+    naoConfundiuCargaNavio800t: Math.abs(ftSolNumber_(d.volume) - 800) >= 0.001,
+    cincoDestinosExtraidos: destinations.length === 5,
+    somaDestinos660t: Math.abs(sum - 660) < 0.001,
+    origemIdentificada: /Rio Grande/i.test(String(d.origemDetalhada || d.origem || '')),
+    dataRelativaPreservada: /amanh/i.test(String(d.dataColetaTexto || '')) && !String(d.dataColeta || '').trim(),
+    viagensNaoInventadas: !String(d.viagensPrevistas || '').trim() && !String(d.volumePorViagem || '').trim(),
+    pendenciaDeViagensSinalizada: Array.isArray(parsed.camposPendentes) &&
+      parsed.camposPendentes.some(function(x) { return /viagem/i.test(String(x)); })
+  };
+  var failed = Object.keys(checks).filter(function(key) { return checks[key] !== true; });
+  var result = {
+    ok: failed.length === 0,
+    teste: 'INTERPRETACAO_IA_ISOLADA',
+    modelo: generated.model || FT_SOL_AI.MODEL,
+    provedor: generated.provider || 'Google Gemini',
+    duracaoMs: generated.durationMs || null,
+    tentativas: generated.attempt || null,
+    verificacoes: checks,
+    falhas: failed,
+    resumoIA: ftSolText_(parsed.resumo, 1000),
+    volumeInterpretado: d.volume || '',
+    quantidadeDestinos: destinations.length,
+    somaDestinos: sum,
+    dataColetaTexto: d.dataColetaTexto || '',
+    dataColeta: d.dataColeta || '',
+    camposPendentes: Array.isArray(parsed.camposPendentes) ? parsed.camposPendentes : [],
+    observacao: 'Mensagem fictícia. Nenhuma planilha foi lida ou alterada; nenhuma solicitação/operação foi criada ou aprovada.'
+  };
+  console.log(JSON.stringify(result));
+  if (!result.ok) throw new Error('Teste de interpretação da IA reprovado: ' + failed.join(', '));
+  return result;
 }

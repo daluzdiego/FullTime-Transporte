@@ -34,9 +34,11 @@ function ftSolNumber_(value){var s=String(value==null?'':value).trim().replace(/
 function ftSolComputeMissingFields_(d){
  d=d||{};var m=[];
  if(!ftSolText_(d.cliente,120))m.push('Cliente');
+ if(!ftSolText_(d.produto||d.tipoCarga,160))m.push('Produto/carga');
+ if(!ftSolText_(d.tipoOperacao,80))m.push('Tipo de operação');
  if(!ftSolText_(d.origemDetalhada||d.origem,160))m.push('Origem identificável (local e cidade/UF)');
  var destinos=Array.isArray(d.destinos)?d.destinos:[];if(!destinos.length&&!ftSolText_(d.destinoDetalhado||d.destino,160))m.push('Pelo menos um destino identificável (local e cidade/UF)');
- if(destinos.length){var soma=0;destinos.forEach(function(x,i){if(!ftSolText_(x.cliente,160))m.push('Empresa do destino '+(i+1));if(!ftSolText_(x.local||x.destino,220))m.push('Local do destino '+(i+1));var q=ftSolNumber_(x.volume);if(!(q>0))m.push('Volume do destino '+(i+1));soma+=q;});if(ftSolNumber_(d.volume)>0&&soma>ftSolNumber_(d.volume)+0.000001)m.push('Soma dos volumes dos destinos excede o volume total');}
+ if(destinos.length){var soma=0;destinos.forEach(function(x,i){if(!ftSolText_(x.cliente,160))m.push('Empresa do destino '+(i+1));if(!ftSolText_(x.local||x.destino,220))m.push('Local do destino '+(i+1));var q=ftSolNumber_(x.volume);if(!(q>0))m.push('Volume do destino '+(i+1));soma+=q;});if(ftSolNumber_(d.volume)>0&&soma>ftSolNumber_(d.volume)+0.000001)m.push('Soma dos volumes dos destinos excede o volume total');else if(ftSolNumber_(d.volume)>0&&soma<ftSolNumber_(d.volume)-0.000001)m.push('Volume total não distribuído entre destinos');}
  if(!(ftSolNumber_(d.volume)>0))m.push('Peso/volume total numérico maior que zero');
  if(!(ftSolNumber_(d.volumePorViagem)>0)&&!(ftSolNumber_(d.viagensPrevistas)>0))m.push('Volume por viagem ou quantidade prevista de viagens');
  if(['t','ton','tonelada','toneladas'].indexOf(ftSolText_(d.unidadeVolume,30).toLowerCase())<0)m.push('Unidade do peso confirmada em toneladas (t)');
@@ -93,16 +95,23 @@ function atualizarStatusSolicitacaoFullTime(token,id,status,observacao){
 }
 function diagnosticarNucleoSolicitacoesFullTime(){var sh=ftSolSheet_();return {ok:true,guia:FT_SOLICITACOES_CFG_V20261111.SHEET,colunas:sh.getLastColumn(),registros:Math.max(0,sh.getLastRow()-1),contrato:'CANONICO_18_COLUNAS',canaisPreparados:FT_SOLICITACOES_CFG_V20261111.CHANNELS.slice(),webhookAtivo:false,criaOperacaoDefinitiva:false};}
 function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas){
- var s=obterSessao_(token);exigirAdmin_(s);dados=dados||{};var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'],clean={};
+ var s=obterSessao_(token);exigirAdmin_(s);dados=dados||{};
+ var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'],clean={};
  allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
- clean.destinos=Array.isArray(dados.destinos)?dados.destinos.slice(0,50).map(function(x){x=x||{};return {cliente:ftSolText_(x.cliente,160),local:ftSolText_(x.local,220),cidadeUf:ftSolText_(x.cidadeUf,120),volume:ftSolText_(x.volume,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)};}):[];
+ clean.destinos=Array.isArray(dados.destinos)?dados.destinos.slice(0,50).map(function(x){x=x||{};return {cliente:ftSolText_(x.cliente||x.empresa,160),local:ftSolText_(x.local||x.destino,220),cidadeUf:ftSolText_(x.cidadeUf,120),volume:ftSolText_(x.volume,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)};}):[];
+ if(!clean.destinos.length&&(clean.destinoDetalhado||clean.destino))clean.destinos=[{cliente:clean.cliente,local:clean.destinoDetalhado||clean.destino,cidadeUf:'',volume:clean.volume,dataPrevista:clean.dataEntrega,observacoes:clean.observacoes}];
  var sh=ftSolSheet_(),c=ftSolCols_(sh),row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
- var meta=ftSolMeta_(sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],c),missing=ftSolComputeMissingFields_(clean),status=missing.length?'EM_COLETA':'AGUARDANDO_APROVACAO';
- meta.dados=clean;meta.analise={resumo:'Revisão humana',dados:clean,ambiguidades:meta.analise&&meta.analise.ambiguidades||[],prontoParaRevisao:missing.length===0,origemRevisao:'HUMANA',revisadoEm:new Date().toISOString()};
- var m=meta.solicitacao;m.camposPendentes=missing;m.perguntas=ftSolText_(perguntas,5000);m.statusEntrada=status;m.atualizadoEm=new Date().toISOString();m.historico=m.historico||[];m.historico.push(ftSolEvent_('REVISAO_MANUAL_SALVA',s.login,'Campos revisados; '+missing.length+' pendência(s).'));
- sh.getRange(row,c.CLIENTE).setValue(clean.cliente);sh.getRange(row,c.NOME_OPERACAO).setValue(clean.nomeOperacao);sh.getRange(row,c.ORIGEM).setValue(clean.origemDetalhada||clean.origem);sh.getRange(row,c.DESTINO).setValue(clean.destinoDetalhado||clean.destino);
- sh.getRange(row,c.DATA_OPERACAO).setValue(clean.dataColeta);sh.getRange(row,c.VOLUME_TONELADAS).setValue(clean.volume);sh.getRange(row,c.VIAGENS_PREVISTAS).setValue(clean.viagensPrevistas);sh.getRange(row,c.PRODUTO).setValue(clean.produto);sh.getRange(row,c.TIPO_OPERACAO).setValue(clean.tipoOperacao);sh.getRange(row,c.STATUS_INTERPRETACAO).setValue(status);sh.getRange(row,c.OBSERVACOES).setValue(clean.observacoes||clean.restricoes||'');ftSolPutMeta_(sh,row,c,meta);
- return {ok:true,id:id,status:status,camposPendentes:missing,message:missing.length?'Revisão salva. Ainda há '+missing.length+' pendência(s); aprovação bloqueada.':'Revisão salva e validada; solicitação pronta para aprovação.'};
+ var lock=LockService.getScriptLock();lock.waitLock(20000);
+ try{
+  var values=sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],meta=ftSolMeta_(values,c);
+  var missing=ftSolComputeMissingFields_(clean),status=missing.length?'EM_COLETA':'AGUARDANDO_APROVACAO',now=new Date();
+  meta.dados=clean;meta.analise={resumo:'Revisão humana',dados:clean,ambiguidades:meta.analise&&meta.analise.ambiguidades||[],prontoParaRevisao:missing.length===0,origemRevisao:'HUMANA',revisadoEm:now.toISOString()};
+  var m=meta.solicitacao;m.camposPendentes=missing;m.perguntas=ftSolText_(perguntas,5000);m.statusEntrada=status;m.atualizadoEm=now.toISOString();m.historico=m.historico||[];
+  m.historico.push(ftSolEvent_('REVISAO_MANUAL_SALVA',s.login,'Campos revisados; '+missing.length+' pendência(s).'));
+  sh.getRange(row,c.CLIENTE).setValue(clean.cliente);sh.getRange(row,c.NOME_OPERACAO).setValue(clean.nomeOperacao);sh.getRange(row,c.ORIGEM).setValue(clean.origemDetalhada||clean.origem);sh.getRange(row,c.DESTINO).setValue(clean.destinoDetalhado||clean.destino);
+  sh.getRange(row,c.DATA_OPERACAO).setValue(clean.dataColeta);sh.getRange(row,c.VOLUME_TONELADAS).setValue(clean.volume);sh.getRange(row,c.VIAGENS_PREVISTAS).setValue(clean.viagensPrevistas);sh.getRange(row,c.PRODUTO).setValue(clean.produto||clean.tipoCarga);sh.getRange(row,c.TIPO_OPERACAO).setValue(clean.tipoOperacao);sh.getRange(row,c.STATUS_INTERPRETACAO).setValue(status);sh.getRange(row,c.OBSERVACOES).setValue(clean.observacoes||clean.restricoes||'');ftSolPutMeta_(sh,row,c,meta);
+  return {ok:true,id:id,status:status,camposPendentes:missing,message:missing.length?'Revisão salva. Ainda há '+missing.length+' pendência(s); aprovação bloqueada.':'Revisão salva e validada; solicitação pronta para aprovação.'};
+ }finally{lock.releaseLock();}
 }
 function ftSolValidateForApproval_(sh,c,row){
  var meta=ftSolMeta_(sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],c),d=meta.dados||meta.analise&&meta.analise.dados||{},missing=ftSolComputeMissingFields_(d),pending=meta.solicitacao&&meta.solicitacao.camposPendentes||[];
@@ -124,4 +133,19 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
  var created=ftMvpCreateOperationForSession_(s,payload),operationId=created.id,now=new Date();
  sh.getRange(row,c.OPERACAO_ID).setValue(operationId);sh.getRange(row,c.PROCESSADO_EM).setValue(now);m.idOperacaoGerada=operationId;m.atualizadoEm=now.toISOString();m.historico=m.historico||[];m.historico.push(ftSolEvent_('OPERACAO_GERADA',s.login,'Operação '+operationId+' criada com '+created.destinos+' destino(s).'));ftSolPutMeta_(sh,row,c,meta);
  return {ok:true,duplicada:false,idOperacao:operationId,destinos:created.destinos,message:'Operação criada com vínculo à solicitação '+id+' e '+created.destinos+' destino(s).'};
+}
+
+/** Teste determinístico da validação manual; não lê nem altera planilhas. */
+function testarValidacaoManualSolicitacaoFullTime(){
+ var base={cliente:'Cliente Homologação',produto:'Soja',tipoOperacao:'OUTRA',origemDetalhada:'Terminal A, Rio Grande - RS',volume:'660',unidadeVolume:'t',viagensPrevistas:'3',dataColeta:'2026-11-25',destinos:[
+  {cliente:'Empresa 1',local:'Unidade 1, Pelotas - RS',volume:'120'},
+  {cliente:'Empresa 2',local:'Unidade 2, Pelotas - RS',volume:'100'},
+  {cliente:'Empresa 3',local:'Unidade 3, Pelotas - RS',volume:'300'},
+  {cliente:'Empresa 4',local:'Unidade 4, Pelotas - RS',volume:'50'},
+  {cliente:'Empresa 5',local:'Unidade 5, Pelotas - RS',volume:'90'}
+ ]};
+ var complete=ftSolComputeMissingFields_(base),over=JSON.parse(JSON.stringify(base));over.destinos[4].volume='100';
+ var incomplete=JSON.parse(JSON.stringify(base));incomplete.destinos[2].local='';var under=JSON.parse(JSON.stringify(base));under.destinos[4].volume='80';
+ var result={ok:complete.length===0&&ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0&&ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})&&ftSolComputeMissingFields_(under).indexOf('Volume total não distribuído entre destinos')>=0,casos:{cincoDestinosSemPendencia:complete.length===0,excessoDeDistribuicaoBloqueado:ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0,volumeNaoDistribuidoSinalizado:ftSolComputeMissingFields_(under).indexOf('Volume total não distribuído entre destinos')>=0,localAusenteDetectado:ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})}};
+ console.log(JSON.stringify(result));return result;
 }

@@ -58,10 +58,13 @@ function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
   const analise=ordenarCandidatosOperacaoFullTime(token,opId);const candidatos=analise.filter(c=>c.eligible===true);if(!candidatos.length)throw new Error('Nenhum conjunto elegível. Confira a regularização dos motoristas e documentos antes de convocar.');
   const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),or=os.getDataRange().getValues(),op=or.slice(1).find(r=>String(r[om.ID])===opId);
   if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]).toUpperCase()))throw new Error('Operação não está aberta.');
-  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
+  const selecionados=candidatos.slice(0,vagas),volume=Math.max(0,Number(op[om.VOLUME_TOTAL_TONELADAS]||0));
+  const cargaPorMotorista=selecionados.length?volume/selecionados.length:0;
+  const viagensEstimadas=selecionados.reduce((total,c)=>{const capacidade=Math.max(0,Number(c.capacity)||0);return total+(capacidade>0?Math.ceil(cargaPorMotorista/capacidade):0);},0);
+  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,viagensEstimadas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao,capacidade:Number(c.capacity)||0})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
   all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();
  }finally{lock.releaseLock();}
- const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 2 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
+ const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,viagensEstimadas:q.viagensEstimadas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 2 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
 }
 
 /** Reconcilia fila persistida com o estado efetivo das ofertas na planilha. */
@@ -103,7 +106,7 @@ function FT_processarFilasConvocacaoAutomatica(){
  try{
   const queues=FT_AUTO_READ_(),sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_prepararCabecalhosAgenda_(sh),rows=sh.getDataRange().getValues();let created=0;
   Object.keys(queues).forEach(opId=>{
-   const q=queues[opId];if(!q||q.status!=='EM_ANDAMENTO')return;const agenda=FT_AUTO_agendaAtual_(opId);let pending=[];
+   const q=queues[opId];if(!q||q.status!=='EM_ANDAMENTO')return;FT_AUTO_RECONCILIAR_FILA_(opId,q);if(q.status!=='EM_ANDAMENTO')return;const agenda=FT_AUTO_agendaAtual_(opId);let pending=[];
    q.pendentes.forEach(id=>{
     const n=rows.findIndex((r,i)=>i>0&&String(r[m.ID])===id);if(n<1)return;const r=rows[n];let st=String(r[m.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(st==='OFERTADA'&&!FT_AUTO_agendaOfertaIgual_(r,m,agenda)){
