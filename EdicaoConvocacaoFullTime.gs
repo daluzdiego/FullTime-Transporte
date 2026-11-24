@@ -126,9 +126,9 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
     }
 
     FT_CONV_appendEvent_({
-      tipo: 'OFERTA_CANCELADA_SUBSTITUICAO', operacaoId,
+      tipo: currentStatus === 'OFERTADA' ? 'OFERTA_CANCELADA_SUBSTITUICAO' : 'NOVA_OFERTA_APOS_RECUSA_OU_EXPIRACAO', operacaoId,
       motoristaId: oldDriverId, conjuntoId: oldSetId,
-      anterior: 'OFERTADA', nova: 'CANCELADA_SUBSTITUICAO',
+      anterior: currentStatus, nova: currentStatus === 'OFERTADA' ? 'CANCELADA_SUBSTITUICAO' : currentStatus,
       motivo: motivo, autor: session.login || 'ADMIN', ofertaId
     });
     FT_CONV_appendEvent_({
