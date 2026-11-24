@@ -52,7 +52,9 @@ function ftTicketFolder_(){
 /** Execute uma vez pelo editor para autorizar Drive e preparar a guia TICKETS. */
 function prepararEstruturaRecibosViagemFullTime(){
   var sh=ftTicketSheet_(),folder=ftTicketFolder_();
-  return {ok:true,guia:sh.getName(),colunas:sh.getLastColumn(),pastaDrive:folder.getName(),pastaIdConfigurada:true,ocr:'NAO_INCLUIDO_NESTA_ETAPA'};
+  var result={ok:true,guia:sh.getName(),colunas:sh.getLastColumn(),pastaDrive:folder.getName(),pastaIdConfigurada:true,ocr:'NAO_INCLUIDO_NESTA_ETAPA'};
+  Logger.log('FT_RECIBOS_PREPARACAO '+JSON.stringify(result));
+  return result;
 }
 function registrarReciboViagemFullTime(token,data){
   var session=obterSessao_(token);exigirAdmin_(session);data=data||{};
