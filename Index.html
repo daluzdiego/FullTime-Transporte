@@ -779,14 +779,14 @@
     }).listarSolicitacoesFullTime(authToken,100);
   }
 
-  const SOL_FIELDS_FULLTIME={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Peso/volume total (t)',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Quantidade prevista de viagens',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada para coleta',dataColeta:'Data da coleta (AAAA-MM-DD)',horarioColeta:'Horário da coleta (HH:MM)',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data de entrega (AAAA-MM-DD)',horarioEntrega:'Horário de entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
-  function abrirRevisaoSolicitacaoFullTime(id){
+  const SOL_FIELDS_FULLTIME={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Peso/volume total (t)',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem (t)',motoristasNecessarios:'Quantidade de motoristas necessários',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColeta:'Data da coleta (DD/MM/AAAA)',horarioColeta:'Horário da coleta (HH:MM)',dataEntrega:'Data de entrega (DD/MM/AAAA)',horarioEntrega:'Horário de entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+  function formatarDataSolicitacaoBR(value){const s=String(value||'').trim();if(/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4);return s;}\n  function normalizarDataSolicitacaoISO(value){const s=String(value||'').trim();if(!s)return '';if(/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return s;const m=s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);if(!m)return s;return m[3]+'-'+m[2]+'-'+m[1];}\n  function abrirRevisaoSolicitacaoFullTime(id){
     const x=solicitacoesFullTime.find(s=>s.id===id);if(!x){toast('Solicitação não encontrada. Atualize a lista.',true);return;}
     let parsed={};try{parsed=JSON.parse(x.dadosExtraidos||'{}')||{};}catch(e){}const d=parsed.dados||parsed;
     let pending=[];try{pending=JSON.parse(x.camposPendentes||'[]');}catch(e){}
     const host=document.getElementById('solAnaliseResultado');if(!host)return;
     const approvalReady=pending.length===0 && x.status==='AGUARDANDO_APROVACAO';
-    const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>'<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" maxlength="500" oninput="ocultarAprovacaoAteSalvar()" value="'+esc(d[k]||'')+'"></div>').join('');
+    const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>{const dateField=k==='dataColeta'||k==='dataEntrega';const value=dateField?formatarDataSolicitacaoBR(d[k]||d[k+'Texto']||''):(d[k]||'');return '<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" '+(dateField?'inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10"':'maxlength="500"')+' oninput="ocultarAprovacaoAteSalvar()" value="'+esc(value)+'"></div>';}).join('');
     const destinationRows=Array.isArray(d.destinos)?d.destinos:[];
     const destinationsHtml=destinationRows.map((dest,i)=>htmlDestinoRevisaoFullTime(dest,i)).join('');
     const saldoConfirmado=String(d.saldoNaoDistribuidoConfirmado||'').toUpperCase()==='SIM';
@@ -801,7 +801,7 @@
       '<div class="field"><label>Local de entrega</label><input data-destino="local" value="'+esc(dest.local||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
       '<div class="field"><label>Cidade / UF</label><input data-destino="cidadeUf" value="'+esc(dest.cidadeUf||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
       '<div class="field"><label>Volume (t)</label><input data-destino="volume" type="number" min="0" step="0.01" value="'+esc(dest.volume||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
-      '<div class="field"><label>Data prevista</label><input data-destino="dataPrevista" type="date" value="'+esc(dest.dataPrevista||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
+      '<div class="field"><label>Data prevista (DD/MM/AAAA)</label><input data-destino="dataPrevista" inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10" value="'+esc(formatarDataSolicitacaoBR(dest.dataPrevista||''))+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
       '<div class="field"><label>Observações</label><input data-destino="observacoes" value="'+esc(dest.observacoes||'')+'" oninput="ocultarAprovacaoAteSalvar()"></div>'+
       '<input type="hidden" data-destino="evidenciaVolume" value="'+esc(dest.evidenciaVolume||'')+'"></div>'+
       '<button class="btn btn-secondary" type="button" onclick="removerDestinoRevisaoFullTime(this)">Remover destino</button></div>';
@@ -821,10 +821,10 @@
   function salvarRevisaoSolicitacaoFullTime(ev,id){
     ev.preventDefault();
     const dados={};
-    Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
+    Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());dados.dataColeta=normalizarDataSolicitacaoISO(dados.dataColeta);dados.dataEntrega=normalizarDataSolicitacaoISO(dados.dataEntrega);
     dados.destinos=Array.from(document.querySelectorAll('#solEditDestinations .sol-dest-row')).map(row=>{
       const get=key=>row.querySelector('[data-destino="'+key+'"]')?.value?.trim()||'';
-      return {cliente:get('cliente'),local:get('local'),cidadeUf:get('cidadeUf'),volume:get('volume'),dataPrevista:get('dataPrevista'),observacoes:get('observacoes'),evidenciaVolume:get('evidenciaVolume')};
+      return {cliente:get('cliente'),local:get('local'),cidadeUf:get('cidadeUf'),volume:get('volume'),dataPrevista:normalizarDataSolicitacaoISO(get('dataPrevista')),observacoes:get('observacoes'),evidenciaVolume:get('evidenciaVolume')};
     });
     dados.saldoNaoDistribuidoConfirmado=document.getElementById('solEditSaldoConfirmado')?.checked?'SIM':'';
     const pending=[];
@@ -853,7 +853,7 @@
     google.script.run.withSuccessHandler(res=>{
       if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>'+(res&&res.aguardandoIA?'Análise adiada — solicitação preservada.':'A análise não foi concluída.')+'</strong><br>'+esc(res&&res.mensagem||'Tente novamente mais tarde.')+(res&&res.detalhe?'<p class="small">Detalhe técnico: '+esc(res.detalhe)+'</p>':'')+'</div>';carregarSolicitacoesFullTime();return;}
       const a=res.analise||{}, d=a.dados||{};
-      const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Viagens previstas',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+      const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',motoristasNecessarios:'Motoristas necessários',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
       const fields=Object.keys(labels).filter(k=>String(d[k]||'').trim()).map(k=>'<div style="padding:9px 10px;border-bottom:1px solid #edf0f5"><div class="muted small">'+esc(labels[k])+'</div><strong>'+esc(d[k])+'</strong></div>').join('');
       const pending=(res.camposPendentes||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
       const questions=(res.perguntas||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
