@@ -688,7 +688,52 @@
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
       </div></details>
-      <div id="operacaoActionPanel"></div>`;
+      <details class="panel form-panel ops-form-panel" open><summary class="panel-head"><h2>Cadastro manual completo — sem IA</h2><span class="badge badge-active">Plano B independente</span></summary><div class="panel-body">
+        <p class="muted">Use este formulário quando a IA estiver indisponível ou quando preferir cadastrar diretamente. Uma operação pode ter um ou vários destinos. O saldo não distribuído permanece na operação.</p>
+        <form id="manualMvpOperationForm" onsubmit="saveManualMvpOperation(event)">
+          <div class="form-grid">
+            <div class="field"><label>Data da operação *</label><input name="data" type="date" required></div>
+            <div class="field"><label>Cliente responsável *</label><input name="cliente" maxlength="120" required></div>
+            <div class="field span-2"><label>Nome da operação *</label><input name="nome" maxlength="160" placeholder="Ex.: Navio com UREI — descarga e distribuição" required></div>
+            <div class="field"><label>Origem única *</label><input name="origem" maxlength="180" placeholder="Porto / terminal / armazém" required></div>
+            <div class="field"><label>Produto *</label><input name="produto" maxlength="160" placeholder="UREI" required></div>
+            <div class="field"><label>Volume total do navio/operação (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
+            <div class="field"><label>Viagens previstas *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
+            <div class="field"><label>Categoria de escala *</label><select name="categoria"><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Prazo de navio</option></select></div>
+            <div class="field"><label>Tipo de operação *</label><select name="tipoOperacao"><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option><option value="OUTRA">Outra</option></select></div>
+            <div class="field span-2"><label>Observações gerais</label><textarea name="observacoes" maxlength="1000"></textarea></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:20px 0 10px"><h3 style="margin:0">Destinos e distribuição do volume</h3><button class="btn btn-secondary" type="button" onclick="addManualMvpDestination()">＋ Adicionar destino</button></div>
+          <div id="manualMvpDestinations"></div>
+          <div id="manualMvpAllocation" class="notice" aria-live="polite">Informe o volume total e distribua entre os destinos. O sistema calcula o saldo não destinado.</div>
+          <div id="manualMvpError" class="error"></div>
+          <div class="form-actions"><button id="manualMvpSaveButton" class="btn btn-primary" type="submit">Criar operação e destinos</button></div>
+        </form>
+      </div></details>
+      <div id="operacaoActionPanel"></div>
+  }
+  let manualMvpDestinationCount=0;
+  function addManualMvpDestination(){
+    const host=document.getElementById('manualMvpDestinations');if(!host)return;
+    const id=++manualMvpDestinationCount;
+    const row=document.createElement('div');row.className='panel';row.style.margin='10px 0';row.dataset.destinationRow='1';
+    row.innerHTML='<div class="panel-head"><h3 style="margin:0">Destino '+id+'</h3><button class="btn btn-secondary" type="button" onclick="this.closest(\'[data-destination-row]\').remove();updateManualMvpAllocation()">Remover</button></div><div class="panel-body"><div class="form-grid"><div class="field"><label>Empresa destinatária *</label><input data-dest="cliente" maxlength="160" required></div><div class="field"><label>Local de entrega *</label><input data-dest="local" maxlength="220" placeholder="Endereço / unidade" required></div><div class="field"><label>Cidade / UF</label><input data-dest="cidadeUf" maxlength="120"></div><div class="field"><label>Volume destinado (t) *</label><input data-dest="volume" type="number" min="0.1" step="0.1" required oninput="updateManualMvpAllocation()"></div><div class="field"><label>Data prevista</label><input data-dest="dataPrevista" type="date"></div><div class="field"><label>Observações</label><input data-dest="observacoes" maxlength="500"></div></div></div>';
+    host.appendChild(row);updateManualMvpAllocation();
+  }
+  function updateManualMvpAllocation(){
+    const form=document.getElementById('manualMvpOperationForm');if(!form)return;
+    const total=Number(form.elements.volumeTotal.value||0),allocated=Array.from(form.querySelectorAll('[data-dest="volume"]')).reduce((s,x)=>s+Number(x.value||0),0),balance=total-allocated,host=document.getElementById('manualMvpAllocation');
+    if(host)host.textContent='Volume total: '+total.toLocaleString('pt-BR')+' t · Distribuído: '+allocated.toLocaleString('pt-BR')+' t · Saldo não destinado: '+balance.toLocaleString('pt-BR')+' t'+(balance<-.000001?' — distribuição excede o total!':'');
+  }
+  function saveManualMvpOperation(ev){
+    ev.preventDefault();const form=ev.currentTarget,btn=document.getElementById('manualMvpSaveButton'),err=document.getElementById('manualMvpError');err.textContent='';
+    const data=Object.fromEntries(new FormData(form).entries());
+    data.destinos=Array.from(form.querySelectorAll('[data-destination-row]')).map(row=>{const o={};row.querySelectorAll('[data-dest]').forEach(el=>o[el.dataset.dest]=el.value.trim());return o;});
+    if(!data.destinos.length){err.textContent='Adicione pelo menos um destino.';return;}
+    btn.disabled=true;btn.textContent='Salvando operação…';
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);})
+      .withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação e destinos';err.textContent=e.message||'Não foi possível salvar.';})
+      .salvarOperacaoComDestinosFullTime(authToken,data);
   }
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
@@ -781,13 +826,17 @@
     }
   }
   function showMovimentacao(id){
-    const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id);const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
-    const panel=document.getElementById('operacaoActionPanel');
-    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar movimentação</h2><span class="badge badge-pending">Saldo: '+esc(op?.saldo||op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><div class="form-grid"><div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas movimentadas *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Quantidade de viagens realizadas *</label><input name="viagens" type="number" min="1" max="10000" step="1" required value="1"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar e descontar do saldo</button></div></form></div></div>';
+    const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id),sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO'),panel=document.getElementById('operacaoActionPanel');
+    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Carregando destinos da operação…</h2></div></div>';
+    google.script.run.withSuccessHandler(destinos=>{
+      const options=(destinos||[]).map(d=>'<option value="'+esc(d.id)+'">'+esc(d.cliente)+' — '+esc(d.local)+' · saldo '+esc(d.saldo)+' t</option>').join('');
+      const multi=destinos&&destinos.length>0;
+      panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar entrega</h2><span class="badge badge-pending">Saldo operação: '+esc(op?.saldo||op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><input type="hidden" name="usaDestinos" value="'+(multi?'SIM':'NAO')+'"><div class="form-grid">'+(multi?'<div class="field span-2"><label>Empresa / destino atendido *</label><select name="destinoId" required><option value="">Selecione o destino</option>'+options+'</select></div>':'<div class="field span-2 notice">Esta operação é legada e não possui destinos individualizados. A movimentação continuará usando o saldo geral.</div>')+'<div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas entregues *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Quantidade de viagens realizadas *</label><input name="viagens" type="number" min="1" max="10000" step="1" required value="1"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar entrega e atualizar saldos</button></div></form></div></div>';
+    }).withFailureHandler(e=>{panel.innerHTML='<div class="notice error">'+esc(e.message||'Não foi possível carregar os destinos.')+'</div>';}).listarDestinosOperacaoFullTime(authToken,id);
   }
   function saveMovimentacao(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagens=Math.floor(Number(data.viagens||0));
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
+    const endpoint=data.usaDestinos==='SIM'?'registrarEntregaDestinoFullTime':'registrarMovimentacaoOperacaoFullTime';delete data.usaDestinos;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';})[endpoint](authToken,data);
   }
 
   function renderDocumentExpiryNotice(){
