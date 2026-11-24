@@ -1157,7 +1157,7 @@
       google.script.run.withSuccessHandler(data=>{
         dashboard=parsePainelResponse(data);
         const row=document.getElementById('details-row-'+operacaoId);
-        if(row&&row.style.display!=='none')showDetalhesOperacao(operacaoId);
+        if(row&&row.style.display!=='none')renderPainelDetalhesOperacao(operacaoId,'equipe');
       }).withFailureHandler(err=>toast(err.message||'Convocação substituída, mas o painel não atualizou.',true)).obterPainelFullTime(authToken);
     }).withFailureHandler(err=>toast(err.message||'Não foi possível substituir a convocação.',true))
       .FT_substituirConvocadoPendenteFullTime(authToken,ofertaId,novoConjuntoId,'Substituição solicitada pelo administrador no painel da operação.');
