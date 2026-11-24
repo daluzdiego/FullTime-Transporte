@@ -17,7 +17,9 @@ var FT_SOL_AI = {
   FALLBACK_MODELS: ['gemini-3.7-flash', 'gemini-3.5-flash-lite'],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000,
-  MAX_RETRIES: 4
+  MAX_RETRIES: 1,
+  REQUEST_TIMEOUT_SECONDS: 20,
+  TOTAL_BUDGET_MS: 90000
 };
 
 /**
@@ -306,7 +308,8 @@ function testarConexaoGeminiFullTime() {
       var modelResponse = UrlFetchApp.fetch(base + encodeURIComponent(model), {
         method: 'get',
         headers: headers,
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
+          timeoutSeconds: 12
       });
       var modelCode = modelResponse.getResponseCode();
       entry.autenticacao = { http: modelCode, ok: modelCode >= 200 && modelCode < 300 };
@@ -322,6 +325,7 @@ function testarConexaoGeminiFullTime() {
           contentType: 'application/json',
           headers: headers,
           muteHttpExceptions: true,
+          timeoutSeconds: 12,
           payload: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: 'Responda somente: TESTE_OK' }] }],
             generationConfig: { temperature: 0, maxOutputTokens: 20 }
@@ -426,89 +430,61 @@ function ftSolMarkWaitingAI_(sh, id, login, message) {
  * Retentativas limitadas apenas para erros transitórios.
  */
 function ftSolGenerateAIText_(prompt) {
+  var startedAt = Date.now();
   var key = PropertiesService.getScriptProperties().getProperty(FT_SOL_AI.KEY_PROPERTY);
-  if (!key || !String(key).trim()) {
-    throw new Error('FT_GEMINI_API_KEY não está configurada.');
-  }
-
+  if (!key || !String(key).trim()) throw new Error('FT_GEMINI_API_KEY não está configurada.');
   var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var headers = { 'x-goog-api-key': String(key).trim() };
   var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
   var failures = [];
-
   for (var modelIndex = 0; modelIndex < models.length; modelIndex++) {
+    var elapsed = Date.now() - startedAt;
+    if (elapsed >= FT_SOL_AI.TOTAL_BUDGET_MS) { failures.push('ORÇAMENTO_TOTAL_EXCEDIDO após ' + elapsed + 'ms'); break; }
     var model = models[modelIndex];
     var endpoint = base + encodeURIComponent(model) + ':generateContent';
+    var remaining = FT_SOL_AI.TOTAL_BUDGET_MS - elapsed;
+    var timeoutSeconds = Math.max(1, Math.min(FT_SOL_AI.REQUEST_TIMEOUT_SECONDS, Math.floor(remaining / 1000)));
     var options = {
-      method: 'post',
-      contentType: 'application/json',
-      headers: headers,
-      muteHttpExceptions: true,
+      method: 'post', contentType: 'application/json', headers: headers,
+      muteHttpExceptions: true, timeoutSeconds: timeoutSeconds,
       payload: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json'
-        }
+        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
       })
     };
-
-    var response = null;
-    var code = 0;
-    var body = '';
-    for (var attempt = 1; attempt <= FT_SOL_AI.MAX_RETRIES; attempt++) {
-      response = UrlFetchApp.fetch(endpoint, options);
-      code = response.getResponseCode();
-      body = response.getContentText();
-
-      if (code >= 200 && code < 300) break;
-      var transientError = [408, 429, 500, 502, 503, 504].indexOf(code) >= 0;
-      if (!transientError || attempt === FT_SOL_AI.MAX_RETRIES) break;
-
-      // Backoff exponencial com jitter para reduzir colisões de novas tentativas.
-      var delay = Math.min(30000, Math.pow(2, attempt - 1) * 2000);
-      Utilities.sleep(delay + Math.floor(Math.random() * 750));
-    }
-
-    if (code >= 200 && code < 300) {
-      var envelope;
-      try {
-        envelope = JSON.parse(body);
-      } catch (error) {
-        throw new Error('Gemini (' + model + ') retornou HTTP válido, mas o corpo não é JSON válido.');
+    var attemptStarted = Date.now();
+    console.log('[FT_IA] INICIO modelo=' + model + ' timeout=' + timeoutSeconds + 's');
+    try {
+      var response = UrlFetchApp.fetch(endpoint, options);
+      var code = response.getResponseCode(), body = response.getContentText();
+      console.log('[FT_IA] RESPOSTA modelo=' + model + ' http=' + code + ' duracaoMs=' + (Date.now() - attemptStarted));
+      if (code >= 200 && code < 300) {
+        var envelope;
+        try { envelope = JSON.parse(body); } catch (error) { throw new Error('Gemini (' + model + ') retornou corpo JSON inválido.'); }
+        var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
+          envelope.candidates[0].content && envelope.candidates[0].content.parts ?
+          envelope.candidates[0].content.parts.map(function (part) { return part.text || ''; }).join('') : '';
+        if (textOut) {
+          console.log('[FT_IA] SUCESSO modelo=' + model + ' totalMs=' + (Date.now() - startedAt));
+          return { text: textOut, provider: 'Google Gemini', model: model,
+            fallback: model !== FT_SOL_AI.MODEL, durationMs: Date.now() - startedAt };
+        }
+        var reason = envelope && envelope.candidates && envelope.candidates[0] && envelope.candidates[0].finishReason;
+        failures.push(model + ' HTTP ' + code + ': resposta sem texto' + (reason ? ' (' + reason + ')' : ''));
+      } else {
+        var detail = ftGeminiErroSeguro_(body);
+        failures.push(model + ' HTTP ' + code + ': ' + detail);
+        console.warn('[FT_IA] FALHA modelo=' + model + ' http=' + code + ' detalhe=' + detail.slice(0, 500));
+        if ([400, 401, 402, 403].indexOf(code) >= 0) break;
       }
-
-      var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
-        envelope.candidates[0].content && envelope.candidates[0].content.parts ?
-        envelope.candidates[0].content.parts.map(function (part) {
-          return part.text || '';
-        }).join('') : '';
-
-      if (textOut) {
-        return {
-          text: textOut,
-          provider: 'Google Gemini',
-          model: model,
-          fallback: model !== FT_SOL_AI.MODEL
-        };
-      }
-
-      var blockReason = envelope && envelope.candidates && envelope.candidates[0] &&
-        envelope.candidates[0].finishReason;
-      throw new Error(
-        'Gemini (' + model + ') não retornou texto.' +
-        (blockReason ? ' Motivo: ' + blockReason : '')
-      );
-    }
-
-    failures.push(model + ' HTTP ' + code + ': ' + ftGeminiErroSeguro_(body));
-    // Erros de autenticação, requisição ou cobrança não são resolvidos trocando de modelo.
-    if ([400, 401, 402, 403].indexOf(code) >= 0) {
-      throw new Error(failures[failures.length - 1]);
+    } catch (error) {
+      var message = String(error && error.message || error).slice(0, 1000);
+      failures.push(model + ' ERRO: ' + message);
+      console.warn('[FT_IA] EXCECAO modelo=' + model + ' detalhe=' + message);
     }
   }
-
-  throw new Error(
-    'Todos os modelos Gemini configurados falharam. ' + failures.join(' | ')
-  );
+  var total = Date.now() - startedAt;
+  console.error('[FT_IA] FALHA_FINAL totalMs=' + total + ' detalhes=' + failures.join(' | '));
+  throw new Error('Não foi possível concluir a análise dentro do limite de segurança (' +
+    Math.round(total / 1000) + 's). ' + failures.join(' | '));
 }
