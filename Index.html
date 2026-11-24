@@ -1245,9 +1245,10 @@
     host.innerHTML=parts.length?'<div class="table-wrap"><table class="ops-inner-table"><thead><tr><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Viagens concluídas</th><th>Toneladas</th><th>Gestão da convocação</th></tr></thead><tbody>'+parts.map(p=>{
       const status=String(p.campos?.[3]||'').toUpperCase(),offerId=String(p.id||''),currentSet=String(p.campos?.[1]||'');
       const options=candidates.filter(x=>String(x.id)!==currentSet).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.driverName||x.id)+' · '+esc(x.id)+'</option>').join('');
-      const action=status==='OFERTADA'&&offerId&&options
-        ?'<div style="display:flex;gap:6px;min-width:260px"><select id="replace-set-'+esc(offerId)+'" aria-label="Novo conjunto convocado"><option value="">Selecionar substituto</option>'+options+'</select><button class="btn btn-secondary" type="button" onclick="substituirConvocadoPendenteUI(\''+esc(id)+'\',\''+esc(offerId)+'\')">Substituir</button></div>'
-        :status==='OFERTADA'?'Aguardando resposta · sem substituto elegível':(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(status)?'Convocação protegida após aceite':'—');
+      const canReplace=['OFERTADA','RECUSADA','NAO_RESPONDEU','EXPIRADA'].includes(status);
+      const action=canReplace&&offerId&&options
+        ?'<div style="display:flex;gap:6px;min-width:280px;flex-wrap:wrap"><select id="replace-set-'+esc(offerId)+'" aria-label="Novo conjunto convocado"><option value="">Selecionar substituto</option>'+options+'</select><button class="btn btn-secondary" type="button" onclick="substituirConvocadoPendenteUI(\''+esc(id)+'\',\''+esc(offerId)+'\')">Substituir</button>'+(status==='OFERTADA'?'<button class="btn btn-danger" type="button" onclick="retirarConvocadoPendenteUI(\''+esc(id)+'\',\''+esc(offerId)+'\')">Retirar</button>':'')+'</div>'
+        :canReplace?'Sem substituto elegível disponível no momento':(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(status)?'Bloqueado após confirmação do motorista':'—');
       return '<tr><td>'+esc(label(drivers,p.campos?.[2]))+'</td><td>'+esc(label(sets,currentSet))+'</td><td>'+statusBadge(status||'—')+'</td><td>'+esc(p.campos?.[8]||'0')+'</td><td>'+esc(p.campos?.[7]||'0')+' t</td><td>'+action+'</td></tr>';
     }).join('')+'</tbody></table></div><p class="muted small">Somente ofertas ainda pendentes podem ser substituídas. Após o aceite, o registro fica protegido e qualquer mudança exige um procedimento operacional próprio, com histórico.</p>':'<div class="ops-empty-state">Nenhum conjunto foi designado para esta operação ainda.</div>';
   }
@@ -1264,6 +1265,18 @@
       }).withFailureHandler(err=>toast(err.message||'Convocação substituída, mas o painel não atualizou.',true)).obterPainelFullTime(authToken);
     }).withFailureHandler(err=>toast(err.message||'Não foi possível substituir a convocação.',true))
       .FT_substituirConvocadoPendenteFullTime(authToken,ofertaId,novoConjuntoId,'Substituição solicitada pelo administrador no painel da operação.');
+  }
+  async function retirarConvocadoPendenteUI(operacaoId,ofertaId){
+    if(!await uiConfirm('A convocação pendente será retirada, sem apagar o histórico. Um motorista que já confirmou nunca pode ser removido por esta ação.',{title:'Retirar convocação',ok:'Retirar convocação',danger:true}))return;
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Convocação retirada.');
+      google.script.run.withSuccessHandler(data=>{
+        dashboard=parsePainelResponse(data);
+        const row=document.getElementById('details-row-'+operacaoId);
+        if(row&&row.style.display!=='none')renderPainelDetalhesOperacao(operacaoId,'equipe');
+      }).withFailureHandler(err=>toast(err.message||'Painel não atualizado.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(err=>toast(err.message||'Não foi possível retirar a convocação.',true))
+      .FT_cancelarConvocacaoPendenteFullTime(authToken,ofertaId,'Retirada solicitada pelo administrador no painel.');
   }
   function renderViagensOperacao(id){
     const host=document.getElementById('op-viagens-'+id);if(!host)return;
@@ -1286,7 +1299,7 @@
     const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
     const sets=[...new Set(parts.map(p=>String(p.campos?.[1]||'')).filter(Boolean))],drivers=[...new Set(parts.map(p=>String(p.campos?.[2]||'')).filter(Boolean))];
     const planned=Number(op.viagensPrevistas||0),done=Number(op.viagensRealizadas||0),pct=planned?Math.min(100,Math.round(done/planned*100)):0;
-    const status=String(op.status||'').toUpperCase(),confirmed=parts.some(p=>['ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(p.campos?.[3]||'').toUpperCase()));
+    const status=String(op.status||'').toUpperCase(),confirmed=parts.some(p=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(p.campos?.[3]||'').toUpperCase()));
     return '<div class="ops-detail-grid">'+
       '<section class="ops-info-card"><h3>▣ Dados da Operação</h3>'+[['Cliente',op.cliente],['Período',(formatDate(op.data||op.campos?.[0])||'—')+' a '+(op.prazoEntrega?formatDate(op.prazoEntrega):'—')],['Tipo',op.tipoOperacao||op.campos?.[12]||'—'],['Carga',op.produto||'—'],['Volume',num(op.volumeTotal||op.campos?.[6])+' TON'],['Origem / Destino',(op.origem||op.campos?.[3]||'—')+' → '+(op.destino||op.campos?.[4]||'—')],['Prioridade',op.categoria||'Normal']].map(x=>'<div class="ops-info-line"><span>'+esc(x[0])+'</span><strong>'+esc(x[1]||'—')+'</strong></div>').join('')+'</section>'+
       '<section class="ops-info-card"><h3>⚙ Planejamento Automático</h3><div class="ops-info-line"><span>Conjuntos definidos</span><strong>'+sets.length+'</strong></div><div class="ops-info-line"><span>Viagens previstas</span><strong>'+planned+'</strong></div><div class="ops-info-line"><span>Viagens concluídas</span><strong>'+done+'</strong></div><div class="ops-info-line"><span>Capacidade total</span><strong>Não consolidada</strong></div><div class="ops-info-note">A seleção de conjuntos depende de capacidade validada, disponibilidade e compatibilidade documental.</div></section>'+
