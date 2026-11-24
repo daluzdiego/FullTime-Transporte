@@ -1070,7 +1070,8 @@
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
           <div class="field"><label>Data *</label><input name="data" type="date" required></div><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120"></div>
           <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
-          <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div><div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
+          <div class="field span-2"><label>Origem *</label><input name="origem" required maxlength="180"></div>
+          <div class="field span-2"><label>Destinos e volumes por recebedor *</label><div class="muted small">Cadastre cada local de entrega separadamente. A soma não pode ultrapassar o volume total; eventual saldo permanecerá não distribuído.</div><div id="manualDestinationsContainer">${htmlDestinoManualOperacao(0,{})}</div><button class="btn btn-secondary" type="button" onclick="adicionarDestinoManualOperacao()">＋ Adicionar destino</button></div>
           <div class="field"><label>Produto / material</label><input name="produto" maxlength="160"></div><div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1"></div>
           <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div><div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
           <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div><div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
@@ -1107,10 +1108,44 @@
     const viagens=Math.ceil(volume/carga),ultima=volume-(viagens-1)*carga;
     host.textContent=viagens+' viagem(ns) estimada(s) · '+carga.toLocaleString('pt-BR')+' t por viagem · última viagem: '+ultima.toLocaleString('pt-BR',{maximumFractionDigits:2})+' t.';
   }
+  function htmlDestinoManualOperacao(index,data){
+    data=data||{};
+    return '<div class="manual-destination-row"><div class="form-grid">'+
+      '<div class="field"><label>Empresa / recebedor *</label><input data-manual-destino="cliente" required maxlength="160" value="'+esc(data.cliente||'')+'"></div>'+
+      '<div class="field"><label>Local de entrega *</label><input data-manual-destino="local" required maxlength="220" value="'+esc(data.local||'')+'"></div>'+
+      '<div class="field"><label>Cidade / UF</label><input data-manual-destino="cidadeUf" maxlength="120" value="'+esc(data.cidadeUf||'')+'"></div>'+
+      '<div class="field"><label>Volume previsto (t) *</label><input data-manual-destino="volume" type="number" min="0.01" step="0.01" required value="'+esc(data.volume||'')+'"></div>'+
+      '<div class="field"><label>Data prevista</label><input data-manual-destino="dataPrevista" type="date" value="'+esc(data.dataPrevista||'')+'"></div>'+
+      '<div class="field"><label>Observações</label><input data-manual-destino="observacoes" maxlength="500" value="'+esc(data.observacoes||'')+'"></div>'+
+      '</div><button class="btn btn-secondary" type="button" onclick="removerDestinoManualOperacao(this)">Remover destino</button></div>';
+  }
+  function adicionarDestinoManualOperacao(){
+    const host=document.getElementById('manualDestinationsContainer');if(!host)return;
+    const client=document.querySelector('#ops-new-form [name="cliente"]')?.value||'';
+    host.insertAdjacentHTML('beforeend',htmlDestinoManualOperacao(host.querySelectorAll('.manual-destination-row').length,{cliente:client}));
+  }
+  function removerDestinoManualOperacao(button){
+    const host=document.getElementById('manualDestinationsContainer');
+    if(host?.querySelectorAll('.manual-destination-row').length<=1){toast('A operação precisa ter pelo menos um destino.',true);return;}
+    button.closest('.manual-destination-row')?.remove();
+  }
   function saveOperacao(ev){
-    ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
-    const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
+    ev.preventDefault();
+    const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
+    const btn=document.getElementById('saveOperacaoButton'),err=document.getElementById('operacaoError');
+    const perTrip=Number(data.toneladasPorViagem||0),total=Number(data.volumeTotal||0);
+    data.viagensPrevistas=perTrip>0&&total>0?Math.ceil(total/perTrip):0;
+    data.destinos=Array.from(form.querySelectorAll('.manual-destination-row')).map(row=>{
+      const get=key=>row.querySelector('[data-manual-destino="'+key+'"]')?.value?.trim()||'';
+      return {cliente:get('cliente'),local:get('local'),cidadeUf:get('cidadeUf'),volume:get('volume'),dataPrevista:get('dataPrevista'),observacoes:get('observacoes')};
+    });
+    btn.disabled=true;btn.textContent='Salvando…';err.textContent='';
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Operação criada.');
+      google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(e=>{
+      btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';
+    }).salvarOperacaoComDestinosFullTime(authToken,data);
   }
   const ftCandidatosOperacaoCache={};
   const ftCandidatosPaginacao={};
