@@ -63,7 +63,7 @@ function processarMensagemWhatsAppTicket_(message, metadata) {
     throw new Error('O evento veio de um número diferente do número configurado.');
   }
 
-  const sheet = getSheet_('TICKETS');
+  const sheet = typeof ftTicketSheet_ === 'function' ? ftTicketSheet_() : getSheet_('TICKETS');
   if (ticketWhatsAppJaRecebido_(sheet, String(message.id))) return;
 
   const sender = String(message.from).replace(/\D/g, '');
@@ -160,7 +160,7 @@ function obterVersaoGraphWhatsAppTicket_() {
 
 function registrarErroTicketWhatsApp_(message, error) {
   try {
-    const sheet = getSheet_('TICKETS');
+    const sheet = typeof ftTicketSheet_ === 'function' ? ftTicketSheet_() : getSheet_('TICKETS');
     sheet.appendRow([
       Utilities.getUuid(), new Date(), String(message && message.id || ''),
       String(message && message.from || ''), '', '', 'ERRO_RECEBIMENTO',
