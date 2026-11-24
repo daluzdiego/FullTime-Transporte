@@ -305,7 +305,7 @@
     }
     showAppShell();
     const isDriver=perfil==='MOTORISTA';
-    const endpoint=isDriver?'obterPortalMotoristaFullTimeV2':'obterPainelFullTime';
+    const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'centro';
     google.script.run.withSuccessHandler(data=>{
         const received=isDriver?data:parsePainelResponse(data);
@@ -583,7 +583,7 @@
         if(host)host.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
         toast(e.message||'Não foi possível atualizar.',true);
       }
-    }).obterPortalMotoristaFullTimeV2(authToken);
+    }).obterPortalMotoristaFullTime(authToken);
   }
   async function responderOfertaPortal(id,resposta){
     const acao=resposta==='ACEITA'?'aceitar':'recusar';
