@@ -3,6 +3,19 @@
  * Permite substituir somente uma oferta ainda OFERTADA. Aceites e participações
  * confirmadas nunca são sobrescritos; permanecem no histórico operacional.
  */
+function FT_convocacaoEditavelAntesDoAceite_(status) {
+  return ['OFERTADA','RECUSADA','NAO_RESPONDEU','EXPIRADA'].indexOf(String(status||'').trim().toUpperCase()) >= 0;
+}
+function testarRegraEdicaoConvocacaoFullTime() {
+  var cases={OFERTADA:true,RECUSADA:true,NAO_RESPONDEU:true,EXPIRADA:true,ACEITA:false,ATIVO:false,EM_VIAGEM:false,RETORNOU:false};
+  var failures=[];
+  Object.keys(cases).forEach(function(status){if(FT_convocacaoEditavelAntesDoAceite_(status)!==cases[status])failures.push(status);});
+  var result={ok:failures.length===0,casos:Object.keys(cases).length,confirmadosBloqueados:['ACEITA','ATIVO','EM_VIAGEM','RETORNOU'].every(function(s){return !FT_convocacaoEditavelAntesDoAceite_(s);}),falhas:failures};
+  if(!result.ok)throw new Error('Falha na regra de bloqueio: '+JSON.stringify(result));
+  Logger.log('FT_TESTE_REGRA_EDICAO_CONVOCACAO '+JSON.stringify(result));
+  return result;
+}
+
 function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId, motivo) {
   const session = obterSessao_(token);
   exigirAdmin_(session);
@@ -27,8 +40,7 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
     }
     if (!old) throw new Error('Convocação não encontrada.');
     const currentStatus = String(old[map.STATUS_PARTICIPACAO] || '').trim().toUpperCase();
-    const replaceable = ['OFERTADA','RECUSADA','NAO_RESPONDEU','EXPIRADA'];
-    if (replaceable.indexOf(currentStatus) < 0) {
+    if (!FT_convocacaoEditavelAntesDoAceite_(currentStatus)) {
       throw new Error('Esta participação já foi confirmada ou está em execução. O vínculo confirmado não pode ser alterado.');
     }
 
