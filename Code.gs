@@ -760,6 +760,7 @@ function remanejarConjuntoOperacaoFullTime(token, data) {
   if(!validOp(operacaoAtual)||!validOp(operacaoDestino)) throw new Error('As duas operações precisam estar abertas ou em andamento.');
   const sh=getSheet_('PARTICIPACAO_OPERACOES'), rows=sh.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[2])===operacaoAtual&&String(r[3])===conjuntoId&&String(r[5])==='ATIVO');
   if(idx<1) throw new Error('Não existe participação ativa desse conjunto na operação de origem.');
+  throw new Error('Regra de integridade: após o aceite do motorista, a escala fica bloqueada. Não é permitido remanejar ou substituir uma participação confirmada. Registre o encerramento/retorno pelo fluxo operacional.');
   sh.getRange(idx+1,6).setValue('SAIU'); sh.getRange(idx+1,8).setValue(new Date()); sh.getRange(idx+1,12).setValue(motivo); sh.getRange(idx+1,13).setValue(session.login);
   const id=Utilities.getUuid(); sh.appendRow([id,new Date(),operacaoDestino,conjuntoId,String(rows[idx][4]||''),'ATIVO',new Date(),'','','0',0,'Transferência: '+motivo,session.login]);
   auditar_(session,'REMANEJAR_CONJUNTO','OPERACAO',operacaoAtual,'Conjunto '+conjuntoId+' transferido para '+operacaoDestino+'. Motivo: '+motivo);
