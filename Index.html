@@ -60,8 +60,141 @@
     .operation-fullscreen .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
     .operation-fullscreen #operationFullscreenButton{position:fixed;top:12px;right:12px;z-index:99999;box-shadow:0 4px 18px rgba(0,0,0,.18)}
   
-/* Centro de Operações: painel compacto */
-.center-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0 18px}.center-kpi{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 16px;min-width:0}.center-kpi .stat-label{font-size:12px;color:var(--muted)}.center-kpi .stat-value{font-size:25px;font-weight:800;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.center-ops-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.center-op-card{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);min-width:0;overflow:hidden}.center-op-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:15px 16px 10px}.center-op-head h2{font-size:15px;margin:0 0 4px}.center-op-route{padding:0 16px 13px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.center-op-progress{padding:0 16px 14px}.center-progress-track{height:8px;background:#edf1f6;border-radius:20px;overflow:hidden;margin:7px 0 5px}.center-progress-fill{height:100%;background:var(--green);border-radius:20px;max-width:100%}.center-op-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 16px 14px}.center-op-metric{background:#f7f9fc;border-radius:9px;padding:9px 10px;min-width:0}.center-op-metric span{display:block;color:var(--muted);font-size:11px}.center-op-metric strong{display:block;font-size:14px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.center-op-meta{display:flex;gap:7px;flex-wrap:wrap;padding:0 16px 14px}.center-op-meta span{font-size:11px;background:#f1f5f9;color:#475569;padding:5px 8px;border-radius:20px}.center-op-sets{border-top:1px solid var(--line);padding:10px 16px}.center-op-sets summary{cursor:pointer;color:var(--blue-dark);font-size:12px;font-weight:700}.center-op-sets .table-wrap{margin-top:10px}.center-op-sets table{font-size:12px}.center-op-sets th,.center-op-sets td{padding:8px}.ops-list-panel{margin-bottom:18px}.ops-form-panel{margin-top:18px}.ops-form-panel>summary{cursor:pointer;list-style:none}.ops-form-panel>summary::-webkit-details-marker{display:none}.ops-form-panel[open]>summary{border-bottom:1px solid var(--line)}@media(max-width:1050px){.center-ops-grid{grid-template-columns:1fr}.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.center-kpis{gap:8px}.center-kpi{padding:11px}.center-kpi .stat-value{font-size:21px}.center-op-metrics{gap:5px;padding-left:12px;padding-right:12px}.center-op-head,.center-op-route,.center-op-progress,.center-op-meta{padding-left:12px;padding-right:12px}}
+/* Centro de Operações — painel de acompanhamento */
+.center-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.center-kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 12px;min-width:0}
+.center-kpi .stat-label{font-size:11px;color:var(--muted)}
+.center-kpi .stat-value{font-size:20px;font-weight:750;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.center-ops-panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.center-ops-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;flex-wrap:wrap}
+.center-ops-table{width:100%;border-collapse:collapse;font-size:12px}
+.center-ops-table th,.center-ops-table td{padding:10px 9px;border-top:1px solid var(--line);text-align:left;vertical-align:middle}
+.center-ops-table th{background:#f4f6f9;color:#475569;font-size:11px;white-space:nowrap}
+.center-ops-table tbody tr.center-op-row{cursor:pointer}
+.center-ops-table tbody tr.center-op-row:hover{background:#f7faff}
+.center-ops-table tbody tr.center-op-row[aria-expanded="true"]{background:#edf4ff}
+.center-op-toggle{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--blue-dark);font-weight:800;cursor:pointer;padding:3px}
+.center-op-toggle .chevron{display:inline-block;transition:transform .15s}
+.center-op-toggle[aria-expanded="true"] .chevron{transform:rotate(90deg)}
+.center-op-progress-cell{min-width:150px}
+.center-op-progress-cell .center-progress-track{height:7px;background:#edf1f6;border-radius:20px;overflow:hidden;margin:5px 0 2px}
+.center-op-progress-cell .center-progress-fill{height:100%;background:var(--green);border-radius:20px;max-width:100%}
+.center-op-detail-row td{padding:0 10px 12px;background:#f8faff}
+.center-op-driver-panel{border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.center-op-driver-panel h3{font-size:13px;margin:0;padding:10px 12px;border-bottom:1px solid var(--line)}
+.center-op-driver-table{width:100%;border-collapse:collapse;font-size:12px}
+.center-op-driver-table th,.center-op-driver-table td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
+.center-op-driver-table th{background:#f4f6f9;color:#475569;font-size:11px}
+.center-op-driver-table tr:last-child td{border-bottom:0}
+.center-op-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.center-op-status{display:inline-block;padding:4px 8px;border-radius:6px;background:#edf1f6;color:#334155;font-size:10px;font-weight:750;white-space:nowrap}
+.center-op-status.is-active{background:#e7f6ec;color:#176b37}
+.center-op-status.is-waiting{background:#fff4d6;color:#8a5a00}
+.center-op-status.is-alert{background:#fde8e8;color:#a12626}
+.center-refresh-note{font-size:11px;color:var(--muted);white-space:nowrap}
+.center-archives{margin-top:14px}
+@media(max-width:1150px){.center-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.center-ops-panel{overflow-x:auto}.center-ops-table{min-width:900px}}
+@media(max-width:650px){.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.center-ops-toolbar{align-items:flex-start}}
+/* FULL TIME — Centro de Operações: painel executivo de despacho */
+#appView.center-dashboard .sidebar{background:#082b5c;border-right:1px solid #173f70;color:#e8f1ff}
+#appView.center-dashboard .sidebar .brand,#appView.center-dashboard .sidebar .brand small{color:#e8f1ff}
+#appView.center-dashboard .sidebar .brand-mark{background:#174b8f;color:#fff}
+#appView.center-dashboard .nav-label{color:#9bb5d5}
+#appView.center-dashboard .nav button{color:#dce9fb}
+#appView.center-dashboard .nav button:hover{background:rgba(255,255,255,.08)}
+#appView.center-dashboard .nav button.active{background:#1769e0;border-color:#4389ee;color:#fff}
+#appView.center-dashboard .sidebar-bottom{border-color:#234a78}
+#appView.center-dashboard .avatar{background:#1769e0;color:#fff}
+#appView.center-dashboard .user-meta span{color:#a9bfdc}
+#appView.center-dashboard .topbar{height:54px;background:#082b5c;border-bottom:1px solid #173f70;color:#e8f1ff}
+#appView.center-dashboard .top-title,#appView.center-dashboard #topSubtitle{display:none}
+#appView.center-dashboard .today{background:#103967;border-color:#31577f;color:#dbeafe}
+#appView.center-dashboard .top-right .btn{background:transparent;color:#e8f1ff;border-color:#41648b}
+#appView.center-dashboard .content{max-width:none;padding:0 22px 28px}
+.center-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 22px;margin:0 -22px 12px;background:linear-gradient(112deg,#0a3470 0%,#061f49 100%);color:#fff}
+.center-hero-main{display:flex;align-items:center;gap:14px;min-width:0}
+.center-hero-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:12px;background:rgba(255,255,255,.12);font-size:25px}
+.center-hero h1{font-size:23px;letter-spacing:-.04em;margin:0 0 3px;color:#fff}
+.center-hero p{font-size:12px;color:#c5d8f2;margin:0}
+.center-hero-meta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
+.center-live{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:20px;background:#087c43;color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.center-live:before{content:"";width:7px;height:7px;border-radius:50%;background:#b8ffd2}
+.center-refresh-note{font-size:11px;color:#d3e2f6;white-space:nowrap}
+.center-kpi-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:8px;margin:10px 0 16px}
+.center-kpi{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #dbe5f2;border-radius:10px;padding:10px 12px;min-width:0;box-shadow:0 2px 8px rgba(20,50,90,.035)}
+.center-kpi-icon{font-size:20px;color:#164b91;flex:none}
+.center-kpi .stat-label{font-size:10px;color:#64748b;margin:0 0 3px;line-height:1.2}
+.center-kpi .stat-value{font-size:20px;font-weight:800;line-height:1;color:#10233f;white-space:nowrap}
+.center-kpi-actions{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.center-kpi-actions .btn{min-height:36px;padding:7px 10px;font-size:11px;white-space:nowrap}
+.center-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:5px 0 8px}
+.center-section-title h2{font-size:19px;letter-spacing:-.035em;margin:0;color:#10233f}
+.center-section-title span{font-size:10px;color:#718096}
+.center-ops-panel{background:#fff;border:1px solid #dbe5f2;border-radius:11px;overflow:hidden;box-shadow:0 4px 16px rgba(20,50,90,.045)}
+.center-ops-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:11px;min-width:900px}
+.center-ops-table th,.center-ops-table td{padding:9px 10px;border-bottom:1px solid #e5edf7;text-align:left;vertical-align:middle}
+.center-ops-table th{background:#eaf1fa;color:#405675;font-size:10px;letter-spacing:.035em;white-space:nowrap}
+.center-ops-table th:nth-child(1){width:20%}.center-ops-table th:nth-child(2){width:18%}.center-ops-table th:nth-child(3){width:8%}.center-ops-table th:nth-child(4){width:20%}.center-ops-table th:nth-child(5){width:16%}.center-ops-table th:nth-child(6){width:12%}
+.center-ops-table tbody tr.center-op-row{cursor:pointer;transition:background .12s}
+.center-ops-table tbody tr.center-op-row:nth-child(4n+1){background:#f4f8fd}
+.center-ops-table tbody tr.center-op-row:nth-child(4n+3){background:#eaf2fc}
+.center-ops-table tbody tr.center-op-row.is-running{background:#dceaff}
+.center-ops-table tbody tr.center-op-row:hover{filter:brightness(.985)}
+.center-ops-table tbody tr.center-op-row[aria-expanded="true"]{background:#d4e5fb}
+.center-op-toggle{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;color:#0646a0;font-weight:800;cursor:pointer;padding:2px;text-align:left;font-size:11px}
+.center-op-toggle .chevron{display:inline-block;transition:transform .15s;color:#153c70}
+.center-op-toggle[aria-expanded="true"] .chevron{transform:rotate(90deg)}
+.center-op-progress-cell{min-width:140px}
+.center-op-progress-line{display:flex;align-items:center;gap:9px}
+.center-op-progress-cell .center-progress-track{height:6px;flex:1;background:#dce5ef;border-radius:20px;overflow:hidden;margin:5px 0 2px}
+.center-op-progress-cell .center-progress-fill{height:100%;background:#2467b8;border-radius:20px;max-width:100%}
+.center-op-detail-row td{padding:0 12px 12px;background:#f1f6fd}
+.center-op-driver-panel{border:1px solid #d5e2f2;border-radius:9px;background:#fff;overflow:hidden}
+.center-op-driver-panel h3{font-size:12px;margin:0;padding:10px 12px;border-bottom:1px solid #e1eaf5;color:#102d53}
+.center-op-driver-table{width:100%;border-collapse:collapse;font-size:11px;min-width:800px}
+.center-op-driver-table th,.center-op-driver-table td{padding:8px 10px;border-bottom:1px solid #e5edf7;text-align:left}
+.center-op-driver-table th{background:#e5eef9;color:#405675;font-size:10px}
+.center-op-driver-table tr:last-child td{border-bottom:0}
+.center-op-status{display:inline-block;padding:4px 8px;border-radius:12px;background:#edf1f6;color:#334155;font-size:10px;font-weight:750;white-space:nowrap}
+.center-op-status.is-active{background:#d8f5e3;color:#176b37}
+.center-op-status.is-waiting{background:#fff0c2;color:#865500}
+.center-op-status.is-alert{background:#fde1e1;color:#a12626}
+.center-op-actions{display:flex;justify-content:flex-end;gap:7px;padding:9px 12px;border-top:1px solid #e5edf7;flex-wrap:wrap}
+.center-op-actions .btn{min-height:32px;padding:6px 10px;font-size:11px}
+.center-archives{margin-top:12px}
+@media(max-width:1200px){.center-kpi-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.center-kpi-actions{justify-content:flex-start}}
+@media(max-width:700px){#appView.center-dashboard .content{padding:0 10px 24px}.center-hero{margin:0 -10px 10px;padding:14px}.center-hero h1{font-size:18px}.center-hero-meta{gap:8px}.center-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.center-section-title h2{font-size:16px}}
+
+    /* Identidade visual FullTime — navegação e tela Operações */
+    .sidebar{background:#08264a;color:#e7effb;border-right:1px solid #173b64;padding:22px 12px}
+    .sidebar .brand{padding:0 10px 30px;color:#fff}.sidebar .brand small{color:#b9cce4}.sidebar .brand-mark{background:#1458b8;color:#fff}
+    .nav-label{color:#91a9c7}.nav button{color:#d7e4f5;border-color:transparent}.nav button:hover{background:#123b68;color:#fff}.nav button.active{background:#1459bd;border-color:#236fd3;color:#fff}
+    .sidebar-bottom{border-top-color:#24476e}.user-meta span{color:#b9cce4}.avatar{background:#1769e0;color:#fff}.sidebar .icon-btn{background:#10365f;border-color:#315477;color:#fff}
+    .ops-page{max-width:1600px;margin:0 auto}.ops-page-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 20px}.ops-page-head h1{font-size:26px;letter-spacing:-.04em;margin:0 0 5px;color:#102b4c}.ops-page-head p{font-size:13px;color:#60738d;margin:0;line-height:1.5}.ops-eyebrow{font-size:10px;letter-spacing:.13em;font-weight:800;color:#55718f;margin-bottom:6px}.ops-head-actions{display:flex;gap:9px;flex-wrap:wrap}.ops-head-actions .btn{min-height:38px;padding:8px 13px}
+    .ops-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}.ops-kpi{display:flex;align-items:center;gap:12px;min-height:82px;padding:14px 16px;background:#fff;border:1px solid #dce5f0;border-radius:12px;box-shadow:0 3px 12px rgba(17,45,79,.035)}.ops-kpi-icon{width:38px;height:38px;flex:0 0 38px;border:1px solid #d9e4f2;border-radius:10px;display:grid;place-items:center;color:#345b89;font-size:19px}.ops-kpi strong{display:block;font-size:24px;line-height:1.05;color:#102b4c}.ops-kpi small{display:block;margin-top:5px;color:#667b95;font-size:11px}
+    .ops-list-panel{border-radius:13px;box-shadow:0 5px 20px rgba(17,45,79,.045)}.ops-list-head{padding:15px 18px}.ops-list-head h2{font-size:15px;color:#163657}.ops-live-label{font-size:11px;color:#60738d;display:flex;align-items:center;gap:7px}.ops-live-label i{width:7px;height:7px;border-radius:50%;background:#19976a;display:inline-block}.ops-list-panel .panel-body{padding:14px 16px 18px}
+    .ops-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:13px}.ops-search{display:flex;align-items:center;gap:8px;flex:1;min-width:230px;height:40px;padding:0 11px;border:1px solid #dce5ef;border-radius:9px;color:#60738d;background:#fff}.ops-search input{width:100%;border:0;outline:0!important;height:36px;background:transparent;color:#18324f;font-size:12px}.ops-toolbar select{height:40px;min-width:155px;padding:0 30px 0 11px;border:1px solid #dce5ef;border-radius:9px;background:#fff;color:#294461;font-size:12px}
+    .ops-table{min-width:1000px;border-collapse:separate;border-spacing:0;table-layout:auto}.ops-table th{background:#edf3fa;color:#49617e;font-size:10px;padding:12px 11px}.ops-table td{padding:12px 11px;font-size:11px;color:#263d58;border-bottom:1px solid #e9eef5}.ops-table tbody tr.ops-row:nth-child(even){background:#f7faff}.ops-table tbody tr.ops-row:hover{background:#edf5ff}.ops-name-button{display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;text-align:left;color:#123e77;min-width:150px}.ops-name-button strong{display:block;font-size:12px;color:#123e77}.ops-name-button small,.ops-subline{display:block;font-size:10px;color:#71839a;margin-top:4px}.ops-row-chevron{font-size:22px;line-height:12px;color:#345e8c;transition:transform .15s}.ops-route-cell{white-space:nowrap;color:#35516f}.ops-route-arrow{color:#7d91a9;padding:0 4px}.ops-progress{display:flex;align-items:center;gap:8px;min-width:115px}.ops-progress-track{height:7px;flex:1;min-width:55px;border-radius:10px;background:#dce5ef;overflow:hidden}.ops-progress-track span{display:block;height:100%;border-radius:10px;background:#2467b8}.ops-progress b{font-size:10px;color:#234b7b}.ops-detail-btn{min-height:30px;padding:5px 10px;font-size:10px}.ops-details-row td{background:#f1f6fc;padding:10px 12px 14px}.ops-form-panel{max-width:none;margin-top:15px}.ops-form-panel .panel-head{cursor:pointer}.ops-form-panel .panel-head h2{font-size:14px}
+    @media(max-width:1100px){.ops-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ops-page-head{align-items:flex-start}}
+    @media(max-width:700px){.ops-page-head{display:block}.ops-head-actions{margin-top:12px}.ops-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ops-kpi{padding:10px;min-height:70px}.ops-kpi strong{font-size:20px}.ops-kpi small{font-size:10px}.ops-toolbar{align-items:stretch}.ops-search{min-width:100%}.ops-toolbar select{flex:1;min-width:0}.ops-page-head h1{font-size:22px}}
+
+    /* Cabeçalho único do Centro de Operações */
+    .topbar{min-height:72px;height:auto;flex-wrap:nowrap;gap:14px}
+    .top-right{display:flex;align-items:center;gap:14px;min-width:0}
+    .center-top-meta{display:flex;align-items:center;gap:10px;white-space:nowrap;min-width:0}
+    .center-top-meta>strong{font-size:14px;color:#163657}
+    .center-top-meta .center-live{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;background:#e2f7eb;color:#087449;font-size:10px;font-weight:800}
+    .center-top-meta .center-live i{width:7px;height:7px;border-radius:50%;background:#15945e;display:inline-block}
+    .center-top-meta small{font-size:11px;color:#64748b}
+    @media(max-width:1100px){.center-top-meta{gap:7px}.center-top-meta>strong{font-size:12px}.center-top-meta small{font-size:10px}}
+    @media(max-width:760px){.topbar{align-items:flex-start;padding:12px 14px;flex-wrap:wrap}.top-right{width:100%;justify-content:flex-end;flex-wrap:wrap}.center-top-meta{order:0;flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap}.today{order:1}.top-right>.btn{order:2}}
+
+    /* Painel completo de detalhes da operação — referência aprovada */
+    .ops-table{min-width:1250px}.ops-table th,.ops-table td{white-space:nowrap}.ops-center-cell{text-align:center!important;font-weight:750}.ops-muted{color:#8ba0b8}.ops-row-actions{display:flex;align-items:center;gap:5px;position:relative}.ops-action-menu{position:absolute;right:0;top:34px;z-index:20;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe4ef;border-radius:9px;box-shadow:0 12px 28px rgba(10,35,68,.16)}.ops-action-menu button{display:block;width:100%;padding:9px 10px;border:0;background:#fff;text-align:left;font-size:11px;color:#294461;border-radius:6px}.ops-action-menu button:hover{background:#eff5fc}
+    .ops-detail-shell{border:1px solid #cbdcf0;border-radius:13px;background:#f7faff;overflow:hidden;box-shadow:0 4px 15px rgba(16,48,84,.05)}.ops-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #dbe6f3;background:#fff;flex-wrap:wrap}.ops-detail-heading>div:first-child{display:flex;align-items:center;gap:10px}.ops-detail-heading>div:first-child strong{font-size:20px;color:#12365f}.ops-detail-symbol{font-size:22px;color:#164f91}.ops-status-pill,.ops-confirmed{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:18px;background:#e4f5e9;color:#16713c;font-size:10px;font-weight:800;white-space:nowrap}.ops-confirmed.is-pending{background:#fff1d5;color:#966000}.ops-detail-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.ops-detail-actions .btn{min-height:34px;padding:7px 10px;font-size:10px}.ops-detail-actions .btn-danger{background:#fff;border:1px solid #efcaca;color:#a72c35}.ops-detail-actions button:disabled{opacity:.55;cursor:not-allowed}
+    .ops-detail-tabs{display:flex;gap:5px;overflow-x:auto;padding:8px 10px;background:#f0f5fc;border-bottom:1px solid #dce7f4}.ops-detail-tabs button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:9px 12px;border:1px solid #d1deee;border-radius:8px;background:#fff;color:#294766;font-size:11px;font-weight:700}.ops-detail-tabs button.active{background:#1769e0;border-color:#1769e0;color:#fff}.ops-tab-panel{padding:12px;background:#f7faff}.ops-detail-grid{display:grid;grid-template-columns:1.05fr 1.35fr 1.15fr 1fr;gap:10px}.ops-info-card{min-width:0;padding:12px;border:1px solid #d8e4f2;border-radius:10px;background:#fff}.ops-info-card h3{margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #e8eef6;font-size:12px;color:#173b66}.ops-info-line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #edf2f8;font-size:10px}.ops-info-line span{color:#60748e}.ops-info-line strong{color:#1c3554;text-align:right}.ops-info-note{font-size:10px;line-height:1.5;color:#5d7390;padding-top:8px}.ops-movement-values{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.ops-movement-values>div{text-align:center;border-right:1px solid #e5edf6}.ops-movement-values>div:last-child{border:0}.ops-movement-values strong{display:block;font-size:14px;color:#142f52}.ops-movement-values small{display:block;margin-top:4px;color:#70839a;font-size:9px}.ops-movement-card .ops-progress-track{display:block;margin-top:14px}.ops-wide-card{grid-column:span 2}.ops-wide-card p{font-size:11px;line-height:1.5;color:#526b88;margin:6px 0 10px}.ops-tab-intro{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;border:1px solid #dce7f3;border-radius:9px;background:#fff}.ops-tab-intro>div{flex:1;min-width:180px}.ops-tab-intro h3{font-size:13px;margin:0 0 4px;color:#183b64}.ops-tab-intro p{font-size:10px;color:#627792;margin:0}.ops-tab-intro label{font-size:10px;color:#5d718b}.ops-tab-intro input{width:65px;padding:7px;border:1px solid #d6e1ef;border-radius:7px}.ops-inner-table{width:100%;min-width:650px;border-collapse:collapse}.ops-inner-table th,.ops-inner-table td{padding:9px 10px;font-size:10px;text-align:left;border-bottom:1px solid #e8eef5}.ops-inner-table th{background:#edf3fa;color:#4a6380}.ops-empty-state,.ops-loading{padding:24px 16px;text-align:center;border:1px dashed #cbd9e9;border-radius:9px;background:#fff;color:#5b718d;font-size:11px;line-height:1.6}.ops-empty-state strong{display:block;color:#193e68;font-size:13px;margin-bottom:5px}.ops-empty-state p{max-width:700px;margin:5px auto}.ops-history-list{display:grid;gap:8px}.ops-history-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #e0e9f3;border-radius:8px}.ops-history-dot{width:8px;height:8px;border-radius:50%;background:#276bb5}.ops-history-item strong,.ops-history-item small{display:block;font-size:11px}.ops-history-item small{margin-top:3px;color:#71849b}.ops-loading{border:0}
+    @media(max-width:1200px){.ops-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:700px){.ops-detail-grid{grid-template-columns:1fr}.ops-wide-card{grid-column:span 1}.ops-detail-heading{align-items:flex-start}.ops-detail-actions{width:100%}.ops-detail-actions .btn{flex:1}.ops-detail-tabs button{padding:8px 10px}}
 </style>
 </head>
 <body>
@@ -89,7 +222,7 @@
       <div class="sidebar-bottom"><div class="user-line"><div class="avatar" id="avatar">D</div><div class="user-meta"><strong id="sideUser">Administrador</strong><span id="sideRole">Administrador</span></div><button class="icon-btn" title="Sair" onclick="logout()">↪</button></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
+      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
       <div class="content" id="content"></div>
     </main>
   </section>
@@ -128,10 +261,13 @@
   let currentUser = null;
   let dashboard = null;
   let solicitacoesFullTime = [];
-  let currentPage = 'operacoes';
+  let currentPage = 'centro';
   let toastTimer;
   let operacoesRefreshTimer=null;
   let operacoesRefreshBusy=false;
+  let portalRefreshTimer=null;
+  let portalRefreshBusy=false;
+  const PORTAL_REFRESH_MS=60*1000;
   let operacoesLastLoadedAt=0;
   const OPERACOES_REFRESH_MS=5*60*1000;
   const DOC_ALERT_DELAY_MS=24*60*60*1000;
@@ -162,12 +298,22 @@
     return data;
   }
   function loadApp(){
+    const perfil=String(currentUser?.perfil||'').trim().toUpperCase();
+    if(!['ADMIN','MOTORISTA'].includes(perfil)){
+      renderLoadFailure(new Error('Não foi possível identificar seu perfil autenticado. Atualize a sessão ou entre novamente.'));
+      return;
+    }
     showAppShell();
-    const isDriver=String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA';
-    const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
-    currentPage=isDriver?'portalMotorista':'operacoes';
+    const isDriver=perfil==='MOTORISTA';
+    const endpoint=isDriver?'obterPortalMotoristaFullTimeV2':'obterPainelFullTime';
+    currentPage=isDriver?'portalMotorista':'centro';
     google.script.run.withSuccessHandler(data=>{
         const received=isDriver?data:parsePainelResponse(data);
+        if(isDriver&&(!received||!Array.isArray(received.ofertas))){
+          console.error('FT_PORTAL_CONTRATO_INVALIDO',JSON.stringify({tipo:typeof received,chaves:received&&typeof received==='object'?Object.keys(received):[]}));
+          renderLoadFailure(new Error('O servidor não entregou a lista de ofertas do motorista. Confirme a implantação do endpoint V2 e do arquivo PortalMotoristaFullTime.gs.'));
+          return;
+        }
         const arrayKeys=['motoristas','cavalos','carretas','conjuntos','operacoes','documentos'];
         const receivedCounts={};
         arrayKeys.forEach(key=>{receivedCounts[key]=Array.isArray(received[key])?received[key].length:'AUSENTE/FORMATO_INVALIDO';});
@@ -179,6 +325,8 @@
           currentUser={...currentUser,...(received.user||{}),...(isDriver?{motoristaId:received.motoristaId||currentUser?.motoristaId}:{})};
           paintNav();
           renderPage(currentPage);
+          if(isDriver) iniciarAtualizacaoAutomaticaPortal();
+          else pararAtualizacaoAutomaticaPortal();
         } catch(uiError) {
           console.error('FT_UI_RENDER_ERROR',uiError&&uiError.stack||uiError);
           renderLoadFailure(uiError);
@@ -287,9 +435,19 @@
       }
     }).withFailureHandler(err=>{operacoesRefreshBusy=false;console.warn('Atualização automática de operações falhou:',err&&err.message||err);}).obterPainelFullTime(authToken);
   }
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentPage==='operacoes')refreshOperacoes(true);});
-  window.addEventListener('focus',()=>{if(currentPage==='operacoes')refreshOperacoes(true);});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden)return;
+    if(currentPage==='operacoes')refreshOperacoes(true);
+    else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
+  });
+  window.addEventListener('focus',()=>{
+    if(currentPage==='operacoes')refreshOperacoes(true);
+    else if(currentPage==='portalMotorista')atualizarPortalMotorista(true);
+  });
   function renderPage(page){
+    const appRoot=document.getElementById('appView');
+    if(appRoot)appRoot.classList.toggle('center-dashboard',page==='centro'&&String(currentUser?.perfil||'').toUpperCase()==='ADMIN');
+    if(page!=='centro'&&window.__ftCentroRefreshTimer){window.clearInterval(window.__ftCentroRefreshTimer);window.__ftCentroRefreshTimer=null;}
     if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
       document.getElementById('topTitle').textContent='Área do motorista';
       document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
@@ -297,8 +455,9 @@
       return;
     }
     const titles={centro:'Centro de Operações',motoristas:'Motoristas',cavalos:'Cavalo',carretas:'Carreta',conjuntos:'Conjunto',operacoes:'Operações',solicitacoes:'Solicitações',escalas:'Escalas',viagens:'Localização',relatorios:'Relatórios',configuracoes:'Configuração'};
-    document.getElementById('topTitle').textContent=titles[page]||'Full Time';
-    document.getElementById('topSubtitle').textContent=page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
+    const centerMeta=document.getElementById('centerTopMeta');if(centerMeta)centerMeta.classList.toggle('hidden',page!=='centro');
+    document.getElementById('topTitle').textContent=(page==='operacoes'||page==='centro')?'':(titles[page]||'Full Time');
+    document.getElementById('topSubtitle').textContent=(page==='operacoes'||page==='centro')?'':page==='inicio'?'Painel geral da operação da empresa':page==='motoristas'?'Gerencie os cadastros de motoristas.':page==='cavalos'?'Cadastros sincronizados de cavalos mecânicos.':page==='carretas'?'Cadastros sincronizados de carretas.':page==='conjuntos'?'Vínculo habitual entre motorista, cavalo e carretas.':page==='solicitacoes'?'Receba mensagens, organize informações e acompanhe a triagem.':'Área administrativa';
     const c=document.getElementById('content');
     if(page==='centro') { c.innerHTML=renderCentroOperacoes(); carregarCentroOperacoes(); }
     else if(page==='motoristas') c.innerHTML=renderList('motoristas');
@@ -324,35 +483,107 @@
 
   function renderPortalMotorista(){
     const offers=Array.isArray(dashboard?.ofertas)?dashboard.ofertas:[];
+    const orphanEvents=Array.isArray(dashboard?.eventos)?dashboard.eventos:[];
     const counts=dashboard?.counts||{};
     const pending=offers.filter(o=>o.status==='OFERTADA'&&!o.expirada);
-    const cards=[['Ofertas pendentes',counts.pendentes||0],['Aceitas',counts.aceitas||0],['Recusadas',counts.recusadas||0],['Sem resposta em 2h',counts.expiradas||0]];
-    return '<div class="page-head"><div><h1>Minhas ofertas</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui aparecem somente as convocações vinculadas ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
+    const localDay=d=>{
+      if(!d)return '';
+      const s=String(d).trim();
+      let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+      m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+      if(m)return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+      const x=d instanceof Date?d:new Date(d);
+      return isNaN(x.getTime())?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+    };
+    const today=new Date(),todayKey=dashboard?.hoje||localDay(today);
+    const operationDay=o=>o?.operacao?.dataKey||localDay(o?.operacao?.data);
+    const futureOffers=offers.filter(o=>{const k=operationDay(o);return k&&k>todayKey;});
+    const todayOffers=offers.filter(o=>operationDay(o)===todayKey);
+    const pastOffers=offers.filter(o=>{const k=operationDay(o);return !k||k<todayKey;});
+
+    const cards=[
+      ['Convites recebidos',counts.total??offers.length],
+      ['Pendentes',counts.pendentes||0],
+      ['Aceitas',counts.aceitas||0],
+      ['Recusadas',counts.recusadas||0],
+      ['Prazo encerrado',counts.expiradas||0],
+      ['Canceladas',counts.canceladas||0]
+    ];
+    const dateTime=v=>{
+      if(!v)return 'Não registrado';
+      const d=new Date(v);
+      return isNaN(d.getTime())?esc(v):d.toLocaleString('pt-BR');
+    };
+    const labels={
+      OFERTADA:'PENDENTE',ACEITA:'ACEITA PELO MOTORISTA',ATIVO:'ESCALA CONFIRMADA',
+      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA NO PORTAL — PRAZO DE 2 HORAS',
+      EXPIRADA:'PRAZO ENCERRADO — SEM RESPOSTA NO PORTAL',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
+      CANCELADA:'CANCELADA',SAIU:'EM EXECUÇÃO',EM_VIAGEM:'EM VIAGEM',RETORNOU:'CONCLUÍDA'
+    };
+    const eventLabel=e=>{
+      const map={OFERTA_ENVIADA:'Convocação disponibilizada no portal',OFERTA_RECUSADA:'Motorista recusou',ESCALA_CONFIRMADA:'Aceite/escala confirmada',OFERTA_EXPIRADA:'Prazo expirou',OFERTA_CANCELADA_REPROGRAMACAO:'Convite cancelado por reprogramação'};
+      return map[e.tipo]||String(e.tipo||'Evento').replace(/_/g,' ');
+    };
+    const eventLine=e=>'<div style="display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span style="color:var(--blue)">●</span><div><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div></div>';
+    const renderOfferCard=o=>{
+      const op=o.operacao||{},isPending=o.status==='OFERTADA'&&!o.expirada;
+      const statusLabel=labels[o.status]||o.status||'STATUS NÃO INFORMADO';
+      const negativeStatuses=['RECUSADA','NAO_RESPONDEU','EXPIRADA','CANCELADA','CANCELADA_REPROGRAMACAO'];
+      const badgeTone=isPending||negativeStatuses.includes(o.status)?'badge-pending':'badge-active';
+      const events=Array.isArray(o.eventos)?o.eventos:[];
+      const eventHtml=events.length?events.map(eventLine).join(''):'<div class="muted small" style="padding-top:8px">Sem evento complementar registrado. Os dados da participação permanecem no histórico.</div>';
+      const responseInfo=o.respondidaEm?'<div><strong>Decisão registrada</strong><div>'+dateTime(o.respondidaEm)+'</div></div>':'';
+      return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted small">'+esc(op.cliente||'')+' · Convite: '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+badgeTone+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div><div><strong>Prazo para resposta</strong><div>'+dateTime(o.expiraEm)+'</div></div>'+responseInfo+'</div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700;color:var(--blue-dark)">Ver histórico deste convite ('+events.length+' eventos)</summary><div style="padding-top:10px">'+eventHtml+'</div></details></div></div>';
+    };
+    const standalone=orphanEvents.length?'<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Outros eventos do seu histórico</h2></div><div class="panel-body">'+orphanEvents.map(e=>'<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+' · '+esc(e.operacao?.nome||e.operacaoId||'Operação não identificada')+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div>').join('')+'</div></div>':'';
+    return '<div class="page-head"><div><h1>Minhas ofertas e histórico</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
-      (offers.length?offers.map(o=>{
-        const op=o.operacao||{},pendingOffer=o.status==='OFERTADA'&&!o.expirada;
-        const statusLabel=o.expirada?'NÃO RESPONDEU EM 2H':o.status;
-        return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||'Operação')+'</h2><div class="muted small">'+esc(op.cliente||'')+' · '+esc(statusLabel)+'</div></div><span class="badge '+(pendingOffer?'badge-pending':'badge-active')+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div></div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(pendingOffer?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':o.status==='ACEITA'?'<p class="notice" style="margin-top:14px">Você aceitou esta oferta. Aguarde a confirmação da escala pela administração.</p>':'')+'</div></div>';
-      }).join(''):'<div class="panel"><div class="empty"><strong>Nenhuma oferta no momento</strong>Quando uma operação for direcionada a você, ela aparecerá aqui.</div></div>');
+      (pending.length?'<h2 style="margin:22px 0 12px">Aguardando sua resposta</h2>':'')+
+      (offers.length?[
+        futureOffers.length?'<h2 style="margin:22px 0 12px">Próximas operações ('+futureOffers.length+')</h2>'+futureOffers.map(renderOfferCard).join(''):'',
+        todayOffers.length?'<h2 style="margin:22px 0 12px">Operações de hoje ('+todayOffers.length+')</h2>'+todayOffers.map(renderOfferCard).join(''):'',
+        pastOffers.length?'<h2 style="margin:22px 0 12px">Convites e operações anteriores ('+pastOffers.length+')</h2>'+pastOffers.map(renderOfferCard).join(''):''
+      ].join(''):'<div class="panel"><div class="empty"><strong>Nenhum convite ou decisão encontrado</strong>Quando uma convocação for vinculada ao seu cadastro, ela aparecerá aqui com seu histórico.</div></div>')+standalone;
   }
-  function atualizarPortalMotorista(){
+  function iniciarAtualizacaoAutomaticaPortal(){
+    pararAtualizacaoAutomaticaPortal();
+    portalRefreshTimer=setInterval(()=>{
+      if(!document.hidden&&currentPage==='portalMotorista')atualizarPortalMotorista(true);
+    },PORTAL_REFRESH_MS);
+  }
+  function pararAtualizacaoAutomaticaPortal(){
+    if(portalRefreshTimer){clearInterval(portalRefreshTimer);portalRefreshTimer=null;}
+    portalRefreshBusy=false;
+  }
+  function atualizarPortalMotorista(silencioso){
+    if(portalRefreshBusy||!authToken||String(currentUser?.perfil||'').toUpperCase()!=='MOTORISTA')return;
+    portalRefreshBusy=true;
     const content=document.getElementById('content');
-    if(content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
+    if(!silencioso&&content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
     google.script.run.withSuccessHandler(data=>{
-      if(!data||!Array.isArray(data.ofertas)){renderLoadFailure(new Error('Resposta inválida do portal: lista de ofertas ausente.'));return;}
+      portalRefreshBusy=false;
+      if(!data||!Array.isArray(data.ofertas)){
+        console.error('FT_PORTAL_RESPOSTA_INVALIDA');
+        if(!silencioso)renderLoadFailure(new Error('Resposta inválida do portal: lista de ofertas ausente.'));
+        return;
+      }
       dashboard=data;
       currentUser={...currentUser,...(data.user||{}),perfil:'MOTORISTA',motoristaId:data.motoristaId||currentUser?.motoristaId};
       paintNav();
-      document.getElementById('topTitle').textContent='Área do motorista';
-      document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
-      if(content)content.innerHTML=renderPortalMotorista();
-      console.info('FT_PORTAL_ATUALIZADO',JSON.stringify({motoristaId:data.motoristaId,ofertas:data.ofertas.length,diagnostico:data.diagnosticoVinculo||{}}));
-      toast('Ofertas atualizadas.');
+      const host=document.getElementById('content');
+      if(host&&currentPage==='portalMotorista')host.innerHTML=renderPortalMotorista();
+      console.info('FT_PORTAL_ATUALIZADO',JSON.stringify({ofertas:data.ofertas.length,diagnostico:data.diagnosticoVinculo||{}}));
+      if(!silencioso)toast('Ofertas atualizadas.');
     }).withFailureHandler(e=>{
+      portalRefreshBusy=false;
       console.error('FT_PORTAL_ATUALIZACAO_ERRO',e&&e.message||e);
-      if(content)content.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
-      toast(e.message||'Não foi possível atualizar.',true);
-    }).obterPortalMotoristaFullTime(authToken);
+      if(!silencioso){
+        const host=document.getElementById('content');
+        if(host)host.innerHTML='<div class="panel"><div class="panel-body"><strong>Não foi possível atualizar as ofertas.</strong><p class="muted">'+esc(e.message||'Erro desconhecido')+'</p><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">Tentar novamente</button></div></div>';
+        toast(e.message||'Não foi possível atualizar.',true);
+      }
+    }).obterPortalMotoristaFullTimeV2(authToken);
   }
   async function responderOfertaPortal(id,resposta){
     const acao=resposta==='ACEITA'?'aceitar':'recusar';
@@ -363,27 +594,89 @@
   }
 
   function renderCentroOperacoes(){
-    return '<div class="page-head"><div><h1>Centro de Operações</h1><p>Visão consolidada das operações atuais, conjuntos em atividade e cargas movimentadas.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button></div></div><div id="centroResumo"><div class="empty">Carregando indicadores operacionais…</div></div>';
+    return '<div id="centroResumo"><div class="empty">Carregando painel operacional…</div></div>';
+  }
+  function renderCardCentro(o){
+    const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    const pct=o.viagensPrevistas>0?Math.min(100,Math.max(0,o.viagensRealizadas/o.viagensPrevistas*100)):0;
+    const status=String(o.status||'').toUpperCase();
+    const running=['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status);
+    const statusLabel=o.atrasada?'ATRASADA':status==='ABERTA'?'AGUARDANDO ESCALA':status.replace(/_/g,' ');
+    const statusClass=o.atrasada||status==='SUSPENSA'?'is-alert':status==='ABERTA'?'is-waiting':'is-active';
+    const drivers=o.conjuntos||[];
+    const driverRows=drivers.length?drivers.map(s=>{
+      const st=String(s.status||'').toUpperCase();
+      const label=st==='EM_VIAGEM'?'Em viagem':st==='SAIU'?'Em deslocamento':st==='ATIVO'?'Escalado':st.replace(/_/g,' ').toLowerCase();
+      const cls=['EM_VIAGEM','SAIU'].includes(st)?'is-active':st==='ATIVO'?'is-waiting':'';
+      const last=s.ultimaAtualizacao||s.saida||s.retorno||'—';
+      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(o.nome||'—')+'</td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+esc(last)+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
+    const canClose=!!o.sugestaoConclusao;
+    const canStart=status==='ABERTA'&&drivers.some(s=>String(s.status||'').toUpperCase()==='ATIVO');
+    const actions='<div class="center-op-actions">'+(status==='ABERTA'?'<button class="btn btn-primary" '+(canStart?'':'disabled title="Confirme a escala de pelo menos um motorista antes de iniciar."')+' onclick="event.stopPropagation();iniciarOperacaoCentro(\''+esc(o.id)+'\')">▶ Iniciar operação</button>':'')+'<button class="btn btn-secondary" '+(canClose?'':'disabled title="Saldo, viagens e participações ainda possuem pendências."')+' onclick="event.stopPropagation();confirmarConclusaoCentro(\''+esc(o.id)+'\')">Encerrar operação</button></div>';
+    return '<tr class="center-op-row '+(running?'is-running':'')+'" data-op-row="'+esc(o.id)+'" onclick="alternarDetalhesOperacaoCentro(\''+esc(o.id)+'\')" aria-expanded="false"><td><button class="center-op-toggle" type="button" tabindex="-1"><span class="chevron">▶</span>'+esc(o.nome||'Operação')+'</button></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+drivers.length+'</td><td class="center-op-progress-cell"><div class="center-op-progress-line"><strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong><span>'+pct.toFixed(0)+'%</span></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span class="muted small">'+esc(num(o.viagensPrevistas-o.viagensRealizadas))+' viagens pendentes</span></td><td><strong>'+esc(num(o.toneladasMovimentadas))+' / '+esc(num(o.volumeTotal))+' TON</strong><div class="muted small">Saldo: '+esc(num(o.saldo))+' TON</div></td><td><span class="center-op-status '+statusClass+'">'+esc(statusLabel)+'</span></td></tr><tr class="center-op-detail-row" data-op-detail="'+esc(o.id)+'" hidden><td colspan="6"><div class="center-op-driver-panel"><h3>♙ Motoristas da operação ('+drivers.length+')</h3><div class="table-wrap"><table class="center-op-driver-table"><thead><tr><th>Motorista</th><th>Operação</th><th>Conjunto</th><th>Situação atual</th><th>Origem / Destino</th><th>Última atualização</th></tr></thead><tbody>'+driverRows+'</tbody></table></div>'+actions+'</div></td></tr>';
+  }
+  function alternarDetalhesOperacaoCentro(id){
+    const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
+    const detail=document.querySelector('[data-op-detail="'+CSS.escape(String(id))+'"]');
+    if(!row||!detail)return;
+    const open=detail.hidden;detail.hidden=!open;row.setAttribute('aria-expanded',open?'true':'false');
+    const toggle=row.querySelector('.center-op-toggle');if(toggle)toggle.setAttribute('aria-expanded',open?'true':'false');
   }
   function carregarCentroOperacoes(){
-    const host=document.getElementById('centroResumo');if(!host||!authToken)return;
-    host.innerHTML='<div class="empty">Atualizando Centro de Operações…</div>';
+    const host=document.getElementById('centroResumo');if(!host||!authToken||window.__ftCentroRefreshBusy)return;
+    window.__ftCentroRefreshBusy=true;
+    const expanded=Array.from(host.querySelectorAll('[data-op-detail]')).filter(el=>!el.hidden).map(el=>el.getAttribute('data-op-detail'));
+    if(!host.dataset.loaded)host.innerHTML='<div class="empty">Carregando painel operacional…</div>';
     google.script.run.withSuccessHandler(data=>{
+      window.__ftCentroRefreshBusy=false;
+      if(currentPage!=='centro'||!document.getElementById('centroResumo'))return;
+      const k=data.indicadores||{},current=[...(data.operacoes||[]),...(data.atrasadas||[])];
+      const unique=Array.from(new Map(current.map(o=>[String(o.id),o])).values());
+      const priority=o=>{const st=String(o.status||'').toUpperCase();return ['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE','SUSPENSA','CONCLUSAO_PENDENTE'].includes(st)?0:st==='ABERTA'?1:2;};
+      unique.sort((a,b)=>priority(a)-priority(b)||String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+      const future=data.futuras||[],done=data.concluidas||[],cancelled=data.canceladas||[];
+      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+      const awaiting=unique.filter(o=>String(o.status||'').toUpperCase()==='ABERTA'&&!o.conjuntos.length).length;
+      const cards=[['▣','Operações em andamento',k.operacoesEmAndamento||0],['♙','Motoristas em operação',k.motoristasEmOperacao||0],['▦','Aguardando escala',awaiting],['▤','Viagens pendentes',k.viagensPendentes||0],['◉','Movimentadas',num(k.toneladasMovimentadas)+' TON']];
+      const table=items=>items.length?'<div class="center-ops-panel"><div class="table-wrap"><table class="center-ops-table"><thead><tr><th>Operação</th><th>Origem / Destino</th><th>Conjuntos</th><th>Progresso</th><th>Movimentação</th><th>Status</th></tr></thead><tbody>'+items.map(renderCardCentro).join('')+'</tbody></table></div></div>':'<div class="center-ops-panel"><div class="empty">Nenhuma operação em andamento.</div></div>';
+      const archive=(title,items)=>'<details class="panel center-archives"><summary class="panel-head"><h2>'+title+' ('+items.length+')</h2><span class="muted small">Consultar</span></summary><div class="panel-body">'+(items.length?table(items):'<div class="empty">Nenhum registro.</div>')+'</div></details>';
+      host.innerHTML='<div class="center-kpi-strip">'+cards.map(x=>'<div class="center-kpi"><span class="center-kpi-icon">'+x[0]+'</span><div><div class="stat-label">'+esc(x[1])+'</div><div class="stat-value">'+esc(x[2])+'</div></div></div>').join('')+'<div class="center-kpi-actions"><button class="btn btn-secondary" onclick="carregarCentroOperacoes()">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacaoCentro()">＋ Operação</button></div></div><div class="center-section-title"><h2>Operações em acompanhamento ('+unique.length+')</h2><span>EM ANDAMENTO PRIMEIRO · ATUALIZAÇÃO A CADA 5 MIN</span></div>'+table(unique)+(future.length?archive('Próximas operações',future):'')+archive('Histórico concluído',done)+archive('Operações canceladas',cancelled);
+      const stamp=document.getElementById('centerTopLastUpdated');if(stamp)stamp.textContent=new Date(data.atualizadoEm||Date.now()).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      host.dataset.loaded='1';
+      expanded.forEach(id=>{const detail=host.querySelector('[data-op-detail="'+CSS.escape(id)+'"]'),row=host.querySelector('[data-op-row="'+CSS.escape(id)+'"]');if(detail){detail.hidden=false;if(row)row.setAttribute('aria-expanded','true');const t=row&&row.querySelector('.center-op-toggle');if(t)t.setAttribute('aria-expanded','true');}});
+    }).withFailureHandler(err=>{
+      window.__ftCentroRefreshBusy=false;
       if(currentPage!=='centro')return;
-      const k=data.indicadores||{},ops=data.operacoes||[];
-      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
-      const cards=[['Operações ativas',k.operacoesAtuais||0],['Conjuntos em operação',k.conjuntosEmOperacao||0],['Viagens pendentes',k.viagensPendentes||0],['Total carregado',num(k.toneladasMovimentadas)+' t'],['Volume previsto',num(k.volumePrevisto)+' t'],['Falta carregar',num(k.volumeRestante)+' t']];
-      const operationCards=ops.map(o=>{
-        const pct=o.percentualCarregado||0;
-        const driverRows=(o.motoristas||[]).map(d=>'<tr><td>'+esc(d.nome)+'</td><td>'+esc(num(d.toneladas))+' t</td><td>'+esc(num(d.viagens))+'</td></tr>').join('');
-        const destinationRows=(o.destinos||[]).map(d=>'<tr><td>'+esc(d.cliente||'—')+'<div class="muted small">'+esc(d.local||'')+'</div></td><td>'+esc(num(d.previsto))+' t</td><td>'+esc(num(d.carregado))+' t</td><td>'+esc(num(d.falta))+' t</td>'+(d.excedente>0?'<td><span class="badge badge-warning">+'+esc(num(d.excedente))+' t</span></td>':'<td>—</td>')+'</tr>').join('');
-        const warning=o.excedente>0?'<div class="notice warning" style="margin:0 16px 12px">Peso real acima do previsto em '+esc(num(o.excedente))+' t. Movimento mantido; conferir diferença.</div>':'';
-        return '<article class="center-op-card"><div class="center-op-head"><div><h2>'+esc(o.nome||'Operação sem nome')+'</h2><div class="muted small">'+esc(o.cliente||'Cliente não informado')+'</div></div><span class="badge badge-active">'+esc(o.status)+'</span></div><div class="center-op-route"><strong>'+esc(o.origem||'Origem —')+'</strong><span>→</span><strong>'+esc(o.destino||'Destino —')+'</strong></div><div class="center-op-progress"><div class="small muted">Carregado <strong>'+esc(num(o.toneladasMovimentadas))+' t</strong> de <strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><div class="small muted">'+pct.toFixed(1)+'% carregado · falta '+esc(num(o.saldo))+' t'+(o.excedente>0?' · excedente '+esc(num(o.excedente))+' t':'')+'</div></div>'+warning+'<div class="center-op-metrics"><div class="center-op-metric"><span>Volume contratado</span><strong>'+esc(num(o.volumeTotal))+' t</strong></div><div class="center-op-metric"><span>Já carregado</span><strong>'+esc(num(o.toneladasMovimentadas))+' t</strong></div><div class="center-op-metric"><span>Falta carregar</span><strong>'+esc(num(o.saldo))+' t</strong></div></div><div class="center-op-meta"><span>'+esc(num(o.viagensRealizadas))+' viagens realizadas</span><span>'+esc(num(o.viagensPrevistas))+' previstas</span><span>'+esc(o.distanciaKm?num(o.distanciaKm)+' km':'Distância não informada')+'</span></div><details class="center-op-sets" open><summary>Desempenho por motorista ('+(o.motoristas||[]).length+')</summary>'+(driverRows?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Carregado</th><th>Viagens</th></tr></thead><tbody>'+driverRows+'</tbody></table></div>':'<div class="empty">Ainda não há carregamentos registrados por motorista.</div>')+'</details><details class="center-op-sets"><summary>Detalhamento por destino ('+(o.destinos||[]).length+')</summary>'+(destinationRows?'<div class="table-wrap"><table><thead><tr><th>Destino</th><th>Previsto</th><th>Carregado</th><th>Falta</th><th>Excedente</th></tr></thead><tbody>'+destinationRows+'</tbody></table></div>':'<div class="empty">Nenhum destino cadastrado.</div>')+'</details><details class="center-op-sets"><summary>Conjuntos vinculados ('+o.conjuntos.length+')</summary>'+(o.conjuntos.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carretas</th><th>Capacidade</th><th>Carga registrada na participação</th><th>Status</th></tr></thead><tbody>'+o.conjuntos.map(s=>'<tr><td>'+esc(s.motorista)+'</td><td>'+esc(s.cavaloPlaca||'—')+'</td><td>'+esc([s.carretaMeio,s.carretaFinal].filter(Boolean).join(' / ')||'—')+'</td><td>'+esc(num(s.capacidadeUtil))+' t</td><td>'+esc(num(s.toneladasCarregadas))+' t</td><td>'+esc(s.status)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum conjunto vinculado.</div>')+'</details></article>';
-      }).join('');
-      host.innerHTML='<div class="center-kpis">'+cards.map(x=>'<div class="center-kpi"><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div>').join('')+'</div>'+(operationCards?'<div class="center-ops-grid">'+operationCards+'</div>':'<div class="panel"><div class="empty"><strong>Nenhuma operação cadastrada</strong>As operações aparecerão aqui após o cadastro.</div></div>');
-    }).withFailureHandler(err=>{host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';}).obterCentroOperacoesFullTime(authToken);
+      if(!host.dataset.loaded)host.innerHTML='<div class="notice">'+esc(err.message||'Não foi possível carregar o Centro de Operações.')+'</div>';
+      else toast(err.message||'Falha ao atualizar o Centro de Operações.',true);
+    }).obterCentroOperacoesFullTime(authToken);
+    if(!window.__ftCentroRefreshTimer)window.__ftCentroRefreshTimer=window.setInterval(()=>{if(currentPage==='centro'&&!document.hidden)carregarCentroOperacoes();},300000);
   }
-
+  function abrirFormularioOperacaoCentro(){
+    renderPage('operacoes');
+    setTimeout(()=>{
+      const panel=document.querySelector('#content .ops-form-panel');
+      if(panel){panel.open=true;panel.scrollIntoView({behavior:'smooth',block:'start'});}
+      const first=document.querySelector('#content .ops-form-panel input[name="data"]');
+      if(first)first.focus({preventScroll:true});
+    },0);
+  }
+  async function iniciarOperacaoCentro(id){
+    if(!await uiConfirm('A operação passará de ABERTA para EM ANDAMENTO. O início ficará registrado no histórico. Confirma?',{title:'Iniciar operação',ok:'Iniciar operação'}))return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação iniciada.');carregarCentroOperacoes();})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível iniciar a operação.',true))
+      .iniciarOperacaoFullTime(authToken,id);
+  }
+  async function confirmarConclusaoCentro(id){
+    const first=await uiConfirm('ATENÇÃO: você está prestes a encerrar definitivamente esta operação. O encerramento só será permitido se saldo, viagens e participações estiverem conferidos. Deseja continuar?',{title:'Atenção — encerramento de operação',ok:'Continuar para confirmação',danger:true});
+    if(!first)return;
+    const second=await uiConfirm('CONFIRMAÇÃO FINAL: esta ação encerrará a operação e a moverá para o histórico. Tem certeza de que deseja ENCERRAR esta operação?',{title:'Confirmação final obrigatória',ok:'SIM, ENCERRAR OPERAÇÃO',danger:true});
+    if(!second)return;
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação encerrada.');carregarCentroOperacoes();})
+      .withFailureHandler(e=>toast(e.message||'Não foi possível encerrar a operação.',true))
+      .confirmarConclusaoOperacaoFullTime(authToken,id,'Encerramento confirmado em duas etapas no Centro de Operações.');
+  }
   function renderSolicitacoes(){
     return `
       <div class="page-head">
@@ -467,7 +760,7 @@
     const approvalReady=pending.length===0 && x.status==='AGUARDANDO_APROVACAO';
     const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>'<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" maxlength="500" oninput="ocultarAprovacaoAteSalvar()" value="'+esc(d[k]||'')+'"></div>').join('');
     const pendingHtml=pending.length?'<div class="notice" style="margin:14px 0"><strong>Não é possível aprovar ainda. Corrija estas pendências:</strong><ul>'+pending.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul><span>O botão APROVAR só será liberado depois de salvar a revisão e validar todos os campos.</span></div>':(x.status==='AGUARDANDO_APROVACAO'?'<div class="notice" style="margin:14px 0"><strong>Validação concluída.</strong> Todos os campos obrigatórios foram preenchidos. O botão de aprovação está liberado.</div>':'<div class="notice" style="margin:14px 0"><strong>Validação ainda não concluída.</strong> Salve a revisão para o servidor conferir os campos obrigatórios e informar o que falta.</div>');
-    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados da solicitação</h3><div class="form-grid">'+fields+'</div><div class="field" style="margin-top:14px"><label for="solEditDestinosJson">Destinos e volumes (JSON) — edite se necessário</label><textarea id="solEditDestinosJson" rows="6">'+esc(JSON.stringify(d.destinos||[],null,2))+'</textarea><span class="muted small">Cada destino: cliente, local, cidadeUf, volume, dataPrevista e observacoes. Use [] somente se ainda não houver destino identificado.</span></div>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button>'+(approvalReady?'<button id="solApproveButton" class="btn btn-primary" type="button" onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button>':'<span id="solApproveLocked" class="muted small">Aprovação bloqueada até validar e salvar todos os campos.</span>')+'</div></form></div></div>';
+    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados da solicitação</h3><div class="form-grid">'+fields+'</div>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button>'+(approvalReady?'<button id="solApproveButton" class="btn btn-primary" type="button" onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button>':'<span id="solApproveLocked" class="muted small">Aprovação bloqueada até validar e salvar todos os campos.</span>')+'</div></form></div></div>';
     host.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function ocultarAprovacaoAteSalvar(){
@@ -478,9 +771,8 @@
     ev.preventDefault();
     const dados={};
     Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    // Pendências são recalculadas no servidor; não dependemos de um controle inexistente na interface.
+    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
     const questions=document.getElementById('solEditQuestions').value;
-    try{dados.destinos=JSON.parse(document.getElementById('solEditDestinosJson').value||'[]');if(!Array.isArray(dados.destinos))throw new Error('O JSON de destinos precisa ser uma lista.');}catch(e){toast('Destinos inválidos: '+e.message,true);return;}
     google.script.run.withSuccessHandler(res=>{
       const current=solicitacoesFullTime.find(s=>s.id===id);
       if(current){
@@ -551,20 +843,16 @@
   function renderList(kind){
     const rows=dashboard?.motoristas||[];
     return `
-      <div class="page-head"><div><h1>Motoristas</h1><p>Cadastros da planilha principal do Full Time.</p></div></div>
-      <div class="notice"><strong>Fonte única de cadastro:</strong> novos motoristas, alterações de dados e documentos são mantidos na planilha principal. Esta tela consulta e administra os cadastros centralizados.</div>
-      <div class="panel"><div class="panel-head"><h2>Motoristas sincronizados</h2><span class="muted small">${rows.length} registro(s)</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="filterInput" placeholder="Buscar por nome, CPF ou telefone" oninput="filterTable()"></div><select id="statusFilter" onchange="filterTable()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todos os status</option><option value="PENDENTE_REVISAO">Pendente</option><option value="ATIVO">Ativo</option><option value="INATIVO">Inativo</option></select></div><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>CPF</th><th>Telefone</th><th>CNH</th><th>Validade</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tableBody">${rows.length?rows.map(tableRow).join(''):'<tr><td colspan="7"><div class="empty"><strong>Nenhum motorista cadastrado</strong>Confira os cadastros da planilha principal.</div></td></tr>'}</tbody></table></div></div></div>`;
+      <div class="page-head"><div><h1>Motoristas</h1><p>Gestão da equipe e acompanhamento do histórico de convocações.</p></div></div>
+      <div class="driver-list-summary"><div><span class="muted small">CADASTRO CENTRALIZADO</span><h2>Equipe de motoristas</h2><p class="muted small">Dados pessoais e documentos permanecem nos detalhes de cada cadastro.</p></div><div class="driver-total"><strong>${rows.length}</strong><span>motoristas</span></div></div>
+      <div class="panel driver-list-panel"><div class="panel-head"><h2>Motoristas</h2><span class="muted small">Pesquisa por nome ou e-mail</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="filterInput" placeholder="Buscar motorista por nome ou e-mail" oninput="filterTable()"></div><select id="statusFilter" onchange="filterTable()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todos os status</option><option value="PENDENTE_REVISAO">Pendente</option><option value="ATIVO">Ativo</option><option value="INATIVO">Inativo</option></select></div><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Status cadastral</th><th>Ações</th></tr></thead><tbody id="tableBody">${rows.length?rows.map(tableRow).join(''):'<tr><td colspan="3"><div class="empty"><strong>Nenhum motorista cadastrado</strong>Confira os cadastros da planilha principal.</div></td></tr>'}</tbody></table></div></div></div>`;
   }
   function tableRow(r){
-    const f=r.camposPorNome||{};
-    const search=(Object.values(f).join(' ')+' '+r.status).toLowerCase();
-    const nome=f.NOME_COMPLETO||'—',cpf=f.CPF||'',telefone=f.TELEFONE||'—';
-    const cnh=[f.CNH_NUMERO||'—',f.CNH_CATEGORIA||''].filter(Boolean).join(' · ');
-    const approve=r.status!=='ATIVO'
-      ? '<button class="icon-btn" title="Aprovar cadastro" onclick="setStatus(\'MOTORISTAS\',\''+esc(r.id)+'\',\'ATIVO\')">✓</button>' : '';
-    const deactivate=r.status!=='INATIVO'
-      ? '<button class="icon-btn" title="Inativar cadastro" onclick="setStatus(\'MOTORISTAS\',\''+esc(r.id)+'\',\'INATIVO\')">⊘</button>' : '';
-    return '<tr data-search="'+esc(search)+'" data-status="'+esc(r.status)+'"><td><div class="primary-cell">'+esc(nome)+'</div><div class="secondary-cell">'+esc(f.EMAIL||'')+'</div></td><td>'+esc(maskCpf(cpf))+'</td><td>'+esc(telefone)+'</td><td>'+esc(cnh)+'</td><td>'+esc(formatDate(f.CNH_VALIDADE))+'</td><td>'+statusBadge(r.status)+'</td><td><div class="row-actions"><button class="btn btn-secondary" type="button" onclick="toggleHistoricoMotorista(\''+esc(r.id)+'\')">DETALHES</button>'+approve+deactivate+'</div></td></tr><tr id="motorista-history-row-'+esc(r.id)+'" class="hidden"><td colspan="7"><div id="motorista-history-'+esc(r.id)+'" class="panel-body"><span class="muted">Carregando histórico…</span></div></td></tr>';
+    const f=r.camposPorNome||{},nome=f.NOME_COMPLETO||'Motorista sem nome',email=f.EMAIL||'';
+    const search=(nome+' '+email+' '+r.status).toLowerCase();
+    const approve=r.status!=='ATIVO'?'<button class="icon-btn" title="Aprovar cadastro" onclick="setStatus(\'MOTORISTAS\',\''+esc(r.id)+'\',\'ATIVO\')">✓</button>':'';
+    const deactivate=r.status!=='INATIVO'?'<button class="icon-btn" title="Inativar cadastro" onclick="setStatus(\'MOTORISTAS\',\''+esc(r.id)+'\',\'INATIVO\')">⊘</button>':'';
+    return '<tr class="driver-row" data-search="'+esc(search)+'" data-status="'+esc(r.status)+'"><td><div class="driver-name-cell"><span class="driver-avatar">'+esc(nome.trim().charAt(0).toUpperCase())+'</span><div><div class="primary-cell">'+esc(nome)+'</div><div class="secondary-cell">'+esc(email)+'</div></div></div></td><td>'+statusBadge(r.status)+'</td><td><div class="row-actions"><button class="btn btn-secondary" type="button" onclick="toggleHistoricoMotorista(\''+esc(r.id)+'\')">DETALHES</button>'+approve+deactivate+'</div></td></tr><tr id="motorista-history-row-'+esc(r.id)+'" class="hidden"><td colspan="3"><div id="motorista-history-'+esc(r.id)+'" class="panel-body"><span class="muted">Carregando histórico…</span></div></td></tr>';
   }
   function toggleHistoricoMotorista(id){
     const row=document.getElementById('motorista-history-row-'+id),host=document.getElementById('motorista-history-'+id);
@@ -572,7 +860,7 @@
     if(!row.classList.contains('hidden')){row.classList.add('hidden');return;}
     row.classList.remove('hidden');host.innerHTML='<span class="muted">Consultando histórico…</span>';
     google.script.run.withSuccessHandler(data=>{
-      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Não respondeu em 2h',NAO_RESPONDEU:'Não respondeu em 2h',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
+      const labels={SEM_CONVOCACAO:'Sem convocações',OFERTADA:'Aguardando resposta',ATIVO:'Em operação',ACEITA:'Aceite registrado',RECUSADA:'Recusou',EXPIRADA:'Prazo encerrado sem resposta no portal',NAO_RESPONDEU:'Sem resposta no portal após 2 horas',SAIU:'Saiu da operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'};
       const counts=data.counts||{},current=data.operacaoAtual,history=data.history||[],label=s=>labels[String(s||'').toUpperCase()]||String(s||'—');
       host.innerHTML='<div class="panel" style="margin:8px 0;border:1px solid #dbe5f0"><div class="panel-head"><h3 style="margin:0">Histórico de '+esc(data.motorista?.nome||'motorista')+'</h3><span class="badge '+(current?'badge-active':'badge-pending')+'">'+esc(label(data.statusAtual))+'</span></div><div class="panel-body"><div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat-card"><div><div class="stat-label">Convocações</div><div class="stat-value">'+esc(counts.convocacoes||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Aceites</div><div class="stat-value">'+esc(counts.aceitas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Recusas</div><div class="stat-value">'+esc(counts.recusadas||0)+'</div></div></div><div class="stat-card"><div><div class="stat-label">Sem resposta em 2h</div><div class="stat-value">'+esc(counts.expiradas||0)+'</div></div></div></div>'+
       (current?'<div class="notice"><strong>Operação atual:</strong> '+esc(current.nome||'Operação')+' · '+esc(current.origem||'')+' → '+esc(current.destino||'')+'</div>':'<div class="notice">Não há operação ativa vinculada a este motorista.</div>')+
@@ -616,10 +904,21 @@
   function carregarOfertasAceitasAdmin(){
     const host=document.getElementById('acceptedOffersAdmin');if(!host)return;
     host.innerHTML='<div class="empty">Consultando ofertas aceitas…</div>';
+    let finalizado=false;
+    const limite=window.setTimeout(()=>{
+      if(finalizado||!document.getElementById('acceptedOffersAdmin'))return;
+      host.innerHTML='<div class="notice">A consulta está demorando mais que o esperado. Nenhum registro foi alterado. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
+    },30000);
     google.script.run.withSuccessHandler(rows=>{
+      finalizado=true;window.clearTimeout(limite);
       if(!document.getElementById('acceptedOffersAdmin'))return;
+      if(!Array.isArray(rows)){host.innerHTML='<div class="notice">Resposta inválida do servidor. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';return;}
       host.innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Operação</th><th>Trecho</th><th>Conjunto</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.motorista)+'</td><td>'+esc(r.operacao)+'</td><td>'+esc(r.origem)+' → '+esc(r.destino)+'</td><td>'+esc(r.conjuntoId)+'</td><td><button class="btn btn-primary" onclick="confirmarAceiteAdmin(\''+esc(r.id)+'\')">Confirmar escala</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum aceite aguardando confirmação.</div>';
-    }).withFailureHandler(e=>{host.innerHTML='<div class="notice">'+esc(e.message||'Falha ao consultar aceites.')+'</div>';}).listarOfertasAceitasAdminFullTime(authToken);
+    }).withFailureHandler(e=>{
+      finalizado=true;window.clearTimeout(limite);
+      if(!document.getElementById('acceptedOffersAdmin'))return;
+      host.innerHTML='<div class="notice">'+esc(e&&e.message?e.message:'Falha ao consultar aceites.')+' <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
+    }).listarOfertasAceitasAdminFullTime(authToken);
   }
   async function confirmarAceiteAdmin(id){
     if(!await uiConfirm('O conjunto ficará ATIVO na operação.',{title:'Confirmar escala',ok:'Confirmar escala'}))return;
@@ -668,87 +967,83 @@
   }
 
   function renderOperacoes(){
-    const ops=dashboard?.operacoes||[];
-    const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
-    const categoryLabel={PADRAO:'Seleção equilibrada',ALTO_DESEMPENHO:'Alto desempenho',MANOBRA_DIFICIL:'Manobra difícil',PRAZO_NAVIO:'Cumprimento de prazo de navio'};const typeLabel={DESCARGA_NAVIO:'Descarga de navio',TRANSFERENCIA_FABRICAS:'Transferência entre fábricas',REMOCAO_INTERNA:'Remoção interna',OUTRA:'Outra'};
-    return `
-      <div class="page-head"><div><h1>Operações</h1><p>Controle o volume, as viagens previstas, as viagens realizadas e o saldo restante de cada operação.</p></div></div>
-      <div class="notice"><strong>Regra de segurança:</strong> não serão usados registros fictícios como candidatos. Só conjuntos ativos, com capacidade útil real informada e conservação compatível poderão ser considerados.</div>
-      <div class="panel ops-list-panel"><div class="panel-head"><h2>Operações cadastradas</h2><span class="muted small">${ops.length} registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Data</th><th>Categoria de escala</th><th>Tipo de operação</th><th>Volume inicial</th><th>Saldo</th><th>Viagens previstas</th><th>Realizadas</th><th>Restantes</th><th>Status</th><th>Ação</th></tr></thead><tbody>
-      ${ops.length?ops.map(o=>{const oid=esc(o.id);return `<tr id="op-row-${oid}"><td><strong>${esc(o.campos[2]||'')}</strong><div class="secondary-cell">${esc(o.campos[1]||'')} · ${esc(o.campos[3]||'')} → ${esc(o.campos[4]||'')}</div></td><td>${esc(formatDate(o.campos[0]))}</td><td>${esc(categoryLabel[o.campos[5]]||o.campos[5]||'—')}</td><td>${esc(typeLabel[o.tipoOperacao]||o.tipoOperacao||'—')}</td><td>${esc(o.campos[6]||'0')} t</td><td><strong>${esc(o.campos[8]||'0')} t</strong></td><td>${esc(o.viagensPrevistas||0)}</td><td>${esc(o.viagensRealizadas||0)}</td><td>${esc(o.viagensRestantes||0)}</td><td>${statusBadge(o.status)}</td><td><button class="btn btn-secondary" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')">DETALHES</button> <button class="icon-btn" title="Registrar entrega/movimentação" onclick="showMovimentacao('${oid}')">＋</button></td></tr><tr id="details-row-${oid}" style="display:none"><td colspan="11"><div id="details-content-${oid}"></div></td></tr>`}).join(''):'<tr><td colspan="11"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Use o formulário abaixo para cadastrar a primeira operação.</div></td></tr>'}
-      </tbody></table></div></div></div>
-      <details class="panel form-panel ops-form-panel"><summary class="panel-head"><h2>＋ Nova operação</h2><span class="badge badge-pending">Saldo por toneladas · abrir formulário</span></summary><div class="panel-body">
+    const ops=dashboard?.operacoes||[],parts=dashboard?.participacoesOperacoes||[];
+    const norm=v=>String(v||'').trim().toUpperCase();
+    const statusCount=(...values)=>ops.filter(o=>values.includes(norm(o.status))).length;
+    const total=ops.length,active=statusCount('EM_ANDAMENTO','EM EXECUCAO','EM EXECUÇÃO'),formation=statusCount('EM_FORMACAO','EM FORMAÇÃO','PENDENTE_REVISAO','PENDENTE REVISÃO'),waiting=statusCount('ABERTA','AGUARDANDO_INICIO','AGUARDANDO INÍCIO'),done=statusCount('CONCLUIDA','CONCLUÍDA','ENCERRADA');
+    const rows=ops.map(o=>{
+      const id=String(o.id),oid=esc(id),name=String(o.nome||o.campos?.[2]||'Operação sem nome');
+      const linked=parts.filter(p=>String(p.campos?.[0]||'')===id);
+      const setIds=[...new Set(linked.map(p=>String(p.campos?.[1]||'')).filter(Boolean))];
+      const driverIds=[...new Set(linked.map(p=>String(p.campos?.[2]||'')).filter(Boolean))];
+      const planned=Math.max(0,Number(o.viagensPrevistas||0)),completed=Math.max(0,Number(o.viagensRealizadas||0));
+      const periodStart=formatDate(o.data||o.campos?.[0]),periodEnd=o.prazoEntrega?formatDate(o.prazoEntrega):'—';
+      const startTime=o.janelaInicio?String(o.janelaInicio).slice(0,5):'—';
+      const startLabel=(startTime==='—'?'':startTime+' · ')+(periodStart||'');
+      const status=norm(o.status),search=[name,o.cliente,o.origem,o.destino,o.status,o.produto].join(' ').toLocaleLowerCase('pt-BR');
+      return `<tr id="op-row-${oid}" class="ops-row" data-search="${esc(search)}" data-status="${esc(status)}">
+        <td><button class="ops-name-button" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')"><span class="ops-row-chevron">›</span><strong>${esc(name)}</strong></button></td>
+        <td>${esc(periodStart)} <span class="ops-muted">—</span> ${esc(periodEnd)}</td>
+        <td class="ops-route-cell">${esc(o.origem||o.campos?.[3]||'—')} <span class="ops-route-arrow">→</span> ${esc(o.destino||o.campos?.[4]||'—')}</td>
+        <td>${esc(o.produto||'—')}</td><td><strong>${esc(o.volumeTotal||o.campos?.[6]||'0')} t</strong></td>
+        <td class="ops-center-cell">${setIds.length}</td><td class="ops-center-cell">${driverIds.length}</td>
+        <td><strong>${completed} / ${planned}</strong></td><td>${esc(startLabel)}</td><td>${statusBadge(o.status)}</td>
+        <td><div class="ops-row-actions"><button class="btn btn-secondary ops-detail-btn" onclick="showDetalhesOperacao('${oid}')">◉ Detalhes</button><button class="icon-btn" title="Mais ações" onclick="toggleMenuAcoesOperacao(event,'${oid}')">⋮</button><div class="ops-action-menu hidden" id="ops-menu-${oid}"><button onclick="abrirAbaDetalheOperacao('${oid}','escala')">Gerar / consultar escala</button><button onclick="abrirEscalasOperacao('${oid}')">Alterar escala</button></div></div></td>
+      </tr><tr id="details-row-${oid}" class="ops-details-row" style="display:none"><td colspan="11"><div id="details-content-${oid}"></div></td></tr>`;
+    }).join('');
+    return `<section class="ops-page">
+      <div class="ops-page-head"><div><div class="ops-eyebrow">GESTÃO DE TRANSPORTE</div><h1>Operações</h1><p>Planejamento, escala, execução, pesagens e acompanhamento de cada operação.</p></div><div class="ops-head-actions"><button class="btn btn-secondary" onclick="atualizarTelaOperacoes(this)">↻ Atualizar</button><button class="btn btn-primary" onclick="abrirFormularioOperacao()">＋ Nova Operação</button></div></div>
+      <div class="ops-kpis">
+        <article class="ops-kpi"><span class="ops-kpi-icon">▦</span><div><strong>${total}</strong><small>Cadastradas</small></div></article>
+        <article class="ops-kpi"><span class="ops-kpi-icon">♧</span><div><strong>${formation}</strong><small>Em formação</small></div></article>
+        <article class="ops-kpi"><span class="ops-kpi-icon">◷</span><div><strong>${waiting}</strong><small>Aguardando início</small></div></article>
+        <article class="ops-kpi"><span class="ops-kpi-icon">▷</span><div><strong>${active}</strong><small>Em andamento</small></div></article>
+        <article class="ops-kpi"><span class="ops-kpi-icon">✓</span><div><strong>${done}</strong><small>Concluídas</small></div></article>
+      </div>
+      <div class="panel ops-list-panel"><div class="panel-head ops-list-head"><div><h2>Operações cadastradas</h2><span class="muted small" id="ops-result-count">${total} registro(s)</span></div><div class="ops-live-label"><i></i> Atualização automática a cada 5 minutos</div></div>
+        <div class="panel-body"><div class="ops-toolbar"><label class="ops-search">⌕ <input id="ops-search" type="search" placeholder="Buscar operação, cliente ou rota..." oninput="filtrarTabelaOperacoes()"></label><button class="btn btn-secondary" onclick="document.getElementById('ops-status-filter').classList.toggle('hidden')">☷ Filtros</button><select id="ops-status-filter" aria-label="Filtrar por status" onchange="filtrarTabelaOperacoes()"><option value="">Todos os status</option><option value="ABERTA">Aguardando início</option><option value="EM_ANDAMENTO">Em andamento</option><option value="PENDENTE_REVISAO">Pendente revisão</option><option value="CONCLUIDA">Concluída</option></select></div>
+        <div class="table-wrap ops-table-wrap"><table class="ops-table"><thead><tr><th>Operação</th><th>Período</th><th>Origem / destino</th><th>Carga</th><th>Volume</th><th>Conjuntos</th><th>Motoristas</th><th>Viagens</th><th>Início programado</th><th>Status</th><th>Ações</th></tr></thead><tbody id="ops-table-body">${rows||'<tr><td colspan="11"><div class="empty"><strong>Nenhuma operação cadastrada</strong>Cadastre uma operação para iniciar o planejamento.</div></td></tr>'}</tbody></table></div><div id="ops-empty-filter" class="empty hidden"><strong>Nenhuma operação encontrada</strong>Altere os filtros ou a busca.</div></div>
+      </div>
+      <details class="panel form-panel ops-form-panel" id="ops-new-form"><summary class="panel-head"><h2>＋ Cadastrar nova operação</h2><span class="badge badge-pending">Planejamento inicial</span></summary><div class="panel-body">
         <form onsubmit="saveOperacao(event)"><div class="form-grid">
-          <div class="field"><label>Data *</label><input name="data" type="date" required></div>
-          <div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120"></div>
+          <div class="field"><label>Data *</label><input name="data" type="date" required></div><div class="field"><label>Cliente *</label><input name="cliente" required maxlength="120"></div>
           <div class="field span-2"><label>Nome da operação *</label><input name="nome" required maxlength="160" placeholder="Ex.: Navio Orion Globe"></div>
-          <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div>
-          <div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
-          <div class="field"><label>Produto / material</label><input name="produto" maxlength="160" placeholder="Ex.: fertilizante, grãos, minério"></div>
-          <div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1" placeholder="Informada/validada"></div>
-          <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div>
-          <div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
-          <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div>
-          <div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
-          <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div><div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
-          <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-          <div class="field"><label>Número previsto de viagens *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Origem *</label><input name="origem" required maxlength="160"></div><div class="field"><label>Destino *</label><input name="destino" required maxlength="160"></div>
+          <div class="field"><label>Produto / material</label><input name="produto" maxlength="160"></div><div class="field"><label>Distância do percurso (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1"></div>
+          <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div><div class="field"><label>Tempo estimado de percurso (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
+          <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div><div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
+          <div class="field"><label>Categoria de escala *</label><select name="categoria" required><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Cumprimento de prazo de navio</option></select></div>
+          <div class="field"><label>Tipo de operação *</label><select name="tipoOperacao" required><option value="OUTRA">Outra</option><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option></select></div>
+          <div class="field"><label>Volume total (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"></div>
+          <div class="field"><label>Carga estimada por viagem (toneladas) *</label><input name="toneladasPorViagem" type="number" min="0.1" step="0.1" required oninput="atualizarPrevisaoViagensOperacao(this.form)"><div class="muted small" id="previsaoViagensOperacao">Informe a carga média estimada para calcular automaticamente as viagens.</div></div>
           <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
         </div><div id="operacaoError" class="error"></div><div class="form-actions"><button id="saveOperacaoButton" class="btn btn-primary" type="submit">Criar operação</button></div></form>
-      </div></details>
-      <details class="panel form-panel ops-form-panel" open><summary class="panel-head"><h2>Cadastro manual completo — sem IA</h2><span class="badge badge-active">Plano B independente</span></summary><div class="panel-body">
-        <p class="muted">Use este formulário quando a IA estiver indisponível ou quando preferir cadastrar diretamente. Uma operação pode ter um ou vários destinos. O saldo não distribuído permanece na operação.</p>
-        <form id="manualMvpOperationForm" onsubmit="saveManualMvpOperation(event)">
-          <div class="form-grid">
-            <div class="field"><label>Data da operação *</label><input name="data" type="date" required></div>
-            <div class="field"><label>Cliente responsável *</label><input name="cliente" maxlength="120" required></div>
-            <div class="field span-2"><label>Nome da operação *</label><input name="nome" maxlength="160" placeholder="Ex.: Navio com UREI — descarga e distribuição" required></div>
-            <div class="field"><label>Origem única *</label><input name="origem" maxlength="180" placeholder="Porto / terminal / armazém" required></div>
-            <div class="field"><label>Produto *</label><input name="produto" maxlength="160" placeholder="UREI" required></div>
-            <div class="field"><label>Volume total do navio/operação (t) *</label><input name="volumeTotal" type="number" min="0.1" step="0.1" required></div>
-            <div class="field"><label>Viagens previstas *</label><input name="viagensPrevistas" type="number" min="1" step="1" required></div>
-            <div class="field"><label>Categoria de escala *</label><select name="categoria"><option value="PADRAO">Seleção equilibrada</option><option value="ALTO_DESEMPENHO">Alto desempenho</option><option value="MANOBRA_DIFICIL">Manobra difícil</option><option value="PRAZO_NAVIO">Prazo de navio</option></select></div>
-            <div class="field"><label>Tipo de operação *</label><select name="tipoOperacao"><option value="DESCARGA_NAVIO">Descarga de navio</option><option value="TRANSFERENCIA_FABRICAS">Transferência entre fábricas</option><option value="REMOCAO_INTERNA">Remoção interna</option><option value="OUTRA">Outra</option></select></div>
-            <div class="field"><label>Distância total (km)</label><input name="distanciaKm" type="number" min="0.1" step="0.1"></div>
-            <div class="field"><label>Data limite de entrega</label><input name="dataEntrega" type="date"></div>
-            <div class="field"><label>Janela inicial</label><input name="janelaInicio" type="time"></div>
-            <div class="field"><label>Janela final</label><input name="janelaFim" type="time"></div>
-            <div class="field"><label>Tempo estimado (h)</label><input name="tempoEstimadoHoras" type="number" min="0.1" step="0.1"></div>
-            <div class="field span-2"><label>Observações gerais</label><textarea name="observacoes" maxlength="1000"></textarea></div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:20px 0 10px"><h3 style="margin:0">Destinos e distribuição do volume</h3><button class="btn btn-secondary" type="button" onclick="addManualMvpDestination()">＋ Adicionar destino</button></div>
-          <div id="manualMvpDestinations"></div>
-          <div id="manualMvpAllocation" class="notice" aria-live="polite">Informe o volume total e distribua entre os destinos. O sistema calcula o saldo não destinado.</div>
-          <div id="manualMvpError" class="error"></div>
-          <div class="form-actions"><button id="manualMvpSaveButton" class="btn btn-primary" type="submit">Criar operação e destinos</button></div>
-        </form>
-      </div></details>
-      <div class="panel" style="margin-top:16px"><div class="panel-head"><h2>Controle administrativo da operação</h2><span class="muted small">Cancelamento e reabertura auditáveis</span></div><div class="panel-body"><div class="form-grid"><div class="field"><label>Operação *</label><select id="operationAdminSelect"><option value="">Selecione</option>${ops.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome||o.campos[2]||o.id)+' · '+esc(o.status)+'</option>').join('')}</select></div><div class="field"><label>Ação</label><div class="form-actions"><button class="btn btn-secondary" type="button" onclick="cancelarOperacaoUI(document.getElementById('operationAdminSelect').value)">Cancelar operação</button><button class="btn btn-secondary" type="button" onclick="reabrirOperacaoUI(document.getElementById('operationAdminSelect').value)">Reabrir operação</button></div></div></div></div></div>
-      <div id="operacaoActionPanel"></div>
-    `;
+      </div></details><div id="operacaoActionPanel"></div></section>`;
   }
-  let manualMvpDestinationCount=0;
-  function addManualMvpDestination(){
-    const host=document.getElementById('manualMvpDestinations');if(!host)return;
-    const id=++manualMvpDestinationCount;
-    const row=document.createElement('div');row.className='panel';row.style.margin='10px 0';row.dataset.destinationRow='1';
-    row.innerHTML='<div class="panel-head"><h3 style="margin:0">Destino '+id+'</h3><button class="btn btn-secondary" type="button" onclick="this.closest(\'[data-destination-row]\').remove();updateManualMvpAllocation()">Remover</button></div><div class="panel-body"><div class="form-grid"><div class="field"><label>Empresa destinatária *</label><input data-dest="cliente" maxlength="160" required></div><div class="field"><label>Local de entrega *</label><input data-dest="local" maxlength="220" placeholder="Endereço / unidade" required></div><div class="field"><label>Cidade / UF</label><input data-dest="cidadeUf" maxlength="120"></div><div class="field"><label>Volume destinado (t) *</label><input data-dest="volume" type="number" min="0.1" step="0.1" required oninput="updateManualMvpAllocation()"></div><div class="field"><label>Data prevista</label><input data-dest="dataPrevista" type="date"></div><div class="field"><label>Observações</label><input data-dest="observacoes" maxlength="500"></div></div></div>';
-    host.appendChild(row);updateManualMvpAllocation();
+
+  function filtrarTabelaOperacoes(){
+    const q=String(document.getElementById('ops-search')?.value||'').trim().toLocaleLowerCase('pt-BR');
+    const status=String(document.getElementById('ops-status-filter')?.value||'').toUpperCase();
+    const category=String(document.getElementById('ops-category-filter')?.value||'').toUpperCase();
+    const rows=Array.from(document.querySelectorAll('#ops-table-body tr.ops-row'));
+    let visible=0;
+    rows.forEach(row=>{const match=(!q||String(row.dataset.search||'').includes(q))&&(!status||row.dataset.status===status)&&(!category||row.dataset.category===category);row.style.display=match?'':'none';const detail=document.getElementById(row.id.replace('op-row-','details-row-'));if(detail&&!match)detail.style.display='none';if(match)visible++;});
+    document.getElementById('ops-result-count').textContent=visible+' de '+rows.length+' operação(ões)';
+    document.getElementById('ops-empty-filter').classList.toggle('hidden',visible>0||rows.length===0);
   }
-  function updateManualMvpAllocation(){
-    const form=document.getElementById('manualMvpOperationForm');if(!form)return;
-    const total=Number(form.elements.volumeTotal.value||0),allocated=Array.from(form.querySelectorAll('[data-dest="volume"]')).reduce((s,x)=>s+Number(x.value||0),0),balance=total-allocated,host=document.getElementById('manualMvpAllocation');
-    if(host)host.textContent='Volume total: '+total.toLocaleString('pt-BR')+' t · Distribuído: '+allocated.toLocaleString('pt-BR')+' t · Saldo não destinado: '+balance.toLocaleString('pt-BR')+' t'+(balance<-.000001?' — distribuição excede o total!':'');
+  function abrirFormularioOperacao(){
+    const form=document.getElementById('ops-new-form');if(form){form.open=true;form.scrollIntoView({behavior:'smooth',block:'start'});}
   }
-  function saveManualMvpOperation(ev){
-    ev.preventDefault();const form=ev.currentTarget,btn=document.getElementById('manualMvpSaveButton'),err=document.getElementById('manualMvpError');err.textContent='';
-    const data=Object.fromEntries(new FormData(form).entries());
-    data.destinos=Array.from(form.querySelectorAll('[data-destination-row]')).map(row=>{const o={};row.querySelectorAll('[data-dest]').forEach(el=>o[el.dataset.dest]=el.value.trim());return o;});
-    if(!data.destinos.length){err.textContent='Adicione pelo menos um destino.';return;}
-    btn.disabled=true;btn.textContent='Salvando operação…';
-    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);})
-      .withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação e destinos';err.textContent=e.message||'Não foi possível salvar.';})
-      .salvarOperacaoComDestinosFullTime(authToken,data);
+  function atualizarTelaOperacoes(btn){if(btn){btn.disabled=true;btn.textContent='Atualizando…';}
+    google.script.run.withSuccessHandler(data=>{dashboard=parsePainelResponse(data);renderPage('operacoes');toast('Operações atualizadas.');}).withFailureHandler(e=>{if(btn){btn.disabled=false;btn.textContent='↻ Atualizar';}toast(e.message||'Não foi possível atualizar as operações.',true);}).obterPainelFullTime(authToken);
+  }
+
+  function atualizarPrevisaoViagensOperacao(form){
+    const volume=Number(form.elements.volumeTotal?.value||0),carga=Number(form.elements.toneladasPorViagem?.value||0),host=document.getElementById('previsaoViagensOperacao');
+    if(!host)return;
+    if(!(volume>0&&carga>0)){host.textContent='Informe o volume total e a carga média por viagem.';return;}
+    const viagens=Math.ceil(volume/carga),ultima=volume-(viagens-1)*carga;
+    host.textContent=viagens+' viagem(ns) estimada(s) · '+carga.toLocaleString('pt-BR')+' t por viagem · última viagem: '+ultima.toLocaleString('pt-BR',{maximumFractionDigits:2})+' t.';
   }
   function saveOperacao(ev){
     ev.preventDefault();const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
@@ -756,52 +1051,142 @@
     google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{btn.disabled=false;btn.textContent='Criar operação';err.textContent=e.message||'Não foi possível salvar.';}).salvarOperacaoFullTime(authToken,data);
   }
   const ftCandidatosOperacaoCache={};
+  const ftCandidatosPaginacao={};
+  function atualizarFiltroCandidatos(id,modo){
+    const input=document.getElementById('candidate-search-'+id),wasFocused=document.activeElement===input,caret=input?input.selectionStart:null;
+    const q=(input?.value||'').trim().toLowerCase();
+    const st=document.getElementById('candidate-status-'+id)?.value||'';
+    ftCandidatosPaginacao[id]={...(ftCandidatosPaginacao[id]||{}),q,status:st,page:1,modo};
+    renderListaCandidatosOperacao(id,modo);
+    if(wasFocused){const next=document.getElementById('candidate-search-'+id);if(next){next.focus();if(caret!==null)next.setSelectionRange(caret,caret);}}
+  }
+  function mudarPaginaCandidatos(id,delta,modo){
+    const state=ftCandidatosPaginacao[id]||{};state.page=Math.max(1,(state.page||1)+delta);state.modo=modo;ftCandidatosPaginacao[id]=state;renderListaCandidatosOperacao(id,modo);
+  }
   function renderListaCandidatosOperacao(id,modo){
     const host=document.getElementById('candidate-list-'+id);if(!host)return;
     const rows=ftCandidatosOperacaoCache[id]||[];
-    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
-    const calledByDriver={};
-    // listarRegistros_ devolve participações em ordem decrescente (mais recente primeiro).
-    // A primeira participação de cada motorista é a vigente; jamais sobrescrever
-    // uma cancelada/expirada recente por uma OFERTADA histórica.
-    parts.forEach(p=>{
-      const driverId=String(p.camposPorNome?.MOTORISTA_ID||p.campos?.[2]||'').trim();
-      if(driverId&&!Object.prototype.hasOwnProperty.call(calledByDriver,driverId))calledByDriver[driverId]=p;
-    });
-    const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]);
-    const eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
-    const visible=modo==='convocados'?called:rows;
-    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'NÃO RESPONDEU EM 2H',NAO_RESPONDEU:'NÃO RESPONDEU EM 2H',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id)),calledByDriver={};
+    parts.forEach(p=>{const driverId=String(p.camposPorNome?.MOTORISTA_ID||p.campos?.[2]||'').trim();if(driverId&&!Object.prototype.hasOwnProperty.call(calledByDriver,driverId))calledByDriver[driverId]=p;});
+    const called=rows.filter(r=>calledByDriver[String(r.driverId||'')]),eligible=rows.filter(r=>r.eligible&&!calledByDriver[String(r.driverId||'')]);
+    const state=ftCandidatosPaginacao[id]||{page:1,q:'',status:'',modo};state.modo=modo;ftCandidatosPaginacao[id]=state;
+    const source=modo==='convocados'?called:rows;
+    const statusLabel=st=>({OFERTADA:'AGUARDANDO RESPOSTA',ACEITA:'ACEITOU',ATIVO:'ESCALA CONFIRMADA',RECUSADA:'RECUSOU',EXPIRADA:'PRAZO ENCERRADO',NAO_RESPONDEU:'SEM RESPOSTA · 2H',CANCELADA_REPROGRAMACAO:'CANCELADA POR REPROGRAMAÇÃO'}[st]||st);
+    const getStatus=r=>{const p=calledByDriver[String(r.driverId||'')];return p?String(p.camposPorNome?.STATUS_PARTICIPACAO||p.campos?.[3]||'').trim().toUpperCase():(r.eligible?'APTO':'PENDENTE');};
     const line=r=>{
-      const p=calledByDriver[String(r.driverId||'')],st=p?String(p.camposPorNome?.STATUS_PARTICIPACAO||p.campos?.[3]||'').trim().toUpperCase():'';
-      const invited=!!p,tone=st==='OFERTADA'?'background:#fff7e6;':'';
-      const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='CANCELADA_REPROGRAMACAO'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO · NÃO CONVOCADO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
-      return '<tr style="'+tone+'"><td>'+(r.posicao?esc(r.posicao)+'º':'—')+'</td><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';
+      const p=calledByDriver[String(r.driverId||'')],st=getStatus(r),invited=!!p,tone=st==='OFERTADA'?'background:#fff8e9;':'';
+      const badge=invited?'<span class="badge '+(st==='ACEITA'||st==='ATIVO'?'badge-active':st==='RECUSADA'||st==='EXPIRADA'||st==='NAO_RESPONDEU'||st==='CANCELADA_REPROGRAMACAO'?'badge-danger':'badge-pending')+'">'+esc(statusLabel(st))+'</span>':r.eligible?'<span class="badge badge-active">APTO</span>':'<span class="badge badge-pending">'+esc(r.statusElegibilidade||'PENDENTE')+'</span>';
+      return '<tr style="'+tone+'"><td>'+esc(r.driverName||'Motorista não identificado')+'</td><td>'+esc(r.capacity)+' t</td><td>'+badge+'</td><td>'+esc(invited?(p.campos?.[10]||p.campos?.[11]||'Convocação registrada'):(r.motivosElegibilidade||[]).join(' · ')||'Apto para convocação')+'</td></tr>';
     };
-    host.innerHTML='<div class="form-actions" style="margin:8px 0 12px"><button class="btn '+(modo==='todos'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'todos\')">Todos os candidatos ('+rows.length+')</button><button class="btn '+(modo==='convocados'?'btn-primary':'btn-secondary')+'" onclick="renderListaCandidatosOperacao(\''+esc(id)+'\',\'convocados\')">Convocados ('+called.length+')</button></div>'+
-      (visible.length?'<div class="table-wrap"><table><thead><tr><th>Ordem</th><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Detalhes</th></tr></thead><tbody>'+visible.map(line).join('')+'</tbody></table></div>':'<div class="empty">'+(modo==='convocados'?'Ainda não há motoristas convocados nesta operação.':'Nenhum candidato encontrado.')+'</div>')+
-      '<p class="muted small">'+eligible.length+' apto(s) ainda não convocado(s) · '+called.length+' convocação(ões) registrada(s).</p>';
+    const q=String(state.q||'').toLowerCase(),stFilter=String(state.status||'');
+    const filtered=source.filter(r=>(!q||String(r.driverName||'').toLowerCase().includes(q))&&(!stFilter||getStatus(r)===stFilter));
+    const pageSize=8,totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));state.page=Math.min(Math.max(1,state.page||1),totalPages);
+    const pageRows=filtered.slice((state.page-1)*pageSize,state.page*pageSize);
+    const options=['','APTO','OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA','NAO_RESPONDEU','CANCELADA_REPROGRAMACAO','PENDENTE'];
+    host.innerHTML=`
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">
+        <button class="btn ${modo==='todos'?'btn-primary':'btn-secondary'}" onclick="renderListaCandidatosOperacao('${esc(id)}','todos')">Todos (${rows.length})</button>
+        <button class="btn ${modo==='convocados'?'btn-primary':'btn-secondary'}" onclick="renderListaCandidatosOperacao('${esc(id)}','convocados')">Convocados (${called.length})</button>
+        <div class="search" style="flex:1;min-width:220px"><span>⌕</span><input id="candidate-search-${esc(id)}" value="${esc(state.q||'')}" placeholder="Buscar motorista pelo nome" oninput="atualizarFiltroCandidatos('${esc(id)}','${modo}')"></div>
+        <select id="candidate-status-${esc(id)}" onchange="atualizarFiltroCandidatos('${esc(id)}','${modo}')" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569">${options.map(v=>'<option value="'+v+'" '+(stFilter===v?'selected':'')+'>'+(v||'Todos os status')+'</option>').join('')}</select>
+      </div>
+      ${pageRows.length?'<div class="table-wrap candidate-table-wrap"><table><thead><tr><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Situação</th></tr></thead><tbody>'+pageRows.map(line).join('')+'</tbody></table></div>':'<div class="empty">Nenhum motorista corresponde aos filtros.</div>'}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px"><span class="muted small">${filtered.length} resultado(s) · Página ${state.page} de ${totalPages} · ${eligible.length} apto(s) ainda não convocado(s) · ${called.length} convocação(ões)</span><div class="form-actions" style="margin:0"><button class="btn btn-secondary" ${state.page<=1?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',-1,'${modo}')">Anterior</button><button class="btn btn-secondary" ${state.page>=totalPages?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',1,'${modo}')">Próxima</button></div></div>`;
+  }
+
+  function toggleMenuAcoesOperacao(ev,id){
+    ev.stopPropagation();document.querySelectorAll('.ops-action-menu').forEach(m=>{if(m.id!=='ops-menu-'+id)m.classList.add('hidden');});
+    document.getElementById('ops-menu-'+id)?.classList.toggle('hidden');
+  }
+  document.addEventListener('click',()=>document.querySelectorAll('.ops-action-menu').forEach(m=>m.classList.add('hidden')));
+  function abrirAbaDetalheOperacao(id,tab){ window.__ftOpPendingTab=window.__ftOpPendingTab||{};window.__ftOpPendingTab[String(id)]=tab;const row=document.getElementById('details-row-'+id);if(row&&row.style.display!=='none'){selecionarAbaOperacao(id,tab);return;}showDetalhesOperacao(id); }
+  function abrirEscalasOperacao(id){
+    const op=(dashboard?.operacoes||[]).find(o=>String(o.id)===String(id));
+    renderPage('escalas');
+    toast('Abra a seção de remanejamento para alterar os conjuntos da operação '+(op?.nome||op?.campos?.[2]||id)+'.');
+  }
+  function selecionarAbaOperacao(id,tab){
+    const root=document.getElementById('details-content-'+id);if(!root)return;
+    root.querySelectorAll('[data-op-tab]').forEach(b=>b.classList.toggle('active',b.dataset.opTab===tab));
+    root.querySelectorAll('[data-op-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.opPanel!==tab));
+    if(tab==='escala'&&ftCandidatosOperacaoCache[id])renderListaCandidatosOperacao(id,'todos');
+    if(tab==='equipe')renderEquipeOperacao(id);
+    if(tab==='viagens')renderViagensOperacao(id);
+    if(tab==='pesagens')renderPesagensOperacao(id);
+    if(tab==='documentos')renderDocumentosOperacao(id);
+    if(tab==='historico')renderHistoricoOperacao(id);
+  }
+  function renderEquipeOperacao(id){
+    const host=document.getElementById('op-equipe-'+id);if(!host)return;
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
+    const sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
+    const label=(rows,key)=>{const x=rows.find(r=>String(r.id)===String(key));return x?String(x.campos?.[0]||x.nome||key):key||'—';};
+    host.innerHTML=parts.length?'<div class="table-wrap"><table class="ops-inner-table"><thead><tr><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Viagens concluídas</th><th>Toneladas</th></tr></thead><tbody>'+parts.map(p=>'<tr><td>'+esc(label(drivers,p.campos?.[2]))+'</td><td>'+esc(label(sets,p.campos?.[1]))+'</td><td>'+statusBadge(p.campos?.[3]||'—')+'</td><td>'+esc(p.campos?.[8]||'0')+'</td><td>'+esc(p.campos?.[7]||'0')+' t</td></tr>').join('')+'</tbody></table></div>':'<div class="ops-empty-state">Nenhum conjunto foi designado para esta operação ainda.</div>';
+  }
+  function renderViagensOperacao(id){
+    const host=document.getElementById('op-viagens-'+id);if(!host)return;
+    host.innerHTML='<div class="ops-empty-state"><strong>Controle individual de viagens</strong><p>A listagem detalhada de viagens ainda não é fornecida pelo painel administrativo. O registro e a conclusão devem ocorrer por viagem, vinculados aos tickets de carregamento e descarga. Nenhuma viagem fictícia será exibida aqui.</p></div>';
+  }
+  function renderPesagensOperacao(id){
+    const host=document.getElementById('op-pesagens-'+id);if(!host)return;
+    host.innerHTML='<div class="ops-empty-state"><strong>Conferência de pesagens</strong><p>O fluxo exige ticket original de carregamento e ticket original de descarga, conferência da divergência, aprovação administrativa e só então conclusão da viagem. Os registros individuais ainda não estão carregados nesta tela.</p><span class="badge badge-pending">Integração da listagem pendente</span></div>';
+  }
+  function renderDocumentosOperacao(id){
+    const host=document.getElementById('op-documentos-'+id);if(!host)return;
+    host.innerHTML='<div class="ops-empty-state"><strong>Documentos da operação</strong><p>Os documentos gerais disponíveis no painel não possuem vínculo confiável com o identificador desta operação. Para evitar misturar documentos de outros cadastros, esta aba aguardará a integração por operação e viagem.</p></div>';
+  }
+  function renderHistoricoOperacao(id){
+    const host=document.getElementById('op-historico-'+id);if(!host)return;
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
+    host.innerHTML=parts.length?'<div class="ops-history-list">'+parts.map(p=>'<div class="ops-history-item"><span class="ops-history-dot"></span><div><strong>'+esc(p.campos?.[3]||'Participação registrada')+'</strong><small>'+esc(formatDate(String(p.campos?.[4]||'').slice(0,10)))+' · Conjunto '+esc(p.campos?.[1]||'—')+'</small></div></div>').join('')+'</div><p class="muted small">Exibindo somente os registros de participação recebidos no painel; não substitui o histórico de auditoria completo.</p>':'<div class="ops-empty-state">Ainda não há participações registradas nesta operação.</div>';
+  }
+  function renderResumoOperacao(id,op,parts,candidates){
+    const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    const sets=[...new Set(parts.map(p=>String(p.campos?.[1]||'')).filter(Boolean))],drivers=[...new Set(parts.map(p=>String(p.campos?.[2]||'')).filter(Boolean))];
+    const planned=Number(op.viagensPrevistas||0),done=Number(op.viagensRealizadas||0),pct=planned?Math.min(100,Math.round(done/planned*100)):0;
+    const status=String(op.status||'').toUpperCase(),confirmed=parts.some(p=>['ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(p.campos?.[3]||'').toUpperCase()));
+    return '<div class="ops-detail-grid">'+
+      '<section class="ops-info-card"><h3>▣ Dados da Operação</h3>'+[['Cliente',op.cliente],['Período',(formatDate(op.data||op.campos?.[0])||'—')+' a '+(op.prazoEntrega?formatDate(op.prazoEntrega):'—')],['Tipo',op.tipoOperacao||op.campos?.[12]||'—'],['Carga',op.produto||'—'],['Volume',num(op.volumeTotal||op.campos?.[6])+' TON'],['Origem / Destino',(op.origem||op.campos?.[3]||'—')+' → '+(op.destino||op.campos?.[4]||'—')],['Prioridade',op.categoria||'Normal']].map(x=>'<div class="ops-info-line"><span>'+esc(x[0])+'</span><strong>'+esc(x[1]||'—')+'</strong></div>').join('')+'</section>'+
+      '<section class="ops-info-card"><h3>⚙ Planejamento Automático</h3><div class="ops-info-line"><span>Conjuntos definidos</span><strong>'+sets.length+'</strong></div><div class="ops-info-line"><span>Viagens previstas</span><strong>'+planned+'</strong></div><div class="ops-info-line"><span>Viagens concluídas</span><strong>'+done+'</strong></div><div class="ops-info-line"><span>Capacidade total</span><strong>Não consolidada</strong></div><div class="ops-info-note">A seleção de conjuntos depende de capacidade validada, disponibilidade e compatibilidade documental.</div></section>'+
+      '<section class="ops-info-card"><h3>◷ Início da Operação</h3><div class="ops-info-line"><span>Programado</span><strong>'+esc((op.janelaInicio||'—')+' · '+(formatDate(op.data||op.campos?.[0])||'—'))+'</strong></div><div class="ops-info-line"><span>Status</span><strong>'+esc(op.status||'—')+'</strong></div><div class="ops-info-line"><span>Início efetivo</span><strong>—</strong></div><div class="ops-info-note">O início efetivo será mostrado quando o evento for devolvido pelo histórico operacional.</div></section>'+
+      '<section class="ops-info-card ops-movement-card"><h3>▱ Movimentação</h3><div class="ops-movement-values"><div><strong>'+num((Number(op.volumeTotal||op.campos?.[6]||0)-Number(op.saldo||op.campos?.[8]||0)))+' TON</strong><small>Realizado</small></div><div><strong>'+num(op.saldo||op.campos?.[8]||0)+' TON</strong><small>Restante</small></div><div><strong>'+pct+'%</strong><small>Progresso por viagens</small></div></div><div class="ops-progress-track"><span style="width:'+pct+'%"></span></div></section>'+
+      '<section class="ops-info-card ops-wide-card"><h3>♧ Equipe vinculada</h3><p>'+sets.length+' conjunto(s) · '+drivers.length+' motorista(s) vinculados à operação.</p><button class="btn btn-secondary" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\'equipe\')">Consultar equipe</button></section>'+
+      '<section class="ops-info-card ops-wide-card"><h3>✎ Observações</h3><p>'+esc(op.observacoes||op.campos?.[9]||'Nenhuma observação registrada.')+'</p></section></div>';
+  }
+  function renderPainelDetalhesOperacao(id,activeTab){
+    const host=document.getElementById('details-content-'+id),op=(dashboard?.operacoes||[]).find(o=>String(o.id)===String(id));
+    if(!host||!op)return;
+    const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
+    const candidates=ftCandidatosOperacaoCache[id]||[],aptos=candidates.filter(x=>x.eligible).length;
+    const status=String(op.status||'').toUpperCase(),confirmed=parts.some(p=>['ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(p.campos?.[3]||'').toUpperCase()));
+    const tabs=[['resumo','▤','Resumo'],['escala','♧','Escala (Automática)'],['equipe','♧','Equipe ('+parts.length+')'],['viagens','▣','Viagens ('+Number(op.viagensRealizadas||0)+'/'+Number(op.viagensPrevistas||0)+')'],['pesagens','⚖','Pesagens'],['documentos','▤','Documentos'],['historico','◷','Histórico']];
+    host.innerHTML='<section class="ops-detail-shell"><div class="ops-detail-heading"><div><span class="ops-detail-symbol">▣</span><strong>'+esc(op.nome||op.campos?.[2]||'Operação')+'</strong><span class="ops-status-pill">'+esc(status.replace(/_/g,' '))+'</span></div><div class="ops-detail-actions"><button class="btn btn-primary" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\'escala\');document.getElementById(\'candidate-list-'+esc(id)+'\')?.scrollIntoView({behavior:\'smooth\',block:\'center\'})">⚙ Gerar Escala</button><button class="btn btn-secondary" onclick="abrirEscalasOperacao(\''+esc(id)+'\')">⇄ Alterar Escala</button><span class="ops-confirmed '+(confirmed?'':'is-pending')+'">✓ '+(confirmed?'Escala Confirmada':'Escala não confirmada')+'</span><button class="btn btn-secondary" disabled title="Edição de operação ainda não possui rotina de atualização segura no backend.">✎ Editar</button><button class="btn btn-danger" onclick="confirmarConclusaoCentro(\''+esc(id)+'\')">⚑ Encerrar Operação</button></div></div>'+
+      '<nav class="ops-detail-tabs">'+tabs.map(t=>'<button data-op-tab="'+t[0]+'" class="'+(t[0]===activeTab?'active':'')+'" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\''+t[0]+'\')"><span>'+t[1]+'</span>'+t[2]+'</button>').join('')+'</nav>'+
+      '<div class="ops-tab-panel" data-op-panel="resumo">'+renderResumoOperacao(id,op,parts,candidates)+'</div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="escala"><div class="ops-tab-intro"><div><h3>Formação automática da escala</h3><p>'+aptos+' motorista(s)/conjunto(s) apto(s) identificados pela validação atual.</p></div><label>Vagas <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="'+Math.max(1,Math.min(40,aptos||1))+'"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação</button></div><div id="auto-status-'+esc(id)+'"></div><div id="candidate-list-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="equipe"><div id="op-equipe-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="viagens"><div id="op-viagens-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="pesagens"><div id="op-pesagens-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="documentos"><div id="op-documentos-'+esc(id)+'"></div></div>'+
+      '<div class="ops-tab-panel hidden" data-op-panel="historico"><div id="op-historico-'+esc(id)+'"></div></div></section>';
+    if(activeTab==='escala')renderListaCandidatosOperacao(id,'todos');
   }
   function showDetalhesOperacao(id){
-    const row=document.getElementById('details-row-'+id),content=document.getElementById('details-content-'+id),btn=document.getElementById('details-btn-'+id);
+    const row=document.getElementById('details-row-'+id),content=document.getElementById('details-content-'+id);
     if(!row||!content)return;
-    if(row.style.display!=='none'){row.style.display='none';if(btn)btn.textContent='DETALHES';return;}
-    document.querySelectorAll('[id^="details-row-"]').forEach(el=>{el.style.display='none';});
-    document.querySelectorAll('[id^="details-btn-"]').forEach(el=>{el.textContent='DETALHES';});
-    row.style.display='table-row';if(btn)btn.textContent='FECHAR DETALHES';
-    content.innerHTML='<div class="panel"><div class="panel-body">O sistema está analisando os conjuntos elegíveis para esta operação…</div></div>';
+    const opening=row.style.display==='none';
+    document.querySelectorAll('[id^="details-row-"]').forEach(el=>el.style.display='none');
+    if(!opening)return;
+    row.style.display='table-row';content.innerHTML='<div class="ops-loading">Analisando motoristas, conjuntos e disponibilidade da operação…</div>';
     google.script.run.withSuccessHandler(rows=>{
-      const current=document.getElementById('details-content-'+id);
-      if(!current||document.getElementById('details-row-'+id)?.style.display==='none'||currentPage!=='operacoes')return;
-      ftCandidatosOperacaoCache[id]=rows;
-      const aptos=rows.filter(r=>r.eligible),pendentes=rows.filter(r=>r.statusElegibilidade==='PENDENTE_REGULARIZACAO'),bloqueados=rows.filter(r=>r.statusElegibilidade==='BLOQUEADO');
-      current.innerHTML='<div class="panel"><div class="panel-head"><h2>Validação de motoristas e conjuntos</h2><span class="muted small">'+aptos.length+' apto(s) · '+pendentes.length+' pendente(s) · '+bloqueados.length+' bloqueado(s)</span></div><div class="panel-body"><div class="notice"><strong>Critérios documentais:</strong> CNH válida e compatível com o conjunto; exame toxicológico cadastrado, aprovado e válido até a data da operação. Somente APTO recebe convocação.</div><div id="candidate-list-'+esc(id)+'"></div>'+(aptos.length?'<p class="muted small">A fila considera somente conjuntos APTO(S), em ordem de prioridade. Cada motorista terá 2 horas para responder.</p><div class="form-actions"><label>Vagas desta operação <input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" value="10" style="width:90px"></label><button class="btn btn-primary" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Iniciar convocação automática</button></div><div id="auto-status-'+esc(id)+'"></div>':'<div class="notice"><strong>Convocação indisponível.</strong> Não há motoristas aptos. Regularize as pendências antes de iniciar a escala.</div>')+'</div></div>';
-      renderListaCandidatosOperacao(id,'todos');
+      if(!document.getElementById('details-row-'+id)||document.getElementById('details-row-'+id).style.display==='none'||currentPage!=='operacoes')return;
+      ftCandidatosOperacaoCache[id]=Array.isArray(rows)?rows:[];
+      const pending=window.__ftOpPendingTab?.[String(id)]||'resumo';if(window.__ftOpPendingTab)delete window.__ftOpPendingTab[String(id)];renderPainelDetalhesOperacao(id,pending);
     }).withFailureHandler(e=>{
-      const current=document.getElementById('details-content-'+id);
-      if(current)current.innerHTML='<div class="panel"><div class="panel-body error">'+esc(e.message||'Falha ao analisar os elegíveis.')+'</div></div>';
+      if(content)content.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao analisar os elegíveis.')+'</div>';
     }).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
+
   async function iniciarConvocacaoAutomatica(operacaoId){
     const host=document.getElementById('auto-status-'+operacaoId);
     const button=document.querySelector('#auto-status-'+operacaoId)?.previousElementSibling?.querySelector('button')
@@ -840,28 +1225,14 @@
       toast(msg,true);
     }
   }
-  async function cancelarOperacaoUI(id){
-    if(!id){toast('Selecione uma operação.',true);return;}
-    const motivo=await uiPrompt('Informe o motivo do cancelamento. A operação e seu histórico serão preservados.',{title:'Cancelar operação',label:'Motivo obrigatório',ok:'Cancelar operação'});if(motivo===null||!String(motivo).trim())return;
-    google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Falha ao cancelar operação.',true)).cancelarOperacaoFullTime(authToken,id,motivo);
-  }
-  async function reabrirOperacaoUI(id){
-    if(!id){toast('Selecione uma operação.',true);return;}
-    const motivo=await uiPrompt('Justifique a reabertura. Revise escala e destinos antes de retomar.',{title:'Reabrir operação',label:'Justificativa obrigatória',ok:'Reabrir'});if(motivo===null||!String(motivo).trim())return;
-    google.script.run.withSuccessHandler(r=>{toast(r.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message||'Falha ao reabrir operação.',true)).reabrirOperacaoFullTime(authToken,id,motivo);
-  }
   function showMovimentacao(id){
-    const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id),sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO'),panel=document.getElementById('operacaoActionPanel');
-    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Carregando destinos da operação…</h2></div></div>';
-    google.script.run.withSuccessHandler(destinos=>{
-      const options=(destinos||[]).map(d=>'<option value="'+esc(d.id)+'">'+esc(d.cliente)+' — '+esc(d.local)+' · saldo '+esc(d.saldo)+' t</option>').join('');
-      const multi=destinos&&destinos.length>0;
-      panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar entrega</h2><span class="badge badge-pending">Saldo operação: '+esc(op?.saldo||op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><input type="hidden" name="usaDestinos" value="'+(multi?'SIM':'NAO')+'"><div class="form-grid">'+(multi?'<div class="field span-2"><label>Empresa / destino atendido *</label><select name="destinoId" required><option value="">Selecione o destino</option>'+options+'</select></div>':'<div class="field span-2 notice">Esta operação é legada e não possui destinos individualizados. A movimentação continuará usando o saldo geral.</div>')+'<div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas entregues *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Quantidade de viagens realizadas *</label><input name="viagens" type="number" min="1" max="10000" step="1" required value="1"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar entrega e atualizar saldos</button></div></form></div></div>';
-    }).withFailureHandler(e=>{panel.innerHTML='<div class="notice error">'+esc(e.message||'Não foi possível carregar os destinos.')+'</div>';}).listarDestinosOperacaoFullTime(authToken,id);
+    const ops=dashboard?.operacoes||[],op=ops.find(o=>o.id===id);const sets=(dashboard?.conjuntos||[]).filter(x=>x.status==='ATIVO');
+    const panel=document.getElementById('operacaoActionPanel');
+    panel.innerHTML='<div class="panel form-panel"><div class="panel-head"><h2>Registrar movimentação</h2><span class="badge badge-pending">Saldo: '+esc(op?.saldo||op?.campos[8]||'0')+' t</span></div><div class="panel-body"><form onsubmit="saveMovimentacao(event)"><input type="hidden" name="operacaoId" value="'+esc(id)+'"><div class="form-grid"><div class="field"><label>Conjunto *</label><select name="conjuntoId" required><option value="">Selecione</option>'+sets.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('')+'</select></div><div class="field"><label>Toneladas movimentadas *</label><input name="toneladas" type="number" min="0.1" step="0.1" required></div><div class="field"><label>Quantidade de viagens realizadas *</label><input name="viagens" type="number" min="1" max="10000" step="1" required value="1"></div><div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div></div><div id="movimentacaoError" class="error"></div><div class="form-actions"><button class="btn btn-primary" type="submit">Registrar e descontar do saldo</button></div></form></div></div>';
   }
   function saveMovimentacao(ev){
     ev.preventDefault();const data=Object.fromEntries(new FormData(ev.currentTarget).entries());data.viagens=Math.floor(Number(data.viagens||0));
-    const endpoint=data.usaDestinos==='SIM'?'registrarEntregaDestinoFullTime':'registrarMovimentacaoOperacaoFullTime';delete data.usaDestinos;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';})[endpoint](authToken,data);
+    google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('operacoes');}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>{document.getElementById('movimentacaoError').textContent=e.message||'Não foi possível registrar.';}).registrarMovimentacaoOperacaoFullTime(authToken,data);
   }
 
   function renderDocumentExpiryNotice(){
@@ -916,8 +1287,28 @@
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function maskCpf(v){const s=String(v||'');return s.length===11?s.slice(0,3)+'.***.***-'+s.slice(-2):(s||'—');}
   function formatDate(v){if(!v)return '—';const s=String(v).slice(0,10);const p=s.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s;}
-  // Revalida uma sessão armazenada quando a página é reaberta.
-  if(authToken){document.getElementById('loginView').classList.add('hidden');showAppShell();loadApp();}
+  // Recupera o perfil no servidor antes de escolher o painel. Nunca presume ADMIN.
+  if(authToken){
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('appView').classList.remove('hidden');
+    google.script.run.withSuccessHandler(res=>{
+      if(!res||!res.user)throw new Error('Resposta de sessão inválida.');
+      currentUser=res.user;
+      if(currentUser.trocarSenha){
+        showAppShell();
+        document.getElementById('passwordModal').classList.remove('hidden');
+        return;
+      }
+      loadApp();
+    }).withFailureHandler(err=>{
+      console.warn('FT_SESSAO_RESTAURACAO_FALHOU',err&&err.message||err);
+      authToken='';currentUser=null;dashboard=null;
+      sessionStorage.removeItem('ft_token');
+      document.getElementById('appView').classList.add('hidden');
+      document.getElementById('loginView').classList.remove('hidden');
+      setLoginError('Sua sessão expirou. Entre novamente.');
+    }).restaurarSessaoFullTime(authToken);
+  }
 </script>
 </body>
 </html>
