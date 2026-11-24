@@ -346,11 +346,14 @@
   }
   window.addEventListener('error',event=>{
     console.error('FT_UI_UNCAUGHT_ERROR',event.error&&event.error.stack||event.message);
-    if(authToken&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.error||event.message);
+    // Erros de interação não podem desmontar todo o painel já carregado.
+    if(authToken&&!dashboard&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.error||event.message);
+    else if(authToken)toast('Erro na interface: '+String(event.message||'verifique o Console.'),true);
   });
   window.addEventListener('unhandledrejection',event=>{
     console.error('FT_UI_UNHANDLED_REJECTION',event.reason&&event.reason.stack||event.reason);
-    if(authToken&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.reason);
+    if(authToken&&!dashboard&&document.getElementById('appView')&&!document.getElementById('appView').classList.contains('hidden'))renderLoadFailure(event.reason);
+    else if(authToken)toast('Falha em uma operação da interface: '+String(event.reason&&event.reason.message||event.reason||'verifique o Console.'),true);
   });
   function toggleMobileNav(){
     const side=document.getElementById('appSidebar');
@@ -686,7 +689,7 @@
       <div class="panel">
         <div class="panel-head"><h2>＋ Nova solicitação</h2><span class="muted small">Registro inicial · sem criar operação ou carga</span></div>
         <div class="panel-body">
-          <form id="formSolicitacaoFullTime" onsubmit="salvarSolicitacaoFullTime(event)">
+          <form id="formSolicitacaoFullTime" onsubmit="return window.salvarSolicitacaoFullTime ? window.salvarSolicitacaoFullTime(event) : (event.preventDefault(), alert('A função de registro não foi carregada. Atualize a implantação do Full Time.'), false)">
             <div class="form-grid">
               <div class="field">
                 <label for="solCanal">Como a solicitação foi recebida?</label>
@@ -737,7 +740,15 @@
   function carregarSolicitacoesFullTime(){
     const host=document.getElementById('solListContainer');
     if(host)host.innerHTML='<div class="empty">Carregando solicitações…</div>';
+    let settled=false;
+    const timeout=window.setTimeout(()=>{
+      if(settled)return;
+      settled=true;
+      const list=document.getElementById('solListContainer');
+      if(list&&currentPage==='solicitacoes')list.innerHTML='<div class="empty"><strong>A consulta demorou mais que o esperado.</strong>O servidor não respondeu em 20 segundos. Verifique a execução no Apps Script e tente atualizar a lista.<br><button class="btn btn-secondary" type="button" onclick="window.carregarSolicitacoesFullTime()">Tentar novamente</button></div>';
+    },20000);
     google.script.run.withSuccessHandler(data=>{
+      if(settled)return;settled=true;window.clearTimeout(timeout);
       solicitacoesFullTime=Array.isArray(data)?data:[];
       if(currentPage==='solicitacoes'){
         const list=document.getElementById('solListContainer');
@@ -746,7 +757,9 @@
         if(count)count.textContent=solicitacoesFullTime.length+' registro(s)';
       }
     }).withFailureHandler(err=>{
-      if(host)host.innerHTML='<div class="empty"><strong>Não foi possível carregar a lista.</strong>'+esc(err&&err.message||'Verifique sua sessão e tente novamente.')+'</div>';
+      if(settled)return;settled=true;window.clearTimeout(timeout);
+      const list=document.getElementById('solListContainer');
+      if(list&&currentPage==='solicitacoes')list.innerHTML='<div class="empty"><strong>Não foi possível carregar a lista.</strong>'+esc(err&&err.message||'Verifique sua sessão e tente novamente.')+'<br><button class="btn btn-secondary" type="button" onclick="window.carregarSolicitacoesFullTime()">Tentar novamente</button></div>';
       toast(err&&err.message||'Falha ao carregar solicitações.',true);
     }).listarSolicitacoesFullTime(authToken,100);
   }
@@ -771,7 +784,8 @@
     ev.preventDefault();
     const dados={};
     Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
+    const pendingField=document.getElementById('solEditPending');
+    const pending=pendingField?pendingField.value.split(/\n/).map(s=>s.trim()).filter(Boolean):[];
     const questions=document.getElementById('solEditQuestions').value;
     google.script.run.withSuccessHandler(res=>{
       const current=solicitacoesFullTime.find(s=>s.id===id);
@@ -839,6 +853,10 @@
       toast(feedback.textContent,true);
     }).registrarSolicitacaoPainelFullTime(authToken,payload);
   }
+
+  // Expõe explicitamente os handlers usados em atributos HTML inline.
+  window.salvarSolicitacaoFullTime=salvarSolicitacaoFullTime;
+  window.carregarSolicitacoesFullTime=carregarSolicitacoesFullTime;
 
   function renderList(kind){
     const rows=dashboard?.motoristas||[];
