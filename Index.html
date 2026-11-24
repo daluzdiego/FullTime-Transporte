@@ -1137,9 +1137,30 @@
   function renderEquipeOperacao(id){
     const host=document.getElementById('op-equipe-'+id);if(!host)return;
     const parts=(dashboard?.participacoesOperacoes||[]).filter(p=>String(p.campos?.[0]||'')===String(id));
-    const sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
+    const sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[],candidates=(ftCandidatosOperacaoCache[id]||[]).filter(x=>x.eligible===true);
     const label=(rows,key)=>{const x=rows.find(r=>String(r.id)===String(key));return x?String(x.campos?.[0]||x.nome||key):key||'—';};
-    host.innerHTML=parts.length?'<div class="table-wrap"><table class="ops-inner-table"><thead><tr><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Viagens concluídas</th><th>Toneladas</th></tr></thead><tbody>'+parts.map(p=>'<tr><td>'+esc(label(drivers,p.campos?.[2]))+'</td><td>'+esc(label(sets,p.campos?.[1]))+'</td><td>'+statusBadge(p.campos?.[3]||'—')+'</td><td>'+esc(p.campos?.[8]||'0')+'</td><td>'+esc(p.campos?.[7]||'0')+' t</td></tr>').join('')+'</tbody></table></div>':'<div class="ops-empty-state">Nenhum conjunto foi designado para esta operação ainda.</div>';
+    host.innerHTML=parts.length?'<div class="table-wrap"><table class="ops-inner-table"><thead><tr><th>Motorista</th><th>Conjunto</th><th>Status</th><th>Viagens concluídas</th><th>Toneladas</th><th>Gestão da convocação</th></tr></thead><tbody>'+parts.map(p=>{
+      const status=String(p.campos?.[3]||'').toUpperCase(),offerId=String(p.id||''),currentSet=String(p.campos?.[1]||'');
+      const options=candidates.filter(x=>String(x.id)!==currentSet).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.driverName||x.id)+' · '+esc(x.id)+'</option>').join('');
+      const action=status==='OFERTADA'&&offerId&&options
+        ?'<div style="display:flex;gap:6px;min-width:260px"><select id="replace-set-'+esc(offerId)+'" aria-label="Novo conjunto convocado"><option value="">Selecionar substituto</option>'+options+'</select><button class="btn btn-secondary" type="button" onclick="substituirConvocadoPendenteUI(\''+esc(id)+'\',\''+esc(offerId)+'\')">Substituir</button></div>'
+        :status==='OFERTADA'?'Aguardando resposta · sem substituto elegível':(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(status)?'Convocação protegida após aceite':'—');
+      return '<tr><td>'+esc(label(drivers,p.campos?.[2]))+'</td><td>'+esc(label(sets,currentSet))+'</td><td>'+statusBadge(status||'—')+'</td><td>'+esc(p.campos?.[8]||'0')+'</td><td>'+esc(p.campos?.[7]||'0')+' t</td><td>'+action+'</td></tr>';
+    }).join('')+'</tbody></table></div><p class="muted small">Somente ofertas ainda pendentes podem ser substituídas. Após o aceite, o registro fica protegido e qualquer mudança exige um procedimento operacional próprio, com histórico.</p>':'<div class="ops-empty-state">Nenhum conjunto foi designado para esta operação ainda.</div>';
+  }
+  async function substituirConvocadoPendenteUI(operacaoId,ofertaId){
+    const select=document.getElementById('replace-set-'+ofertaId),novoConjuntoId=String(select?.value||'').trim();
+    if(!novoConjuntoId){toast('Selecione o novo conjunto antes de substituir.',true);return;}
+    if(!await uiConfirm('A convocação atual será cancelada com histórico e uma nova oferta será enviada ao motorista do conjunto escolhido. A escala continuará pendente até o aceite.',{title:'Substituir convocado',ok:'Substituir convocado'}))return;
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Convocação substituída.');
+      google.script.run.withSuccessHandler(data=>{
+        dashboard=parsePainelResponse(data);
+        const row=document.getElementById('details-row-'+operacaoId);
+        if(row&&row.style.display!=='none')showDetalhesOperacao(operacaoId);
+      }).withFailureHandler(err=>toast(err.message||'Convocação substituída, mas o painel não atualizou.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(err=>toast(err.message||'Não foi possível substituir a convocação.',true))
+      .FT_substituirConvocadoPendenteFullTime(authToken,ofertaId,novoConjuntoId,'Substituição solicitada pelo administrador no painel da operação.');
   }
   function renderViagensOperacao(id){
     const host=document.getElementById('op-viagens-'+id);if(!host)return;
