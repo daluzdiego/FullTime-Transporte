@@ -788,7 +788,7 @@
     let pending=[];try{pending=JSON.parse(x.camposPendentes||'[]');}catch(e){}
     const host=document.getElementById('solAnaliseResultado');if(!host)return;
     const approvalReady=pending.length===0 && x.status==='AGUARDANDO_APROVACAO';
-    const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>{const dateField=k==='dataColeta'||k==='dataEntrega';const value=dateField?formatarDataSolicitacaoBR(d[k]||d[k+'Texto']||''):(d[k]||'');return '<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" '+(dateField?'inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10"':'maxlength="500"')+' oninput="ocultarAprovacaoAteSalvar()" value="'+esc(value)+'"></div>';}).join('');
+    const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>{const dateField=k==='dataColeta'||k==='dataEntrega';const numberField=['volume','volumePorViagem','motoristasNecessarios'].includes(k);const integerField=k==='motoristasNecessarios';const value=dateField?formatarDataSolicitacaoBR(d[k]||d[k+'Texto']||''):(d[k]||'');const attrs=dateField?'inputmode="numeric" placeholder="DD/MM/AAAA" maxlength="10"':(numberField?'type="number" min="0" step="'+(integerField?'1':'0.01')+'" inputmode="decimal"':'maxlength="500"');return '<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" '+attrs+' oninput="ocultarAprovacaoAteSalvar()" value="'+esc(value)+'"></div>';}).join('');
     const destinationRows=Array.isArray(d.destinos)?d.destinos:[];
     const destinationsHtml=destinationRows.map((dest,i)=>htmlDestinoRevisaoFullTime(dest,i)).join('');
     const saldoConfirmado=String(d.saldoNaoDistribuidoConfirmado||'').toUpperCase()==='SIM';
