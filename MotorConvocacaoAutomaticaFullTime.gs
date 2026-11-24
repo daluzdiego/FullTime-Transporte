@@ -175,4 +175,15 @@ function FT_reconciliarOfertasExpiradasFullTime(){
  }finally{lock.releaseLock();}
 }
 
+function FT_AUTO_CANCELAR_OPERACAO_(opId,motivo){
+ const lock=LockService.getScriptLock();lock.waitLock(15000);
+ try{
+  const queues=FT_AUTO_READ_(),q=queues[String(opId)];
+  if(q&&q.status==='EM_ANDAMENTO'){q.status='CANCELADA';q.canceladaEm=new Date().toISOString();q.motivoCancelamento=String(motivo||'Operação cancelada');q.pendentes=[];FT_AUTO_WRITE_(queues);}
+  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues(),now=new Date();let cancelled=0;
+  rows.slice(1).forEach((r,i)=>{if(String(r[m.OPERACAO_ID]||'')!==String(opId)||String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase()!=='OFERTADA')return;sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('CANCELADA_OPERACAO');if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(now);if(m.MOTIVO!==undefined)sh.getRange(i+2,m.MOTIVO+1).setValue('Operação cancelada: '+String(motivo||''));cancelled++;});
+  const current=FT_AUTO_READ_();if(!Object.keys(current).some(k=>current[k]&&current[k].status==='EM_ANDAMENTO'))ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica').forEach(t=>ScriptApp.deleteTrigger(t));
+  return {ok:true,ofertasCanceladas:cancelled};
+ }finally{lock.releaseLock();}
+}
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
