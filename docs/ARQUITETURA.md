@@ -38,6 +38,7 @@ As guias operacionais são:
 12. `FILA_MOTORISTAS`
 13. `EVENTOS_ESCALA`
 14. `ENTRADA_OPERACOES_IA`
+15. `DESTINOS_OPERACAO`
 
 Não manter tabelas genéricas `CAMINHOES` ou `CARGAS`. O cavalo mecânico e as carretas são entidades distintas e vinculadas por `CONJUNTOS`. A operação registra volume e viagens previstas; as viagens não são cadastradas como cargas independentes.
 
@@ -46,9 +47,13 @@ Não manter tabelas genéricas `CAMINHOES` ou `CARGAS`. O cavalo mecânico e as 
 - O vínculo motorista/cavalo/carreta é feito por IDs em `CONJUNTOS`.
 - Capacidade útil deve ser validada no conjunto e compatibilizada com os limites dos implementos.
 - Documentos são vinculados por entidade e ID externo.
-- Operações guardam origem, destino, tipo, produto/serviço, volume, viagens, distância e janelas logísticas.
+- Uma operação possui uma origem e um volume total; pode ter um ou vários destinos em `DESTINOS_OPERACAO`, cada um com cliente, local, volume previsto, entregue e saldo.
+- A soma dos volumes destinados nunca pode exceder o volume total da operação. Volume não distribuído permanece como saldo não destinado.
+- Movimentações de operações com destinos exigem `ID_DESTINO`; não podem baixar somente o saldo geral.
+- Cadastro manual estruturado não depende da IA. A IA apenas interpreta e preenche os mesmos dados para revisão humana.
 - Movimentações e participações registram execução; não devem sobrescrever o histórico da operação.
-- A entrada de IA preserva a mensagem bruta, o resultado interpretado e o vínculo com a operação criada.
+- A entrada de IA preserva a mensagem bruta, o resultado interpretado (incluindo lista de destinos) e o vínculo com a operação criada.
+- Cancelamentos e reaberturas exigem justificativa e geram auditoria; não excluem histórico.
 
 ## Reconstrução de homologação
 
