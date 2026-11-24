@@ -23,6 +23,25 @@ function FT_CENTRO_num_(v) {
   const s=String(v||'').trim().replace(/\./g,'').replace(',','.');
   const n=Number(s); return isFinite(n)?n:0;
 }
+/** Cálculo puro de progresso: o peso real pode ficar abaixo ou acima do previsto. */
+function FT_CENTRO_progress_(planned,actual) {
+  planned=FT_CENTRO_num_(planned); actual=FT_CENTRO_num_(actual);
+  return {previsto:planned,carregado:actual,falta:Math.max(0,planned-actual),excedente:Math.max(0,actual-planned),percentual:planned>0?Math.min(100,actual/planned*100):0};
+}
+function testarCalculosCentroOperacoesFullTime() {
+  const cases=[
+    {nome:'operação parcialmente carregada',previsto:660,real:420,falta:240,excedente:0},
+    {nome:'peso real abaixo do previsto',previsto:660,real:657.5,falta:2.5,excedente:0},
+    {nome:'peso real acima do previsto',previsto:660,real:665,falta:0,excedente:5}
+  ];
+  const testes=cases.map(c=>{
+    const r=FT_CENTRO_progress_(c.previsto,c.real);
+    return {teste:c.nome,ok:Math.abs(r.falta-c.falta)<0.000001&&Math.abs(r.excedente-c.excedente)<0.000001,resultado:r};
+  });
+  const result={ok:testes.every(t=>t.ok),testes:testes,modo:'SOMENTE_CALCULO_SEM_ESCRITA'};
+  Logger.log('FT_CENTRO_TESTE_CALCULOS '+JSON.stringify(result));
+  return result;
+}
 function obterCentroOperacoesFullTime(token) {
   const session=obterSessao_(token); exigirAdmin_(session);
   const ops=FT_CENTRO_rows_('OPERACOES');
@@ -42,8 +61,9 @@ function obterCentroOperacoesFullTime(token) {
     const operationMoves=moves.filter(m=>String(m.OPERACAO_ID||'')===id);
     const moved=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
     const planned=FT_CENTRO_num_(o.VOLUME_TOTAL_TONELADAS);
-    const remaining=Math.max(0,planned-moved);
-    const overrun=Math.max(0,moved-planned);
+    const progress=FT_CENTRO_progress_(planned,moved);
+    const remaining=progress.falta;
+    const overrun=progress.excedente;
     const trips=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS || (String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0);
     const driverMap={};
     operationMoves.forEach(m=>{
@@ -63,7 +83,7 @@ function obterCentroOperacoesFullTime(token) {
       const destPlanned=FT_CENTRO_num_(d.VOLUME_PREVISTO_TONELADAS);
       return {id:destId,cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),status:String(d.STATUS||'')};
     });
-    return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:planned,toneladasMovimentadas:moved,saldo:remaining,excedente:overrun,percentualCarregado:planned>0?Math.min(100,moved/planned*100):0,viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips,conjuntos:related.map(p=>{
+    return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:planned,toneladasMovimentadas:moved,saldo:remaining,excedente:overrun,percentualCarregado:progress.percentual,viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips,conjuntos:related.map(p=>{
       const sid=String(p.CONJUNTO_ID||''),s=sBy[sid]||{},did=String(s.MOTORISTA_ID||p.MOTORISTA_ID||''),h=hBy[String(s.CAVALO_ID||'')]||{},t1=tBy[String(s.CARRETA_MEIO_ID||'')]||{},t2=tBy[String(s.CARRETA_FINAL_ID||'')]||{};
       const trailerTare=FT_CENTRO_num_(t1.TARA_TONELADAS)+FT_CENTRO_num_(t2.TARA_TONELADAS);
       const trailerCap=FT_CENTRO_num_(t1.CAPACIDADE_CARGA_TONELADAS)+FT_CENTRO_num_(t2.CAPACIDADE_CARGA_TONELADAS);
