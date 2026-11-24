@@ -149,3 +149,40 @@ function salvarConjuntoVeicularFullTime(token, data) {
   auditar_(session, 'VINCULAR_CONJUNTO', 'CONJUNTO', id, 'Motorista=' + motoristaId + '; cavalo=' + cavaloId + '; carreta1=' + carretaMeioId + '; carreta2=' + carretaFinalId);
   return { ok: true, id: id, message: 'Conjunto veicular associado ao motorista.' };
 }
+
+
+/** Cadastro manual administrativo. Registros entram como PENDENTE_REVISAO. */
+function salvarMotoristaManualFullTime(token, data) {
+  const session = obterSessao_(token);
+  exigirAdmin_(session);
+  data = data || {};
+  const nome = texto_(data.nome, 120);
+  const cpf = digitos_(data.cpf);
+  const telefone = digitos_(data.telefone);
+  const email = texto_(data.email, 150).toLowerCase();
+  const cnh = texto_(data.cnh, 40);
+  const categoria = texto_(data.categoria, 5).toUpperCase();
+  const validade = texto_(data.validade, 10);
+  const cidade = texto_(data.cidade, 120);
+  const observacoes = texto_(data.observacoes, 1000);
+  if (!nome || cpf.length !== 11 || !cpfValido_(cpf)) throw new Error('Informe nome e CPF válido.');
+  if (telefone.length < 10 || telefone.length > 13) throw new Error('Informe telefone com DDD.');
+  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) throw new Error('E-mail inválido.');
+  if (!cnh || !['C','D','E','AD','AE','AC'].includes(categoria)) throw new Error('Informe número e categoria da CNH.');
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(validade) || isNaN(new Date(validade + 'T12:00:00').getTime())) throw new Error('Informe a validade da CNH.');
+  if (!cidade) throw new Error('Informe cidade/UF.');
+  const sh = getSheet_('MOTORISTAS');
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  const ix = {};
+  headers.forEach((h,i) => { const k=String(h||'').trim().toUpperCase(); if(k && ix[k]===undefined) ix[k]=i; });
+  const required = ['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'];
+  required.forEach(k => { if(ix[k]===undefined) throw new Error('Cabeçalho obrigatório ausente em MOTORISTAS: '+k); });
+  const rows = sh.getLastRow()>1 ? sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getDisplayValues() : [];
+  if (rows.some(r => digitos_(r[ix.CPF]) === cpf)) throw new Error('Já existe um motorista cadastrado com este CPF.');
+  const id = Utilities.getUuid(), row = new Array(headers.length).fill('');
+  const values = {ID:id,CRIADO_EM:new Date(),STATUS:'PENDENTE_REVISAO',NOME_COMPLETO:nome,CPF:cpf,TELEFONE:telefone,EMAIL:email,CNH_NUMERO:cnh,CNH_CATEGORIA:categoria,CNH_VALIDADE:validade,CIDADE_UF:cidade,OBSERVACOES:observacoes};
+  Object.keys(values).forEach(k => { row[ix[k]]=values[k]; });
+  sh.appendRow(row);
+  auditar_(session,'CADASTRO_MANUAL_MOTORISTA','MOTORISTA',id,'Cadastro manual criado como PENDENTE_REVISAO.');
+  return {ok:true,id:id,status:'PENDENTE_REVISAO',message:'Motorista cadastrado e encaminhado para revisão. O acesso não foi ativado.'};
+}
