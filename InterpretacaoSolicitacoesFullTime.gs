@@ -211,7 +211,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
       var pendingEvidence = 'Volume do destino ' + (index + 1) + ' não comprovado na mensagem original';
       var questionEvidence = 'Qual é o volume contratado para o destino ' + (destination.cliente || destination.local || ('número ' + (index + 1))) + '?';
       if (!result.camposPendentes.some(function(x) { return String(x).indexOf('Volume do destino ' + (index + 1)) === 0; })) result.camposPendentes.push(pendingEvidence);
-      if (!result.perguntas.some(function(x) { return String(x).toLowerCase().indexOf('volume do destino ' + (index + 1)) >= 0 || String(x).toLowerCase().indexOf(String(destination.cliente || destination.local || '').toLowerCase()) >= 0 && /volume/i.test(String(x)); })) result.perguntas.push(questionEvidence);
+      if (result.perguntas.indexOf(questionEvidence) < 0) result.perguntas.push(questionEvidence);
     }
   });
   var pending = result.camposPendentes
