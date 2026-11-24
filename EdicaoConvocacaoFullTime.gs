@@ -61,6 +61,7 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
     }
 
     const newDriverId = String(candidate.driverId || '');
+    if (newDriverId && newDriverId === String(old[map.MOTORISTA_ID] || '')) throw new Error('O conjunto escolhido pertence ao mesmo motorista da convocação atual. Escolha outro motorista.');
     const conflict = rows.slice(1).some(r => {
       const st = String(r[map.STATUS_PARTICIPACAO] || '').trim().toUpperCase();
       if (!['OFERTADA', 'ACEITA', 'ATIVO', 'SAIU', 'EM_VIAGEM'].includes(st)) return false;
@@ -75,12 +76,13 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
 
     const now = new Date();
     const oldDriverId = String(old[map.MOTORISTA_ID] || '');
-    const oldName = String(old[map.MOTIVO] || '');
     sh.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue('CANCELADA_SUBSTITUICAO');
     if (map.RESPONDIDA_EM !== undefined) sh.getRange(rowNumber, map.RESPONDIDA_EM + 1).setValue(now);
     if (map.MOTIVO !== undefined) sh.getRange(rowNumber, map.MOTIVO + 1).setValue('Convocação substituída por administrador. Motivo: ' + motivo);
     if (map.OBSERVACOES_OFERTA !== undefined) sh.getRange(rowNumber, map.OBSERVACOES_OFERTA + 1).setValue('Substituída em ' + now.toISOString() + ' por ' + session.login + '. ' + motivo);
 
+    const oldOrigin = String(old[map.ORIGEM_OFERTA] || '').trim().toUpperCase();
+    const isAutoQueue = oldOrigin === 'FILA_AUTOMATICA';
     const newOfferId = 'OFT-' + Utilities.getUuid();
     const newRow = new Array(sh.getLastColumn()).fill('');
     const fields = {
@@ -91,12 +93,30 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
       MOTIVO: 'Convocação substituta. ' + motivo,
       REGISTRADO_POR: session.login || session.nome || 'ADMIN',
       OFERTADA_EM: now, RESPONDIDA_EM: '',
-      EXPIRA_EM: new Date(now.getTime() + 12 * 60 * 60 * 1000),
-      ORIGEM_OFERTA: 'PAINEL_ADMIN_SUBSTITUICAO',
+      EXPIRA_EM: new Date(now.getTime() + (isAutoQueue ? FT_AUTO_TTL_ : 12 * 60 * 60 * 1000)),
+      ORIGEM_OFERTA: isAutoQueue ? 'FILA_AUTOMATICA' : 'PAINEL_ADMIN_SUBSTITUICAO',
       OBSERVACOES_OFERTA: 'Substitui a oferta ' + ofertaId + '. ' + motivo
     };
     Object.keys(fields).forEach(k => FT_CONV_set_(newRow, map, k, fields[k]));
     sh.appendRow(newRow);
+
+    // Mantém a fila automática coerente: a nova oferta ocupa o lugar da anterior
+    // e o motorista/conjunto escolhido não volta a aparecer no restante da fila.
+    if (isAutoQueue && typeof FT_AUTO_READ_ === 'function' && typeof FT_AUTO_WRITE_ === 'function') {
+      const queues = FT_AUTO_READ_(), q = queues[operacaoId];
+      if (q && q.status === 'EM_ANDAMENTO') {
+        q.pendentes = (q.pendentes || []).map(id => String(id) === ofertaId ? newOfferId : id);
+        if (!q.pendentes.includes(newOfferId)) q.pendentes.push(newOfferId);
+        const cursor = Number(q.cursor || 0);
+        const before = (q.lista || []).slice(0, cursor);
+        const after = (q.lista || []).slice(cursor).filter(x =>
+          String(x.conjuntoId) !== novoConjuntoId && String(x.motoristaId) !== newDriverId
+        );
+        q.lista = before.concat(after);
+        q.cursor = before.length;
+        FT_AUTO_WRITE_(queues);
+      }
+    }
 
     FT_CONV_appendEvent_({
       tipo: 'OFERTA_CANCELADA_SUBSTITUICAO', operacaoId,
