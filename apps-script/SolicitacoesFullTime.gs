@@ -24,7 +24,7 @@ function ftSolEnsureHeaders_(sh){
 }
 function ftSolText_(v,max){return String(v==null?'':v).replace(/\u0000/g,'').trim().slice(0,max);}
 function ftSolJson_(v,fallback){if(v==null||v==='')return fallback;if(typeof v!=='string')return v;try{return JSON.parse(v);}catch(e){throw new Error('JSON inválido nos dados da solicitação.');}}
-function ftSolCols_(sh){var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],m={};h.forEach(function(v,i){m[String(v).trim()]=i+1;});return m;}
+function ftSolCols_(sh){var lastCol=sh.getLastColumn();if(!lastCol)throw new Error('A guia ENTRADA_OPERACOES_IA está sem cabeçalhos. Nenhum dado foi alterado.');var h=sh.getRange(1,1,1,lastCol).getDisplayValues()[0],m={};h.forEach(function(v,i){var k=String(v||'').trim().toUpperCase();if(k)m[k]=i+1;});return m;}
 function ftSolEvent_(acao,autor,detalhe){return {em:new Date().toISOString(),acao:acao,autor:autor||'SISTEMA',detalhe:detalhe||''};}
 function ftSolMeta_(row,c){var raw=row[c.INTERPRETACAO_JSON-1];var meta={};try{meta=JSON.parse(raw||'{}')||{};}catch(e){};if(!meta.solicitacao)meta.solicitacao={};return meta;}
 function ftSolPutMeta_(sh,row,c,meta){sh.getRange(row,c.INTERPRETACAO_JSON).setValue(JSON.stringify(meta));}
@@ -35,7 +35,8 @@ function ftSolComputeMissingFields_(d){
  d=d||{};var m=[];
  if(!ftSolText_(d.cliente,120))m.push('Cliente');
  if(!ftSolText_(d.origemDetalhada||d.origem,160))m.push('Origem identificável (local e cidade/UF)');
- if(!ftSolText_(d.destinoDetalhado||d.destino,160))m.push('Destino identificável (local e cidade/UF)');
+ var destinos=Array.isArray(d.destinos)?d.destinos:[];if(!destinos.length&&!ftSolText_(d.destinoDetalhado||d.destino,160))m.push('Pelo menos um destino identificável (local e cidade/UF)');
+ if(destinos.length){var soma=0;destinos.forEach(function(x,i){if(!ftSolText_(x.cliente,160))m.push('Empresa do destino '+(i+1));if(!ftSolText_(x.local||x.destino,220))m.push('Local do destino '+(i+1));var q=ftSolNumber_(x.volume);if(!(q>0))m.push('Volume do destino '+(i+1));soma+=q;});if(ftSolNumber_(d.volume)>0&&soma>ftSolNumber_(d.volume)+0.000001)m.push('Soma dos volumes dos destinos excede o volume total');}
  if(!(ftSolNumber_(d.volume)>0))m.push('Peso/volume total numérico maior que zero');
  if(!(ftSolNumber_(d.volumePorViagem)>0)&&!(ftSolNumber_(d.viagensPrevistas)>0))m.push('Volume por viagem ou quantidade prevista de viagens');
  if(['t','ton','tonelada','toneladas'].indexOf(ftSolText_(d.unidadeVolume,30).toLowerCase())<0)m.push('Unidade do peso confirmada em toneladas (t)');
@@ -94,6 +95,7 @@ function diagnosticarNucleoSolicitacoesFullTime(){var sh=ftSolSheet_();return {o
 function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas){
  var s=obterSessao_(token);exigirAdmin_(s);dados=dados||{};var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'],clean={};
  allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
+ clean.destinos=Array.isArray(dados.destinos)?dados.destinos.slice(0,50).map(function(x){x=x||{};return {cliente:ftSolText_(x.cliente,160),local:ftSolText_(x.local,220),cidadeUf:ftSolText_(x.cidadeUf,120),volume:ftSolText_(x.volume,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)};}):[];
  var sh=ftSolSheet_(),c=ftSolCols_(sh),row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
  var meta=ftSolMeta_(sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],c),missing=ftSolComputeMissingFields_(clean),status=missing.length?'EM_COLETA':'AGUARDANDO_APROVACAO';
  meta.dados=clean;meta.analise={resumo:'Revisão humana',dados:clean,ambiguidades:meta.analise&&meta.analise.ambiguidades||[],prontoParaRevisao:missing.length===0,origemRevisao:'HUMANA',revisadoEm:new Date().toISOString()};
@@ -115,9 +117,11 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
  if(!(planned>0)&&perTrip>0)planned=Math.ceil(weight/perTrip);planned=Math.floor(planned);if(!(planned>0&&planned<=100000))throw new Error('Não foi possível calcular as viagens previstas. Informe a quantidade de viagens ou o volume por viagem.');
  var types=['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'],type=String(d.tipoOperacao||'').toUpperCase();if(types.indexOf(type)<0)type='OUTRA';
  var categories=['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'],category=String(d.categoria||'PADRAO').toUpperCase();if(categories.indexOf(category)<0)category='PADRAO';
- var client=ftSolText_(d.cliente,120),origin=ftSolText_(d.origemDetalhada||d.origem,160),destination=ftSolText_(d.destinoDetalhado||d.destino,160),operationName=ftSolText_(d.nomeOperacao,160)||[ftSolText_(d.produto,60),client,origin+' → '+destination].filter(Boolean).join(' — ').slice(0,160);
- var obs=['[SOLICITACAO_ORIGEM:'+id+']',d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado'),d.dataEntregaTexto?'Entrega: '+d.dataEntregaTexto:''].filter(Boolean).join(' | ').slice(0,1000),operations=getSheet_('OPERACOES');
- var operationId=Utilities.getUuid(),now=new Date();ftOperationAppendFullTime_(operations,{ID:operationId,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:operationName,ORIGEM:origin,DESTINO:destination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:weight,TOTAL_VIAGENS_PREVISTAS:planned,SALDO_TONELADAS:weight,OBSERVACOES:obs,CRIADO_POR:s.login||s.nome||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type,PRODUTO_SERVICO:d.produto||''});
- sh.getRange(row,c.OPERACAO_ID).setValue(operationId);sh.getRange(row,c.PROCESSADO_EM).setValue(now);m.idOperacaoGerada=operationId;m.atualizadoEm=now.toISOString();m.historico=m.historico||[];m.historico.push(ftSolEvent_('OPERACAO_GERADA',s.login,'Operação '+operationId+' criada; '+planned+' viagem(ns) previstas.'));ftSolPutMeta_(sh,row,c,meta);
- return {ok:true,duplicada:false,idOperacao:operationId,message:'Operação criada com vínculo à solicitação '+id+'; '+planned+' viagem(ns) previstas.'};
+ var origin=ftSolText_(d.origemDetalhada||d.origem,180),destinations=Array.isArray(d.destinos)?d.destinos:[];
+ if(!destinations.length)destinations=[{cliente:ftSolText_(d.cliente,160),local:ftSolText_(d.destinoDetalhado||d.destino,220),cidadeUf:'',volume:weight,dataPrevista:d.dataEntrega||'',observacoes:d.observacoes||''}];
+ var payload={data:date,cliente:ftSolText_(d.cliente,120),nome:ftSolText_(d.nomeOperacao,160)||[ftSolText_(d.produto,60),ftSolText_(d.cliente,60),origin].filter(Boolean).join(' — ').slice(0,160),origem:origin,volumeTotal:weight,viagensPrevistas:planned,produto:ftSolText_(d.produto,160),tipoOperacao:type,categoria:category,distanciaKm:d.distanciaKm||'',dataEntrega:d.dataEntrega||'',janelaInicio:d.horarioColeta||'',janelaFim:d.horarioEntrega||'',tempoEstimadoHoras:d.tempoEstimadoHoras||'',observacoes:[d.observacoes,d.restricoes,'Contato: '+(d.contato||'não informado')].filter(Boolean).join(' | ').slice(0,1000),destinos:destinations.map(function(x){return {cliente:x.cliente||x.empresa||'',local:x.local||x.destino||x.endereco||'',cidadeUf:x.cidadeUf||x.cidade||'',volume:x.volume||x.volumePrevisto||'',dataPrevista:x.dataPrevista||d.dataEntrega||'',observacoes:x.observacoes||''};})};
+ if(typeof ftMvpCreateOperationForSession_!=='function')throw new Error('Módulo de destinos ainda não sincronizado. Atualize MvpDestinosFullTime.gs antes de converter.');
+ var created=ftMvpCreateOperationForSession_(s,payload),operationId=created.id,now=new Date();
+ sh.getRange(row,c.OPERACAO_ID).setValue(operationId);sh.getRange(row,c.PROCESSADO_EM).setValue(now);m.idOperacaoGerada=operationId;m.atualizadoEm=now.toISOString();m.historico=m.historico||[];m.historico.push(ftSolEvent_('OPERACAO_GERADA',s.login,'Operação '+operationId+' criada com '+created.destinos+' destino(s).'));ftSolPutMeta_(sh,row,c,meta);
+ return {ok:true,duplicada:false,idOperacao:operationId,destinos:created.destinos,message:'Operação criada com vínculo à solicitação '+id+' e '+created.destinos+' destino(s).'};
 }
