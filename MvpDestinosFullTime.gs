@@ -49,7 +49,7 @@ function ftMvpCreateOperationForSession_(session,data){data=data||{};
  if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(type))throw new Error('Tipo de operação inválido.');
  if(!destinations.length)throw new Error('Cadastre pelo menos um destino. Para destino único, informe apenas uma linha.');
  var clean=destinations.map(function(d,i){var customer=ftMvpText_(d.cliente,160),place=ftMvpText_(d.local,220),city=ftMvpText_(d.cidadeUf,120),qty=ftMvpNum_(d.volume),due=ftMvpDate_(d.dataPrevista),obs=ftMvpText_(d.observacoes,500);if(!customer||!place)throw new Error('Destino '+(i+1)+': informe empresa e local de entrega.');if(!(qty>0&&isFinite(qty)))throw new Error('Destino '+(i+1)+': volume precisa ser maior que zero.');return {ordem:i+1,cliente:customer,local:place,cidade:city,volume:qty,data:due,obs:obs};});
- var allocated=clean.reduce(function(sum,d){return sum+d.volume;},0);if(allocated>volume+0.000001)throw new Error('A soma dos destinos ('+allocated+' t) excede o volume total ('+volume+' t).');
+ var allocated=clean.reduce(function(sum,d){return sum+d.volume;},0);ftMvpValidateAllocation_(volume,allocated);
  var ops=ftMvpSheet_('OPERACOES'),dest=ftMvpSheet_('DESTINOS_OPERACAO'),opMap=ftMvpMap_(ops),destMap=ftMvpMap_(dest);
  ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'].forEach(function(k){ftMvpCol_(opMap,k);});
  FT_MVP_DESTINOS_HEADERS.forEach(function(k){ftMvpCol_(destMap,k);});
@@ -135,9 +135,20 @@ function auditarMvpDestinosFullTime(){
 }
 
 /** Teste puro, sem planilha, sem API e sem gravar dados. */
+function ftMvpValidateAllocation_(total, allocated){
+ if(!(total>0&&isFinite(total)))throw new Error('O volume total precisa ser maior que zero.');
+ if(!(allocated>0&&isFinite(allocated)))throw new Error('O volume distribuído precisa ser maior que zero.');
+ if(allocated>total+0.000001)throw new Error('A soma dos destinos ('+allocated+' t) excede o volume total ('+total+' t).');
+ return {total:total,distribuido:allocated,saldo:total-allocated};
+}
 function testarRegrasMvpDestinosFullTime(){
- var cases=[{name:'cinco destinos e saldo residual',total:800,parts:[120,100,300,50,90],expected:660},{name:'destino único',total:250,parts:[250],expected:250},{name:'não aceitar excesso',total:100,parts:[70,40],expected:null}];
- var out=cases.map(function(c){var sum=c.parts.reduce(function(a,b){return a+b;},0),ok=c.expected===null?sum>c.total:sum<=c.total&&sum===c.expected;return {teste:c.name,ok:ok,total:c.total,distribuido:sum,saldo:c.total-sum};});
+ var cases=[{name:'cinco destinos e saldo residual',total:800,parts:[120,100,300,50,90],expected:660,shouldReject:false},{name:'destino único',total:250,parts:[250],expected:250,shouldReject:false},{name:'não aceitar excesso',total:100,parts:[70,40],shouldReject:true}];
+ var out=cases.map(function(c){
+  var sum=c.parts.reduce(function(a,b){return a+b;},0),rejected=false,detail='',allocation=null;
+  try{allocation=ftMvpValidateAllocation_(c.total,sum);}catch(e){rejected=true;detail=e.message;}
+  var ok=c.shouldReject?rejected:(!rejected&&sum===c.expected);
+  return {teste:c.name,ok:ok,total:c.total,distribuido:sum,saldo:allocation?allocation.saldo:null,rejeitado:rejected,detalhe:detail};
+ });
  var result={ok:out.every(function(x){return x.ok;}),testes:out};Logger.log('FT_MVP_TESTE_REGRAS '+JSON.stringify(result));return result;
 }
 
