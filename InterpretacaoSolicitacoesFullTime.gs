@@ -94,7 +94,10 @@ function analisarSolicitacaoIAFullTime(token, id) {
     '- Preserve números, unidades, nomes e locais como foram informados.',
     '- Não transforme "amanhã" em uma data sem uma referência de data confiável. Registre a expressão literal em dataColetaTexto e deixe dataColeta vazia.',
     '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que o peso informado seja por caminhão.',
-    '- Origem e destino precisam ser locais identificáveis. "Porto" ou "unidade" sem endereço/localidade específica podem exigir confirmação.',
+    '- Uma mesma operação pode ter vários destinos de entrega. Extraia cada empresa/local e seu volume em dados.destinos; não crie uma operação separada por empresa.',
+    '- O volume dos destinos somados não pode exceder o volume total. Se faltar distribuição, mantenha volume não distribuído e sinalize a pendência.',
+    '- Se houver somente um destino, retorne uma única entrada em dados.destinos. Se não houver destino, retorne [].',
+    '- Origem precisa ser identificável. "Porto" sem terminal/cidade pode exigir confirmação; cada destino precisa de empresa, local e volume quando informado.',
     '- Identifique ambiguidades, contradições e dados que precisam ser confirmados.',
     '- Faça perguntas objetivas, uma por lacuna relevante. Não pergunte novamente o que já está claro.',
     '- Não declare transporte aprovado ou confirmado.',
@@ -105,6 +108,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     '  "cliente": string, "contato": string, "produto": string, "tipoCarga": string,',
     '  "volume": string, "unidadeVolume": string, "volumePorViagem": string, "viagensPrevistas": string,',
     '  "origem": string, "origemDetalhada": string, "destino": string, "destinoDetalhado": string,',
+    '  "destinos": [{"cliente": string, "local": string, "cidadeUf": string, "volume": string, "dataPrevista": string, "observacoes": string}],',
     '  "dataColetaTexto": string, "dataColeta": string, "horarioColeta": string,',
     '  "dataEntregaTexto": string, "dataEntrega": string, "horarioEntrega": string,',
     '  "tipoOperacao": string, "categoria": string, "nomeOperacao": string, "veiculoSolicitado": string, "frequencia": string,',
@@ -168,6 +172,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
   allowed.forEach(function (key) {
     data[key] = ftSolText_(result.dados[key], 500);
   });
+  data.destinos = Array.isArray(result.dados.destinos) ? result.dados.destinos.slice(0,50).map(function (x) { x=x||{}; return {cliente:ftSolText_(x.cliente||x.empresa,160),local:ftSolText_(x.local||x.destino||x.endereco,220),cidadeUf:ftSolText_(x.cidadeUf||x.cidade,120),volume:ftSolText_(x.volume||x.volumePrevisto,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)}; }) : [];
 
   var pending = result.camposPendentes
     .map(function (value) { return ftSolText_(value, 250); })
