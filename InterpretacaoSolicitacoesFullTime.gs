@@ -119,7 +119,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     '- Não invente nem complete dados ausentes. Use string vazia quando não houver informação.',
     '- Preserve números, unidades, nomes e locais como foram informados.',
     '- Não transforme "amanhã" em uma data sem uma referência de data confiável. Registre a expressão literal em dataColetaTexto e deixe dataColeta vazia.',
-    '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que o peso informado seja por caminhão.',
+    '- Identifique a quantidade de motoristas/conjuntos solicitados quando informada. Não confunda quantidade de motoristas com quantidade de viagens.',\n    '- Não exija quantidade prevista de viagens na solicitação. Se volume por viagem estiver explicitamente informado, a previsão poderá ser calculada internamente; caso contrário, mantenha viagens previstas vazias.',
     '- Em operações ligadas a navio, não confunda o volume total da carga do navio com o volume contratado pela Full Time. O volume da operação deve ser somente a quantidade que a Full Time efetivamente transportará, conforme informado; se não estiver claro, deixe pendente e pergunte. Nunca deduza que toda a carga do navio pertence à operação.',
     '- Pesos de balança podem variar. Preserve o peso real informado, não exija igualdade exata com estimativas e não recomende bloquear viagem por divergência de pesagem. Sinalize diferenças para conferência humana.',
     '- Uma mesma operação pode ter vários destinos de entrega. Extraia cada empresa/local e seu volume em dados.destinos; não crie uma operação separada por empresa.',
@@ -135,7 +135,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     ' "resumo": string,',
     ' "dados": {',
     '  "cliente": string, "contato": string, "produto": string, "tipoCarga": string,',
-    '  "volume": string, "unidadeVolume": string, "volumePorViagem": string, "viagensPrevistas": string,',
+    '  "volume": string, "unidadeVolume": string, "volumePorViagem": string, "motoristasNecessarios": string, "viagensPrevistas": string,',
     '  "origem": string, "origemDetalhada": string, "destino": string, "destinoDetalhado": string,',
     '  "destinos": [{"cliente": string, "local": string, "cidadeUf": string, "volume": string, "evidenciaVolume": string, "dataPrevista": string, "observacoes": string}],',
     '  "dataColetaTexto": string, "dataColeta": string, "horarioColeta": string,',
@@ -191,7 +191,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
 
   var allowed = [
     'cliente', 'contato', 'produto', 'tipoCarga', 'volume', 'unidadeVolume',
-    'volumePorViagem', 'viagensPrevistas', 'origem', 'origemDetalhada',
+    'volumePorViagem', 'motoristasNecessarios', 'viagensPrevistas', 'origem', 'origemDetalhada',
     'destino', 'destinoDetalhado', 'dataColetaTexto', 'dataColeta',
     'horarioColeta', 'dataEntregaTexto', 'dataEntrega', 'horarioEntrega',
     'tipoOperacao', 'categoria', 'nomeOperacao', 'veiculoSolicitado',
