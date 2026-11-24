@@ -74,3 +74,12 @@ Executar somente em ambiente de homologação, com mensagem fictícia.
 - [ ] Aprovar somente depois de preencher os requisitos operacionais; conferir que a conversão é uma ação separada e idempotente.
 
 **Contrato do módulo:** `SolicitacoesFullTime.gs` define os 18 cabeçalhos; `InterpretacaoSolicitacoesFullTime.gs` deve consumir apenas esses cabeçalhos e o objeto JSON de metadados. Não criar colunas paralelas como `TEXTO_ORIGINAL`, `DADOS_EXTRAIDOS_JSON`, `CAMPOS_PENDENTES_JSON`, `PERGUNTAS_IA` ou `HISTORICO_JSON`.
+
+
+### Contingência de capacidade Gemini
+
+- [ ] Simular HTTP 503 no modelo principal e confirmar retentativas com backoff exponencial e jitter.
+- [ ] Confirmar fallback automático para `gemini-3.7-flash` e, depois, `gemini-3.5-flash-lite`.
+- [ ] Confirmar que o retorno registra qual modelo respondeu, sem registrar a chave da API.
+- [ ] Confirmar que erros HTTP 400/401/402/403 não acionam fallback, pois exigem correção de requisição, autenticação ou cobrança.
+- [ ] Executar `testarConexaoGeminiFullTime()` e verificar qual modelo está conseguindo gerar texto no momento.
