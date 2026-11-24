@@ -2,7 +2,7 @@
 
 Aplicação de gestão e escala de operações de transporte, construída com Google Apps Script, Google Sheets e interface web.
 
-## Arquitetura vigente (2026-11-11)
+## Arquitetura vigente (revisada em 2026-11-24)
 
 - **Planilha principal:** fonte única dos dados operacionais e cadastros de frota.
 - **Base de autenticação:** arquivo separado, identificado pela propriedade de script `FT_DATABASE_ID`. Guarda usuários, auditoria e recuperação de senha. Não deve ser limpa pela reconstrução operacional.
@@ -23,7 +23,7 @@ Aplicação de gestão e escala de operações de transporte, construída com Go
 - `FULLTIME_CENTRALIZACAO_RECONSTRUCAO_20261111.gs`: preparação da arquitetura central e geração de dados fictícios para homologação.
 - `FULLTIME_OPERACOES_TESTE.gs`: geração adicional de operações de teste, quando necessária.
 - `AuditoriaEstruturalFullTime2.gs`: auditoria estrutural.
-- `docs/CONTRATO_CANONICO_CABECALHOS.md`: contrato único de cabeçalhos das 14 guias operacionais.
+- `docs/CONTRATO_CANONICO_CABECALHOS.md`: contrato de cabeçalhos das guias operacionais.\n- `docs/CONSOLIDACAO_FUNCIONAL_20261124.md`: escopo funcional consolidado, regras obrigatórias, estado confirmado dos testes e sequência de homologação.
 - `FT_AUDITAR_CONTRATO_CABECALHOS_20261111()` em `Code.gs`: auditoria somente leitura dos cabeçalhos reais da planilha principal.
 
 Arquivos de sincronização Bruno e a rotina antiga de reconstrução foram retirados da branch ativa para evitar que sejam executados por engano.
@@ -70,7 +70,7 @@ Ela cria backup da planilha principal, aponta `FT_REGISTRY_DATABASE_ID` para a p
 
 ## MVP de operações com múltiplos destinos
 
-A operação representa a carga/serviço total (por exemplo, um navio com 800 t) e pode possuir um ou vários destinos. Os volumes são registrados em `DESTINOS_OPERACAO`; a soma distribuída não pode ultrapassar o total, e o saldo não destinado permanece visível na operação. Entregas de operações multidestino exigem `ID_DESTINO` e atualizam o saldo do destino e o saldo geral.
+A revisão funcional consolidada de 2026-11-24 está em `docs/CONSOLIDACAO_FUNCIONAL_20261124.md`. Ela deve ser consultada antes de novas alterações ou homologações.\n\nA operação representa a carga/serviço total (por exemplo, um navio com 800 t) e pode possuir um ou vários destinos. Os volumes são registrados em `DESTINOS_OPERACAO`; a soma distribuída não pode ultrapassar o total, e o saldo não destinado permanece visível na operação. Entregas de operações multidestino exigem `ID_DESTINO` e atualizam o saldo do destino e o saldo geral.
 
 O formulário **Cadastro manual completo — sem IA** cria a mesma estrutura operacional sem depender de Gemini. A IA interpreta a mensagem, pode extrair uma lista de destinos e preenche a revisão; nunca aprova nem cria operação automaticamente. Cancelamento e reabertura exigem justificativa e preservam auditoria.
 
