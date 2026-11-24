@@ -12,20 +12,11 @@ const FT_CONFIG = {
  * Execute manualmente no Apps Script após conferir que a URL é a planilha correta.
  */
 function conectarPlanilhaOperacionalFullTime() {
-  // Segurança: nunca sobrescrever o ID configurado. Em homologação, a propriedade
-  // deve continuar apontando para HOMOLOGACAO_FULLTIME_PRINCIPAL_20261118.
-  const props = PropertiesService.getScriptProperties();
-  const spreadsheetId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const authId = props.getProperty('FT_DATABASE_ID');
-  if (!spreadsheetId) {
-    throw new Error('FT_REGISTRY_DATABASE_ID não configurado. Defina a base de homologação nas propriedades do projeto.');
-  }
-  if (spreadsheetId === authId) {
-    throw new Error('Segurança: base operacional e base de autenticação não podem ser a mesma planilha.');
-  }
+  const spreadsheetId = '11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const ss = SpreadsheetApp.openById(spreadsheetId);
-  console.log('Base operacional já configurada (sem sobrescrever propriedades): ' + ss.getName());
-  console.log('ID operacional: ' + spreadsheetId);
+  PropertiesService.getScriptProperties().setProperty('FT_REGISTRY_DATABASE_ID', spreadsheetId);
+  console.log('Fonte única conectada: ' + ss.getUrl());
+  console.log('Cadastros, operações e escala serão lidos e gravados diretamente nesta planilha.');
   return ss.getUrl();
 }
 
@@ -112,29 +103,6 @@ function loginFullTime(email, senha) {
   CacheService.getScriptCache().put(FT_CONFIG.SESSION_PREFIX + token, JSON.stringify(session), FT_CONFIG.SESSION_TTL_SECONDS);
   auditar_(session, 'LOGIN', 'SESSAO', '', 'Login por e-mail efetuado');
   return { token: token, user: session };
-}
-
-/**
- * Restaura a identidade da sessão após F5/reabertura da aba.
- * Retorna somente os campos necessários à interface; não cria nem renova credenciais.
- */
-function restaurarSessaoFullTime(token) {
-  const session = obterSessao_(token);
-  const perfil = String(session.perfil || '').trim().toUpperCase();
-  if (perfil !== 'ADMIN' && perfil !== 'MOTORISTA') {
-    throw new Error('Perfil de acesso inválido. Entre novamente.');
-  }
-  return {
-    user: {
-      id: String(session.id || ''),
-      login: String(session.login || ''),
-      email: String(session.email || ''),
-      nome: String(session.nome || ''),
-      perfil: perfil,
-      motoristaId: String(session.motoristaId || ''),
-      trocarSenha: session.trocarSenha === true
-    }
-  };
 }
 
 function encerrarSessaoFullTime(token) {
@@ -256,10 +224,11 @@ function prepararBaseOperacionalFullTime() {
   const ss = SpreadsheetApp.openById(id);
   const schemas = {
     OPERACOES: ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','PRODUTO_SERVICO','DISTANCIA_KM','DATA_ENTREGA','JANELA_INICIO','JANELA_FIM','TEMPO_ESTIMADO_HORAS'],
+    DESTINOS_OPERACAO: ['ID','CRIADO_EM','OPERACAO_ID','ORDEM_ENTREGA','CLIENTE_DESTINO','LOCAL_ENTREGA','CIDADE_UF','VOLUME_PREVISTO_TONELADAS','VOLUME_ENTREGUE_TONELADAS','SALDO_TONELADAS','STATUS','DATA_PREVISTA','OBSERVACOES'],
     DOCUMENTOS: ['ID_DOCUMENTO','CRIADO_EM','STATUS','TIPO_DOCUMENTO','ENTIDADE','ID_EXTERNO','NUMERO_DOCUMENTO','DATA_EMISSAO','DATA_VALIDADE','OBSERVACOES'],
     ENTRADA_OPERACOES_IA: ['ID','RECEBIDO_EM','ORIGEM_MENSAGEM','MENSAGEM_BRUTA','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','DATA_OPERACAO','VOLUME_TONELADAS','VIAGENS_PREVISTAS','PRODUTO','TIPO_OPERACAO','STATUS_INTERPRETACAO','OPERACAO_ID','OBSERVACOES','INTERPRETACAO_JSON','PROCESSADO_EM'],
-    PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR'],
-    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS'],
+    PARTICIPACAO_OPERACOES: ['ID','CRIADO_EM','OPERACAO_ID','CONJUNTO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','INICIO_EM','SAIDA_EM','RETORNO_EM','TONELADAS_MOVIMENTADAS','VIAGENS_CONCLUIDAS','MOTIVO','REGISTRADO_POR','OFERTADA_EM','RESPONDIDA_EM','EXPIRA_EM','ORIGEM_OFERTA','OBSERVACOES_OFERTA','DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'],
+    MOVIMENTACOES_OPERACAO: ['ID','DATA_HORA','OPERACAO_ID','PARTICIPACAO_ID','CONJUNTO_ID','TONELADAS','VIAGEM_CONCLUIDA','OBSERVACOES','REGISTRADO_POR','QUANTIDADE_VIAGENS','ID_DESTINO'],
     LOCAIS: ['ID','CRIADO_EM','STATUS','NOME_LOCAL','CLIENTE','TIPO_LOCAL','ENDERECO','CIDADE_UF','REGRAS_OBSERVACOES'],
     REGRAS_OPERACIONAIS: ['ID','CRIADO_EM','STATUS','LOCAL_ID','PESO_MIN_TONELADAS','PESO_MAX_TONELADAS','TIPO_CAVALO','TIPO_CARRETA','EXIGENCIAS','OBSERVACOES'],
     DISPONIBILIDADE_DIARIA: ['ID','CRIADO_EM','DATA_OPERACAO','MOTORISTA_ID','STATUS_DISPONIBILIDADE','CONFIRMADO_EM','INDISPONIVEL_EM','MOTIVO','ATUALIZADO_POR'],
@@ -296,11 +265,11 @@ function prepararBaseOperacionalFullTime() {
     } else if (row.every(v => !v)) {
       sh.getRange(1,1,1,headers.length).setValues([headers]);
     } else {
-      const prefix = row.every((v,i) => headers[i] === v);
+      const prefix = headers.every((h,i) => row[i] === h);
       if (prefix && row.length < headers.length) {
         sh.getRange(1,row.length+1,1,headers.length-row.length).setValues([headers.slice(row.length)]);
-      } else if (row.length !== headers.length || headers.some((h,i) => row[i] !== h)) {
-        throw new Error('A guia ' + name + ' já existe com cabeçalhos diferentes. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
+      } else if (!prefix) {
+        throw new Error('A guia ' + name + ' já existe com cabeçalhos incompatíveis. Nenhum dado foi sobrescrito; revise essa guia antes de continuar.');
       }
     }
     sh.setFrozenRows(1);
@@ -436,8 +405,8 @@ function getSheet_(name) {
   // Fonte única: planilha principal. Somente autenticação e auditoria ficam na base interna.
   const props = PropertiesService.getScriptProperties();
   const registryId = props.getProperty('FT_REGISTRY_DATABASE_ID');
-  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA'];
-  const authTabs = ['USUARIOS','AUDITORIA','RECUPERACAO_SENHA'];
+  const operationalTabs = ['MOTORISTAS','CAVALOS','CARRETAS','CONJUNTOS','DOCUMENTOS','LOCAIS','REGRAS_OPERACIONAIS','DISPONIBILIDADE_DIARIA','FILA_MOTORISTAS','EVENTOS_ESCALA','OPERACOES','DESTINOS_OPERACAO','PARTICIPACAO_OPERACOES','MOVIMENTACOES_OPERACAO','ENTRADA_OPERACOES_IA'];
+  const authTabs = ['USUARIOS','AUDITORIA','TOKENS_RECUPERACAO'];
   if (registryId && operationalTabs.indexOf(name) !== -1) {
     const sh = SpreadsheetApp.openById(registryId).getSheetByName(name);
     if (!sh) throw new Error('A guia ' + name + ' não existe na planilha principal. Execute FT_CENTRAL_PREPARAR_E_RECONSTRUIR_TESTES_20261111().');
@@ -710,8 +679,7 @@ function salvarOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const dataOp=texto_(data.data,10), cliente=texto_(data.cliente,120), nome=texto_(data.nome,160);
   const origem=texto_(data.origem,160), destino=texto_(data.destino,160), categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(), tipoOperacao=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
-  const volume=Number(String(data.volumeTotal||'').replace(',','.')), toneladasPorViagem=Number(String(data.toneladasPorViagem||'').replace(',','.'));
-  const viagensPrevistas=toneladasPorViagem>0?Math.ceil(volume/toneladasPorViagem):0;
+  const volume=Number(String(data.volumeTotal||'').replace(',','.')), viagensPrevistas=Math.floor(Number(data.viagensPrevistas));
   const observacoes=texto_(data.observacoes,1000);
   const produto=texto_(data.produto,160), distanciaKm=Number(String(data.distanciaKm||'').replace(',','.'));
   const dataEntrega=texto_(data.dataEntrega,10), janelaInicio=texto_(data.janelaInicio,5), janelaFim=texto_(data.janelaFim,5);
@@ -726,54 +694,14 @@ function salvarOperacaoFullTime(token, data) {
   if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria)) throw new Error('Categoria de operação inválida.');
   if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipoOperacao)) throw new Error('Tipo de operação inválido.');
   if(!(volume>0&&isFinite(volume))) throw new Error('O volume total deve ser maior que zero.');
-  if(!(toneladasPorViagem>0&&isFinite(toneladasPorViagem))) throw new Error('Informe a carga estimada por viagem, em toneladas.');
-  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('A quantidade calculada de viagens é inválida. Revise o volume e a carga estimada por viagem.');
+  if(!(viagensPrevistas>0&&viagensPrevistas<=100000)) throw new Error('Informe a quantidade prevista de viagens.');
   const id=Utilities.getUuid(), now=new Date();
   const sh=getSheet_('OPERACOES');
   if(sh.getLastColumn()<16) throw new Error('A estrutura de Operações está desatualizada. Execute prepararBaseOperacionalFullTime() antes de continuar.');
   ftOperationAppendFullTime_(sh,{ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagensPrevistas,SALDO_TONELADAS:volume,OBSERVACOES:observacoes,CRIADO_POR:session.login,VIAGENS_REALIZADAS:0,TIPO_OPERACAO:tipoOperacao,PRODUTO_SERVICO:produto,DISTANCIA_KM:distanciaKm||'',DATA_ENTREGA:dataEntrega,JANELA_INICIO:janelaInicio,JANELA_FIM:janelaFim,TEMPO_ESTIMADO_HORAS:tempoEstimadoHoras||''});
-  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; carga estimada/viagem='+toneladasPorViagem+' t; viagens calculadas='+viagensPrevistas);
-  return {ok:true,id:id,viagensPrevistas:viagensPrevistas,toneladasPorViagem:toneladasPorViagem,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) calculadas automaticamente, considerando '+toneladasPorViagem+' t por viagem.'};
+  auditar_(session,'CRIAR','OPERACAO',id,nome+'; volume='+volume+' t; viagens previstas='+viagensPrevistas);
+  return {ok:true,id:id,message:'Operação criada. Saldo inicial: '+volume+' t; '+viagensPrevistas+' viagem(ns) previstas.'};
 }
-
-/**
- * Atualiza dados de planejamento somente enquanto a operação está ABERTA
- * e ainda não possui participações, viagens ou movimentações.
- * Preserva o saldo e os registros financeiros; não permite editar operação em execução.
- */
-function editarOperacaoFullTime(token, data) {
-  const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
-  const id=texto_(data.operacaoId,100);
-  if(!id)throw new Error('Identificador da operação não informado.');
-  const lock=LockService.getScriptLock();lock.waitLock(15000);
-  try {
-    const sh=getSheet_('OPERACOES'),grid=sh.getDataRange().getValues(),headers=(grid[0]||[]).map(h=>String(h||'').trim().toUpperCase()),ix={};
-    headers.forEach((h,i)=>{if(h&&ix[h]===undefined)ix[h]=i;});
-    const rowIndex=grid.findIndex((r,i)=>i>0&&String(r[ix.ID]||'')===id);
-    if(rowIndex<1)throw new Error('Operação não encontrada.');
-    const row=grid[rowIndex],status=String(row[ix.STATUS]||'').trim().toUpperCase();
-    if(status!=='ABERTA')throw new Error('Somente operações ainda ABERTAS podem ser editadas.');
-    const hasLinked=(sheetName,header)=>{const x=getSheet_(sheetName),v=x.getDataRange().getValues(),h=(v[0]||[]).map(z=>String(z||'').trim().toUpperCase()),col=h.indexOf(header);return col>=0&&v.slice(1).some(r=>String(r[col]||'')===id);};
-    if(hasLinked('PARTICIPACAO_OPERACOES','OPERACAO_ID')||hasLinked('VIAGENS','OPERACAO_ID')||hasLinked('MOVIMENTACOES_OPERACAO','OPERACAO_ID'))throw new Error('Esta operação já possui equipe, viagens ou movimentações vinculadas. Não é seguro alterar seu planejamento inicial.');
-    const dataOp=texto_(data.data,10),cliente=texto_(data.cliente,120),nome=texto_(data.nome,160),origem=texto_(data.origem,160),destino=texto_(data.destino,160);
-    const categoria=texto_(data.categoria||'PADRAO',40).toUpperCase(),tipo=texto_(data.tipoOperacao||'OUTRA',40).toUpperCase();
-    const volume=Number(String(data.volumeTotal||'').replace(',','.')),porViagem=Number(String(data.toneladasPorViagem||'').replace(',','.'));
-    const viagens=porViagem>0?Math.ceil(volume/porViagem):0;
-    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(dataOp)||!cliente||!nome||!origem||!destino)throw new Error('Preencha data, cliente, nome, origem e destino corretamente.');
-    if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(categoria))throw new Error('Categoria inválida.');
-    if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(tipo))throw new Error('Tipo de operação inválido.');
-    if(!(volume>0&&isFinite(volume)&&porViagem>0&&isFinite(porViagem)&&viagens>0&&viagens<=100000))throw new Error('Volume ou carga estimada por viagem inválidos.');
-    const entrega=texto_(data.dataEntrega,10),inicio=texto_(data.janelaInicio,5),fim=texto_(data.janelaFim,5);
-    const fields={DATA_OPERACAO:dataOp,CLIENTE:cliente,NOME_OPERACAO:nome,ORIGEM:origem,DESTINO:destino,CATEGORIA:categoria,TIPO_OPERACAO:tipo,
-      VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:viagens,SALDO_TONELADAS:volume,OBSERVACOES:texto_(data.observacoes,1000),
-      PRODUTO_SERVICO:texto_(data.produto,160),DISTANCIA_KM:data.distanciaKm?Number(String(data.distanciaKm).replace(',','.')):'',
-      DATA_ENTREGA:entrega,JANELA_INICIO:inicio,JANELA_FIM:fim,TEMPO_ESTIMADO_HORAS:data.tempoEstimadoHoras?Number(String(data.tempoEstimadoHoras).replace(',','.')):''};
-    Object.keys(fields).forEach(k=>{if(ix[k]!==undefined)sh.getRange(rowIndex+1,ix[k]+1).setValue(fields[k]);});
-    auditar_(session,'EDITAR','OPERACAO',id,'Planejamento inicial atualizado; volume='+volume+' t; carga estimada/viagem='+porViagem+' t; viagens recalculadas='+viagens);
-    return {ok:true,id:id,viagensPrevistas:viagens,message:'Planejamento da operação atualizado com segurança.'};
-  } finally {lock.releaseLock();}
-}
-
 function registrarMovimentacaoOperacaoFullTime(token, data) {
   const session=obterSessao_(token); exigirAdmin_(session); data=data||{};
   const operacaoId=texto_(data.operacaoId,100), conjuntoId=texto_(data.conjuntoId,100);
@@ -783,13 +711,14 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
   if(!operacaoId||!conjuntoId) throw new Error('Selecione a operação e o conjunto.');
   if(!(toneladas>0&&isFinite(toneladas))) throw new Error('Informe as toneladas efetivamente movimentadas.');
   if(!(viagens>0&&viagens<=10000)) throw new Error('Informe a quantidade de viagens concluídas nesta movimentação.');
-  throw new Error('REGISTRO BLOQUEADO: o fluxo antigo registra viagens por quantidade agregada e não comprova os tickets de carregamento e descarga. Registre e aprove as duas pesagens e conclua cada viagem individualmente pelo fluxo concluirViagemComPesagensFullTime(). Nenhuma movimentação foi gravada.');
   const lock=LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const ops=getSheet_('OPERACOES'), rows=ops.getDataRange().getValues(), idx=rows.findIndex((r,i)=>i>0&&String(r[0])===operacaoId);
     if(idx<1) throw new Error('Operação não encontrada.');
     const op=rows[idx], status=String(op[2]||'');
     if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
+    // Operações com destinos individualizados só podem movimentar pelo endpoint que recebe ID_DESTINO.
+    if(typeof ftMvpHasDestinations_==='function' && ftMvpHasDestinations_(operacaoId)) throw new Error('Esta operação possui destinos individualizados. Selecione a empresa atendida e registre a entrega pelo formulário de destinos.');
     const saldo=Number(op[11]||0);
     if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
     const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
@@ -806,8 +735,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(movimentos.getLastColumn()<10 || ops.getLastColumn()<16) throw new Error('As colunas de controle de viagens ainda não foram preparadas. Execute prepararBaseOperacionalFullTime().');
     movimentos.appendRow([moveId,new Date(),operacaoId,partId,conjuntoId,toneladas,'SIM',observacoes,session.login,viagens]);
     const novoSaldo=Math.max(0,saldo-toneladas);
-    // Atingir saldo zero não encerra a operação: o administrador confirma após conferir viagens e retornos.
-    ops.getRange(idx+1,3).setValue('EM_ANDAMENTO');
+    ops.getRange(idx+1,3).setValue(novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
     ops.getRange(idx+1,12).setValue(novoSaldo);
     const pIndex=pRows.findIndex((r,i)=>i>0&&String(r[0])===partId);
     const partRowIndex=pIndex>=1?pIndex+1:parts.getLastRow();
@@ -819,7 +747,7 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     const totalTrips=Math.max(0,Math.floor(Number(op[tripsCol]||0)))+viagens;
     ops.getRange(idx+1,tripsCol+1).setValue(totalTrips);
     auditar_(session,'REGISTRAR_MOVIMENTACAO','OPERACAO',operacaoId,toneladas+' t; '+viagens+' viagem(ns); conjunto '+conjuntoId+'; saldo '+novoSaldo+' t');
-    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:'EM_ANDAMENTO',sugestaoConclusao:novoSaldo<=0.000001,message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'+(novoSaldo<=0.000001?' A operação permanece EM ANDAMENTO até a conferência e confirmação administrativa.':'')};
+    return {ok:true,saldoRestante:novoSaldo,viagensRealizadas:totalTrips,status:novoSaldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO',message:'Movimentação registrada: '+viagens+' viagem(ns). Saldo restante: '+novoSaldo+' t.'};
   } finally { lock.releaseLock(); }
 }
 function remanejarConjuntoOperacaoFullTime(token, data) {
@@ -913,12 +841,12 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
   pHeaders.forEach((h,i)=>{if(h&&pi[h]===undefined)pi[h]=i;});
   const blocking=new Set(['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM']),busySets=new Set(),busyDrivers=new Set(),alreadyHandledInOperation=new Set();
   partsGrid.slice(1).forEach(r=>{
-    if(String(r[pi.OPERACAO_ID]||'')===String(operacaoId)&&['NAO_RESPONDEU','EXPIRADA','RECUSADA','CANCELADA_REPROGRAMACAO','ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase())){
-      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':FT_dataChaveElegibilidade_(r[pi.DATA_OPERACAO_OFERTA]);
+    if(String(r[pi.OPERACAO_ID]||'')===String(operacaoId)&&['NAO_RESPONDEU','EXPIRADA','RECUSADA','ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase())){
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
       const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
       const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
       const currentStart=String(opRow[opIx.JANELA_INICIO]||'').trim(),currentEnd=String(opRow[opIx.JANELA_FIM]||'').trim();
-      const currentDate=FT_dataChaveElegibilidade_(opRow[opIx.DATA_OPERACAO]);
+      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
       const sameSchedule=!!offerDate&&offerDate===currentDate&&offerStart===currentStart&&offerEnd===currentEnd;
       if(!sameSchedule)return;
       const handledDriver=String(r[pi.MOTORISTA_ID]||'');if(handledDriver)alreadyHandledInOperation.add(handledDriver);
@@ -926,10 +854,10 @@ function ordenarCandidatosOperacaoFullTime(token, operacaoId) {
     const status=String(r[pi.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
     if(!blocking.has(status))return;
     if(status==='OFERTADA'){
-      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':FT_dataChaveElegibilidade_(r[pi.DATA_OPERACAO_OFERTA]);
+      const offerDate=pi.DATA_OPERACAO_OFERTA===undefined?'':String(r[pi.DATA_OPERACAO_OFERTA]||'').slice(0,10);
       const offerStart=pi.HORARIO_OPERACAO_OFERTA===undefined?'':String(r[pi.HORARIO_OPERACAO_OFERTA]||'').trim();
       const offerEnd=pi.JANELA_FIM_OFERTA===undefined?'':String(r[pi.JANELA_FIM_OFERTA]||'').trim();
-      const currentDate=FT_dataChaveElegibilidade_(opRow[opIx.DATA_OPERACAO]);
+      const currentDate=opRow[opIx.DATA_OPERACAO] instanceof Date?Utilities.formatDate(opRow[opIx.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(opRow[opIx.DATA_OPERACAO]||'').slice(0,10);
       if(!offerDate||offerDate!==currentDate||offerStart!==String(opRow[opIx.JANELA_INICIO]||'').trim()||offerEnd!==String(opRow[opIx.JANELA_FIM]||'').trim())return;
       const raw=pi.EXPIRA_EM!==undefined?r[pi.EXPIRA_EM]:'';
       const expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();
@@ -1043,10 +971,9 @@ function FT_DIAGNOSTICAR_BASE_CENTRAL_20261111() {
  * Auditoria somente leitura: não cria, renomeia nem altera cabeçalhos/dados.
  */
 function FT_AUDITAR_CONTRATO_CABECALHOS_20261111() {
+  const expectedId='11f2Z2ojMpGI4BSMtRA3CtvwFqy0dnVtA3-CArYr2HdE';
   const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')||'';
-  const authId=PropertiesService.getScriptProperties().getProperty('FT_DATABASE_ID')||'';
-  if(!registryId) throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
-  if(registryId===authId) throw new Error('Segurança: base operacional e autenticação não podem ser a mesma planilha.');
+  if(registryId!==expectedId) throw new Error('FT_REGISTRY_DATABASE_ID não aponta para a planilha principal autorizada.');
   const ss=SpreadsheetApp.openById(registryId);
   const schemas={
     MOTORISTAS:['ID','CRIADO_EM','STATUS','NOME_COMPLETO','CPF','TELEFONE','EMAIL','CNH_NUMERO','CNH_CATEGORIA','CNH_VALIDADE','CIDADE_UF','OBSERVACOES'],
