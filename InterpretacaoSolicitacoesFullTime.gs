@@ -93,7 +93,9 @@ function analisarSolicitacaoIAFullTime(token, id) {
     '- Não invente nem complete dados ausentes. Use string vazia quando não houver informação.',
     '- Preserve números, unidades, nomes e locais como foram informados.',
     '- Não transforme "amanhã" em uma data sem uma referência de data confiável. Registre a expressão literal em dataColetaTexto e deixe dataColeta vazia.',
-    '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que o peso informado seja por caminhão.',
+    '- Diferencie volume/peso total de quantidade de viagens. Nunca presuma que o peso informado seja por caminhão.
+    '- Em operações ligadas a navio, não confunda o volume total da carga do navio com o volume contratado pela Full Time. O volume da operação deve ser somente a quantidade que a Full Time efetivamente transportará, conforme informado; se não estiver claro, deixe pendente e pergunte. Nunca deduza que toda a carga do navio pertence à operação.'
+    '- Pesos de balança podem variar. Preserve o peso real informado, não exija igualdade exata com estimativas e não recomende bloquear viagem por divergência de pesagem. Sinalize diferenças para conferência humana.'',
     '- Uma mesma operação pode ter vários destinos de entrega. Extraia cada empresa/local e seu volume em dados.destinos; não crie uma operação separada por empresa.',
     '- O volume dos destinos somados não pode exceder o volume total. Se faltar distribuição, mantenha volume não distribuído e sinalize a pendência.',
     '- Se houver somente um destino, retorne uma única entrada em dados.destinos. Se não houver destino, retorne [].',
