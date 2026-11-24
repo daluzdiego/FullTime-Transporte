@@ -75,7 +75,7 @@ function processarMensagemWhatsAppTicket_(message, metadata) {
   const caption = message.image && message.image.caption ? String(message.image.caption) : '';
 
   if (message.type !== 'image' || !message.image || !message.image.id) {
-    sheet.appendRow([
+    ftTicketAppendLegacyRow_(sheet, [
       Utilities.getUuid(), receivedAt, String(message.id), sender, driverId, '',
       'NAO_IDENTIFICADO', '', '', '', '', String(message.type || ''),
       'NAO_E_IMAGEM', '', '', 'Mensagem recebida sem imagem de ticket',
@@ -115,7 +115,7 @@ function processarMensagemWhatsAppTicket_(message, metadata) {
   const file = DriveApp.getFolderById(folderId).createFile(blob);
   const ticketType = inferirTipoTicketPelaLegenda_(caption);
 
-  sheet.appendRow([
+  ftTicketAppendLegacyRow_(sheet, [
     Utilities.getUuid(), receivedAt, String(message.id), sender, driverId, '',
     ticketType, mediaId, file.getId(), file.getUrl(), filename, media.mime_type,
     'AGUARDANDO_LEITURA', '', '', driverId ? '' : 'REMETENTE_NAO_VINCULADO_A_MOTORISTA',
@@ -125,7 +125,8 @@ function processarMensagemWhatsAppTicket_(message, metadata) {
 
 function ticketWhatsAppJaRecebido_(sheet, messageId) {
   if (sheet.getLastRow() < 2) return false;
-  const match = sheet.getRange(2, 3, sheet.getLastRow() - 1, 1)
+  const map = typeof ftTicketMap_ === 'function' ? ftTicketMap_(sheet) : {WHATSAPP_MESSAGE_ID:2};
+  const match = sheet.getRange(2, map.WHATSAPP_MESSAGE_ID + 1, sheet.getLastRow() - 1, 1)
     .createTextFinder(String(messageId)).matchEntireCell(true).findNext();
   return !!match;
 }
@@ -161,7 +162,7 @@ function obterVersaoGraphWhatsAppTicket_() {
 function registrarErroTicketWhatsApp_(message, error) {
   try {
     const sheet = typeof ftTicketSheet_ === 'function' ? ftTicketSheet_() : getSheet_('TICKETS');
-    sheet.appendRow([
+    ftTicketAppendLegacyRow_(sheet, [
       Utilities.getUuid(), new Date(), String(message && message.id || ''),
       String(message && message.from || ''), '', '', 'ERRO_RECEBIMENTO',
       '', '', '', '', '', 'ERRO_RECEBIMENTO', '', '',
@@ -180,21 +181,20 @@ function limparImagensTicketsExpiradasFullTime() {
   const props = PropertiesService.getScriptProperties();
   const days = Number(props.getProperty('FT_TICKET_RETENTION_DAYS') || 0);
   if (!(days > 0)) throw new Error('Prazo de retenção não configurado. Nenhuma imagem foi apagada.');
-  const sheet = getSheet_('TICKETS');
+  const sheet = typeof ftTicketSheet_ === 'function' ? ftTicketSheet_() : getSheet_('TICKETS');
   if (sheet.getLastRow() < 2) return { apagadas: 0 };
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 18).getValues();
+  const map = typeof ftTicketMap_ === 'function' ? ftTicketMap_(sheet) : {DRIVE_FILE_ID:8,RETENCAO_ATE:16,STATUS:12};
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
   let deleted = 0;
   const now = new Date();
-  rows.forEach(function(row) {
-    const fileId = String(row[8] || '');
-    const expiry = row[16];
-    const status = String(row[12] || '');
+  rows.forEach(function(row,index) {
+    const fileId = String(row[map.DRIVE_FILE_ID] || '');
+    const expiry = row[map.RETENCAO_ATE];
+    const status = String(row[map.STATUS] || '');
     if (!fileId || !(expiry instanceof Date) || expiry > now || status === 'IMAGEM_EXPIRADA') return;
     try {
       DriveApp.getFileById(fileId).setTrashed(true);
-      const rowNumber = rows.indexOf(row) + 2;
-      sheet.getRange(rowNumber, 13).setValue('IMAGEM_EXPIRADA');
-      sheet.getRange(rowNumber, 17).setValue(expiry);
+      sheet.getRange(index + 2, map.STATUS + 1).setValue('IMAGEM_EXPIRADA');
       deleted++;
     } catch (err) {
       console.error('Não foi possível expirar o arquivo ' + fileId + ': ' + err.message);
