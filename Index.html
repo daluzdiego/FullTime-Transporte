@@ -905,9 +905,33 @@
   function renderList(kind){
     const rows=dashboard?.motoristas||[];
     return `
-      <div class="page-head"><div><h1>Motoristas</h1><p>Gestão da equipe e acompanhamento do histórico de convocações.</p></div></div>
+      <div class="page-head"><div><h1>Motoristas</h1><p>Gestão da equipe e acompanhamento do histórico de convocações.</p></div><div class="head-actions"><button class="btn btn-primary" type="button" onclick="abrirCadastroMotoristaManual()">＋ Cadastrar motorista</button></div></div>
+      <details class="panel form-panel" id="motorista-manual-form"><summary class="panel-head"><h2>Cadastro manual de motorista</h2><span class="badge badge-pending">Pendente de revisão</span></summary><div class="panel-body"><form onsubmit="salvarMotoristaManualUI(event)"><div class="form-grid">
+        <div class="field"><label>Nome completo *</label><input name="nome" maxlength="120" required></div>
+        <div class="field"><label>CPF *</label><input name="cpf" inputmode="numeric" maxlength="14" required></div>
+        <div class="field"><label>Telefone com DDD *</label><input name="telefone" inputmode="tel" maxlength="20" required></div>
+        <div class="field"><label>E-mail</label><input name="email" type="email" maxlength="150"></div>
+        <div class="field"><label>Número da CNH *</label><input name="cnh" maxlength="40" required></div>
+        <div class="field"><label>Categoria da CNH *</label><select name="categoria" required><option value="">Selecione</option><option>C</option><option>D</option><option>E</option><option>AD</option><option>AE</option><option>AC</option></select></div>
+        <div class="field"><label>Validade da CNH *</label><input name="validade" type="date" required></div>
+        <div class="field"><label>Cidade / UF *</label><input name="cidade" maxlength="120" required></div>
+        <div class="field span-2"><label>Observações</label><textarea name="observacoes" maxlength="1000"></textarea></div>
+      </div><div id="motoristaManualError" class="error"></div><div class="form-actions"><button id="motoristaManualSubmit" class="btn btn-primary" type="submit">Salvar cadastro</button></div></form></div></details>
       <div class="driver-list-summary"><div><span class="muted small">CADASTRO CENTRALIZADO</span><h2>Equipe de motoristas</h2><p class="muted small">Dados pessoais e documentos permanecem nos detalhes de cada cadastro.</p></div><div class="driver-total"><strong>${rows.length}</strong><span>motoristas</span></div></div>
       <div class="panel driver-list-panel"><div class="panel-head"><h2>Motoristas</h2><span class="muted small">Pesquisa por nome ou e-mail</span></div><div class="panel-body"><div class="table-tools"><div class="search"><span>⌕</span><input id="filterInput" placeholder="Buscar motorista por nome ou e-mail" oninput="filterTable()"></div><select id="statusFilter" onchange="filterTable()" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569"><option value="">Todos os status</option><option value="PENDENTE_REVISAO">Pendente</option><option value="ATIVO">Ativo</option><option value="INATIVO">Inativo</option></select></div><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Status cadastral</th><th>Ações</th></tr></thead><tbody id="tableBody">${rows.length?rows.map(tableRow).join(''):'<tr><td colspan="3"><div class="empty"><strong>Nenhum motorista cadastrado</strong>Confira os cadastros da planilha principal.</div></td></tr>'}</tbody></table></div></div></div>`;
+  }
+  function abrirCadastroMotoristaManual(){
+    const form=document.getElementById('motorista-manual-form');if(form){form.open=true;form.scrollIntoView({behavior:'smooth',block:'start'});}
+  }
+  function salvarMotoristaManualUI(ev){
+    ev.preventDefault();
+    const form=ev.currentTarget,data=Object.fromEntries(new FormData(form).entries());
+    const button=document.getElementById('motoristaManualSubmit'),error=document.getElementById('motoristaManualError');
+    button.disabled=true;button.textContent='Salvando…';error.textContent='';
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Cadastro registrado.');
+      google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage('motoristas');}).withFailureHandler(e=>toast(e.message||'Cadastro salvo, mas a lista não atualizou.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(e=>{button.disabled=false;button.textContent='Salvar cadastro';error.textContent=e.message||'Não foi possível cadastrar o motorista.';}).salvarMotoristaManualFullTime(authToken,data);
   }
   function tableRow(r){
     const f=r.camposPorNome||{},nome=f.NOME_COMPLETO||'Motorista sem nome',email=f.EMAIL||'';
