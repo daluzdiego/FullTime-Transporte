@@ -1,5 +1,27 @@
 # Checklist de testes — MVP
 
+## Homologação sequencial — estado em 2026-11-24
+
+**Regra de execução:** executar exatamente um teste por vez. Não iniciar o próximo até o atual apresentar o resultado esperado. Cada orientação ao operador deve conter arquivo, função, local de execução, resultado esperado e log solicitado.
+
+### Resultados já confirmados pelo operador
+
+- [x] **Preparação de destinos:** arquivo `MvpDestinosFullTime.gs`, função `prepararEstruturaMvpDestinosFullTime()`. Log recebido: `FT_MVP_PREPARACAO_DESTINOS {"ok":true,...,"guia":"DESTINOS_OPERACAO","colunas":13,"colunaIdDestinoAdicionada":true}`. A guia já existia e a coluna `ID_DESTINO` foi acrescentada.
+- [x] **Preparação de comprovantes:** arquivo `RecibosViagemFullTime.gs`, função `prepararEstruturaRecibosViagemFullTime()`. Log recebido: `FT_RECIBOS_PREPARACAO {"ok":true,"guia":"TICKETS","colunas":29,"pastaDrive":"FULL TIME — Recibos de Viagem","pastaIdConfigurada":true,"ocr":"NAO_INCLUIDO_NESTA_ETAPA"}`. Isso confirma a preparação da guia/pasta, não a integridade de todos os cabeçalhos nem o envio real de foto.
+
+### Próximo teste — TESTE 3: auditoria somente leitura de comprovantes
+
+- **Arquivo:** `RecibosViagemFullTime.gs`
+- **Função:** `testarEstruturaRecibosViagemFullTime()`
+- **Onde executar:** editor do Apps Script; selecionar a função no seletor e clicar em Executar.
+- **Tipo:** somente leitura. Não cria pasta/guia, não altera cabeçalhos e não grava linhas.
+- **Resultado esperado:** log `FT_TESTE_ESTRUTURA_RECIBOS` com `ok:true`, `guiaEncontrada:true`, `cabecalhosAusentes:[]`, `duplicados:[]`, `cabecalhosVazios:[]` e `pastaDriveAcessivel:true`.
+- **Enviar:** registro completo da execução, incluindo o JSON iniciado por `FT_TESTE_ESTRUTURA_RECIBOS`.
+- **Critério:** se qualquer item divergir, parar e corrigir antes do teste de foto.
+
+Após o TESTE 3, executar somente o teste de foto fictícia com vínculo a operação, participação e destino. Depois seguir a ordem do documento `docs/CONSOLIDACAO_FUNCIONAL_20261124.md`.
+
+
 Executar com dados fictícios, em implantação de teste, antes de cadastrar dados reais.
 
 ## Bootstrap e login
