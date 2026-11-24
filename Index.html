@@ -751,93 +751,48 @@
     }).listarSolicitacoesFullTime(authToken,100);
   }
 
-  const SOL_FIELDS_FULLTIME={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Peso/volume total (t)',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Quantidade prevista de viagens',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada para coleta',dataColeta:'Data da coleta (AAAA-MM-DD)',horarioColeta:'Horário da coleta (HH:MM)',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data de entrega (AAAA-MM-DD)',horarioEntrega:'Horário de entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+  const SOL_FIELDS_FULLTIME={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Peso/volume total (t)',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Quantidade prevista de viagens',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino principal (resumo)',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada para coleta',dataColeta:'Data da coleta (AAAA-MM-DD)',horarioColeta:'Horário da coleta (HH:MM)',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data de entrega (AAAA-MM-DD)',horarioEntrega:'Horário de entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+  function renderDestinosEdicaoFullTime(destinos){
+    destinos=Array.isArray(destinos)?destinos:[];if(!destinos.length)destinos=[{cliente:'',local:'',cidadeUf:'',volume:'',dataPrevista:'',observacoes:''}];
+    return destinos.map((d,i)=>'<div class="panel" style="padding:14px;margin:10px 0" data-sol-destino><div style="display:flex;justify-content:space-between;align-items:center"><strong>Destino '+(i+1)+'</strong><button type="button" class="btn btn-secondary" onclick="removerDestinoSolicitacaoFullTime(this)">Remover</button></div><div class="form-grid"><div class="field"><label>Empresa / cliente do destino</label><input data-dest="cliente" maxlength="160" value="'+esc(d.cliente||'')+'"></div><div class="field"><label>Local / endereço</label><input data-dest="local" maxlength="220" value="'+esc(d.local||'')+'"></div><div class="field"><label>Cidade / UF</label><input data-dest="cidadeUf" maxlength="120" value="'+esc(d.cidadeUf||'')+'"></div><div class="field"><label>Volume destinado (t)</label><input data-dest="volume" inputmode="decimal" maxlength="40" value="'+esc(d.volume||'')+'"></div><div class="field"><label>Data prevista (AAAA-MM-DD)</label><input data-dest="dataPrevista" maxlength="10" value="'+esc(d.dataPrevista||'')+'"></div><div class="field"><label>Observações do destino</label><input data-dest="observacoes" maxlength="500" value="'+esc(d.observacoes||'')+'"></div></div></div>').join('');
+  }
+  function lerDestinosSolicitacaoFullTime(){
+    const host=document.getElementById('solDestinosEditor');if(!host)return [];
+    return Array.from(host.querySelectorAll('[data-sol-destino]')).map(row=>{const item={};row.querySelectorAll('[data-dest]').forEach(el=>item[el.dataset.dest]=el.value.trim());return item;});
+  }
+  function adicionarDestinoSolicitacaoFullTime(){const host=document.getElementById('solDestinosEditor');if(!host)return;const list=lerDestinosSolicitacaoFullTime();list.push({cliente:'',local:'',cidadeUf:'',volume:'',dataPrevista:'',observacoes:''});host.innerHTML=renderDestinosEdicaoFullTime(list);}
+  function removerDestinoSolicitacaoFullTime(button){const host=document.getElementById('solDestinosEditor');if(!host)return;const row=button.closest('[data-sol-destino]');if(row)row.remove();if(!host.querySelector('[data-sol-destino]'))host.innerHTML=renderDestinosEdicaoFullTime([]);}
   function abrirRevisaoSolicitacaoFullTime(id){
     const x=solicitacoesFullTime.find(s=>s.id===id);if(!x){toast('Solicitação não encontrada. Atualize a lista.',true);return;}
-    let parsed={};try{parsed=JSON.parse(x.dadosExtraidos||'{}')||{};}catch(e){}const d=parsed.dados||parsed;
-    let pending=[];try{pending=JSON.parse(x.camposPendentes||'[]');}catch(e){}
-    const host=document.getElementById('solAnaliseResultado');if(!host)return;
-    const approvalReady=pending.length===0 && x.status==='AGUARDANDO_APROVACAO';
+    let parsed={};try{parsed=JSON.parse(x.dadosExtraidos||'{}')||{};}catch(e){}const d=parsed.dados||parsed;let pending=[];try{pending=JSON.parse(x.camposPendentes||'[]');}catch(e){}
+    const host=document.getElementById('solAnaliseResultado');if(!host)return;const approvalReady=pending.length===0&&x.status==='AGUARDANDO_APROVACAO';
     const fields=Object.keys(SOL_FIELDS_FULLTIME).map(k=>'<div class="field"><label for="solEdit_'+k+'">'+esc(SOL_FIELDS_FULLTIME[k])+'</label><input id="solEdit_'+k+'" maxlength="500" oninput="ocultarAprovacaoAteSalvar()" value="'+esc(d[k]||'')+'"></div>').join('');
-    const pendingHtml=pending.length?'<div class="notice" style="margin:14px 0"><strong>Não é possível aprovar ainda. Corrija estas pendências:</strong><ul>'+pending.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul><span>O botão APROVAR só será liberado depois de salvar a revisão e validar todos os campos.</span></div>':(x.status==='AGUARDANDO_APROVACAO'?'<div class="notice" style="margin:14px 0"><strong>Validação concluída.</strong> Todos os campos obrigatórios foram preenchidos. O botão de aprovação está liberado.</div>':'<div class="notice" style="margin:14px 0"><strong>Validação ainda não concluída.</strong> Salve a revisão para o servidor conferir os campos obrigatórios e informar o que falta.</div>');
-    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados da solicitação</h3><div class="form-grid">'+fields+'</div>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button>'+(approvalReady?'<button id="solApproveButton" class="btn btn-primary" type="button" onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button>':'<span id="solApproveLocked" class="muted small">Aprovação bloqueada até validar e salvar todos os campos.</span>')+'</div></form></div></div>';
+    const pendingHtml=pending.length?'<div class="notice" style="margin:14px 0"><strong>Campos que ainda precisam de atenção:</strong><ul>'+pending.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul><span>Preencha os campos abaixo. A aprovação só será liberada após salvar e validar.</span></div>':'<div class="notice" style="margin:14px 0"><strong>Revise os dados e salve para executar a validação final no servidor.</strong></div>';
+    host.innerHTML='<div class="panel"><div class="panel-head"><h2>Revisão manual · '+esc(id)+'</h2><span>'+esc(x.status)+'</span></div><div class="panel-body"><div class="notice"><strong>Mensagem original preservada</strong><p style="white-space:pre-wrap">'+esc(x.textoOriginal||'')+'</p></div><form onsubmit="salvarRevisaoSolicitacaoFullTime(event,\''+esc(id)+'\')"><h3>Dados gerais e operacionais</h3><div class="form-grid">'+fields+'</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:22px"><h3>Destinos e distribuição de volume</h3><button class="btn btn-secondary" type="button" onclick="adicionarDestinoSolicitacaoFullTime()">+ Adicionar destino</button></div><div id="solDestinosEditor">'+renderDestinosEdicaoFullTime(d.destinos)+'</div>'+pendingHtml+'<div class="field"><label for="solEditQuestions">Perguntas, respostas e observações complementares</label><textarea id="solEditQuestions" rows="4">'+esc(x.perguntas||'')+'</textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Salvar revisão e validar</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'AJUSTE_SOLICITADO\')">Solicitar ajuste</button><button class="btn btn-secondary" type="button" onclick="alterarStatusSolicitacaoUI(\''+esc(id)+'\',\'RECUSADA\')">Recusar</button><button id="solApproveButton" class="btn btn-primary" type="button" '+(approvalReady?'':'disabled')+' onclick="aprovarSolicitacaoUI(\''+esc(id)+'\')">APROVAR</button><span id="solApproveLocked" class="muted small">'+(approvalReady?'Validação anterior aprovada; confirme os dados.':'Aprovação bloqueada até salvar e validar.')+'</span></div></form></div></div>';
     host.scrollIntoView({behavior:'smooth',block:'start'});
   }
-  function ocultarAprovacaoAteSalvar(){
-    const btn=document.getElementById('solApproveButton');if(btn)btn.remove();
-    const locked=document.getElementById('solApproveLocked');if(locked)locked.textContent='Dados alterados. Salve novamente para validar e liberar a aprovação.';
-  }
+  function ocultarAprovacaoAteSalvar(){const btn=document.getElementById('solApproveButton');if(btn)btn.disabled=true;const locked=document.getElementById('solApproveLocked');if(locked)locked.textContent='Dados alterados. Salve novamente para validar e liberar a aprovação.';}
   function salvarRevisaoSolicitacaoFullTime(ev,id){
-    ev.preventDefault();
-    const dados={};
-    Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>dados[k]=document.getElementById('solEdit_'+k).value.trim());
-    const pending=document.getElementById('solEditPending').value.split(/\n/).map(s=>s.trim()).filter(Boolean);
-    const questions=document.getElementById('solEditQuestions').value;
+    ev.preventDefault();const dados={};Object.keys(SOL_FIELDS_FULLTIME).forEach(k=>{const el=document.getElementById('solEdit_'+k);dados[k]=el?el.value.trim():'';});dados.destinos=lerDestinosSolicitacaoFullTime();
+    const questions=document.getElementById('solEditQuestions').value,saveButton=ev.submitter;if(saveButton){saveButton.disabled=true;saveButton.textContent='Validando…';}
     google.script.run.withSuccessHandler(res=>{
-      const current=solicitacoesFullTime.find(s=>s.id===id);
-      if(current){
-        current.dadosExtraidos=JSON.stringify({resumo:'Revisão manual',dados:dados,ambiguidades:[],prontoParaRevisao:(res.camposPendentes||[]).length===0,origemRevisao:'HUMANA'});
-        current.camposPendentes=JSON.stringify(res.camposPendentes||[]);
-        current.status=res.status;
-        current.perguntas=questions;
-      }
-      toast(res.message||'Revisão salva.');abrirRevisaoSolicitacaoFullTime(id);carregarSolicitacoesFullTime();
-    }).withFailureHandler(err=>toast(err.message||'Falha ao salvar revisão.',true)).atualizarDadosSolicitacaoFullTime(authToken,id,dados,pending,questions);
+      const current=solicitacoesFullTime.find(s=>s.id===id);if(current){current.dadosExtraidos=JSON.stringify({resumo:'Revisão manual',dados:dados,ambiguidades:[],prontoParaRevisao:(res.camposPendentes||[]).length===0,origemRevisao:'HUMANA'});current.camposPendentes=JSON.stringify(res.camposPendentes||[]);current.status=res.status;current.perguntas=questions;}
+      toast(res.message||'Revisão salva.');carregarSolicitacoesFullTime();abrirRevisaoSolicitacaoFullTime(id);
+    }).withFailureHandler(err=>{if(saveButton){saveButton.disabled=false;saveButton.textContent='Salvar revisão e validar';}toast(err.message||'Falha ao salvar revisão.',true);}).atualizarDadosSolicitacaoFullTime(authToken,id,dados,[],questions);
   }
-  async function alterarStatusSolicitacaoUI(id,status){
-    const obs=await uiPrompt('Registre uma observação, se necessário.',{title:'Observação da solicitação',label:'Observação (opcional)'});if(obs===null)return;
-    google.script.run.withSuccessHandler(res=>{toast(res.message||'Status atualizado.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Não foi possível alterar o status.',true)).atualizarStatusSolicitacaoFullTime(authToken,id,status,obs);
-  }
+  async function alterarStatusSolicitacaoUI(id,status){const obs=await uiPrompt('Registre uma observação, se necessário.',{title:'Observação da solicitação',label:'Observação (opcional)'});if(obs===null)return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Status atualizado.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Não foi possível alterar o status.',true)).atualizarStatusSolicitacaoFullTime(authToken,id,status,obs);}
   async function aprovarSolicitacaoUI(id){if(!await uiConfirm('A operação só será criada quando você confirmar “Gerar operação”.',{title:'Aprovar solicitação',ok:'Aprovar'}))return;alterarStatusSolicitacaoUI(id,'APROVADA');}
   async function converterSolicitacaoFullTime(id){if(!await uiConfirm('A operação será criada com os dados já aprovados.',{title:'Gerar operação',ok:'Gerar operação'}))return;google.script.run.withSuccessHandler(res=>{toast(res.message||'Operação gerada.');carregarSolicitacoesFullTime();}).withFailureHandler(err=>toast(err.message||'Falha ao gerar operação.',true)).converterSolicitacaoEmOperacaoFullTime(authToken,id);}
-
   function analisarSolicitacaoIAFullTime(id){
-    const host=document.getElementById('solAnaliseResultado');
-    if(host)host.innerHTML='<div class="notice">A IA está analisando a mensagem e verificando informações faltantes. Aguarde…</div>';
+    const host=document.getElementById('solAnaliseResultado');if(host)host.innerHTML='<div class="notice"><strong>IA iniciando análise…</strong><p>O motor fará novas tentativas e alternará os modelos configurados. Você já pode continuar manualmente.</p><button class="btn btn-secondary" type="button" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(id)+'\')">Preencher / revisar manualmente agora</button></div>';
     google.script.run.withSuccessHandler(res=>{
-      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>'+(res&&res.aguardandoIA?'Análise adiada — solicitação preservada.':'A análise não foi concluída.')+'</strong><br>'+esc(res&&res.mensagem||'Tente novamente mais tarde.')+'</div>';carregarSolicitacoesFullTime();return;}
-      const a=res.analise||{}, d=a.dados||{};
-      const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Viagens previstas',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColetaTexto:'Data informada',dataColeta:'Data da coleta',horarioColeta:'Horário da coleta',dataEntregaTexto:'Data de entrega informada',dataEntrega:'Data da entrega',horarioEntrega:'Horário da entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
+      if(!res||!res.ok){if(host)host.innerHTML='<div class="notice"><strong>IA indisponível após as tentativas — solicitação preservada.</strong><p>'+esc(res&&res.mensagem||'Continue pelo preenchimento manual.')+'</p><button class="btn btn-primary" type="button" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(id)+'\')">Continuar manualmente</button><button class="btn btn-secondary" type="button" onclick="analisarSolicitacaoIAFullTime(\''+esc(id)+'\')">Tentar IA novamente</button></div>';carregarSolicitacoesFullTime();return;}
+      const a=res.analise||{},d=a.dados||{},pending=res.camposPendentes||[],questions=res.perguntas||[],ambiguities=a.ambiguidades||[];
+      const labels={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',volume:'Volume total',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem',viagensPrevistas:'Viagens previstas',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColeta:'Data da coleta',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado'};
       const fields=Object.keys(labels).filter(k=>String(d[k]||'').trim()).map(k=>'<div style="padding:9px 10px;border-bottom:1px solid #edf0f5"><div class="muted small">'+esc(labels[k])+'</div><strong>'+esc(d[k])+'</strong></div>').join('');
-      const pending=(res.camposPendentes||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
-      const questions=(res.perguntas||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
-      const ambiguities=(a.ambiguidades||[]).map(x=>'<li>'+esc(x)+'</li>').join('');
-      host.innerHTML='<div class="panel"><div class="panel-head"><h2>✦ Resultado da análise de IA</h2><span class="badge '+(res.camposPendentes&&res.camposPendentes.length?'badge-pending':'badge-active')+'">'+(res.camposPendentes&&res.camposPendentes.length?'Informações pendentes':'Pronto para revisão')+'</span></div><div class="panel-body"><p>'+esc(a.resumo||'Análise concluída.')+'</p><h3>Dados identificados</h3><div class="form-grid">'+(fields||'<div class="muted">Nenhum campo foi identificado com segurança.</div>')+'</div>'+(pending?'<h3 style="margin-top:18px">Campos que faltam ou precisam de confirmação</h3><ul>'+pending+'</ul>':'')+(questions?'<h3 style="margin-top:18px">Perguntas sugeridas ao cliente</h3><ol>'+questions+'</ol>':'')+(ambiguities?'<h3 style="margin-top:18px">Ambiguidades detectadas</h3><ul>'+ambiguities+'</ul>':'')+'<p class="muted small">A análise não aprova o transporte nem cria uma operação. Revise os dados antes de prosseguir.</p></div></div>';
-      carregarSolicitacoesFullTime();
-    }).withFailureHandler(err=>{
-      if(host)host.innerHTML='<div class="notice"><strong>Não foi possível analisar.</strong><br>'+esc(err&&err.message||'Erro no serviço de IA.')+'</div>';
-      toast(err&&err.message||'Falha na análise por IA.',true);
-    }).analisarSolicitacaoIAFullTime(authToken,id);
-  }
-
-  function salvarSolicitacaoFullTime(ev){
-    ev.preventDefault();
-    const text=document.getElementById('solTexto').value.trim();
-    const button=document.getElementById('solSubmitButton');
-    const feedback=document.getElementById('solFormFeedback');
-    if(!text){feedback.textContent='Cole a mensagem original antes de registrar.';return;}
-    const payload={
-      texto:text,
-      canal:document.getElementById('solCanal').value,
-      identificadorOrigem:document.getElementById('solOrigem').value.trim()
-    };
-    button.disabled=true;button.textContent='Registrando…';feedback.textContent='';
-    google.script.run.withSuccessHandler(res=>{
-      button.disabled=false;button.textContent='Registrar solicitação';
-      if(res&&res.ok){
-        document.getElementById('formSolicitacaoFullTime').reset();
-        feedback.textContent=res.duplicada?'Esta mensagem já estava registrada. O sistema reutilizou a solicitação existente.':'Solicitação registrada com sucesso. ID: '+res.id;
-        carregarSolicitacoesFullTime();
-        toast(res.duplicada?'Solicitação já existente.':'Solicitação registrada.');
-      }else{
-        feedback.textContent='Não foi possível confirmar o registro.';
-        toast('Não foi possível registrar a solicitação.',true);
-      }
-    }).withFailureHandler(err=>{
-      button.disabled=false;button.textContent='Registrar solicitação';
-      feedback.textContent=err&&err.message||'Erro ao registrar solicitação.';
-      toast(feedback.textContent,true);
-    }).registrarSolicitacaoPainelFullTime(authToken,payload);
+      const pendingHtml=pending.length?'<h3>Campos que faltam ou precisam de confirmação</h3><ul>'+pending.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>':'<p>Os campos obrigatórios foram identificados. Faça a revisão final.</p>';
+      host.innerHTML='<div class="panel"><div class="panel-head"><h2>Resultado da análise de IA</h2><span class="badge '+(pending.length?'badge-pending':'badge-active')+'">'+(pending.length?'Informações pendentes':'Pronto para revisão')+'</span></div><div class="panel-body"><p>'+esc(a.resumo||'Análise concluída.')+'</p><div class="form-grid">'+(fields||'<div class="muted">Nenhum campo identificado.</div>')+'</div>'+pendingHtml+(questions.length?'<h3>Perguntas sugeridas</h3><ul>'+questions.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>':'')+(ambiguities.length?'<h3>Ambiguidades</h3><ul>'+ambiguities.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>':'')+'<div class="form-actions"><button class="btn btn-primary" type="button" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(id)+'\')">Complementar / revisar dados manualmente</button><button class="btn btn-secondary" type="button" onclick="analisarSolicitacaoIAFullTime(\''+esc(id)+'\')">Reprocessar IA</button></div><p class="muted small">A IA não aprova nem cria operação. A decisão continua humana.</p></div></div>';carregarSolicitacoesFullTime();
+    }).withFailureHandler(err=>{if(host)host.innerHTML='<div class="notice"><strong>Falha na análise da IA.</strong><p>'+esc(err&&err.message||'Erro no serviço de IA.')+'</p><button class="btn btn-primary" type="button" onclick="abrirRevisaoSolicitacaoFullTime(\''+esc(id)+'\')">Continuar pelo preenchimento manual</button><button class="btn btn-secondary" type="button" onclick="analisarSolicitacaoIAFullTime(\''+esc(id)+'\')">Tentar IA novamente</button></div>';toast(err&&err.message||'Falha na análise por IA.',true);}).analisarSolicitacaoIAFullTime(authToken,id);
   }
 
   function renderList(kind){
