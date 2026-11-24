@@ -134,3 +134,18 @@ function converterSolicitacaoEmOperacaoFullTime(token,id){
  sh.getRange(row,c.OPERACAO_ID).setValue(operationId);sh.getRange(row,c.PROCESSADO_EM).setValue(now);m.idOperacaoGerada=operationId;m.atualizadoEm=now.toISOString();m.historico=m.historico||[];m.historico.push(ftSolEvent_('OPERACAO_GERADA',s.login,'Operação '+operationId+' criada com '+created.destinos+' destino(s).'));ftSolPutMeta_(sh,row,c,meta);
  return {ok:true,duplicada:false,idOperacao:operationId,destinos:created.destinos,message:'Operação criada com vínculo à solicitação '+id+' e '+created.destinos+' destino(s).'};
 }
+
+/** Teste determinístico da validação manual; não lê nem altera planilhas. */
+function testarValidacaoManualSolicitacaoFullTime(){
+ var base={cliente:'Cliente Homologação',produto:'Soja',tipoOperacao:'OUTRA',origemDetalhada:'Terminal A, Rio Grande - RS',volume:'660',unidadeVolume:'t',viagensPrevistas:'3',dataColeta:'2026-11-25',destinos:[
+  {cliente:'Empresa 1',local:'Unidade 1, Pelotas - RS',volume:'120'},
+  {cliente:'Empresa 2',local:'Unidade 2, Pelotas - RS',volume:'100'},
+  {cliente:'Empresa 3',local:'Unidade 3, Pelotas - RS',volume:'300'},
+  {cliente:'Empresa 4',local:'Unidade 4, Pelotas - RS',volume:'50'},
+  {cliente:'Empresa 5',local:'Unidade 5, Pelotas - RS',volume:'90'}
+ ]};
+ var complete=ftSolComputeMissingFields_(base),over=JSON.parse(JSON.stringify(base));over.destinos[4].volume='100';
+ var incomplete=JSON.parse(JSON.stringify(base));incomplete.destinos[2].local='';
+ var result={ok:complete.length===0&&ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0&&ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;}),casos:{cincoDestinosSemPendencia:complete.length===0,excessoDeDistribuicaoBloqueado:ftSolComputeMissingFields_(over).indexOf('Soma dos volumes dos destinos excede o volume total')>=0,localAusenteDetectado:ftSolComputeMissingFields_(incomplete).some(function(x){return x.indexOf('Local do destino 3')>=0;})}};
+ console.log(JSON.stringify(result));return result;
+}
