@@ -23,7 +23,11 @@ function ftTicketSheet_() {
   }else{
     var normalized=headers.map(function(v){return String(v||'').trim().toUpperCase();});
     var missing=FT_TICKET_HEADERS_20261124.filter(function(h){return normalized.indexOf(h)<0;});
-    if(missing.length)throw new Error('A guia TICKETS já existe com estrutura diferente. Cabeçalhos ausentes: '+missing.join(', ')+'. Não houve alteração.');
+    if(missing.length){
+      var firstNew=sh.getLastColumn()+1;
+      sh.getRange(1,firstNew,1,missing.length).setValues([missing]);
+      sh.getRange(1,firstNew,1,missing.length).setFontWeight('bold').setBackground('#173f70').setFontColor('#ffffff').setWrap(true);
+    }
   }
   return sh;
 }
@@ -31,6 +35,12 @@ function ftTicketMap_(sh){
   var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0],m={};
   h.forEach(function(v,i){var k=String(v||'').trim().toUpperCase();if(k&&m[k]===undefined)m[k]=i;});
   return m;
+}
+/** Converte a linha posicional legada do webhook para o cabeçalho canônico. */
+function ftTicketAppendLegacyRow_(sh, values) {
+  var map=ftTicketMap_(sh),row=new Array(sh.getLastColumn()).fill('');
+  FT_TICKET_HEADERS_20261124.forEach(function(name,index){if(map[name]!==undefined)row[map[name]]=values[index]===undefined?'':values[index];});
+  sh.appendRow(row);
 }
 function ftTicketFolder_(){
   var props=PropertiesService.getScriptProperties(),id=props.getProperty('FT_TICKET_DRIVE_FOLDER_ID');
