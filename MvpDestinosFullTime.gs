@@ -121,7 +121,7 @@ function reabrirOperacaoFullTime(token,operacaoId,motivo){
  var s=obterSessao_(token);exigirAdmin_(s);operacaoId=ftMvpText_(operacaoId,100);motivo=ftMvpText_(motivo,500);if(!operacaoId||!motivo)throw new Error('Informe operação e justificativa obrigatória.');
  var sh=ftMvpSheet_('OPERACOES'),m=ftMvpMap_(sh),rows=ftMvpReadRows_(sh),r=rows.find(function(x){return String(x.values[ftMvpCol_(m,'ID')])===operacaoId;});if(!r)throw new Error('Operação não encontrada.');
  var st=String(r.values[ftMvpCol_(m,'STATUS')]||'');if(st!=='CANCELADA')throw new Error('Somente operação cancelada pode ser reaberta.');
- var saldo=ftMvpNum_(r.values[ftMvpCol_(m,'SALDO_TONELADAS')]);sh.getRange(r.row,ftMvpCol_(m,'STATUS')+1).setValue(saldo<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+ var saldo=ftMvpNum_(r.values[ftMvpCol_(m,'SALDO_TONELADAS')]),total=ftMvpNum_(r.values[ftMvpCol_(m,'VOLUME_TOTAL_TONELADAS')]),tripsCol=m.VIAGENS_REALIZADAS!==undefined?m.VIAGENS_REALIZADAS:m.TOTAL_VIAGENS_CONCLUIDAS,trips=tripsCol===undefined?0:ftMvpNum_(r.values[tripsCol]);sh.getRange(r.row,ftMvpCol_(m,'STATUS')+1).setValue(saldo<=0.000001?'CONCLUIDA':(trips<=0&&Math.abs(saldo-total)<0.000001?'ABERTA':'EM_ANDAMENTO'));
  _ftMvpAuditSafe_(s,'REABRIR_OPERACAO',operacaoId,motivo);return {ok:true,message:'Operação reaberta com justificativa. Revise escala e destinos antes de retomar.'};
 }
 
