@@ -13,8 +13,8 @@
  * Configuração: Script Properties > FT_GEMINI_API_KEY.
  */
 var FT_SOL_AI = {
-  MODEL: 'gemini-3.8-flash',
-  FALLBACK_MODELS: ['gemini-3.7-flash', 'gemini-3.5-flash-lite'],
+  MODEL: 'gemini-3.5-flash-lite',
+  FALLBACK_MODELS: [],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000,
   MAX_RETRIES: 1,
