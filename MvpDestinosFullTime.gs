@@ -92,6 +92,7 @@ function registrarEntregaDestinoFullTime(token,data){
   var sets=listarRegistros_('CONJUNTOS'),set=sets.find(function(x){return String(x.id)===setId;});if(!set||String(set.status)!=='ATIVO')throw new Error('Conjunto não está ativo.');
   var fields=set.campos||[];if(String(fields[5]||'').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO.');
   var parts=ftMvpSheet_('PARTICIPACAO_OPERACOES'),pm=ftMvpMap_(parts),prows=ftMvpReadRows_(parts),part=prows.find(function(r){return String(r.values[ftMvpCol_(pm,'OPERACAO_ID')])===opId&&String(r.values[ftMvpCol_(pm,'CONJUNTO_ID')])===setId&&String(r.values[ftMvpCol_(pm,'STATUS_PARTICIPACAO')])==='ATIVO';});if(!part)throw new Error('Conjunto precisa estar designado e ativo nesta operação.');
+  var tripsCol=om.VIAGENS_REALIZADAS!==undefined?om.VIAGENS_REALIZADAS:om.TOTAL_VIAGENS_CONCLUIDAS;if(tripsCol===undefined)throw new Error('Coluna de viagens realizadas ausente.');
   var moves=ftMvpSheet_('MOVIMENTACOES_OPERACAO'),mm=ftMvpMap_(moves),move={ID:Utilities.getUuid(),DATA_HORA:new Date(),OPERACAO_ID:opId,PARTICIPACAO_ID:part.values[ftMvpCol_(pm,'ID')],CONJUNTO_ID:setId,TONELADAS:tons,VIAGEM_CONCLUIDA:'SIM',OBSERVACOES:obs,REGISTRADO_POR:session.login||'ADMIN',QUANTIDADE_VIAGENS:trips,ID_DESTINO:destId};
   FT_MVP_MOV_HEADERS.forEach(function(k){ftMvpCol_(mm,k);});ftMvpWriteObject_(moves,move);
   var newDest=destBalance-tons,newTotal=totalBalance-tons;
@@ -101,7 +102,6 @@ function registrarEntregaDestinoFullTime(token,data){
   ops.getRange(oi.row,ftMvpCol_(om,'SALDO_TONELADAS')+1).setValue(Math.max(0,newTotal));
   ops.getRange(oi.row,ftMvpCol_(om,'STATUS')+1).setValue(newTotal<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
   var pT=ftMvpCol_(pm,'TONELADAS_MOVIMENTADAS'),pV=ftMvpCol_(pm,'VIAGENS_CONCLUIDAS');parts.getRange(part.row,pT+1).setValue(ftMvpNum_(part.values[pT])+tons);parts.getRange(part.row,pV+1).setValue(ftMvpNum_(part.values[pV])+trips);
-  var tripsCol=om.VIAGENS_REALIZADAS!==undefined?om.VIAGENS_REALIZADAS:om.TOTAL_VIAGENS_CONCLUIDAS;if(tripsCol===undefined)throw new Error('Coluna de viagens realizadas ausente.');
   ops.getRange(oi.row,tripsCol+1).setValue(ftMvpNum_(oi.values[tripsCol])+trips);
   _ftMvpAuditSafe_(session,'ENTREGA_DESTINO',opId,tons+' t; '+trips+' viagem(ns); destino '+destId);
   return {ok:true,saldoOperacao:Math.max(0,newTotal),saldoDestino:Math.max(0,newDest),statusDestino:newDest<=0.000001?'CONCLUIDO':'PARCIAL',message:'Entrega registrada. Saldo do destino: '+Math.max(0,newDest)+' t; saldo da operação: '+Math.max(0,newTotal)+' t.'};
