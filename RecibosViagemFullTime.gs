@@ -53,7 +53,7 @@ function registrarReciboViagemFullTime(token,data){
   var note=String(data.observacoes||'').trim().slice(0,1000);
   if(!opId||!partId||!destId)throw new Error('Selecione operação, participação do motorista e destino.');
   if(['CARREGAMENTO','DESCARGA','COMPROVANTE_ENTREGA','OUTRO'].indexOf(type)<0)throw new Error('Tipo de comprovante inválido.');
-  if(['image/jpeg','image/png','image/webp'].indexOf(mime)<0)throw new Error('Envie uma foto JPG, PNG ou WEBP.');
+  if(['image/jpeg','image/png','image/webp','image/heic','image/heif'].indexOf(mime)<0)throw new Error('Envie uma foto JPG, PNG ou WEBP.');
   if(!base64||base64.length>11500000)throw new Error('A imagem está vazia ou excede o limite de 8 MB.');
   var lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
