@@ -88,25 +88,38 @@ function registrarEntregaDestinoFullTime(token,data){
  try{
   var ops=ftMvpSheet_('OPERACOES'),om=ftMvpMap_(ops),orows=ftMvpReadRows_(ops),oi=orows.find(function(r){return String(r.values[ftMvpCol_(om,'ID')])===opId;});if(!oi)throw new Error('Operação não encontrada.');
   var status=String(oi.values[ftMvpCol_(om,'STATUS')]||'');if(!['ABERTA','EM_ANDAMENTO'].includes(status))throw new Error('Operação não está aberta para entregas.');
-  var totalBalance=ftMvpNum_(oi.values[ftMvpCol_(om,'SALDO_TONELADAS')]);if(tons>totalBalance+0.000001)throw new Error('Entrega excede o saldo geral de '+totalBalance+' t.');
+  var totalBalance=ftMvpNum_(oi.values[ftMvpCol_(om,'SALDO_TONELADAS')]);
+  // A balança registra o peso real. Diferença do saldo previsto gera divergência, nunca bloqueio.
   var dest=ftMvpSheet_('DESTINOS_OPERACAO'),dm=ftMvpMap_(dest),drows=ftMvpReadRows_(dest),di=drows.find(function(r){return String(r.values[ftMvpCol_(dm,'ID')])===destId&&String(r.values[ftMvpCol_(dm,'OPERACAO_ID')])===opId;});if(!di)throw new Error('Destino não pertence a esta operação.');
-  var destBalance=ftMvpNum_(di.values[ftMvpCol_(dm,'SALDO_TONELADAS')]);if(tons>destBalance+0.000001)throw new Error('Entrega excede o saldo do destino ('+destBalance+' t).');
+  var destBalance=ftMvpNum_(di.values[ftMvpCol_(dm,'SALDO_TONELADAS')]);
+  // Não bloquear entrega por exceder o saldo previsto do destino.
   var sets=listarRegistros_('CONJUNTOS'),set=sets.find(function(x){return String(x.id)===setId;});if(!set||String(set.status)!=='ATIVO')throw new Error('Conjunto não está ativo.');
   var fields=set.campos||[];if(String(fields[5]||'').toUpperCase()!=='APTO')throw new Error('Conjunto não está APTO.');
   var parts=ftMvpSheet_('PARTICIPACAO_OPERACOES'),pm=ftMvpMap_(parts),prows=ftMvpReadRows_(parts),part=prows.find(function(r){return String(r.values[ftMvpCol_(pm,'OPERACAO_ID')])===opId&&String(r.values[ftMvpCol_(pm,'CONJUNTO_ID')])===setId&&String(r.values[ftMvpCol_(pm,'STATUS_PARTICIPACAO')])==='ATIVO';});if(!part)throw new Error('Conjunto precisa estar designado e ativo nesta operação.');
   var tripsCol=om.VIAGENS_REALIZADAS!==undefined?om.VIAGENS_REALIZADAS:om.TOTAL_VIAGENS_CONCLUIDAS;if(tripsCol===undefined)throw new Error('Coluna de viagens realizadas ausente.');
   var moves=ftMvpSheet_('MOVIMENTACOES_OPERACAO'),mm=ftMvpMap_(moves),move={ID:Utilities.getUuid(),DATA_HORA:new Date(),OPERACAO_ID:opId,PARTICIPACAO_ID:part.values[ftMvpCol_(pm,'ID')],CONJUNTO_ID:setId,TONELADAS:tons,VIAGEM_CONCLUIDA:'SIM',OBSERVACOES:obs,REGISTRADO_POR:session.login||'ADMIN',QUANTIDADE_VIAGENS:trips,ID_DESTINO:destId};
   FT_MVP_MOV_HEADERS.forEach(function(k){ftMvpCol_(mm,k);});ftMvpWriteObject_(moves,move);
-  var newDest=destBalance-tons,newTotal=totalBalance-tons;
-  dest.getRange(di.row,ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')+1).setValue(ftMvpNum_(di.values[ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')])+tons);
+  var oldDestDelivered=ftMvpNum_(di.values[ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')]);
+  var newDestDelivered=oldDestDelivered+tons;
+  var destPlanned=ftMvpNum_(di.values[ftMvpCol_(dm,'VOLUME_PREVISTO_TONELADAS')]);
+  var newDest=destPlanned-newDestDelivered;
+  var operationTotal=ftMvpNum_(oi.values[ftMvpCol_(om,'VOLUME_TOTAL_TONELADAS')]);
+  var operationMovesBefore=ftMvpReadRows_(moves).filter(function(r){return String(r.values[ftMvpCol_(mm,'OPERACAO_ID')])===opId;});
+  var movedBefore=operationMovesBefore.reduce(function(sum,r){return sum+ftMvpNum_(r.values[ftMvpCol_(mm,'TONELADAS')]);},0);
+  var newTotal=operationTotal-(movedBefore+tons);
+  dest.getRange(di.row,ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')+1).setValue(newDestDelivered);
   dest.getRange(di.row,ftMvpCol_(dm,'SALDO_TONELADAS')+1).setValue(Math.max(0,newDest));
-  dest.getRange(di.row,ftMvpCol_(dm,'STATUS')+1).setValue(newDest<=0.000001?'CONCLUIDO':'PARCIAL');
+  dest.getRange(di.row,ftMvpCol_(dm,'STATUS')+1).setValue(newDest < -0.000001?'EXCEDENTE':(newDest<=0.000001?'CONCLUIDO':'PARCIAL'));
   ops.getRange(oi.row,ftMvpCol_(om,'SALDO_TONELADAS')+1).setValue(Math.max(0,newTotal));
-  ops.getRange(oi.row,ftMvpCol_(om,'STATUS')+1).setValue(newTotal<=0.000001?'CONCLUIDA':'EM_ANDAMENTO');
+  // Excedente real permanece registrado; operação fica aberta para não bloquear viagens subsequentes.
+  ops.getRange(oi.row,ftMvpCol_(om,'STATUS')+1).setValue(newTotal < -0.000001?'EM_ANDAMENTO':(newTotal<=0.000001?'CONCLUIDA':'EM_ANDAMENTO'));
   var pT=ftMvpCol_(pm,'TONELADAS_MOVIMENTADAS'),pV=ftMvpCol_(pm,'VIAGENS_CONCLUIDAS');parts.getRange(part.row,pT+1).setValue(ftMvpNum_(part.values[pT])+tons);parts.getRange(part.row,pV+1).setValue(ftMvpNum_(part.values[pV])+trips);
   ops.getRange(oi.row,tripsCol+1).setValue(ftMvpNum_(oi.values[tripsCol])+trips);
   _ftMvpAuditSafe_(session,'ENTREGA_DESTINO',opId,tons+' t; '+trips+' viagem(ns); destino '+destId);
-  return {ok:true,saldoOperacao:Math.max(0,newTotal),saldoDestino:Math.max(0,newDest),statusDestino:newDest<=0.000001?'CONCLUIDO':'PARCIAL',message:'Entrega registrada. Saldo do destino: '+Math.max(0,newDest)+' t; saldo da operação: '+Math.max(0,newTotal)+' t.'};
+  var divergenciaOperacao=(movedBefore+tons)-operationTotal;
+  var divergenciaDestino=newDestDelivered-destPlanned;
+  var alertaPeso=Math.abs(divergenciaOperacao)>0.000001||Math.abs(divergenciaDestino)>0.000001;
+  return {ok:true,saldoOperacao:Math.max(0,newTotal),saldoDestino:Math.max(0,newDest),toneladasMovimentadas:movedBefore+tons,divergenciaOperacao:divergenciaOperacao,divergenciaDestino:divergenciaDestino,alertaPeso:alertaPeso,statusDestino:newDest < -0.000001?'EXCEDENTE':(newDest<=0.000001?'CONCLUIDO':'PARCIAL'),message:'Entrega registrada sem bloqueio por variação de balança. Saldo previsto da operação: '+Math.max(0,newTotal)+' t.'+(alertaPeso?' ATENÇÃO: divergência de peso para conferência.':'')};
  }finally{lock.releaseLock();}
 }
 
