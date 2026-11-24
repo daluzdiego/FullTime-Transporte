@@ -84,6 +84,9 @@ function processarEnvioCadastroMotoristaFullTime_(e) {
     throw new Error('Resposta recebida, mas não importada: há campos obrigatórios inválidos. Corrija na aba de respostas e revise manualmente.');
   }
 
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
   const sh = getSheet_('MOTORISTAS');
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const ix = {};
@@ -185,4 +188,7 @@ function salvarMotoristaManualFullTime(token, data) {
   sh.appendRow(row);
   auditar_(session,'CADASTRO_MANUAL_MOTORISTA','MOTORISTA',id,'Cadastro manual criado como PENDENTE_REVISAO.');
   return {ok:true,id:id,status:'PENDENTE_REVISAO',message:'Motorista cadastrado e encaminhado para revisão. O acesso não foi ativado.'};
+  } finally {
+    lock.releaseLock();
+  }
 }
