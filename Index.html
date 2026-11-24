@@ -1249,7 +1249,7 @@
   async function substituirConvocadoPendenteUI(operacaoId,ofertaId){
     const select=document.getElementById('replace-set-'+ofertaId),novoConjuntoId=String(select?.value||'').trim();
     if(!novoConjuntoId){toast('Selecione o novo conjunto antes de substituir.',true);return;}
-    if(!await uiConfirm('A convocação atual será cancelada com histórico e uma nova oferta será enviada ao motorista do conjunto escolhido. A escala continuará pendente até o aceite.',{title:'Substituir convocado',ok:'Substituir convocado'}))return;
+    if(!await uiConfirm('A convocação atual será cancelada com histórico e uma nova oferta ficará registrada para o motorista do conjunto escolhido. A escala continuará pendente até o aceite.',{title:'Substituir convocado',ok:'Substituir convocado'}))return;
     google.script.run.withSuccessHandler(res=>{
       toast(res.message||'Convocação substituída.');
       google.script.run.withSuccessHandler(data=>{
