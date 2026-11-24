@@ -205,12 +205,13 @@ function analisarSolicitacaoIAFullTime(token, id) {
 
   // Volume só é aceito quando existe evidência literal que o vincule ao destino.
   data.destinos.forEach(function(destination, index) {
-    if (!destination.volume) return;
-    var evidence = ftSolVerifyDestinationVolumeEvidence_(original, destination);
+    var evidence = destination.volume ? ftSolVerifyDestinationVolumeEvidence_(original, destination) : {valid:false};
     if (!evidence.valid) {
       destination.volume = '';
       var pendingEvidence = 'Volume do destino ' + (index + 1) + ' não comprovado na mensagem original';
+      var questionEvidence = 'Qual é o volume contratado para o destino ' + (destination.cliente || destination.local || ('número ' + (index + 1))) + '?';
       if (!result.camposPendentes.some(function(x) { return String(x).indexOf('Volume do destino ' + (index + 1)) === 0; })) result.camposPendentes.push(pendingEvidence);
+      if (!result.perguntas.some(function(x) { return String(x).toLowerCase().indexOf('volume do destino ' + (index + 1)) >= 0 || String(x).toLowerCase().indexOf(String(destination.cliente || destination.local || '').toLowerCase()) >= 0 && /volume/i.test(String(x)); })) result.perguntas.push(questionEvidence);
     }
   });
   var pending = result.camposPendentes
