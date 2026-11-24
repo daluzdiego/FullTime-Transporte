@@ -95,6 +95,7 @@ function diagnosticarNucleoSolicitacoesFullTime(){var sh=ftSolSheet_();return {o
 function atualizarDadosSolicitacaoFullTime(token,id,dados,pendentes,perguntas){
  var s=obterSessao_(token);exigirAdmin_(s);dados=dados||{};var allowed=['cliente','contato','produto','tipoCarga','nomeOperacao','categoria','volume','unidadeVolume','volumePorViagem','viagensPrevistas','origem','origemDetalhada','destino','destinoDetalhado','dataColetaTexto','dataColeta','horarioColeta','dataEntregaTexto','dataEntrega','horarioEntrega','tipoOperacao','veiculoSolicitado','frequencia','restricoes','observacoes'],clean={};
  allowed.forEach(function(k){clean[k]=ftSolText_(dados[k],500);});
+ clean.destinos=Array.isArray(dados.destinos)?dados.destinos.slice(0,50).map(function(x){x=x||{};return {cliente:ftSolText_(x.cliente,160),local:ftSolText_(x.local,220),cidadeUf:ftSolText_(x.cidadeUf,120),volume:ftSolText_(x.volume,40),dataPrevista:ftSolText_(x.dataPrevista,10),observacoes:ftSolText_(x.observacoes,500)};}):[];
  var sh=ftSolSheet_(),c=ftSolCols_(sh),row=ftSolFindRow_(sh,c,id);if(row<0)throw new Error('Solicitação não encontrada.');
  var meta=ftSolMeta_(sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0],c),missing=ftSolComputeMissingFields_(clean),status=missing.length?'EM_COLETA':'AGUARDANDO_APROVACAO';
  meta.dados=clean;meta.analise={resumo:'Revisão humana',dados:clean,ambiguidades:meta.analise&&meta.analise.ambiguidades||[],prontoParaRevisao:missing.length===0,origemRevisao:'HUMANA',revisadoEm:new Date().toISOString()};
