@@ -14,9 +14,10 @@
  */
 var FT_SOL_AI = {
   MODEL: 'gemini-3.8-flash',
+  FALLBACK_MODELS: ['gemini-3.7-flash', 'gemini-3.5-flash-lite'],
   KEY_PROPERTY: 'FT_GEMINI_API_KEY',
   MAX_TEXT: 30000,
-  MAX_RETRIES: 3
+  MAX_RETRIES: 4
 };
 
 /**
@@ -281,90 +282,77 @@ function testarConexaoGeminiFullTime() {
 
   var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
   var headers = { 'x-goog-api-key': String(key).trim() };
+  var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
   var result = {
     ok: false,
     chaveConfigurada: true,
-    modelo: FT_SOL_AI.MODEL,
+    modeloPrincipal: FT_SOL_AI.MODEL,
+    modelosAlternativos: FT_SOL_AI.FALLBACK_MODELS || [],
     etapas: {},
     observacao: 'Teste isolado; nenhuma solicitação operacional foi lida ou alterada.'
   };
 
-  try {
-    var modelResponse = UrlFetchApp.fetch(base + encodeURIComponent(FT_SOL_AI.MODEL), {
-      method: 'get',
-      headers: headers,
-      muteHttpExceptions: true
-    });
-    var modelCode = modelResponse.getResponseCode();
-    result.etapas.autenticacaoModelo = {
-      http: modelCode,
-      ok: modelCode >= 200 && modelCode < 300
-    };
-    if (modelCode < 200 || modelCode >= 300) {
-      result.etapas.autenticacaoModelo.detalhe =
-        ftGeminiErroSeguro_(modelResponse.getContentText());
-      result.mensagem = 'Falha ao autenticar ou consultar o modelo.';
-      console.log(JSON.stringify(result));
-      return result;
-    }
-  } catch (error) {
-    result.etapas.autenticacaoModelo = {
-      ok: false,
-      mensagem: String(error && error.message || error)
-    };
-    result.mensagem = 'Falha de rede na consulta do modelo.';
-    console.log(JSON.stringify(result));
-    return result;
-  }
-
-  try {
-    var generation = UrlFetchApp.fetch(
-      base + encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent',
-      {
-        method: 'post',
-        contentType: 'application/json',
+  for (var i = 0; i < models.length; i++) {
+    var model = models[i];
+    var entry = result.etapas[model] = { autenticacao: null, geracao: null };
+    try {
+      var modelResponse = UrlFetchApp.fetch(base + encodeURIComponent(model), {
+        method: 'get',
         headers: headers,
-        muteHttpExceptions: true,
-        payload: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: 'Responda somente: TESTE_OK' }] }],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 20
-          }
-        })
+        muteHttpExceptions: true
+      });
+      var modelCode = modelResponse.getResponseCode();
+      entry.autenticacao = { http: modelCode, ok: modelCode >= 200 && modelCode < 300 };
+      if (modelCode < 200 || modelCode >= 300) {
+        entry.autenticacao.detalhe = ftGeminiErroSeguro_(modelResponse.getContentText());
+        continue;
       }
-    );
 
-    var code = generation.getResponseCode();
-    var body = generation.getContentText();
-    result.etapas.geracao = { http: code, ok: code >= 200 && code < 300 };
+      var generation = UrlFetchApp.fetch(
+        base + encodeURIComponent(model) + ':generateContent',
+        {
+          method: 'post',
+          contentType: 'application/json',
+          headers: headers,
+          muteHttpExceptions: true,
+          payload: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'Responda somente: TESTE_OK' }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 20 }
+          })
+        }
+      );
 
-    if (code >= 200 && code < 300) {
-      var parsed = JSON.parse(body);
-      var text = parsed && parsed.candidates && parsed.candidates[0] &&
-        parsed.candidates[0].content && parsed.candidates[0].content.parts ?
-        parsed.candidates[0].content.parts.map(function (part) {
-          return part.text || '';
-        }).join('') : '';
-      result.etapas.geracao.respostaRecebida = !!text;
-      result.etapas.geracao.resposta = String(text).slice(0, 100);
-      result.ok = !!text;
-      result.mensagem = result.ok ?
-        'Conexão, autenticação e geração de texto funcionando.' :
-        'O modelo respondeu HTTP 2xx, mas não retornou texto.';
-    } else {
-      result.etapas.geracao.detalhe = ftGeminiErroSeguro_(body);
-      result.mensagem =
-        'A chave autenticou, mas a geração falhou. Verifique cota, faturamento e disponibilidade.';
+      var code = generation.getResponseCode();
+      var body = generation.getContentText();
+      entry.geracao = { http: code, ok: code >= 200 && code < 300 };
+      if (code >= 200 && code < 300) {
+        var parsed = JSON.parse(body);
+        var text = parsed && parsed.candidates && parsed.candidates[0] &&
+          parsed.candidates[0].content && parsed.candidates[0].content.parts ?
+          parsed.candidates[0].content.parts.map(function (part) {
+            return part.text || '';
+          }).join('') : '';
+        entry.geracao.respostaRecebida = !!text;
+        entry.geracao.resposta = String(text).slice(0, 100);
+        if (text) {
+          result.ok = true;
+          result.modeloDisponivel = model;
+          result.mensagem = model === FT_SOL_AI.MODEL ?
+            'Modelo principal autenticado e gerando texto.' :
+            'Modelo alternativo autenticado e gerando texto. O principal está indisponível neste momento.';
+          break;
+        }
+      } else {
+        entry.geracao.detalhe = ftGeminiErroSeguro_(body);
+      }
+    } catch (error) {
+      entry.erro = String(error && error.message || error).slice(0, 1000);
     }
-  } catch (error) {
-    result.etapas.geracao = {
-      ok: false,
-      mensagem: String(error && error.message || error)
-    };
-    result.mensagem = 'Falha de rede ou leitura na etapa de geração.';
   }
 
+  if (!result.ok) {
+    result.mensagem = 'Nenhum dos modelos testados conseguiu gerar texto. A chave foi reconhecida; consulte os HTTPs registrados por modelo.';
+  }
   console.log(JSON.stringify(result));
   return result;
 }
@@ -436,64 +424,84 @@ function ftSolGenerateAIText_(prompt) {
     throw new Error('FT_GEMINI_API_KEY não está configurada.');
   }
 
-  var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' +
-    encodeURIComponent(FT_SOL_AI.MODEL) + ':generateContent';
-  var options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': String(key).trim() },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: 'application/json'
-      }
-    })
-  };
+  var base = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  var headers = { 'x-goog-api-key': String(key).trim() };
+  var models = [FT_SOL_AI.MODEL].concat(FT_SOL_AI.FALLBACK_MODELS || []);
+  var failures = [];
 
-  var response;
-  var code;
-  var body;
-  for (var attempt = 1; attempt <= FT_SOL_AI.MAX_RETRIES; attempt++) {
-    response = UrlFetchApp.fetch(endpoint, options);
-    code = response.getResponseCode();
-    body = response.getContentText();
-    if ([429, 500, 502, 503, 504].indexOf(code) < 0 ||
-        attempt === FT_SOL_AI.MAX_RETRIES) {
-      break;
+  for (var modelIndex = 0; modelIndex < models.length; modelIndex++) {
+    var model = models[modelIndex];
+    var endpoint = base + encodeURIComponent(model) + ':generateContent';
+    var options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: headers,
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json'
+        }
+      })
+    };
+
+    var response = null;
+    var code = 0;
+    var body = '';
+    for (var attempt = 1; attempt <= FT_SOL_AI.MAX_RETRIES; attempt++) {
+      response = UrlFetchApp.fetch(endpoint, options);
+      code = response.getResponseCode();
+      body = response.getContentText();
+
+      if (code >= 200 && code < 300) break;
+      var transientError = [408, 429, 500, 502, 503, 504].indexOf(code) >= 0;
+      if (!transientError || attempt === FT_SOL_AI.MAX_RETRIES) break;
+
+      // Backoff exponencial com jitter para reduzir colisões de novas tentativas.
+      var delay = Math.min(30000, Math.pow(2, attempt - 1) * 2000);
+      Utilities.sleep(delay + Math.floor(Math.random() * 750));
     }
-    Utilities.sleep(Math.pow(2, attempt) * 1000);
+
+    if (code >= 200 && code < 300) {
+      var envelope;
+      try {
+        envelope = JSON.parse(body);
+      } catch (error) {
+        throw new Error('Gemini (' + model + ') retornou HTTP válido, mas o corpo não é JSON válido.');
+      }
+
+      var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
+        envelope.candidates[0].content && envelope.candidates[0].content.parts ?
+        envelope.candidates[0].content.parts.map(function (part) {
+          return part.text || '';
+        }).join('') : '';
+
+      if (textOut) {
+        return {
+          text: textOut,
+          provider: 'Google Gemini',
+          model: model,
+          fallback: model !== FT_SOL_AI.MODEL
+        };
+      }
+
+      var blockReason = envelope && envelope.candidates && envelope.candidates[0] &&
+        envelope.candidates[0].finishReason;
+      throw new Error(
+        'Gemini (' + model + ') não retornou texto.' +
+        (blockReason ? ' Motivo: ' + blockReason : '')
+      );
+    }
+
+    failures.push(model + ' HTTP ' + code + ': ' + ftGeminiErroSeguro_(body));
+    // Erros de autenticação, requisição ou cobrança não são resolvidos trocando de modelo.
+    if ([400, 401, 402, 403].indexOf(code) >= 0) {
+      throw new Error(failures[failures.length - 1]);
+    }
   }
 
-  if (code < 200 || code >= 300) {
-    throw new Error('Gemini HTTP ' + code + ': ' + ftGeminiErroSeguro_(body));
-  }
-
-  var envelope;
-  try {
-    envelope = JSON.parse(body);
-  } catch (error) {
-    throw new Error('Gemini retornou uma resposta HTTP válida, mas o corpo não é JSON válido.');
-  }
-
-  var textOut = envelope && envelope.candidates && envelope.candidates[0] &&
-    envelope.candidates[0].content && envelope.candidates[0].content.parts ?
-    envelope.candidates[0].content.parts.map(function (part) {
-      return part.text || '';
-    }).join('') : '';
-
-  if (!textOut) {
-    var blockReason = envelope && envelope.candidates && envelope.candidates[0] &&
-      envelope.candidates[0].finishReason;
-    throw new Error(
-      'Gemini não retornou texto.' + (blockReason ? ' Motivo: ' + blockReason : '')
-    );
-  }
-
-  return {
-    text: textOut,
-    provider: 'Google Gemini',
-    model: FT_SOL_AI.MODEL
-  };
+  throw new Error(
+    'Todos os modelos Gemini configurados falharam. ' + failures.join(' | ')
+  );
 }
