@@ -201,3 +201,38 @@ function FT_cancelarConvocacaoPendenteFullTime(token, ofertaId, motivo) {
     return {ok:true,status:'CANCELADA_ADMIN',message:'Convocação retirada. O histórico foi preservado e nenhum aceite foi alterado.'};
   } finally { lock.releaseLock(); }
 }
+
+
+/** Cria convocação manual para conjunto elegível quando não há fila automática ativa. */
+function FT_adicionarConvocadoManualFullTime(token, operacaoId, conjuntoId, motivo) {
+  const session=obterSessao_(token);exigirAdmin_(session);
+  operacaoId=texto_(operacaoId,100);conjuntoId=texto_(conjuntoId,100);motivo=texto_(motivo||'Convocação manual pelo administrador.',500);
+  if(!operacaoId||!conjuntoId)throw new Error('Selecione a operação e o conjunto.');
+  const lock=LockService.getScriptLock();lock.waitLock(20000);
+  try{
+    const queues=typeof FT_AUTO_READ_==='function'?FT_AUTO_READ_():{},queue=queues[operacaoId];
+    if(queue&&queue.status==='EM_ANDAMENTO')throw new Error('Há uma fila automática em andamento. Conclua ou aguarde essa fila antes de adicionar uma convocação manual.');
+    const opSh=getSheet_('OPERACOES'),opRows=opSh.getDataRange().getValues(),oh=(opRows[0]||[]).map(v=>String(v||'').trim().toUpperCase()),oi={};
+    oh.forEach((v,i)=>{if(v&&oi[v]===undefined)oi[v]=i;});
+    const op=opRows.slice(1).find(r=>String(r[oi.ID]||'')===operacaoId);
+    if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[oi.STATUS]||'').toUpperCase()))throw new Error('A operação não está aberta para novas convocações.');
+    const candidates=ordenarCandidatosOperacaoFullTime(token,operacaoId),candidate=candidates.find(x=>String(x.id)===conjuntoId);
+    if(!candidate||candidate.eligible!==true)throw new Error('O conjunto não está elegível. Atualize a análise de candidatos e confira documentos, capacidade e disponibilidade.');
+    const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_CONV_ensureHeaders_(sh,FT_CONVOCACAO_CFG_20261110.PARTICIPACAO_HEADERS),rows=sh.getDataRange().getValues();
+    const driverId=String(candidate.driverId||'');
+    const conflict=rows.slice(1).some(r=>{
+      const status=String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
+      if(!['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(status))return false;
+      if(status==='OFERTADA'){const raw=r[map.EXPIRA_EM],expiry=raw instanceof Date?raw.getTime():new Date(raw).getTime();if(!isFinite(expiry)||expiry<=Date.now())return false;}
+      return String(r[map.CONJUNTO_ID]||'')===conjuntoId||String(r[map.MOTORISTA_ID]||'')===driverId;
+    });
+    if(conflict)throw new Error('Este motorista ou conjunto já possui uma convocação ou participação em andamento.');
+    const now=new Date(),id='OFT-'+Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
+    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:operacaoId,CONJUNTO_ID:conjuntoId,MOTORISTA_ID:driverId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:motivo,REGISTRADO_POR:session.login||'ADMIN',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+(typeof FT_AUTO_TTL_==='number'?FT_AUTO_TTL_:7200000)),ORIGEM_OFERTA:'PAINEL_ADMIN_MANUAL',OBSERVACOES_OFERTA:motivo,DATA_OPERACAO_OFERTA:op[oi.DATA_OPERACAO],HORARIO_OPERACAO_OFERTA:op[oi.JANELA_INICIO],JANELA_FIM_OFERTA:op[oi.JANELA_FIM]};
+    Object.keys(fields).forEach(k=>FT_CONV_set_(row,map,k,fields[k]));
+    sh.appendRow(row);
+    FT_CONV_appendEvent_({tipo:'OFERTA_MANUAL_CRIADA',operacaoId:operacaoId,motoristaId:driverId,conjuntoId:conjuntoId,anterior:'',nova:'OFERTADA',motivo:motivo,autor:session.login||'ADMIN',ofertaId:id});
+    auditar_(session,'ADICIONAR_CONVOCADO_MANUAL','OPERACAO',operacaoId,'Oferta '+id+'; conjunto='+conjuntoId+'; motorista='+driverId+'; '+motivo);
+    return {ok:true,id:id,status:'OFERTADA',message:'Convocação manual registrada. O motorista ainda precisa aceitar; a equipe não está confirmada.'};
+  }finally{lock.releaseLock();}
+}
