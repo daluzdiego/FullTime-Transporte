@@ -38,24 +38,24 @@ function prepararEstruturaMvpDestinosFullTime(){
 function salvarOperacaoComDestinosFullTime(token,data){var session=obterSessao_(token);exigirAdmin_(session);return ftMvpCreateOperationForSession_(session,data);}
 function ftMvpCreateOperationForSession_(session,data){data=data||{};
  var date=ftMvpDate_(data.data),client=ftMvpText_(data.cliente,120),name=ftMvpText_(data.nome,160),origin=ftMvpText_(data.origem,180);
- var volume=ftMvpNum_(data.volumeTotal),trips=Math.floor(ftMvpNum_(data.viagensPrevistas)),product=ftMvpText_(data.produto,160),type=ftMvpText_(data.tipoOperacao||'OUTRA',40).toUpperCase(),category=ftMvpText_(data.categoria||'PADRAO',40).toUpperCase();
+ var volume=ftMvpNum_(data.volumeTotal),trips=Math.floor(ftMvpNum_(data.viagensPrevistas)),drivers=Math.floor(ftMvpNum_(data.motoristasNecessarios)),product=ftMvpText_(data.produto,160),type=ftMvpText_(data.tipoOperacao||'OUTRA',40).toUpperCase(),category=ftMvpText_(data.categoria||'PADRAO',40).toUpperCase();
  var distance=ftMvpNum_(data.distanciaKm),deliveryDate=ftMvpDate_(data.dataEntrega),windowStart=ftMvpText_(data.janelaInicio,5),windowEnd=ftMvpText_(data.janelaFim,5),duration=ftMvpNum_(data.tempoEstimadoHoras);
  if(data.distanciaKm!==''&&data.distanciaKm!=null&&!(distance>0))throw new Error('Distância deve ser maior que zero.');if(windowStart&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(windowStart))throw new Error('Janela inicial inválida.');if(windowEnd&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(windowEnd))throw new Error('Janela final inválida.');if(data.tempoEstimadoHoras!==''&&data.tempoEstimadoHoras!=null&&!(duration>0))throw new Error('Tempo estimado deve ser maior que zero.');
  var destinations=Array.isArray(data.destinos)?data.destinos:[];
  if(!date||!client||!name||!origin)throw new Error('Informe data, cliente responsável, nome da operação e origem.');
  if(!(volume>0&&isFinite(volume)))throw new Error('O volume total precisa ser maior que zero.');
- if(!(trips>0&&trips<=100000))throw new Error('Informe a quantidade prevista de viagens.');
+ if(!(drivers>0&&drivers<=1000))throw new Error('Informe a quantidade inteira de motoristas necessários.');\n if(!(trips>=0&&trips<=100000))trips=0;
  if(!['PADRAO','ALTO_DESEMPENHO','MANOBRA_DIFICIL','PRAZO_NAVIO'].includes(category))throw new Error('Categoria de escala inválida.');
  if(!['DESCARGA_NAVIO','TRANSFERENCIA_FABRICAS','REMOCAO_INTERNA','OUTRA'].includes(type))throw new Error('Tipo de operação inválido.');
  if(!destinations.length)throw new Error('Cadastre pelo menos um destino. Para destino único, informe apenas uma linha.');
  var clean=destinations.map(function(d,i){var customer=ftMvpText_(d.cliente,160),place=ftMvpText_(d.local,220),city=ftMvpText_(d.cidadeUf,120),qty=ftMvpNum_(d.volume),due=ftMvpDate_(d.dataPrevista),obs=ftMvpText_(d.observacoes,500);if(!customer||!place)throw new Error('Destino '+(i+1)+': informe empresa e local de entrega.');if(!(qty>0&&isFinite(qty)))throw new Error('Destino '+(i+1)+': volume precisa ser maior que zero.');return {ordem:i+1,cliente:customer,local:place,cidade:city,volume:qty,data:due,obs:obs};});
  var allocated=clean.reduce(function(sum,d){return sum+d.volume;},0);ftMvpValidateAllocation_(volume,allocated);
- var ops=ftMvpSheet_('OPERACOES'),dest=ftMvpSheet_('DESTINOS_OPERACAO'),opMap=ftMvpMap_(ops),destMap=ftMvpMap_(dest);
- ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'].forEach(function(k){ftMvpCol_(opMap,k);});
+ var ops=ftMvpSheet_('OPERACOES'),dest=ftMvpSheet_('DESTINOS_OPERACAO'),opMap=ftMvpMap_(ops),destMap=ftMvpMap_(dest);\n if(opMap.MOTORISTAS_NECESSARIOS===undefined){ops.getRange(1,ops.getLastColumn()+1).setValue('MOTORISTAS_NECESSARIOS');opMap=ftMvpMap_(ops);}
+ ['ID','CRIADO_EM','STATUS','DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO','MOTORISTAS_NECESSARIOS'].forEach(function(k){ftMvpCol_(opMap,k);});
  FT_MVP_DESTINOS_HEADERS.forEach(function(k){ftMvpCol_(destMap,k);});
  var id=Utilities.getUuid(),now=new Date(),destSummary=clean.length===1?clean[0].cliente+' — '+clean[0].local:clean.length+' destinos';
  var firstDestination=clean.length===1?clean[0].local:destSummary;
- var opData={ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:name,ORIGEM:origin,DESTINO:firstDestination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:trips,SALDO_TONELADAS:volume,OBSERVACOES:ftMvpText_(data.observacoes,1000),CRIADO_POR:session.login||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type,PRODUTO_SERVICO:product,DISTANCIA_KM:distance||'',DATA_ENTREGA:deliveryDate,JANELA_INICIO:windowStart,JANELA_FIM:windowEnd,TEMPO_ESTIMADO_HORAS:duration||''};
+ var opData={ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:name,ORIGEM:origin,DESTINO:firstDestination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:trips,SALDO_TONELADAS:volume,OBSERVACOES:ftMvpText_(data.observacoes,1000),CRIADO_POR:session.login||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type,MOTORISTAS_NECESSARIOS:drivers,PRODUTO_SERVICO:product,DISTANCIA_KM:distance||'',DATA_ENTREGA:deliveryDate,JANELA_INICIO:windowStart,JANELA_FIM:windowEnd,TEMPO_ESTIMADO_HORAS:duration||''};
  var lock=LockService.getScriptLock();lock.waitLock(20000);var opRow=-1,added=[];
  try{
   ftMvpWriteObject_(ops,opData);opRow=ops.getLastRow();
@@ -66,7 +66,7 @@ function ftMvpCreateOperationForSession_(session,data){data=data||{};
   if(opRow>0)ops.deleteRow(opRow);
   throw new Error('Não foi possível concluir o cadastro; gravação revertida. '+err.message);
  }finally{lock.releaseLock();}
- _ftMvpAuditSafe_(session,'CRIAR_OPERACAO_MULTIDESTINO',id,volume+' t; destinos='+clean.length+'; distribuido='+allocated+' t; saldo não destinado='+(volume-allocated)+' t');
+ _ftMvpAuditSafe_(session,'CRIAR_OPERACAO_MULTIDESTINO',id,volume+' t; motoristas necessários='+drivers+'; destinos='+clean.length+'; distribuido='+allocated+' t; saldo não destinado='+(volume-allocated)+' t');
  return {ok:true,id:id,destinos:added.length,volumeTotal:volume,volumeDistribuido:allocated,saldoNaoDestinado:volume-allocated,message:'Operação criada com '+added.length+' destino(s). Saldo total inicial: '+volume+' t.'};
 }
 function _ftMvpAuditSafe_(s,a,id,d){try{ftMvpAudit_(s,a,id,d);}catch(e){console.error('Falha na auditoria MVP: '+e.message);}}
