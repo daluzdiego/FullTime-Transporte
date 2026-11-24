@@ -32,24 +32,46 @@ function obterCentroOperacoesFullTime(token) {
   const horses=FT_CENTRO_rows_('CAVALOS');
   const trailers=FT_CENTRO_rows_('CARRETAS');
   const sets=FT_CENTRO_rows_('CONJUNTOS');
+  const destinations=FT_CENTRO_rows_('DESTINOS_OPERACAO');
   const byId=a=>Object.fromEntries(a.map(x=>[String(x.ID||''),x]));
   const dBy=byId(drivers),hBy=byId(horses),tBy=byId(trailers),sBy=byId(sets);
-  const activeStatuses=new Set(['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE']);
-  const currentOps=ops.filter(o=>activeStatuses.has(String(o.STATUS||'').toUpperCase())).map(o=>{
+  const partById=byId(parts);
+  const currentOps=ops.filter(o=>String(o.STATUS||'').toUpperCase()!=='CANCELADA').map(o=>{
     const id=String(o.ID||'');
     const related=parts.filter(p=>String(p.OPERACAO_ID||'')===id && ['ATIVO','SAIU','EM_VIAGEM','ACEITA'].includes(String(p.STATUS_PARTICIPACAO||'').toUpperCase()));
     const operationMoves=moves.filter(m=>String(m.OPERACAO_ID||'')===id);
-    const ton=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
+    const moved=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
+    const planned=FT_CENTRO_num_(o.VOLUME_TOTAL_TONELADAS);
+    const remaining=Math.max(0,planned-moved);
+    const overrun=Math.max(0,moved-planned);
     const trips=operationMoves.reduce((n,m)=>n+FT_CENTRO_num_(m.QUANTIDADE_VIAGENS || (String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0)),0);
-    return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:FT_CENTRO_num_(o.VOLUME_TOTAL_TONELADAS),saldo:FT_CENTRO_num_(o.SALDO_TONELADAS),viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips||FT_CENTRO_num_(o.VIAGENS_REALIZADAS),toneladasMovimentadas:ton,conjuntos:related.map(p=>{
+    const driverMap={};
+    operationMoves.forEach(m=>{
+      const p=partById[String(m.PARTICIPACAO_ID||'')]||{};
+      const sid=String(m.CONJUNTO_ID||p.CONJUNTO_ID||'');
+      const set=sBy[sid]||{};
+      const did=String(set.MOTORISTA_ID||p.MOTORISTA_ID||'');
+      const driver=dBy[did]||{};
+      const key=did||String(driver.NOME_COMPLETO||'MOTORISTA_NAO_IDENTIFICADO');
+      if(!driverMap[key])driverMap[key]={motoristaId:did,nome:String(driver.NOME_COMPLETO||did||'Motorista não identificado'),toneladas:0,viagens:0};
+      driverMap[key].toneladas+=FT_CENTRO_num_(m.TONELADAS);
+      driverMap[key].viagens+=FT_CENTRO_num_(m.QUANTIDADE_VIAGENS || (String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'?1:0));
+    });
+    const opDestinations=destinations.filter(d=>String(d.OPERACAO_ID||'')===id).map(d=>{
+      const destId=String(d.ID||'');
+      const delivered=operationMoves.filter(m=>String(m.ID_DESTINO||'')===destId).reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
+      const destPlanned=FT_CENTRO_num_(d.VOLUME_PREVISTO_TONELADAS);
+      return {id:destId,cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),status:String(d.STATUS||'')};
+    });
+    return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:planned,toneladasMovimentadas:moved,saldo:remaining,excedente:overrun,percentualCarregado:planned>0?Math.min(100,moved/planned*100):0,viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips,conjuntos:related.map(p=>{
       const sid=String(p.CONJUNTO_ID||''),s=sBy[sid]||{},did=String(s.MOTORISTA_ID||p.MOTORISTA_ID||''),h=hBy[String(s.CAVALO_ID||'')]||{},t1=tBy[String(s.CARRETA_MEIO_ID||'')]||{},t2=tBy[String(s.CARRETA_FINAL_ID||'')]||{};
       const trailerTare=FT_CENTRO_num_(t1.TARA_TONELADAS)+FT_CENTRO_num_(t2.TARA_TONELADAS);
       const trailerCap=FT_CENTRO_num_(t1.CAPACIDADE_CARGA_TONELADAS)+FT_CENTRO_num_(t2.CAPACIDADE_CARGA_TONELADAS);
-      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),cavaloTara:FT_CENTRO_num_(h.TARA_TONELADAS),cavaloPbtc:FT_CENTRO_num_(h.PBTC_MAX_TONELADAS),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||'')};
-    })};
+      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||'')};
+    }),motoristas:Object.values(driverMap).sort((a,b)=>b.toneladas-a.toneladas),destinos:opDestinations};
   });
   const totalTon=currentOps.reduce((n,o)=>n+o.toneladasMovimentadas,0);
-  return {user:session,atualizadoEm:new Date().toISOString(),indicadores:{operacoesAtuais:currentOps.length,conjuntosEmOperacao:currentOps.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:currentOps.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon},operacoes:currentOps};
+  return {user:session,atualizadoEm:new Date().toISOString(),indicadores:{operacoesAtuais:currentOps.filter(o=>['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(o.status.toUpperCase())).length,conjuntosEmOperacao:currentOps.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:currentOps.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon,volumePrevisto:currentOps.reduce((n,o)=>n+o.volumeTotal,0),volumeRestante:currentOps.reduce((n,o)=>n+o.saldo,0)},operacoes:currentOps};
 }
 
 
