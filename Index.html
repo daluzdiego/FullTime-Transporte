@@ -1074,7 +1074,7 @@
         <td>${esc(o.produto||'—')}</td><td><strong>${esc(o.volumeTotal||o.campos?.[6]||'0')} t</strong></td>
         <td class="ops-center-cell">${setIds.length}</td><td class="ops-center-cell">${driverIds.length}</td>
         <td><strong>${completed} / ${planned}</strong></td><td>${esc(startLabel)}</td><td>${statusBadge(o.status)}</td>
-        <td><div class="ops-row-actions"><button class="btn btn-secondary ops-detail-btn" onclick="showDetalhesOperacao('${oid}')">◉ Detalhes</button><button class="icon-btn" title="Mais ações" onclick="toggleMenuAcoesOperacao(event,'${oid}')">⋮</button><div class="ops-action-menu hidden" id="ops-menu-${oid}"><button onclick="abrirAbaDetalheOperacao('${oid}','escala')">Gerar / consultar escala</button><button onclick="abrirEscalasOperacao('${oid}')">Alterar escala</button></div></div></td>
+        <td><div class="ops-row-actions"><button class="btn btn-secondary ops-detail-btn" onclick="showDetalhesOperacao('${oid}')">◉ Detalhes</button><button class="icon-btn" title="Mais ações" onclick="toggleMenuAcoesOperacao(event,'${oid}')">⋮</button><div class="ops-action-menu hidden" id="ops-menu-${oid}"><button onclick="abrirAbaDetalheOperacao('${oid}','escala')">Gerar / consultar escala</button><button onclick="abrirAbaDetalheOperacao('${oid}','equipe')">Gerenciar convocados</button></div></div></td>
       </tr><tr id="details-row-${oid}" class="ops-details-row" style="display:none"><td colspan="11"><div id="details-content-${oid}"></div></td></tr>`;
     }).join('');
     return `<section class="ops-page">
