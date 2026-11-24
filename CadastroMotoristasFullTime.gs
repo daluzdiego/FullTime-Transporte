@@ -84,9 +84,6 @@ function processarEnvioCadastroMotoristaFullTime_(e) {
     throw new Error('Resposta recebida, mas não importada: há campos obrigatórios inválidos. Corrija na aba de respostas e revise manualmente.');
   }
 
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
   const sh = getSheet_('MOTORISTAS');
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const ix = {};
@@ -174,6 +171,9 @@ function salvarMotoristaManualFullTime(token, data) {
   if (!cnh || !['C','D','E','AD','AE','AC'].includes(categoria)) throw new Error('Informe número e categoria da CNH.');
   if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(validade) || isNaN(new Date(validade + 'T12:00:00').getTime())) throw new Error('Informe a validade da CNH.');
   if (!cidade) throw new Error('Informe cidade/UF.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
   const sh = getSheet_('MOTORISTAS');
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   const ix = {};
