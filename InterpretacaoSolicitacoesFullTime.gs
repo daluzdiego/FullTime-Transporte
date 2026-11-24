@@ -230,6 +230,7 @@ function analisarSolicitacaoIAFullTime(token, id) {
     if (!result.camposPendentes.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.camposPendentes.push('Confirmar a destinação do saldo não distribuído (' + data.saldoNaoDistribuido + ' t)');
     if (!result.perguntas.some(function(x) { return /saldo|distribui/i.test(String(x)); })) result.perguntas.push(residualQuestion);
   }
+  var questions = result.perguntas
     .map(function (value) { return ftSolText_(value, 500); })
     .filter(Boolean);
   var ambiguities = result.ambiguidades
