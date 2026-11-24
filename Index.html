@@ -780,7 +780,9 @@
   }
 
   const SOL_FIELDS_FULLTIME={cliente:'Cliente',contato:'Contato',produto:'Produto/carga',tipoCarga:'Tipo de carga',nomeOperacao:'Nome da operação',categoria:'Categoria de escala',volume:'Peso/volume total (t)',unidadeVolume:'Unidade',volumePorViagem:'Volume por viagem (t)',motoristasNecessarios:'Quantidade de motoristas necessários',origem:'Origem',origemDetalhada:'Detalhes da origem',destino:'Destino',destinoDetalhado:'Detalhes do destino',dataColeta:'Data da coleta (DD/MM/AAAA)',horarioColeta:'Horário da coleta (HH:MM)',dataEntrega:'Data de entrega (DD/MM/AAAA)',horarioEntrega:'Horário de entrega',tipoOperacao:'Tipo de operação',veiculoSolicitado:'Veículo solicitado',frequencia:'Frequência',restricoes:'Restrições',observacoes:'Observações'};
-  function formatarDataSolicitacaoBR(value){const s=String(value||'').trim();if(/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4);return s;}\n  function normalizarDataSolicitacaoISO(value){const s=String(value||'').trim();if(!s)return '';if(/^\\d{4}-\\d{2}-\\d{2}$/.test(s))return s;const m=s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);if(!m)return s;return m[3]+'-'+m[2]+'-'+m[1];}\n  function abrirRevisaoSolicitacaoFullTime(id){
+  function formatarDataSolicitacaoBR(value){const s=String(value||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4);return s;}
+  function normalizarDataSolicitacaoISO(value){const s=String(value||'').trim();if(!s)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(!m)return s;return m[3]+'-'+m[2]+'-'+m[1];}
+  function abrirRevisaoSolicitacaoFullTime(id){
     const x=solicitacoesFullTime.find(s=>s.id===id);if(!x){toast('Solicitação não encontrada. Atualize a lista.',true);return;}
     let parsed={};try{parsed=JSON.parse(x.dadosExtraidos||'{}')||{};}catch(e){}const d=parsed.dados||parsed;
     let pending=[];try{pending=JSON.parse(x.camposPendentes||'[]');}catch(e){}
