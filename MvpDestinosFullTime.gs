@@ -39,6 +39,8 @@ function salvarOperacaoComDestinosFullTime(token,data){var session=obterSessao_(
 function ftMvpCreateOperationForSession_(session,data){data=data||{};
  var date=ftMvpDate_(data.data),client=ftMvpText_(data.cliente,120),name=ftMvpText_(data.nome,160),origin=ftMvpText_(data.origem,180);
  var volume=ftMvpNum_(data.volumeTotal),trips=Math.floor(ftMvpNum_(data.viagensPrevistas)),product=ftMvpText_(data.produto,160),type=ftMvpText_(data.tipoOperacao||'OUTRA',40).toUpperCase(),category=ftMvpText_(data.categoria||'PADRAO',40).toUpperCase();
+ var distance=ftMvpNum_(data.distanciaKm),deliveryDate=ftMvpDate_(data.dataEntrega),windowStart=ftMvpText_(data.janelaInicio,5),windowEnd=ftMvpText_(data.janelaFim,5),duration=ftMvpNum_(data.tempoEstimadoHoras);
+ if(data.distanciaKm!==''&&data.distanciaKm!=null&&!(distance>0))throw new Error('Distância deve ser maior que zero.');if(windowStart&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(windowStart))throw new Error('Janela inicial inválida.');if(windowEnd&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(windowEnd))throw new Error('Janela final inválida.');if(data.tempoEstimadoHoras!==''&&data.tempoEstimadoHoras!=null&&!(duration>0))throw new Error('Tempo estimado deve ser maior que zero.');
  var destinations=Array.isArray(data.destinos)?data.destinos:[];
  if(!date||!client||!name||!origin)throw new Error('Informe data, cliente responsável, nome da operação e origem.');
  if(!(volume>0&&isFinite(volume)))throw new Error('O volume total precisa ser maior que zero.');
@@ -53,7 +55,7 @@ function ftMvpCreateOperationForSession_(session,data){data=data||{};
  FT_MVP_DESTINOS_HEADERS.forEach(function(k){ftMvpCol_(destMap,k);});
  var id=Utilities.getUuid(),now=new Date(),destSummary=clean.length===1?clean[0].cliente+' — '+clean[0].local:clean.length+' destinos';
  var firstDestination=clean.length===1?clean[0].local:destSummary;
- var opData={ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:name,ORIGEM:origin,DESTINO:firstDestination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:trips,SALDO_TONELADAS:volume,OBSERVACOES:ftMvpText_(data.observacoes,1000),CRIADO_POR:session.login||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type,PRODUTO_SERVICO:product};
+ var opData={ID:id,CRIADO_EM:now,STATUS:'ABERTA',DATA_OPERACAO:date,CLIENTE:client,NOME_OPERACAO:name,ORIGEM:origin,DESTINO:firstDestination,CATEGORIA:category,VOLUME_TOTAL_TONELADAS:volume,TOTAL_VIAGENS_PREVISTAS:trips,SALDO_TONELADAS:volume,OBSERVACOES:ftMvpText_(data.observacoes,1000),CRIADO_POR:session.login||'ADMIN',VIAGENS_REALIZADAS:0,TIPO_OPERACAO:type,PRODUTO_SERVICO:product,DISTANCIA_KM:distance||'',DATA_ENTREGA:deliveryDate,JANELA_INICIO:windowStart,JANELA_FIM:windowEnd,TEMPO_ESTIMADO_HORAS:duration||''};
  var lock=LockService.getScriptLock();lock.waitLock(20000);var opRow=-1,added=[];
  try{
   ftMvpWriteObject_(ops,opData);opRow=ops.getLastRow();
