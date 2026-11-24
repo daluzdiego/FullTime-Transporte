@@ -33,7 +33,7 @@ Arquivos de sincronização Bruno e a rotina antiga de reconstrução foram reti
 
 A guia `ENTRADA_OPERACOES_IA` possui contrato canônico de 18 colunas, documentado em `docs/CONTRATO_CANONICO_CABECALHOS.md`. A mensagem recebida é preservada em `MENSAGEM_BRUTA`; dados interpretados, perguntas, pendências e histórico ficam dentro do JSON da coluna `INTERPRETACAO_JSON`; o estado fica em `STATUS_INTERPRETACAO`. Não criar colunas paralelas para o motor de IA.
 
-O motor `InterpretacaoSolicitacoesFullTime.gs` usa `FT_GEMINI_API_KEY` em Script Properties e o modelo `gemini-3.8-flash`. A análise não aprova nem cria operação. Para validar a conexão, executar `testarConexaoGeminiFullTime()`; para validar o fluxo completo, seguir a seção “Solicitações — entrada e interpretação Gemini” em `docs/TESTES.md`.
+O motor `InterpretacaoSolicitacoesFullTime.gs` usa `FT_GEMINI_API_KEY` em Script Properties. O modelo principal é `gemini-3.8-flash`, com fallback automático para `gemini-3.7-flash` e `gemini-3.5-flash-lite` quando há indisponibilidade transitória/capacidade. Há retentativas com backoff exponencial e jitter para HTTP 408/429/5xx. A análise não aprova nem cria operação. Para validar os modelos, executar `testarConexaoGeminiFullTime()`; para validar o fluxo completo, seguir a seção “Solicitações — entrada e interpretação Gemini” em `docs/TESTES.md`.
 
 **Importante:** atualizar o Git não publica automaticamente o Apps Script. O arquivo corrigido precisa ser sincronizado para o projeto Apps Script antes de testar a aplicação implantada.
 
