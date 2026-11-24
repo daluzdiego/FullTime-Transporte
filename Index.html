@@ -1246,6 +1246,9 @@
         :canReplace?'Sem substituto elegível disponível no momento':(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(status)?'Bloqueado após confirmação do motorista':'—');
       return '<tr><td>'+esc(label(drivers,p.campos?.[2]))+'</td><td>'+esc(label(sets,currentSet))+'</td><td>'+statusBadge(status||'—')+'</td><td>'+esc(p.campos?.[8]||'0')+'</td><td>'+esc(p.campos?.[7]||'0')+' t</td><td>'+action+'</td></tr>';
     }).join('')+'</tbody></table></div><p class="muted small">Somente ofertas ainda pendentes podem ser substituídas. Após o aceite, o registro fica protegido e qualquer mudança exige um procedimento operacional próprio, com histórico.</p>':'<div class="ops-empty-state">Nenhum conjunto foi designado para esta operação ainda.</div>';
+    const addOptions=candidates.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.driverName||x.id)+' · '+esc(x.id)+'</option>').join('');
+    const addPanel='<div class="ops-tab-intro"><div><h3>Adicionar convocado manualmente</h3><p>Somente conjuntos elegíveis. O motorista receberá uma oferta pendente e precisará aceitar.</p></div><select id="add-conjunto-'+esc(id)+'"><option value="">Selecionar conjunto elegível</option>'+addOptions+'</select><button class="btn btn-primary" type="button" '+(candidates.length?'':'disabled')+' onclick="adicionarConvocadoManualUI(\''+esc(id)+'\')">＋ Adicionar convocado</button></div>';
+    host.insertAdjacentHTML('afterbegin',addPanel);
   }
   async function substituirConvocadoPendenteUI(operacaoId,ofertaId){
     const select=document.getElementById('replace-set-'+ofertaId),novoConjuntoId=String(select?.value||'').trim();
@@ -1260,6 +1263,22 @@
       }).withFailureHandler(err=>toast(err.message||'Convocação substituída, mas o painel não atualizou.',true)).obterPainelFullTime(authToken);
     }).withFailureHandler(err=>toast(err.message||'Não foi possível substituir a convocação.',true))
       .FT_substituirConvocadoPendenteFullTime(authToken,ofertaId,novoConjuntoId,'Substituição solicitada pelo administrador no painel da operação.');
+  }
+  async function adicionarConvocadoManualUI(operacaoId){
+    const select=document.getElementById('add-conjunto-'+operacaoId),conjuntoId=String(select?.value||'').trim();
+    if(!conjuntoId){toast('Selecione um conjunto elegível.',true);return;}
+    if(!await uiConfirm('Será criada uma convocação manual para o conjunto escolhido. O motorista ainda precisará aceitar; nenhum aceite será presumido.',{title:'Adicionar convocado',ok:'Criar convocação'}))return;
+    google.script.run.withSuccessHandler(res=>{
+      toast(res.message||'Convocação criada.');
+      google.script.run.withSuccessHandler(data=>{
+        dashboard=parsePainelResponse(data);
+        google.script.run.withSuccessHandler(rows=>{
+          ftCandidatosOperacaoCache[operacaoId]=Array.isArray(rows)?rows:[];
+          renderPainelDetalhesOperacao(operacaoId,'equipe');
+        }).withFailureHandler(err=>toast(err.message||'Convocação criada, mas a lista de elegíveis não atualizou.',true)).ordenarCandidatosOperacaoFullTime(authToken,operacaoId);
+      }).withFailureHandler(err=>toast(err.message||'Convocação criada, mas o painel não atualizou.',true)).obterPainelFullTime(authToken);
+    }).withFailureHandler(err=>toast(err.message||'Não foi possível criar a convocação manual.',true))
+      .FT_adicionarConvocadoManualFullTime(authToken,operacaoId,conjuntoId,'Convocação manual solicitada pelo administrador no painel.');
   }
   async function retirarConvocadoPendenteUI(operacaoId,ofertaId){
     if(!await uiConfirm('A convocação pendente será retirada, sem apagar o histórico. Um motorista que já confirmou nunca pode ser removido por esta ação.',{title:'Retirar convocação',ok:'Retirar convocação',danger:true}))return;
