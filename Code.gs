@@ -717,6 +717,8 @@ function registrarMovimentacaoOperacaoFullTime(token, data) {
     if(idx<1) throw new Error('Operação não encontrada.');
     const op=rows[idx], status=String(op[2]||'');
     if(!['ABERTA','EM_ANDAMENTO'].includes(status)) throw new Error('A operação não está aberta para movimentação.');
+    // Operações com destinos individualizados só podem movimentar pelo endpoint que recebe ID_DESTINO.
+    if(typeof ftMvpHasDestinations_==='function' && ftMvpHasDestinations_(operacaoId)) throw new Error('Esta operação possui destinos individualizados. Selecione a empresa atendida e registre a entrega pelo formulário de destinos.');
     const saldo=Number(op[11]||0);
     if(toneladas>saldo+0.000001) throw new Error('A movimentação excede o saldo restante de '+saldo+' t.');
     const sets=[['ID','CRIADO_EM','STATUS','MOTORISTA_ID','CAVALO_ID','CARRETA_MEIO_ID','CARRETA_FINAL_ID','OBSERVACOES','ESTADO_CONSERVACAO','RESTRICOES','CAPACIDADE_UTIL_TONELADAS','ATUALIZADO_POR']].concat(listarRegistros_('CONJUNTOS').map(r=>[r.id,r.criado,r.status].concat(r.campos||[])));
