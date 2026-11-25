@@ -21,15 +21,32 @@ function FT_colocarMotoristaNoFinalDaFila_(motoristaId, motivo){
 
 
 /** Agenda vigente da operação; ofertas antigas deixam de valer quando data/horário mudam. */
+/** Normaliza horas de células Sheets (Date, texto ou fração numérica) para HH:mm. */
+function FT_AUTO_horaChaveOferta_(value){
+ if(value===null||value===undefined||value==='')return '';
+ if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'HH:mm');
+ if(typeof value==='number'&&isFinite(value)){
+  const mins=Math.round(((value%1)+1)%1*1440);
+  return String(Math.floor(mins/60)%24).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+ }
+ const raw=String(value).trim();if(!raw)return '';
+ const match=raw.match(/(?:^|\\s|T)(\\d{1,2}):(\\d{2})(?::\\d{2})?/);
+ if(match)return String(Number(match[1])).padStart(2,'0')+':'+match[2];
+ return raw;
+}
 function FT_AUTO_agendaAtual_(opId){
  const sh=getSheet_('OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues();
  const r=rows.slice(1).find(x=>String(x[m.ID]||'')===String(opId));
  if(!r)throw new Error('Operação não encontrada para validar a agenda.');
- const date=r[m.DATA_OPERACAO] instanceof Date?Utilities.formatDate(r[m.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(r[m.DATA_OPERACAO]||'').slice(0,10);
- return {data:date,horario:String(r[m.JANELA_INICIO]||'').trim(),fim:String(r[m.JANELA_FIM]||'').trim()};
+ const date=FT_AUTO_dataChaveOferta_(r[m.DATA_OPERACAO]);
+ return {data:date,horario:FT_AUTO_horaChaveOferta_(r[m.JANELA_INICIO]),fim:FT_AUTO_horaChaveOferta_(r[m.JANELA_FIM])};
 }
 function FT_AUTO_dataChaveOferta_(value){
  if(value instanceof Date && isFinite(value.getTime())) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+ if(typeof value==='number'&&isFinite(value)){
+  const d=new Date(Math.round((value-25569)*86400000));
+  return Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd');
+ }
  const raw=String(value==null?'':value).trim();
  if(!raw)return '';
  if(/^\\d{4}-\\d{2}-\\d{2}/.test(raw))return raw.slice(0,10);
@@ -38,9 +55,9 @@ function FT_AUTO_dataChaveOferta_(value){
 }
 function FT_AUTO_agendaOfertaIgual_(row,map,agenda){
  const d=map.DATA_OPERACAO_OFERTA===undefined?'':FT_AUTO_dataChaveOferta_(row[map.DATA_OPERACAO_OFERTA]);
- const h=map.HORARIO_OPERACAO_OFERTA===undefined?'':String(row[map.HORARIO_OPERACAO_OFERTA]||'').trim();
- const f=map.JANELA_FIM_OFERTA===undefined?'':String(row[map.JANELA_FIM_OFERTA]||'').trim();
- return !!d&&d===String(agenda.data||'').slice(0,10)&&h===String(agenda.horario||'').trim()&&f===String(agenda.fim||'').trim();
+ const h=map.HORARIO_OPERACAO_OFERTA===undefined?'':FT_AUTO_horaChaveOferta_(row[map.HORARIO_OPERACAO_OFERTA]);
+ const f=map.JANELA_FIM_OFERTA===undefined?'':FT_AUTO_horaChaveOferta_(row[map.JANELA_FIM_OFERTA]);
+ return !!d&&d===String(agenda.data||'').slice(0,10)&&h===FT_AUTO_horaChaveOferta_(agenda.horario)&&f===FT_AUTO_horaChaveOferta_(agenda.fim);
 }
 function FT_AUTO_prepararCabecalhosAgenda_(sh){
  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
