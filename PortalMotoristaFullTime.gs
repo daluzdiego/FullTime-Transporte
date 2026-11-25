@@ -472,6 +472,80 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       };
     }
 
+    if (decision === 'ACEITA') {
+      if (!operationId || !ownerId || !conjuntoId) {
+        throw new Error('A oferta está incompleta: operação, motorista e conjunto precisam estar vinculados.');
+      }
+
+      const operationsSheet = getSheet_('OPERACOES');
+      const operationMap = FT_MOTORISTA_headerMap_(operationsSheet);
+      FT_MOTORISTA_exigirCabecalhos_(operationMap, ['ID', 'STATUS'], 'OPERACOES');
+      const operationRows = operationsSheet.getDataRange().getValues();
+      const operationMatches = operationRows.slice(1).filter(operationRow =>
+        FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(operationRow, operationMap, 'ID')) === operationId
+      );
+      if (operationMatches.length !== 1) {
+        throw new Error(operationMatches.length
+          ? 'Integridade comprometida: a operação vinculada possui identificadores duplicados.'
+          : 'A operação desta convocação não foi encontrada.'
+        );
+      }
+
+      const operation = operationMatches[0];
+      const operationStatus = FT_MOTORISTA_texto_(
+        FT_MOTORISTA_valor_(operation, operationMap, 'STATUS')
+      ).toUpperCase();
+      if (!['ABERTA', 'EM_ANDAMENTO'].includes(operationStatus)) {
+        throw new Error('Esta operação não está mais aberta para aceite de convocações.');
+      }
+
+      const snapshotDate = FT_MOTORISTA_dataChave_(
+        FT_MOTORISTA_valor_(record, map, 'DATA_OPERACAO_OFERTA')
+      );
+      if (snapshotDate) {
+        const currentDate = FT_MOTORISTA_dataChave_(
+          FT_MOTORISTA_valor_(operation, operationMap, 'DATA_OPERACAO')
+        );
+        const snapshotStart = FT_MOTORISTA_texto_(
+          FT_MOTORISTA_valor_(record, map, 'HORARIO_OPERACAO_OFERTA')
+        );
+        const snapshotEnd = FT_MOTORISTA_texto_(
+          FT_MOTORISTA_valor_(record, map, 'JANELA_FIM_OFERTA')
+        );
+        const currentStart = FT_MOTORISTA_texto_(
+          FT_MOTORISTA_valor_(operation, operationMap, 'JANELA_INICIO')
+        );
+        const currentEnd = FT_MOTORISTA_texto_(
+          FT_MOTORISTA_valor_(operation, operationMap, 'JANELA_FIM')
+        );
+        if (snapshotDate !== currentDate || snapshotStart !== currentStart || snapshotEnd !== currentEnd) {
+          throw new Error('A agenda desta operação foi alterada. Esta convocação não pode mais ser aceita; solicite uma nova oferta.');
+        }
+      }
+
+      const blockingStatuses = new Set(['OFERTADA', 'ACEITA', 'ATIVO', 'SAIU', 'EM_VIAGEM']);
+      const conflict = rows.slice(1).some((other, index) => {
+        if (index === match.index) return false;
+        const otherStatus = FT_MOTORISTA_texto_(
+          FT_MOTORISTA_valor_(other, map, 'STATUS_PARTICIPACAO')
+        ).toUpperCase();
+        if (!blockingStatuses.has(otherStatus)) return false;
+        if (otherStatus === 'OFERTADA') {
+          const otherRawExpiry = FT_MOTORISTA_valor_(other, map, 'EXPIRA_EM');
+          const otherExpiry = otherRawExpiry instanceof Date
+            ? otherRawExpiry.getTime()
+            : new Date(otherRawExpiry).getTime();
+          if (!isFinite(otherExpiry) || otherExpiry <= Date.now()) return false;
+        }
+        const otherDriverId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(other, map, 'MOTORISTA_ID'));
+        const otherSetId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(other, map, 'CONJUNTO_ID'));
+        return otherDriverId === ownerId || otherSetId === conjuntoId;
+      });
+      if (conflict) {
+        throw new Error('Este motorista ou conjunto já possui outra oferta pendente ou escala em andamento.');
+      }
+    }
+
     const newStatus = decision === 'ACEITA' ? 'ACEITA' : 'RECUSADA';
     sheet.getRange(rowNumber, map.STATUS_PARTICIPACAO + 1).setValue(newStatus);
 
