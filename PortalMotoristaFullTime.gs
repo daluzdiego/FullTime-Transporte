@@ -83,7 +83,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       const now=new Date();
       sh.getRange(idx+1,map.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
       if(map.RESPONDIDA_EM!==undefined)sh.getRange(idx+1,map.RESPONDIDA_EM+1).setValue(now);
-      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'não respondeu em 2 horas');
+      FT_colocarMotoristaNoFinalDaFila_(motoristaId,'não respondeu em 6 horas');
       FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:record[map.OPERACAO_ID],motoristaId,conjuntoId:record[map.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Prazo de resposta encerrado.',autor:session.email,ofertaId});
       auditar_(session,'OFERTA_EXPIRADA','OPERACAO',String(record[map.OPERACAO_ID]),ofertaId);
       return {ok:false,status:'EXPIRADA',message:'O prazo desta oferta expirou. Solicite uma nova convocação.'};
