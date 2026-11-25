@@ -678,7 +678,7 @@
         const current=old.filter(x=>x.destinoId===dest.id),suggested=sg.filter(x=>x.destinoId===dest.id);
         const slots=[0,1].map(i=>{
           const item=current[i]||suggested[i],sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado&&current[i]);
-          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · deslocamento iniciado':'')+'</span><select data-dest="'+esc(dest.id)+'" '+(locked?'disabled':'')+'><option value="">Selecione motorista</option>'+cs.map(c=>'<option value="'+esc(c.participacaoId)+'" '+(c.participacaoId===sel?'selected':'')+'>'+esc(c.nome)+' · '+num(c.capacidade)+' t · '+esc(c.status)+'</option>').join('')+'</select><small>Referência: '+num(dest.volume/2)+' t</small></label>';
+          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · deslocamento iniciado':'')+'</span><select data-dest="'+esc(dest.id)+'" '+(locked?'disabled':'')+'><option value="">Selecione motorista</option>'+cs.map(c=>'<option value="'+esc(c.participacaoId)+'" '+(c.participacaoId===sel?'selected':'')+'>'+esc(c.nome)+' · '+num(c.capacidade)+' t · '+esc(c.status)+'</option>').join('')+'</select><small>A carga será rateada conforme a capacidade dos dois conjuntos.</small></label>';
         }).join('');
         return '<section class="destination-allocation-card"><div class="destination-allocation-title"><strong>'+esc(dest.ordem+'. '+dest.cliente)+'</strong><span>'+num(dest.volume)+' t</span></div><div class="destination-allocation-slots">'+slots+'</div></section>';
       }).join('');
