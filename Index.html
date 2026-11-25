@@ -1221,8 +1221,8 @@
     };
     const q=String(state.q||'').toLowerCase(),stFilter=String(state.status||'');
     const filtered=source.filter(r=>(!q||String(r.driverName||'').toLowerCase().includes(q))&&(!stFilter||getStatus(r)===stFilter));
-    const pageSize=8,totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));state.page=Math.min(Math.max(1,state.page||1),totalPages);
-    const pageRows=filtered.slice((state.page-1)*pageSize,state.page*pageSize);
+    const totalPages=1;state.page=1;
+    const pageRows=filtered;
     const options=['','APTO','OFERTADA','ACEITA','ATIVO','RECUSADA','EXPIRADA','NAO_RESPONDEU','CANCELADA_REPROGRAMACAO','PENDENTE'];
     host.innerHTML=`
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">
@@ -1232,7 +1232,7 @@
         <select id="candidate-status-${esc(id)}" onchange="atualizarFiltroCandidatos('${esc(id)}','${modo}')" style="border:1px solid #dfe6ef;border-radius:9px;padding:10px 12px;background:#fff;color:#475569">${options.map(v=>'<option value="'+v+'" '+(stFilter===v?'selected':'')+'>'+(v||'Todos os status')+'</option>').join('')}</select>
       </div>
       ${pageRows.length?'<div class="table-wrap candidate-table-wrap"><table><thead><tr><th>Motorista</th><th>Capacidade</th><th>Status</th><th>Situação</th></tr></thead><tbody>'+pageRows.map(line).join('')+'</tbody></table></div>':'<div class="empty">Nenhum motorista corresponde aos filtros.</div>'}
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px"><span class="muted small">${filtered.length} resultado(s) · Página ${state.page} de ${totalPages} · ${eligible.length} apto(s) ainda não convocado(s) · ${called.length} convocação(ões)</span><div class="form-actions" style="margin:0"><button class="btn btn-secondary" ${state.page<=1?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',-1,'${modo}')">Anterior</button><button class="btn btn-secondary" ${state.page>=totalPages?'disabled':''} onclick="mudarPaginaCandidatos('${esc(id)}',1,'${modo}')">Próxima</button></div></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px"><span class="muted small">${filtered.length} resultado(s) exibido(s) · ${eligible.length} apto(s) ainda não convocado(s) · ${called.length} convocação(ões)</span></div>`;
   }
 
   function toggleMenuAcoesOperacao(ev,id){
