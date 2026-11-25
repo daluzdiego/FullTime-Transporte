@@ -98,6 +98,16 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
  return q;
 }
 
+function FT_AUTO_AGENDAR_LEMBRETES_EMAIL_(){
+ if(!ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='FT_processarLembretesEmailConvocacao_'))
+  ScriptApp.newTrigger('FT_processarLembretesEmailConvocacao_').timeBased().everyHours(1).create();
+}
+function FT_processarLembretesEmailConvocacao_(){
+ const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_prepararCabecalhosAgenda_(sh),rows=sh.getDataRange().getValues();
+ FT_AUTO_enviarLembretesEmail_(sh,m,rows);
+ const pending=rows.slice(1).some(r=>String(r[m.STATUS_PARTICIPACAO]||'').toUpperCase()==='OFERTADA'&&(()=>{const x=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();return isFinite(x)&&x>Date.now();})());
+ if(!pending)ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='FT_processarLembretesEmailConvocacao_').forEach(t=>ScriptApp.deleteTrigger(t));
+}
 function FT_AUTO_enviarLembretesEmail_(sh,m,rows){
  const props=PropertiesService.getScriptProperties(),now=Date.now();
  const ds=getSheet_('MOTORISTAS'),dm=FT_AUTO_MAP_(ds),dv=ds.getDataRange().getValues(),emails={};
