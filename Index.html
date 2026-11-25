@@ -653,7 +653,7 @@
     const running=['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status);
     const statusLabel=o.atrasada?'ATRASADA':status==='ABERTA'?'AGUARDANDO ESCALA':status.replace(/_/g,' ');
     const statusClass=o.atrasada||status==='SUSPENSA'?'is-alert':status==='ABERTA'?'is-waiting':'is-active';
-    const destinationText=(o.destinos||[]).length?o.destinos.map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):((/^\\d+\\s+destinos?$/i.test(String(o.destino||'')))?'Destinos não individualizados — revisar cadastro':(o.destino||'—'));
+    const destinationText=(o.destinos||[]).length?o.destinos.map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):((/^\d+\s+destinos?$/i.test(String(o.destino||'')))?'Destinos não individualizados — revisar cadastro':(o.destino||'—'));
     const drivers=o.conjuntos||[];
     const driverRows=drivers.length?drivers.map(s=>{
       const st=String(s.status||'').toUpperCase();
