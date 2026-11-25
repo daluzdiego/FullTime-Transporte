@@ -1,7 +1,7 @@
 name: Full Time syntax checks
 on:
   push:
-    branches: [fulltime-2.0]
+    branches: [main, fulltime-2.0]
   pull_request:
     branches: [fulltime-2.0]
   workflow_dispatch:
