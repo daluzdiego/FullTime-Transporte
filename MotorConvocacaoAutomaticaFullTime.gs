@@ -243,4 +243,56 @@ function FT_AUTO_CANCELAR_OPERACAO_(opId,motivo){
   return {ok:true,ofertasCanceladas:cancelled};
  }finally{lock.releaseLock();}
 }
+
+/**
+ * Diagnóstico SOMENTE LEITURA: compara a agenda gravada em cada oferta com a agenda atual.
+ * Executar pelo editor Apps Script e consultar o Registro de execução.
+ * Não altera ofertas, fila, motoristas ou operação.
+ */
+function FT_DIAGNOSTICAR_AGENDA_OFERTAS_READONLY() {
+  const ops = getSheet_('OPERACOES');
+  const om = FT_AUTO_MAP_(ops);
+  const operationRows = ops.getDataRange().getValues();
+  const matches = operationRows.slice(1).filter(r =>
+    String(r[om.NOME_OPERACAO] || '').trim().toUpperCase() === 'TORRES' ||
+    String(r[om.CLIENTE] || '').trim().toUpperCase() === 'TORRES'
+  );
+  if (!matches.length) throw new Error('Operação TORRES não localizada. Nenhuma alteração realizada.');
+  const operationIds = matches.map(r => String(r[om.ID] || '').trim()).filter(Boolean);
+  const sh = getSheet_('PARTICIPACAO_OPERACOES');
+  const m = FT_AUTO_prepararCabecalhosAgenda_(sh);
+  const rows = sh.getDataRange().getValues();
+  const result = [];
+  operationIds.forEach(opId => {
+    const agenda = FT_AUTO_agendaAtual_(opId);
+    rows.slice(1).forEach(r => {
+      if (String(r[m.OPERACAO_ID] || '').trim() !== opId) return;
+      const rawDate = m.DATA_OPERACAO_OFERTA === undefined ? '' : r[m.DATA_OPERACAO_OFERTA];
+      const rawStart = m.HORARIO_OPERACAO_OFERTA === undefined ? '' : r[m.HORARIO_OPERACAO_OFERTA];
+      const rawEnd = m.JANELA_FIM_OFERTA === undefined ? '' : r[m.JANELA_FIM_OFERTA];
+      const snapshot = {
+        data: FT_AUTO_dataChaveOferta_(rawDate),
+        horario: FT_AUTO_horaChaveOferta_(rawStart),
+        fim: FT_AUTO_horaChaveOferta_(rawEnd)
+      };
+      result.push({
+        operacaoId: opId,
+        ofertaId: String(r[m.ID] || ''),
+        motoristaId: String(r[m.MOTORISTA_ID] || ''),
+        statusRealNaPlanilha: String(r[m.STATUS_PARTICIPACAO] || ''),
+        snapshotBruto: {
+          data: rawDate instanceof Date ? Utilities.formatDate(rawDate, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawDate || ''),
+          inicio: rawStart instanceof Date ? Utilities.formatDate(rawStart, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawStart || ''),
+          fim: rawEnd instanceof Date ? Utilities.formatDate(rawEnd, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawEnd || '')
+        },
+        snapshotNormalizado: snapshot,
+        agendaAtual: agenda,
+        agendaConfere: FT_AUTO_agendaOfertaIgual_(r, m, agenda)
+      });
+    });
+  });
+  console.log('FULL TIME — DIAGNÓSTICO SOMENTE LEITURA — AGENDA DAS OFERTAS: ' + JSON.stringify(result));
+  return result;
+}
+
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
