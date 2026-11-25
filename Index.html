@@ -96,6 +96,28 @@
 @media(max-width:1150px){.center-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.center-ops-panel{overflow-x:auto}.center-ops-table{min-width:900px}}
 @media(max-width:650px){.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.center-ops-toolbar{align-items:flex-start}}
 /* FULL TIME — Centro de Operações: painel executivo de despacho */
+/* Portal do motorista — identidade visual Full Time */
+#appView.driver-portal .sidebar{background:#082b5c;border-right:1px solid #173f70;color:#e8f1ff}
+#appView.driver-portal .sidebar .brand,#appView.driver-portal .sidebar .brand small{color:#e8f1ff}
+#appView.driver-portal .sidebar .brand-mark{background:#1769e0;color:#fff}
+#appView.driver-portal .nav button{color:#dce9fb}
+#appView.driver-portal .nav button:hover{background:rgba(255,255,255,.08)}
+#appView.driver-portal .nav button.active{background:#1769e0;border-color:#4389ee;color:#fff}
+#appView.driver-portal .sidebar-bottom{border-color:#234a78}
+#appView.driver-portal .avatar{background:#1769e0;color:#fff}
+#appView.driver-portal .user-meta span{color:#a9bfdc}
+#appView.driver-portal .topbar{background:#082b5c;border-bottom:1px solid #173f70;color:#f8fbff}
+#appView.driver-portal .top-title,#appView.driver-portal #topSubtitle{color:#fff}
+#appView.driver-portal .today{background:#103967;border-color:#31577f;color:#dbeafe}
+#appView.driver-portal .top-right>.btn{background:transparent;color:#fff;border-color:#41648b}
+#appView.driver-portal .content{max-width:1500px;margin:0 auto}
+#appView.driver-portal .page-head h1{color:#102d53}
+#appView.driver-portal .page-head p{color:#647b98}
+#appView.driver-portal .stat-card{border-color:#d6e2f1;box-shadow:0 4px 16px rgba(8,43,92,.06)}
+#appView.driver-portal .panel-head{background:#f1f6fc;border-bottom-color:#dce7f4}
+#appView.driver-portal .panel-head h2{color:#123b6b}
+#appView.driver-portal .btn-primary{background:#1769e0;border-color:#1769e0}
+@media(max-width:700px){#appView.driver-portal .content{padding:20px 14px 90px}}
 #appView.center-dashboard .sidebar{background:#082b5c;border-right:1px solid #173f70;color:#e8f1ff}
 #appView.center-dashboard .sidebar .brand,#appView.center-dashboard .sidebar .brand small{color:#e8f1ff}
 #appView.center-dashboard .sidebar .brand-mark{background:#174b8f;color:#fff}
@@ -395,7 +417,7 @@
   function buildNav(){
     const side=document.getElementById('sideNav');
     if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
-      side.innerHTML='<button data-page="portalMotorista" onclick="goPage(\'portalMotorista\')"><span class="nav-ico">▣</span>MINHAS OFERTAS</button>';
+      side.innerHTML='<button data-page="portalMotorista" onclick="goPage(\'portalMotorista\')"><span class="nav-ico">▣</span>PAINEL DE CONVOCAÇÕES</button>';
       paintNav();return;
     }
     side.innerHTML=NAV_ITEMS.map(n=>{
@@ -464,11 +486,11 @@
   });
   function renderPage(page){
     const appRoot=document.getElementById('appView');
-    if(appRoot)appRoot.classList.toggle('center-dashboard',page==='centro'&&String(currentUser?.perfil||'').toUpperCase()==='ADMIN');
+    if(appRoot){appRoot.classList.toggle('center-dashboard',page==='centro'&&String(currentUser?.perfil||'').toUpperCase()==='ADMIN');appRoot.classList.toggle('driver-portal',String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA');}
     if(page!=='centro'&&window.__ftCentroRefreshTimer){window.clearInterval(window.__ftCentroRefreshTimer);window.__ftCentroRefreshTimer=null;}
     if(String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA'){
-      document.getElementById('topTitle').textContent='Área do motorista';
-      document.getElementById('topSubtitle').textContent='Consulte e responda às ofertas destinadas a você.';
+      document.getElementById('topTitle').textContent='Painel de Convocações';
+      document.getElementById('topSubtitle').textContent='Acompanhe seus convites, confirme sua disponibilidade e consulte seu histórico.';
       document.getElementById('content').innerHTML=renderPortalMotorista();
       return;
     }
@@ -555,7 +577,7 @@
       return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted small">'+esc(op.cliente||'')+' · Convite: '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+badgeTone+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div><div><strong>Prazo para resposta</strong><div>'+dateTime(o.expiraEm)+'</div></div>'+responseInfo+'</div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700;color:var(--blue-dark)">Ver histórico deste convite ('+events.length+' eventos)</summary><div style="padding-top:10px">'+eventHtml+'</div></details></div></div>';
     };
     const standalone=orphanEvents.length?'<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Outros eventos do seu histórico</h2></div><div class="panel-body">'+orphanEvents.map(e=>'<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+' · '+esc(e.operacao?.nome||e.operacaoId||'Operação não identificada')+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div>').join('')+'</div></div>':'';
-    return '<div class="page-head"><div><h1>Minhas ofertas e histórico</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
+    return '<div class="page-head"><div><h1>Painel de Convocações</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
       '<div class="stats">'+cards.map(x=>'<div class="stat-card"><div><div class="stat-label">'+esc(x[0])+'</div><div class="stat-value">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
       (pending.length?'<h2 style="margin:22px 0 12px">Aguardando sua resposta</h2>':'')+
       (offers.length?[
