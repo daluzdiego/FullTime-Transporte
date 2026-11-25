@@ -1124,7 +1124,8 @@
   }
 
   function renderOperacoes(){
-    const ops=dashboard?.operacoes||[],parts=dashboard?.participacoesOperacoes||[];
+    const parseOpDate=v=>{if(v instanceof Date)return v.getTime();const t=Date.parse(v||'');return Number.isFinite(t)?t:0;};
+    const ops=[...(dashboard?.operacoes||[])].sort((a,b)=>parseOpDate(b.data||b.campos?.[0])-parseOpDate(a.data||a.campos?.[0])||parseOpDate(b.criado)-parseOpDate(a.criado)),parts=dashboard?.participacoesOperacoes||[];
     const norm=v=>String(v||'').trim().toUpperCase();
     const statusCount=(...values)=>ops.filter(o=>values.includes(norm(o.status))).length;
     const total=ops.length,active=statusCount('EM_ANDAMENTO','EM EXECUCAO','EM EXECUÇÃO'),formation=statusCount('EM_FORMACAO','EM FORMAÇÃO','PENDENTE_REVISAO','PENDENTE REVISÃO'),waiting=statusCount('ABERTA','AGUARDANDO_INICIO','AGUARDANDO INÍCIO'),done=statusCount('CONCLUIDA','CONCLUÍDA','ENCERRADA');
@@ -1141,7 +1142,7 @@
       return `<tr id="op-row-${oid}" class="ops-row" data-search="${esc(search)}" data-status="${esc(status)}">
         <td><button class="ops-name-button" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')"><span class="ops-row-chevron">›</span><strong>${esc(name)}</strong></button></td>
         <td>${esc(periodStart)} <span class="ops-muted">—</span> ${esc(periodEnd)}</td>
-        <td class="ops-route-cell">${esc(o.origem||o.campos?.[3]||'—')} <span class="ops-route-arrow">→</span> ${esc(o.destino||o.campos?.[4]||'—')}</td>
+        <td class="ops-route-cell">${esc(o.origem||o.campos?.[3]||'—')} <span class="ops-route-arrow">→</span> ${esc((o.destinosDetalhados||[]).length?(o.destinosDetalhados||[]).map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):(o.destino||o.campos?.[4]||'—'))}</td>
         <td>${esc(o.produto||'—')}</td><td><strong>${esc(o.volumeTotal||o.campos?.[6]||'0')} t</strong></td>
         <td class="ops-center-cell">${setIds.length}</td><td class="ops-center-cell">${driverIds.length}</td>
         <td><strong>${completed} / ${planned}</strong></td><td>${esc(startLabel)}</td><td>${statusBadge(o.status)}</td>
