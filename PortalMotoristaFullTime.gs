@@ -113,9 +113,14 @@ function FT_MOTORISTA_serializar_(value) {
 }
 
 function FT_MOTORISTA_exigirDependencias_(names) {
-  const missing = names.filter(name => typeof globalThis[name] !== 'function');
+  const available = {
+    FT_CONV_appendEvent_: typeof FT_CONV_appendEvent_ === 'function',
+    auditar_: typeof auditar_ === 'function',
+    FT_colocarMotoristaNoFinalDaFila_: typeof FT_colocarMotoristaNoFinalDaFila_ === 'function'
+  };
+  const missing = names.filter(name => available[name] !== true);
   if (missing.length) {
-    throw new Error('Dependência do sistema indisponível: ' + missing.join(', ') + '.');
+    throw new Error('Dependência do sistema indisponível: ' + missing.join(', ') + '. Nenhum registro foi alterado.');
   }
 }
 
