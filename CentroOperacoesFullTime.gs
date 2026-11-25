@@ -81,7 +81,7 @@ function obterCentroOperacoesFullTime(token) {
       const destId=String(d.ID||'');
       const delivered=operationMoves.filter(m=>String(m.ID_DESTINO||'')===destId).reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
       const destPlanned=FT_CENTRO_num_(d.VOLUME_PREVISTO_TONELADAS);
-      return {id:destId,cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),status:String(d.STATUS||'')};
+      return {id:destId,ordem:FT_CENTRO_num_(d.ORDEM_ENTREGA),cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),cidadeUf:String(d.CIDADE_UF||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),percentual:destPlanned>0?Math.min(100,delivered/destPlanned*100):0,status:String(d.STATUS||'')};
     });
     return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:planned,toneladasMovimentadas:moved,saldo:remaining,excedente:overrun,percentualCarregado:progress.percentual,viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips,conjuntos:related.map(p=>{
       const sid=String(p.CONJUNTO_ID||''),s=sBy[sid]||{},did=String(s.MOTORISTA_ID||p.MOTORISTA_ID||''),h=hBy[String(s.CAVALO_ID||'')]||{},t1=tBy[String(s.CARRETA_MEIO_ID||'')]||{},t2=tBy[String(s.CARRETA_FINAL_ID||'')]||{};
