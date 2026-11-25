@@ -72,6 +72,18 @@ function FT_MOTORISTA_dataIso_(value) {
   return isFinite(parsed.getTime()) ? parsed.toISOString() : String(value);
 }
 
+function FT_MOTORISTA_horaChave_(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  if (value instanceof Date) return isFinite(value.getTime()) ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm') : '';
+  if (typeof value === 'number' && isFinite(value)) {
+    const minutes = Math.round((((value % 1) + 1) % 1) * 1440);
+    return String(Math.floor(minutes / 60) % 24).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+  }
+  const text = String(value).trim();
+  const match = text.match(/(?:^|\\s|T)(\\d{1,2}):(\\d{2})(?::\\d{2})?/);
+  return match ? String(Number(match[1])).padStart(2, '0') + ':' + match[2] : text;
+}
+
 function FT_MOTORISTA_dataChave_(value) {
   if (value === '' || value === null || value === undefined) return '';
   if (value instanceof Date) {
@@ -178,6 +190,29 @@ function obterPortalMotoristaFullTime(token) {
 
   const operationRows = operationsSheet.getDataRange().getValues();
   const operationsById = Object.create(null);
+  let destinationsByOperation = Object.create(null);
+  try {
+    const destinationSheet = getSheet_('DESTINOS_OPERACAO');
+    if (destinationSheet && destinationSheet.getLastRow() > 1) {
+      const destinationMap = FT_MOTORISTA_headerMap_(destinationSheet);
+      const destinationRows = destinationSheet.getDataRange().getValues().slice(1);
+      destinationRows.forEach(row => {
+        const operationId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'OPERACAO_ID'));
+        if (!operationId) return;
+        (destinationsByOperation[operationId] = destinationsByOperation[operationId] || []).push({
+          id: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'ID')),
+          ordem: Number(FT_MOTORISTA_valor_(row, destinationMap, 'ORDEM_ENTREGA', 0)) || 0,
+          cliente: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'CLIENTE_DESTINO')),
+          local: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'LOCAL_ENTREGA')),
+          cidadeUf: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'CIDADE_UF')),
+          volume: Number(FT_MOTORISTA_valor_(row, destinationMap, 'VOLUME_PREVISTO_TONELADAS', 0)) || 0
+        });
+      });
+      Object.keys(destinationsByOperation).forEach(id => destinationsByOperation[id].sort((a,b) => a.ordem-b.ordem));
+    }
+  } catch (destinationError) {
+    console.warn('FULL TIME — destinos detalhados indisponíveis: ' + String(destinationError && destinationError.message || destinationError));
+  }
 
   operationRows.slice(1).forEach(row => {
     const id = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'ID'));
@@ -193,11 +228,12 @@ function obterPortalMotoristaFullTime(token) {
       nome: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'NOME_OPERACAO')),
       origem: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'ORIGEM')),
       destino: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'DESTINO')),
+      destinos: destinationsByOperation[id] || [],
       produto: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'PRODUTO_SERVICO')),
       distanciaKm: FT_MOTORISTA_valor_(row, operationMap, 'DISTANCIA_KM'),
       dataEntrega: FT_MOTORISTA_valor_(row, operationMap, 'DATA_ENTREGA'),
-      janelaInicio: FT_MOTORISTA_valor_(row, operationMap, 'JANELA_INICIO'),
-      janelaFim: FT_MOTORISTA_valor_(row, operationMap, 'JANELA_FIM'),
+      janelaInicio: FT_MOTORISTA_horaChave_(FT_MOTORISTA_valor_(row, operationMap, 'JANELA_INICIO')),
+      janelaFim: FT_MOTORISTA_horaChave_(FT_MOTORISTA_valor_(row, operationMap, 'JANELA_FIM')),
       tempoEstimadoHoras: FT_MOTORISTA_valor_(row, operationMap, 'TEMPO_ESTIMADO_HORAS'),
       volume: Number(FT_MOTORISTA_valor_(row, operationMap, 'VOLUME_TOTAL_TONELADAS', 0)) || 0
     };
@@ -222,8 +258,8 @@ function obterPortalMotoristaFullTime(token) {
     const hasScheduleSnapshot = !!snapshotDate;
     const scheduleChanged = hasScheduleSnapshot && (
       snapshotDate !== FT_MOTORISTA_texto_(operation.dataKey) ||
-      snapshotStart !== FT_MOTORISTA_texto_(operation.janelaInicio) ||
-      snapshotEnd !== FT_MOTORISTA_texto_(operation.janelaFim)
+      FT_MOTORISTA_horaChave_(snapshotStart) !== FT_MOTORISTA_horaChave_(operation.janelaInicio) ||
+      FT_MOTORISTA_horaChave_(snapshotEnd) !== FT_MOTORISTA_horaChave_(operation.janelaFim)
     );
 
     const rawExpiry = FT_MOTORISTA_valor_(row, participationMap, 'EXPIRA_EM');
