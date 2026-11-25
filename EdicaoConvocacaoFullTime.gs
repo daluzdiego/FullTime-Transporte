@@ -112,7 +112,7 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
       MOTIVO: 'Convocação substituta. ' + motivo,
       REGISTRADO_POR: session.login || session.nome || 'ADMIN',
       OFERTADA_EM: now, RESPONDIDA_EM: '',
-      EXPIRA_EM: new Date(now.getTime() + (isAutoQueue ? FT_AUTO_TTL_ : 12 * 60 * 60 * 1000)),
+      EXPIRA_EM: new Date(now.getTime() + (typeof FT_AUTO_TTL_==='number' ? FT_AUTO_TTL_ : 6 * 60 * 60 * 1000)),
       ORIGEM_OFERTA: isAutoQueue ? 'FILA_AUTOMATICA' : 'PAINEL_ADMIN_SUBSTITUICAO',
       OBSERVACOES_OFERTA: 'Substitui a oferta ' + ofertaId + '. ' + motivo
     };
@@ -238,7 +238,7 @@ function FT_adicionarConvocadoManualFullTime(token, operacaoId, conjuntoId, moti
     });
     if(conflict)throw new Error('Este motorista ou conjunto já possui uma convocação ou participação em andamento.');
     const now=new Date(),id='OFT-'+Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
-    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:operacaoId,CONJUNTO_ID:conjuntoId,MOTORISTA_ID:driverId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:motivo,REGISTRADO_POR:session.login||'ADMIN',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+(typeof FT_AUTO_TTL_==='number'?FT_AUTO_TTL_:7200000)),ORIGEM_OFERTA:'PAINEL_ADMIN_MANUAL',OBSERVACOES_OFERTA:motivo,DATA_OPERACAO_OFERTA:op[oi.DATA_OPERACAO],HORARIO_OPERACAO_OFERTA:op[oi.JANELA_INICIO],JANELA_FIM_OFERTA:op[oi.JANELA_FIM]};
+    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:operacaoId,CONJUNTO_ID:conjuntoId,MOTORISTA_ID:driverId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:motivo,REGISTRADO_POR:session.login||'ADMIN',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+(typeof FT_AUTO_TTL_==='number'?FT_AUTO_TTL_:6*60*60*1000)),ORIGEM_OFERTA:'PAINEL_ADMIN_MANUAL',OBSERVACOES_OFERTA:motivo,DATA_OPERACAO_OFERTA:op[oi.DATA_OPERACAO],HORARIO_OPERACAO_OFERTA:op[oi.JANELA_INICIO],JANELA_FIM_OFERTA:op[oi.JANELA_FIM]};
     Object.keys(fields).forEach(k=>FT_CONV_set_(row,map,k,fields[k]));
     sh.appendRow(row);
     FT_CONV_appendEvent_({tipo:'OFERTA_MANUAL_CRIADA',operacaoId:operacaoId,motoristaId:driverId,conjuntoId:conjuntoId,anterior:'',nova:'OFERTADA',motivo:motivo,autor:session.login||'ADMIN',ofertaId:id});
