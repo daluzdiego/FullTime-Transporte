@@ -30,7 +30,7 @@ function FT_AUTO_horaChaveOferta_(value){
   return String(Math.floor(mins/60)%24).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
  }
  const raw=String(value).trim();if(!raw)return '';
- const match=raw.match(/(?:^|\\s|T)(\\d{1,2}):(\\d{2})(?::\\d{2})?/);
+ const match=raw.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2})?/);
  if(match)return String(Number(match[1])).padStart(2,'0')+':'+match[2];
  return raw;
 }
@@ -49,7 +49,7 @@ function FT_AUTO_dataChaveOferta_(value){
  }
  const raw=String(value==null?'':value).trim();
  if(!raw)return '';
- if(/^\\d{4}-\\d{2}-\\d{2}/.test(raw))return raw.slice(0,10);
+ if(/^\d{4}-\d{2}-\d{2}/.test(raw))return raw.slice(0,10);
  const parsed=new Date(raw);
  return isFinite(parsed.getTime())?Utilities.formatDate(parsed,Session.getScriptTimeZone(),'yyyy-MM-dd'):raw.slice(0,10);
 }
