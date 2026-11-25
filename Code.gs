@@ -114,6 +114,40 @@ function restaurarSessaoFullTime(token) {
   return { user: session };
 }
 
+/**
+ * Homologação estática dos endpoints críticos do portal e convocações.
+ * Somente leitura: não abre planilhas, não cria ofertas e não envia mensagens.
+ */
+function FT_TESTAR_CONTRATO_PORTAL_CONVOCACOES_20261125() {
+  const checks = [
+    ['restaurarSessaoFullTime', typeof restaurarSessaoFullTime === 'function'],
+    ['obterPortalMotoristaFullTime', typeof obterPortalMotoristaFullTime === 'function'],
+    ['obterPortalMotoristaFullTimeV2', typeof obterPortalMotoristaFullTimeV2 === 'function'],
+    ['responderOfertaMotoristaFullTime', typeof responderOfertaMotoristaFullTime === 'function'],
+    ['obterPainelFullTime', typeof obterPainelFullTime === 'function'],
+    ['obterCentroOperacoesFullTime', typeof obterCentroOperacoesFullTime === 'function'],
+    ['FT_adicionarConvocadoManualFullTime', typeof FT_adicionarConvocadoManualFullTime === 'function'],
+    ['FT_substituirConvocadoPendenteFullTime', typeof FT_substituirConvocadoPendenteFullTime === 'function'],
+    ['FT_cancelarConvocacaoPendenteFullTime', typeof FT_cancelarConvocacaoPendenteFullTime === 'function'],
+    ['FT_iniciarConvocacaoAutomaticaFullTime', typeof FT_iniciarConvocacaoAutomaticaFullTime === 'function'],
+    ['FT_processarLembretesEmailConvocacao_', typeof FT_processarLembretesEmailConvocacao_ === 'function']
+  ];
+  const ttlMs = typeof FT_AUTO_TTL_ === 'number' ? FT_AUTO_TTL_ : null;
+  const prazoSeisHoras = ttlMs === 6 * 60 * 60 * 1000;
+  const faltantes = checks.filter(item => !item[1]).map(item => item[0]);
+  const result = {
+    ok: faltantes.length === 0 && prazoSeisHoras,
+    modo: 'SOMENTE_LEITURA_SEM_PLANILHA_SEM_EMAIL_SEM_OFERTA',
+    endpointsVerificados: checks.length,
+    endpointsAusentes: faltantes,
+    prazoOfertaMs: ttlMs,
+    prazoOfertaHoras: ttlMs === null ? null : ttlMs / 3600000,
+    prazoSeisHoras: prazoSeisHoras
+  };
+  Logger.log('FULL TIME — CONTRATO PORTAL/CONVOCACOES: ' + JSON.stringify(result));
+  return result;
+}
+
 function encerrarSessaoFullTime(token) {
   const session = obterSessao_(token);
   auditar_(session, 'LOGOUT', 'SESSAO', '', 'Sessão encerrada');
