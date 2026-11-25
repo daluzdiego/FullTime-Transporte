@@ -690,7 +690,7 @@
     const host=document.getElementById('dest-allocation-'+opId);if(!host)return;
     const selects=Array.from(host.querySelectorAll('select[data-dest]')),alocacoes=selects.map(x=>({destinoId:x.dataset.dest,participacaoId:x.value})).filter(x=>x.participacaoId),fb=host.querySelector('.destination-allocation-feedback');
     if(alocacoes.length!==10){fb.textContent='Preencha as dez vagas: dois motoristas em cada um dos cinco destinos.';return;}
-    uiConfirm('Confirma os dois motoristas para cada destino? Quem já iniciou deslocamento não poderá ser transferido depois.').then(ok=>{if(!ok)return;fb.textContent='Salvando…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();abrirDistribuicaoDestinoCentro(opId);}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
+    uiConfirm('Confirma os dois motoristas para cada destino? Quem já iniciou deslocamento não poderá ser transferido depois.').then(ok=>{if(!ok)return;fb.textContent='Salvando…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
   }
   function alternarDetalhesOperacaoCentro(id){
     const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
