@@ -342,9 +342,8 @@
     }
     showAppShell();
     const isDriver=perfil==='MOTORISTA';
-    const endpoint=isDriver?'obterPortalMotoristaFullTime':'obterPainelFullTime';
     currentPage=isDriver?'portalMotorista':'centro';
-    google.script.run.withSuccessHandler(data=>{
+    const runner=google.script.run.withSuccessHandler(data=>{
         const received=isDriver?data:parsePainelResponse(data);
         if(isDriver&&(!received||!Array.isArray(received.ofertas))){
           console.error('FT_PORTAL_CONTRATO_INVALIDO',JSON.stringify({tipo:typeof received,chaves:received&&typeof received==='object'?Object.keys(received):[]}));
@@ -372,7 +371,10 @@
       .withFailureHandler(err=>{
         console.error('FT_UI_BACKEND_ERROR',err&&err.stack||err);
         renderLoadFailure(err);
-      })[endpoint](authToken);
+      });
+    // Chamadas explícitas: google.script.run expõe funções do servidor por nome.
+    if(isDriver) runner.obterPortalMotoristaFullTime(authToken);
+    else runner.obterPainelFullTime(authToken);
   }
   function renderLoadFailure(error){
     const message=String(error&&error.message||error||'Falha desconhecida ao carregar a interface.');
