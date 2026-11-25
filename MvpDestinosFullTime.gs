@@ -172,3 +172,49 @@ function testarRegrasMvpDestinosFullTime(){
 function diagnosticarCadastroManualMvpFullTime(token){
  var s=obterSessao_(token);exigirAdmin_(s);return {ok:true,endpoint:'salvarOperacaoComDestinosFullTime',dependenciaIA:false,guiaDestinos:'DESTINOS_OPERACAO',aprovacaoAutomatica:false};
 }
+
+
+/**
+ * Diagnóstico somente leitura dos destinos individuais da operação TORRES.
+ * Não grava, corrige, reordena nem exclui dados.
+ */
+function diagnosticarDestinosOperacaoTorresReadOnlyFullTime() {
+  var opId = '3ab9cdda-7743-4bdb-a3b9-4618479e6681';
+  var ops = ftMvpSheet_('OPERACOES');
+  var om = ftMvpMap_(ops);
+  var opRows = ftMvpReadRows_(ops);
+  var getOp = function(r,k){var i=om[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
+  var op = opRows.find(function(r){return String(getOp(r,'ID'))===opId;});
+  if(!op) throw new Error('Operação TORRES não encontrada pelo ID conhecido. Nenhuma alteração realizada.');
+  var sh = ftMvpSheet_('DESTINOS_OPERACAO');
+  var map = ftMvpMap_(sh);
+  var required = ['ID','OPERACAO_ID','ORDEM_ENTREGA','CLIENTE_DESTINO','LOCAL_ENTREGA','CIDADE_UF','VOLUME_PREVISTO_TONELADAS'];
+  var missing = required.filter(function(k){return map[ftMvpNorm_(k)]===undefined;});
+  if(missing.length) throw new Error('DESTINOS_OPERACAO sem cabeçalhos: '+missing.join(', ')+'. Nenhuma alteração realizada.');
+  var rows = ftMvpReadRows_(sh);
+  var get = function(r,k){var i=map[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
+  var destinations = rows.filter(function(r){return String(get(r,'OPERACAO_ID'))===opId;})
+    .map(function(r){return {
+      linha:r.row,id:String(get(r,'ID')),ordem:Number(get(r,'ORDEM_ENTREGA')||0),
+      cliente:String(get(r,'CLIENTE_DESTINO')||''),local:String(get(r,'LOCAL_ENTREGA')||''),
+      cidadeUf:String(get(r,'CIDADE_UF')||''),volumePrevisto:ftMvpNum_(get(r,'VOLUME_PREVISTO_TONELADAS')),
+      volumeEntregue:ftMvpNum_(get(r,'VOLUME_ENTREGUE_TONELADAS')),
+      saldo:ftMvpNum_(get(r,'SALDO_TONELADAS')),status:String(get(r,'STATUS')||''),
+      dataPrevista:String(get(r,'DATA_PREVISTA')||'')
+    };}).sort(function(a,b){return a.ordem-b.ordem;});
+  var total = destinations.reduce(function(n,d){return n+d.volumePrevisto;},0);
+  var opVolume = ftMvpNum_(getOp(op,'VOLUME_TOTAL_TONELADAS'));
+  var result = {
+    somenteLeitura:true,naoAlterouDados:true,operacao:{id:opId,nome:String(getOp(op,'NOME_OPERACAO')||''),cliente:String(getOp(op,'CLIENTE')||''),origem:String(getOp(op,'ORIGEM')||''),destinoLegado:String(getOp(op,'DESTINO')||''),volumeTotal:opVolume},
+    quantidadeDestinos:destinations.length,volumeDistribuido:total,saldoNaoDistribuido:Math.max(0,opVolume-total),
+    divergenciaVolume:total>opVolume+0.0001,alertas:[],destinos:destinations
+  };
+  if(destinations.length!==5)result.alertas.push('Esperados 5 destinos; encontrados '+destinations.length+'.');
+  if(destinations.some(function(d){return !d.cliente||!d.local;}))result.alertas.push('Há destino sem recebedor ou local.');
+  if(destinations.some(function(d){return !(d.volumePrevisto>0);}))result.alertas.push('Há destino sem volume previsto válido.');
+  if(result.divergenciaVolume)result.alertas.push('A soma dos volumes por destino ultrapassa o volume total da operação.');
+  var ids={};destinations.forEach(function(d){if(ids[d.id])result.alertas.push('ID de destino duplicado: '+d.id);ids[d.id]=true;});
+  console.log('FULL TIME — DESTINOS TORRES — SOMENTE LEITURA: '+JSON.stringify(result));
+  return result;
+}
+
