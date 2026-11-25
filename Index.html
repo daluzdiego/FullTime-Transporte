@@ -653,13 +653,14 @@
     const running=['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status);
     const statusLabel=o.atrasada?'ATRASADA':status==='ABERTA'?'AGUARDANDO ESCALA':status.replace(/_/g,' ');
     const statusClass=o.atrasada||status==='SUSPENSA'?'is-alert':status==='ABERTA'?'is-waiting':'is-active';
+    const destinationText=(o.destinos||[]).length?o.destinos.map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):((/^\\d+\\s+destinos?$/i.test(String(o.destino||'')))?'Destinos não individualizados — revisar cadastro':(o.destino||'—'));
     const drivers=o.conjuntos||[];
     const driverRows=drivers.length?drivers.map(s=>{
       const st=String(s.status||'').toUpperCase();
       const label=st==='EM_VIAGEM'?'Em viagem':st==='SAIU'?'Em deslocamento':st==='ATIVO'?'Escalado':st.replace(/_/g,' ').toLowerCase();
       const cls=['EM_VIAGEM','SAIU'].includes(st)?'is-active':st==='ATIVO'?'is-waiting':'';
       const last=s.ultimaAtualizacao||s.saida||s.retorno||'—';
-      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(o.nome||'—')+'</td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+esc(last)+'</td></tr>';
+      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(o.nome||'—')+'</td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(o.origem||'—')+' → '+esc(destinationText)+'</td><td>'+esc(last)+'</td></tr>';
     }).join(''):'<tr><td colspan="6" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
     const canClose=!!o.sugestaoConclusao;
     const canStart=status==='ABERTA'&&drivers.some(s=>String(s.status||'').toUpperCase()==='ATIVO');
