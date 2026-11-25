@@ -343,11 +343,11 @@
     showAppShell();
     const isDriver=perfil==='MOTORISTA';
     currentPage=isDriver?'portalMotorista':'centro';
-    const runner=google.script.run.withSuccessHandler(data=>{
+    const onSuccess=data=>{
         const received=isDriver?data:parsePainelResponse(data);
         if(isDriver&&(!received||!Array.isArray(received.ofertas))){
           console.error('FT_PORTAL_CONTRATO_INVALIDO',JSON.stringify({tipo:typeof received,chaves:received&&typeof received==='object'?Object.keys(received):[]}));
-          renderLoadFailure(new Error('O servidor não entregou a lista de ofertas do motorista. Confirme a implantação do endpoint V2 e do arquivo PortalMotoristaFullTime.gs.'));
+          renderLoadFailure(new Error('O servidor não entregou a lista de ofertas do motorista. Confirme a implantação do endpoint e do arquivo PortalMotoristaFullTime.gs.'));
           return;
         }
         const arrayKeys=['motoristas','cavalos','carretas','conjuntos','operacoes','documentos'];
@@ -367,14 +367,17 @@
           console.error('FT_UI_RENDER_ERROR',uiError&&uiError.stack||uiError);
           renderLoadFailure(uiError);
         }
-      })
-      .withFailureHandler(err=>{
+      };
+    const onFailure=err=>{
         console.error('FT_UI_BACKEND_ERROR',err&&err.stack||err);
         renderLoadFailure(err);
-      });
-    // Chamadas explícitas: google.script.run expõe funções do servidor por nome.
-    if(isDriver) runner.obterPortalMotoristaFullTime(authToken);
-    else runner.obterPainelFullTime(authToken);
+      };
+    // Chamada direta obrigatória ao proxy google.script.run do Apps Script.
+    if(isDriver){
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).obterPortalMotoristaFullTime(authToken);
+    }else{
+      google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).obterPainelFullTime(authToken);
+    }
   }
   function renderLoadFailure(error){
     const message=String(error&&error.message||error||'Falha desconhecida ao carregar a interface.');
