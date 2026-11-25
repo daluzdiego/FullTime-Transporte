@@ -219,10 +219,16 @@ function FT_adicionarConvocadoManualFullTime(token, operacaoId, conjuntoId, moti
     const candidates=ordenarCandidatosOperacaoFullTime(token,operacaoId),candidate=candidates.find(x=>String(x.id)===conjuntoId);
     if(!candidate||candidate.eligible!==true)throw new Error('O conjunto não está elegível. Atualize a análise de candidatos e confira documentos, capacidade e disponibilidade.');
     const sh=getSheet_('PARTICIPACAO_OPERACOES'),map=FT_CONV_ensureHeaders_(sh,FT_CONVOCACAO_CFG_20261110.PARTICIPACAO_HEADERS),rows=sh.getDataRange().getValues();
-    if(queue&&Number(queue.vagas)>0){
-      const occupied=rows.slice(1).filter(r=>String(r[map.OPERACAO_ID]||'')===operacaoId&&['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase())).length;
-      if(occupied>=Number(queue.vagas))throw new Error('Todas as vagas configuradas para esta escala já estão ocupadas. Não é possível adicionar convocados além do limite.');
-    }
+    // O limite autorizado vem da própria operação. Elegibilidade nunca equivale a autorização.
+    const vagasAutorizadas=Number(oi.MOTORISTAS_NECESSARIOS!==undefined?op[oi.MOTORISTAS_NECESSARIOS]:0)||Number(queue&&queue.vagas||0);
+    if(!Number.isInteger(vagasAutorizadas)||vagasAutorizadas<1||vagasAutorizadas>40)
+      throw new Error('Defina primeiro, no cadastro da operação, a quantidade autorizada de motoristas (1 a 40). Nenhum convocado foi criado.');
+    const ocupados=rows.slice(1).filter(r=>
+      String(r[map.OPERACAO_ID]||'')===operacaoId&&
+      ['OFERTADA','ACEITA','ATIVO','SAIU','EM_VIAGEM'].includes(String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase())
+    ).length;
+    if(ocupados>=vagasAutorizadas)
+      throw new Error('Limite atingido: '+ocupados+' de '+vagasAutorizadas+' vagas autorizadas já estão ocupadas. A quantidade de aptos não aumenta esse limite.');
     const driverId=String(candidate.driverId||'');
     const conflict=rows.slice(1).some(r=>{
       const status=String(r[map.STATUS_PARTICIPACAO]||'').trim().toUpperCase();
