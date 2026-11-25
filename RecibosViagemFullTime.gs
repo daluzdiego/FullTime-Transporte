@@ -57,7 +57,9 @@ function prepararEstruturaRecibosViagemFullTime(){
   return result;
 }
 function registrarReciboViagemFullTime(token,data){
-  var session=obterSessao_(token);exigirAdmin_(session);data=data||{};
+  var session=obterSessao_(token),isAdmin=String(session.perfil||'').toUpperCase()==='ADMIN',motoristaId='';
+  if(!isAdmin)motoristaId=exigirMotorista_(session);
+  data=data||{};
   var opId=String(data.operacaoId||'').trim(),partId=String(data.participacaoId||'').trim(),destId=String(data.destinoId||'').trim();
   var type=String(data.tipoRecibo||'').trim().toUpperCase(),mime=String(data.mimeType||'').trim().toLowerCase();
   var name=String(data.nomeArquivo||'recibo').replace(/[\\\\/:*?"<>|]/g,'_').slice(0,150);
@@ -79,6 +81,7 @@ function registrarReciboViagemFullTime(token,data){
     if(!part)throw new Error('A participação selecionada não pertence a esta operação.');
     var pStatus=String(part[pm.STATUS_PARTICIPACAO]||'').toUpperCase();
     if(['ACEITA','ATIVO','EM_VIAGEM','RETORNOU'].indexOf(pStatus)<0)throw new Error('O motorista precisa ter aceitado a convocação para anexar comprovantes.');
+    if(!isAdmin&&String(part[pm.MOTORISTA_ID]||'')!==motoristaId)throw new Error('Você só pode enviar comprovantes da sua própria participação.');
     var destSh=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')).getSheetByName('DESTINOS_OPERACAO');
     if(!destSh)throw new Error('A guia DESTINOS_OPERACAO não está preparada.');
     var dm=ftTicketMap_(destSh),dr=destSh.getDataRange().getValues();
@@ -88,7 +91,7 @@ function registrarReciboViagemFullTime(token,data){
     var folder=ftTicketFolder_(),file=folder.createFile(blob);
     var sh=ftTicketSheet_(),map=ftTicketMap_(sh),now=new Date(),id=Utilities.getUuid();
     var row=new Array(sh.getLastColumn()).fill('');
-    var values={ID:id,RECEBIDO_EM:now,WHATSAPP_MESSAGE_ID:'',REMETENTE:'PAINEL_ADMIN',MOTORISTA_ID:part[pm.MOTORISTA_ID],OPERACAO_ID:opId,TIPO_RECIBO:type,MEDIA_ID:'',DRIVE_FILE_ID:file.getId(),DRIVE_URL:file.getUrl(),NOME_ARQUIVO:file.getName(),MIME_TYPE:mime,STATUS:'AGUARDANDO_CONFERENCIA',DESTINO_ID:destId,PARTICIPACAO_ID:partId,OBSERVACOES:note,RETENCAO_ATE:'',METADADOS:JSON.stringify({origem:'CAPTURA_PAINEL',registradoPor:session.login||'ADMIN',destino:String(dest[dm.CLIENTE_DESTINO]||'')})};
+    var values={ID:id,RECEBIDO_EM:now,WHATSAPP_MESSAGE_ID:'',REMETENTE:isAdmin?'PAINEL_ADMIN':'PORTAL_MOTORISTA',MOTORISTA_ID:part[pm.MOTORISTA_ID],OPERACAO_ID:opId,TIPO_RECIBO:type,MEDIA_ID:'',DRIVE_FILE_ID:file.getId(),DRIVE_URL:file.getUrl(),NOME_ARQUIVO:file.getName(),MIME_TYPE:mime,STATUS:'AGUARDANDO_CONFERENCIA',DESTINO_ID:destId,PARTICIPACAO_ID:partId,OBSERVACOES:note,RETENCAO_ATE:'',METADADOS:JSON.stringify({origem:isAdmin?'CAPTURA_PAINEL':'PORTAL_MOTORISTA',registradoPor:session.login||motoristaId,destino:String(dest[dm.CLIENTE_DESTINO]||'')})};
     Object.keys(values).forEach(function(k){if(map[k]!==undefined)row[map[k]]=values[k];});
     sh.appendRow(row);
     if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_ANEXADO','OPERACAO',opId,'Comprovante '+id+'; tipo='+type+'; destino='+destId+'; participação='+partId);
@@ -185,3 +188,5 @@ function testarEstruturaRecibosViagemFullTime() {
   Logger.log('FT_TESTE_ESTRUTURA_RECIBOS ' + JSON.stringify(result));
   return result;
 }
+
+function listarDestinosPortalMotoristaFullTime(token,operacaoId,participacaoId){var session=obterSessao_(token),motoristaId=exigirMotorista_(session);operacaoId=String(operacaoId||'').trim();participacaoId=String(participacaoId||'').trim();if(!operacaoId||!participacaoId)throw new Error('Operação e participação são obrigatórias.');var parts=getSheet_('PARTICIPACAO_OPERACOES'),pm=ftTicketMap_(parts),pRows=parts.getDataRange().getValues();var part=pRows.slice(1).find(function(r){return String(r[pm.ID]||'')===participacaoId&&String(r[pm.OPERACAO_ID]||'')===operacaoId&&String(r[pm.MOTORISTA_ID]||'')===motoristaId;});if(!part)throw new Error('Participação não pertence ao motorista autenticado.');if(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].indexOf(String(part[pm.STATUS_PARTICIPACAO]||'').toUpperCase())<0)throw new Error('A convocação precisa estar aceita para consultar os destinos.');var db=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');if(!db)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');var sh=SpreadsheetApp.openById(db).getSheetByName('DESTINOS_OPERACAO');if(!sh||sh.getLastRow()<2)return [];var map=ftTicketMap_(sh);return sh.getRange(2,1,sh.getLastRow()-1,sh.getLastColumn()).getValues().filter(function(r){return String(r[map.OPERACAO_ID]||'')===operacaoId;}).map(function(r){return {id:String(r[map.ID]||''),ordem:Number(r[map.ORDEM_ENTREGA]||0),cliente:String(r[map.CLIENTE_DESTINO]||''),local:String(r[map.LOCAL_ENTREGA]||''),cidadeUf:String(r[map.CIDADE_UF]||'')};}).sort(function(a,b){return a.ordem-b.ordem;});}
