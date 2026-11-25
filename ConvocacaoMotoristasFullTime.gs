@@ -114,7 +114,8 @@ function ofertarConjuntoOperacaoFullTime(token, data) {
     if (duplicate) throw new Error('Já existe uma oferta ou participação ativa deste conjunto nesta operação.');
 
     const now = new Date();
-    const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+    const ttl = typeof FT_AUTO_TTL_ === 'number' ? FT_AUTO_TTL_ : 6 * 60 * 60 * 1000;
+    const expires = new Date(now.getTime() + ttl);
     const offerId = 'OFT-' + Utilities.getUuid();
     const row = new Array(parts.getLastColumn()).fill('');
     const fields = {
