@@ -161,3 +161,52 @@ function FT_AUDITAR_CONVOCACOES_TORRES_20261125() {
   Logger.log('FT_AUDITORIA_TORRES ' + JSON.stringify(result));
   return result;
 }
+
+
+/**
+ * Saida compacta: somente registros do Motorista 036 e ultimos eventos da TORRES.
+ * Somente leitura; nao modifica planilhas.
+ */
+function FT_AUDITORIA_COMPACTA_TORRES_20261125() {
+  const registryId = PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if (!registryId) throw new Error('FT_REGISTRY_DATABASE_ID nao configurado.');
+  const ss = SpreadsheetApp.openById(registryId);
+  function read_(name) {
+    const sh = ss.getSheetByName(name);
+    if (!sh) throw new Error('Guia ausente: ' + name);
+    const v = sh.getDataRange().getValues(), h = (v[0] || []).map(x => String(x || '').trim().toUpperCase()), m = {};
+    h.forEach((x,i) => { if (x && m[x] === undefined) m[x] = i; });
+    return { rows:v.slice(1), map:m };
+  }
+  function v_(r,m,k) { return m[k] === undefined ? '' : r[m[k]]; }
+  function iso_(x) { if (!x) return ''; const d=x instanceof Date?x:new Date(x); return isFinite(d.getTime())?d.toISOString():String(x); }
+  const opData=read_('OPERACOES');
+  const opMatches=opData.rows.filter(r=>/TORRES/i.test(String(v_(r,opData.map,'NOME_OPERACAO')||'')));
+  if(opMatches.length!==1)throw new Error('Esperava exatamente uma operacao TORRES; encontradas: '+opMatches.length);
+  const op=opMatches[0], opId=String(v_(op,opData.map,'ID')||'');
+  const p=read_('PARTICIPACAO_OPERACOES');
+  const rows=p.rows.filter(r=>String(v_(r,p.map,'OPERACAO_ID')||'')===opId);
+  const target=rows.filter(r=>/MOT-036$/.test(String(v_(r,p.map,'MOTORISTA_ID')||''))).map(r=>({
+    ofertaId:v_(r,p.map,'ID'), motoristaId:v_(r,p.map,'MOTORISTA_ID'), conjuntoId:v_(r,p.map,'CONJUNTO_ID'),
+    status:v_(r,p.map,'STATUS_PARTICIPACAO'), origem:v_(r,p.map,'ORIGEM_OFERTA'),
+    ofertadaEm:iso_(v_(r,p.map,'OFERTADA_EM')||v_(r,p.map,'CRIADO_EM')),
+    expiraEm:iso_(v_(r,p.map,'EXPIRA_EM')), respondidaEm:iso_(v_(r,p.map,'RESPONDIDA_EM')),
+    registradoPor:v_(r,p.map,'REGISTRADO_POR'), motivo:v_(r,p.map,'MOTIVO'),
+    observacoes:v_(r,p.map,'OBSERVACOES_OFERTA')
+  }));
+  const e=read_('EVENTOS_ESCALA');
+  const ev=e.rows.filter(r=>String(v_(r,e.map,'OPERACAO_ID')||'')===opId).map(r=>({
+    dataHora:iso_(v_(r,e.map,'DATA_HORA')), tipo:v_(r,e.map,'TIPO_EVENTO'),
+    motoristaId:v_(r,e.map,'MOTORISTA_ID'), conjuntoId:v_(r,e.map,'CONJUNTO_ID'),
+    ofertaId:v_(r,e.map,'OFERTA_ID'), anterior:v_(r,e.map,'POSICAO_ANTERIOR'),
+    novo:v_(r,e.map,'POSICAO_NOVA'), motivo:v_(r,e.map,'MOTIVO')
+  })).sort((a,b)=>String(a.dataHora).localeCompare(String(b.dataHora)));
+  const counts={}; rows.forEach(r=>{const s=String(v_(r,p.map,'STATUS_PARTICIPACAO')||'');counts[s]=(counts[s]||0)+1;});
+  const result={somenteLeitura:true,naoAlterouDados:true,operacaoId:opId,nome:String(v_(op,opData.map,'NOME_OPERACAO')||''),
+    dataOperacao:iso_(v_(op,opData.map,'DATA_OPERACAO')),janelaInicio:iso_(v_(op,opData.map,'JANELA_INICIO')),
+    janelaFim:iso_(v_(op,opData.map,'JANELA_FIM')),motoristasNecessarios:v_(op,opData.map,'MOTORISTAS_NECESSARIOS'),
+    totalParticipacoes:rows.length,status:counts,ofertasMotorista036:target,eventosMotorista036:ev.filter(x=>/MOT-036$/.test(String(x.motoristaId||''))),
+    ultimosEventos:ev.slice(-15)};
+  Logger.log('FT_AUDITORIA_COMPACTA_TORRES '+JSON.stringify(result));
+  return result;
+}
