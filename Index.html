@@ -979,7 +979,22 @@
       (history.length?'<div class="table-wrap"><table><thead><tr><th>Data</th><th>Operação</th><th>Origem / destino</th><th>Status</th><th>Motivo / observação</th></tr></thead><tbody>'+history.map(h=>'<tr><td>'+esc(formatDate(String(h.ofertadaEm||h.criadoEm||'').slice(0,10)))+'</td><td>'+esc(h.operacao?.nome||'—')+'</td><td>'+esc((h.operacao?.origem||'—')+' → '+(h.operacao?.destino||'—'))+'</td><td><span class="badge '+(['ATIVO','ACEITA','RETORNOU'].includes(h.status)?'badge-active':['RECUSADA','EXPIRADA'].includes(h.status)?'badge-inactive':'badge-pending')+'">'+esc(label(h.status))+'</span></td><td>'+esc(h.motivo||'—')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Este motorista ainda não possui convocações ou participações registradas.</div>')+'</div></div>';
     }).withFailureHandler(e=>{host.innerHTML='<div class="error">'+esc(e.message||'Falha ao consultar histórico.')+'</div>';}).obterHistoricoMotoristaFullTime(authToken,id);
   }
-  function statusBadge(s){const cls=s==='ATIVO'?'badge-active':s==='INATIVO'?'badge-inactive':'badge-pending';const label=s==='ATIVO'?'Ativo':s==='INATIVO'?'Inativo':'Pendente revisão';return `<span class="badge ${cls}">${label}</span>`;}
+  function statusBadge(s){
+    const key=String(s||'').trim().toUpperCase();
+    const labels={
+      ATIVO:'Ativo',ACEITA:'Aceito — aguardando confirmação',OFERTADA:'Aguardando motorista',
+      RECUSADA:'Recusou',NAO_RESPONDEU:'Prazo expirado',EXPIRADA:'Prazo expirado',
+      CANCELADA_REPROGRAMACAO:'Cancelada por reprogramação',CANCELADA_SUBSTITUICAO:'Substituída',
+      CANCELADA_OPERACAO:'Operação cancelada',CANCELADA:'Cancelada',
+      PENDENTE_REVISAO:'Pendente revisão',INATIVO:'Inativo',INATIVA:'Inativo',
+      SAIU:'Em operação',EM_VIAGEM:'Em viagem',RETORNOU:'Retornou'
+    };
+    const active=['ATIVO','ACEITA','SAIU','EM_VIAGEM','RETORNOU'].includes(key);
+    const inactive=['INATIVO','INATIVA','RECUSADA','NAO_RESPONDEU','EXPIRADA','CANCELADA','CANCELADA_REPROGRAMACAO','CANCELADA_SUBSTITUICAO','CANCELADA_OPERACAO'].includes(key);
+    const cls=active?'badge-active':inactive?'badge-inactive':'badge-pending';
+    const label=labels[key]||('Status: '+(key||'não informado'));
+    return '<span class="badge '+cls+'" title="'+esc(key||'STATUS_AUSENTE')+'">'+esc(label)+'</span>';
+  }
   async function setStatus(entity,id,status){const label=status==='ATIVO'?'aprovar':'inativar';if(!await uiConfirm(`Deseja ${label} este cadastro?`,{title:'Confirmar cadastro',ok:status==='ATIVO'?'Aprovar':'Inativar',danger:status!=='ATIVO'}))return;google.script.run.withSuccessHandler(res=>{toast(res.message);google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);renderPage(currentPage);}).withFailureHandler(e=>toast(e.message,true)).obterPainelFullTime(authToken);}).withFailureHandler(e=>toast(e.message,true)).atualizarStatusFullTime(authToken,entity,id,status);}
   function filterTable(){const q=(document.getElementById('filterInput')?.value||'').toLowerCase();const s=document.getElementById('statusFilter')?.value||'';document.querySelectorAll('#tableBody tr[data-search]').forEach(tr=>{tr.classList.toggle('hidden',!(tr.dataset.search.includes(q)&&(!s||tr.dataset.status===s)));});}
 
