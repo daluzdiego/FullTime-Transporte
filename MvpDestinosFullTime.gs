@@ -79,6 +79,27 @@ function listarDestinosOperacaoFullTime(token,operacaoId){
  return rows.filter(function(r){return String(get(r,'OPERACAO_ID'))===operacaoId;}).map(function(r){return {id:String(get(r,'ID')),ordem:Number(get(r,'ORDEM_ENTREGA')||0),cliente:String(get(r,'CLIENTE_DESTINO')||''),local:String(get(r,'LOCAL_ENTREGA')||''),cidadeUf:String(get(r,'CIDADE_UF')||''),previsto:ftMvpNum_(get(r,'VOLUME_PREVISTO_TONELADAS')),entregue:ftMvpNum_(get(r,'VOLUME_ENTREGUE_TONELADAS')),saldo:ftMvpNum_(get(r,'SALDO_TONELADAS')),status:String(get(r,'STATUS')||''),dataPrevista:String(get(r,'DATA_PREVISTA')||''),observacoes:String(get(r,'OBSERVACOES')||'')};}).sort(function(a,b){return a.ordem-b.ordem;});
 }
 
+function simularRateioProporcionalDestinosFullTime(token,operacaoId){
+ var s=obterSessao_(token);exigirAdmin_(s);operacaoId=ftMvpText_(operacaoId,100);if(!operacaoId)throw new Error('Informe a operação.');
+ var id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');if(!id)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+ var ss=SpreadsheetApp.openById(id),ops=ss.getSheetByName('OPERACOES'),dest=ss.getSheetByName('DESTINOS_OPERACAO');if(!ops||!dest)throw new Error('Guias obrigatórias ausentes.');
+ var om=ftMvpMap_(ops),dm=ftMvpMap_(dest),or=ftMvpReadRows_(ops).filter(function(r){return String(r.values[ftMvpCol_(om,'ID')])===operacaoId;});if(or.length!==1)throw new Error('Operação não encontrada ou ID duplicado.');
+ var total=ftMvpNum_(or[0].values[ftMvpCol_(om,'VOLUME_TOTAL_TONELADAS')]),rows=ftMvpReadRows_(dest).filter(function(r){return String(r.values[ftMvpCol_(dm,'OPERACAO_ID')])===operacaoId;}),sum=rows.reduce(function(n,r){return n+ftMvpNum_(r.values[ftMvpCol_(dm,'VOLUME_PREVISTO_TONELADAS')]);},0);
+ if(!rows.length||!(total>0&&sum>0))throw new Error('Volume total e volumes atuais dos destinos precisam ser maiores que zero.');
+ var cents=Math.round(total*100),raw=rows.map(function(r){var old=ftMvpNum_(r.values[ftMvpCol_(dm,'VOLUME_PREVISTO_TONELADAS')]),exact=cents*old/sum;return {row:r,old:old,cents:Math.floor(exact),fraction:exact-Math.floor(exact)};});
+ var rem=cents-raw.reduce(function(n,x){return n+x.cents;},0);raw.slice().sort(function(a,b){return b.fraction-a.fraction;}).forEach(function(x,i){if(i<rem)x.cents++;});
+ var result=raw.map(function(x){var planned=x.cents/100,loaded=ftMvpNum_(x.row.values[ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')]);return {linha:x.row.row,id:String(x.row.values[ftMvpCol_(dm,'ID')]),destino:String(x.row.values[ftMvpCol_(dm,'CLIENTE_DESTINO')]),volumeAnterior:x.old,volumeNovo:planned,carregado:loaded,saldoNovo:Math.max(0,planned-loaded)};});
+ return {ok:true,somenteLeitura:true,operacaoId:operacaoId,volumeContratado:total,volumeAnterior:sum,volumeNovo:result.reduce(function(n,x){return n+x.volumeNovo;},0),destinos:result,possuiEntregas:result.some(function(x){return x.carregado>0;}),mensagem:'Prévia calculada sem alterar dados.'};
+}
+function aplicarRateioProporcionalDestinosFullTime(token,operacaoId){
+ var s=obterSessao_(token);exigirAdmin_(s);var preview=simularRateioProporcionalDestinosFullTime(token,operacaoId);if(preview.possuiEntregas)throw new Error('Rateio bloqueado: já existem cargas registradas.');
+ var lock=LockService.getScriptLock();lock.waitLock(20000);try{var id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID'),sh=SpreadsheetApp.openById(id).getSheetByName('DESTINOS_OPERACAO'),map=ftMvpMap_(sh);
+ preview.destinos.forEach(function(d){sh.getRange(d.linha,ftMvpCol_(map,'VOLUME_PREVISTO_TONELADAS')+1).setValue(d.volumeNovo);sh.getRange(d.linha,ftMvpCol_(map,'SALDO_TONELADAS')+1).setValue(d.volumeNovo);sh.getRange(d.linha,ftMvpCol_(map,'STATUS')+1).setValue('PENDENTE');});
+ _ftMvpAuditSafe_(s,'RATEIO_PROPORCIONAL_DESTINOS',operacaoId,preview.volumeContratado+' t rateadas entre '+preview.destinos.length+' destinos.');
+ return {ok:true,volumeTotal:preview.volumeNovo,destinos:preview.destinos,message:'Rateio aplicado; soma dos destinos igual ao volume contratado.'};
+ }finally{lock.releaseLock();}
+}
+
 /** Entrega associada obrigatoriamente a um destino; mantém saldo geral e saldo individual coerentes. */
 function registrarEntregaDestinoFullTime(token,data){
  var session=obterSessao_(token);exigirAdmin_(session);data=data||{};
