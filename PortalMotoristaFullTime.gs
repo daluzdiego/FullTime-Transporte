@@ -525,7 +525,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
 
       const blockingStatuses = new Set(['OFERTADA', 'ACEITA', 'ATIVO', 'SAIU', 'EM_VIAGEM']);
       const conflict = rows.slice(1).some((other, index) => {
-        if (index === match.index) return false;
+        if (index === match.index - 1) return false;
         const otherStatus = FT_MOTORISTA_texto_(
           FT_MOTORISTA_valor_(other, map, 'STATUS_PARTICIPACAO')
         ).toUpperCase();
@@ -716,7 +716,7 @@ function confirmarAceiteOfertaAdminFullTime(token, ofertaId) {
 
     const blockingStatuses = new Set(['OFERTADA', 'ACEITA', 'ATIVO', 'SAIU', 'EM_VIAGEM']);
     const conflict = rows.slice(1).some((other, index) => {
-      if (index === rowIndex) return false;
+      if (index === rowIndex - 1) return false;
 
       const otherStatus = FT_MOTORISTA_texto_(
         FT_MOTORISTA_valor_(other, map, 'STATUS_PARTICIPACAO')
