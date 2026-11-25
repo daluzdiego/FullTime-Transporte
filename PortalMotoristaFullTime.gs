@@ -239,6 +239,16 @@ function obterPortalMotoristaFullTime(token) {
     };
   });
 
+
+  const allocationByParticipation = Object.create(null);
+  try {
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    if(registryId){
+      const registry=SpreadsheetApp.openById(registryId),as=registry.getSheetByName('ALOCACAO_DESTINOS'),ds=registry.getSheetByName('DESTINOS_OPERACAO');
+      if(as&&as.getLastRow()>1){const am=FT_MOTORISTA_headerMap_(as);as.getDataRange().getValues().slice(1).forEach(r=>{if(FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'STATUS')).toUpperCase()!=='ATIVA')return;const pid=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'PARTICIPACAO_ID')),did=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'DESTINO_ID'));if(pid&&did)allocationByParticipation[pid]={destinoId:did,toneladasReferencia:Number(FT_MOTORISTA_valor_(r,am,'TONELADAS_REFERENCIA',0))||0};});}
+      if(ds&&ds.getLastRow()>1){const dm=FT_MOTORISTA_headerMap_(ds);ds.getDataRange().getValues().slice(1).forEach(r=>{const did=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'ID'));Object.keys(allocationByParticipation).forEach(pid=>{const x=allocationByParticipation[pid];if(x.destinoId===did)x.destino={cliente:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'CLIENTE_DESTINO')),local:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'LOCAL_ENTREGA')),cidadeUf:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'CIDADE_UF')),volume:Number(FT_MOTORISTA_valor_(r,dm,'VOLUME_PREVISTO_TONELADAS',0))||0};});});}
+    }
+  } catch(e){console.warn('FULL TIME — alocação individual indisponível: '+String(e&&e.message||e));}
   const now = Date.now();
   const offers = ownRows.map(row => {
     const offerId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, participationMap, 'ID'));
@@ -300,6 +310,7 @@ function obterPortalMotoristaFullTime(token) {
       ),
       operacao: operation,
       conjuntoId: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, participationMap, 'CONJUNTO_ID')),
+      destinoAlocado: allocationByParticipation[offerId] || null,
       eventos: []
     };
   }).filter(offer => offer.id);
