@@ -58,6 +58,14 @@ function obterPortalMotoristaFullTime(token) {
   return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
 }
 
+/**
+ * Alias de compatibilidade: versões publicadas do portal podem chamar V2.
+ * Mantém o mesmo contrato e as mesmas validações do endpoint canônico.
+ */
+function obterPortalMotoristaFullTimeV2(token) {
+  return obterPortalMotoristaFullTime(token);
+}
+
 function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao) {
   const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
   ofertaId=texto_(ofertaId,120); resposta=String(resposta||'').trim().toUpperCase();
