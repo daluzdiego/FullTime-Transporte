@@ -28,11 +28,19 @@ function FT_AUTO_agendaAtual_(opId){
  const date=r[m.DATA_OPERACAO] instanceof Date?Utilities.formatDate(r[m.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(r[m.DATA_OPERACAO]||'').slice(0,10);
  return {data:date,horario:String(r[m.JANELA_INICIO]||'').trim(),fim:String(r[m.JANELA_FIM]||'').trim()};
 }
+function FT_AUTO_dataChaveOferta_(value){
+ if(value instanceof Date && isFinite(value.getTime())) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+ const raw=String(value==null?'':value).trim();
+ if(!raw)return '';
+ if(/^\\d{4}-\\d{2}-\\d{2}/.test(raw))return raw.slice(0,10);
+ const parsed=new Date(raw);
+ return isFinite(parsed.getTime())?Utilities.formatDate(parsed,Session.getScriptTimeZone(),'yyyy-MM-dd'):raw.slice(0,10);
+}
 function FT_AUTO_agendaOfertaIgual_(row,map,agenda){
- const d=map.DATA_OPERACAO_OFERTA===undefined?'':String(row[map.DATA_OPERACAO_OFERTA]||'').slice(0,10);
+ const d=map.DATA_OPERACAO_OFERTA===undefined?'':FT_AUTO_dataChaveOferta_(row[map.DATA_OPERACAO_OFERTA]);
  const h=map.HORARIO_OPERACAO_OFERTA===undefined?'':String(row[map.HORARIO_OPERACAO_OFERTA]||'').trim();
  const f=map.JANELA_FIM_OFERTA===undefined?'':String(row[map.JANELA_FIM_OFERTA]||'').trim();
- return !!d&&d===agenda.data&&h===agenda.horario&&f===agenda.fim;
+ return !!d&&d===String(agenda.data||'').slice(0,10)&&h===String(agenda.horario||'').trim()&&f===String(agenda.fim||'').trim();
 }
 function FT_AUTO_prepararCabecalhosAgenda_(sh){
  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
