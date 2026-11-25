@@ -52,7 +52,10 @@ function obterCentroOperacoesFullTime(token) {
   const trailers=FT_CENTRO_rows_('CARRETAS');
   const sets=FT_CENTRO_rows_('CONJUNTOS');
   const destinations=FT_CENTRO_rows_('DESTINOS_OPERACAO');
-  let allocationRows=[];try{allocationRows=FT_CENTRO_rows_('ALOCACAO_DESTINOS').filter(x=>String(x.STATUS||'').toUpperCase()==='ATIVA');}catch(e){}
+  let allocationRows=[];try{
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    if(registryId){const allocationSheet=SpreadsheetApp.openById(registryId).getSheetByName('ALOCACAO_DESTINOS');if(allocationSheet&&allocationSheet.getLastRow()>1){const headers=allocationSheet.getRange(1,1,1,allocationSheet.getLastColumn()).getDisplayValues()[0],ix={};headers.forEach((v,i)=>{const k=FT_CENTRO_norm_(v);if(k&&ix[k]===undefined)ix[k]=i;});allocationRows=allocationSheet.getRange(2,1,allocationSheet.getLastRow()-1,allocationSheet.getLastColumn()).getValues().map(row=>{const o={};Object.keys(ix).forEach(k=>o[k]=row[ix[k]]);return o;}).filter(x=>String(x.STATUS||'').toUpperCase()==='ATIVA');}}
+  }catch(e){console.warn('FULL TIME — alocações do Centro indisponíveis: '+String(e&&e.message||e));}
   const allocationByParticipation=Object.create(null);allocationRows.forEach(x=>{allocationByParticipation[String(x.PARTICIPACAO_ID||'')]=x;});
   const destinationById=Object.fromEntries(destinations.map(x=>[String(x.ID||''),x]));
   const byId=a=>Object.fromEntries(a.map(x=>[String(x.ID||''),x]));
