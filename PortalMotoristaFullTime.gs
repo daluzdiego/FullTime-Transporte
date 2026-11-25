@@ -16,46 +16,187 @@ function FT_MOTORISTA_headerMap_(sh) {
 }
 
 function obterPortalMotoristaFullTime(token) {
-  const session=obterSessao_(token), motoristaId=exigirMotorista_(session);
-  const parts=getSheet_('PARTICIPACAO_OPERACOES');
-  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
-  const have=new Set(parts.getRange(1,1,1,parts.getLastColumn()).getDisplayValues()[0].map(v=>String(v||'').trim().toUpperCase()));
-  const missing=required.filter(h=>!have.has(h));if(missing.length)parts.getRange(1,parts.getLastColumn()+1,1,missing.length).setValues([missing]);
-  const pmap=FT_MOTORISTA_headerMap_(parts);
-  const rows=parts.getDataRange().getValues();
-  const own=rows.slice(1).filter(r=>String(r[pmap.MOTORISTA_ID]||'').trim()===motoristaId);
-  const driverRecord=listarRegistros_('MOTORISTAS').find(d=>String(d.id||'').trim()===motoristaId);
-  if(!driverRecord)throw new Error('O usuário está vinculado ao motorista '+motoristaId+', mas esse ID não foi encontrado na guia MOTORISTAS. Corrija MOTORISTA_ID na guia USUARIOS.');
-  const driverFields=driverRecord.camposPorNome||{};
-  const driverName=String(driverFields.NOME_COMPLETO||driverRecord.nome||session.nome||'Motorista');
-  const opsSheet=getSheet_('OPERACOES'), omap=FT_MOTORISTA_headerMap_(opsSheet), opRows=opsSheet.getDataRange().getValues();
-  const ops={};
-  opRows.slice(1).forEach(r=>{ops[String(r[omap.ID]||'')]={
-    id:String(r[omap.ID]||''),status:String(r[omap.STATUS]||''),data:r[omap.DATA_OPERACAO]||'',
-    cliente:String(r[omap.CLIENTE]||''),nome:String(r[omap.NOME_OPERACAO]||''),
-    origem:String(r[omap.ORIGEM]||''),destino:String(r[omap.DESTINO]||''),
-    produto:String(r[omap.PRODUTO_SERVICO]||''),distanciaKm:r[omap.DISTANCIA_KM]||'',
-    dataEntrega:r[omap.DATA_ENTREGA]||'',janelaInicio:r[omap.JANELA_INICIO]||'',janelaFim:r[omap.JANELA_FIM]||'',
-    tempoEstimadoHoras:r[omap.TEMPO_ESTIMADO_HORAS]||'',volume:Number(r[omap.VOLUME_TOTAL_TONELADAS]||0)
-  };});
-  const now=Date.now(), offers=own.map(r=>{
-    const op=ops[String(r[pmap.OPERACAO_ID]||'')]||{};
-    const snapDate=String(r[pmap.DATA_OPERACAO_OFERTA]||'').slice(0,10),snapStart=String(r[pmap.HORARIO_OPERACAO_OFERTA]||'').trim(),snapEnd=String(r[pmap.JANELA_FIM_OFERTA]||'').trim();
-    const currentDate=op.data instanceof Date?Utilities.formatDate(op.data,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(op.data||'').slice(0,10);
-    const scheduleChanged=!!snapDate&&(snapDate!==currentDate||snapStart!==String(op.janelaInicio||'').trim()||snapEnd!==String(op.janelaFim||'').trim());
-    const expires=r[pmap.EXPIRA_EM] instanceof Date?r[pmap.EXPIRA_EM]:new Date(r[pmap.EXPIRA_EM]);
-    let status=String(r[pmap.STATUS_PARTICIPACAO]||'').toUpperCase();
-    if(status==='OFERTADA'&&scheduleChanged)status='CANCELADA_REPROGRAMACAO';
-    else if(status==='OFERTADA'&&(!isFinite(expires.getTime())||expires.getTime()<=now))status='NAO_RESPONDEU';
-    return {
-      id:String(r[pmap.ID]||''),status:status,ofertadaEm:r[pmap.OFERTADA_EM]||r[pmap.CRIADO_EM]||'',
-      expiraEm:r[pmap.EXPIRA_EM]||'',expirada:status==='NAO_RESPONDEU'||status==='EXPIRADA',agendaAlterada:status==='CANCELADA_REPROGRAMACAO',
-      observacoes:String((pmap.OBSERVACOES_OFERTA!==undefined?r[pmap.OBSERVACOES_OFERTA]:'')||r[pmap.MOTIVO]||''),
-      operacao:op,conjuntoId:String(r[pmap.CONJUNTO_ID]||'')
+  const session = obterSessao_(token);
+  const motoristaId = exigirMotorista_(session);
+
+  // O portal é somente leitura: não cria cabeçalhos nem altera a planilha durante a consulta.
+  const parts = getSheet_('PARTICIPACAO_OPERACOES');
+  const pmap = FT_MOTORISTA_headerMap_(parts);
+  const required = ['ID', 'OPERACAO_ID', 'MOTORISTA_ID', 'STATUS_PARTICIPACAO', 'CONJUNTO_ID'];
+  const missing = required.filter(key => pmap[key] === undefined);
+  if (missing.length) {
+    throw new Error('A guia PARTICIPACAO_OPERACOES está sem cabeçalho(s) obrigatório(s): ' + missing.join(', ') + '. Nenhum dado foi alterado.');
+  }
+
+  // Converte Date em texto ISO antes do retorno. google.script.run não transporta objetos Date.
+  const serializar = value => {
+    if (value instanceof Date) return isFinite(value.getTime()) ? value.toISOString() : '';
+    if (Array.isArray(value)) return value.map(serializar);
+    if (value && typeof value === 'object') {
+      const out = {};
+      Object.keys(value).forEach(key => { out[key] = serializar(value[key]); });
+      return out;
+    }
+    return value == null ? '' : value;
+  };
+  const cell = (row, map, key, fallback) =>
+    map[key] === undefined || row[map[key]] == null || row[map[key]] === '' ? (fallback === undefined ? '' : fallback) : row[map[key]];
+  const asText = value => value == null ? '' : String(value).trim();
+  const asIso = value => {
+    if (value instanceof Date) return isFinite(value.getTime()) ? value.toISOString() : '';
+    if (value === '' || value == null) return '';
+    const parsed = new Date(value);
+    return isFinite(parsed.getTime()) ? parsed.toISOString() : String(value);
+  };
+
+  const rows = parts.getDataRange().getValues();
+  const own = rows.slice(1).filter(row => asText(cell(row, pmap, 'MOTORISTA_ID')) === motoristaId);
+
+  const driverRecord = listarRegistros_('MOTORISTAS').find(driver => asText(driver.id) === motoristaId);
+  if (!driverRecord) {
+    throw new Error('O usuário está vinculado ao motorista ' + motoristaId + ', mas esse ID não foi encontrado na guia MOTORISTAS. Corrija MOTORISTA_ID na guia USUARIOS.');
+  }
+  const driverFields = driverRecord.camposPorNome || {};
+  const driverName = asText(driverFields.NOME_COMPLETO || driverRecord.nome || session.nome || 'Motorista');
+
+  const opsSheet = getSheet_('OPERACOES');
+  const omap = FT_MOTORISTA_headerMap_(opsSheet);
+  const opRows = opsSheet.getDataRange().getValues();
+  const ops = {};
+  opRows.slice(1).forEach(row => {
+    const id = asText(cell(row, omap, 'ID'));
+    if (!id) return;
+    const rawDate = cell(row, omap, 'DATA_OPERACAO');
+    const dateKey = rawDate instanceof Date
+      ? Utilities.formatDate(rawDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      : asText(rawDate).slice(0, 10);
+    ops[id] = {
+      id: id,
+      status: asText(cell(row, omap, 'STATUS')),
+      data: rawDate,
+      dataKey: dateKey,
+      cliente: asText(cell(row, omap, 'CLIENTE')),
+      nome: asText(cell(row, omap, 'NOME_OPERACAO')),
+      origem: asText(cell(row, omap, 'ORIGEM')),
+      destino: asText(cell(row, omap, 'DESTINO')),
+      produto: asText(cell(row, omap, 'PRODUTO_SERVICO')),
+      distanciaKm: cell(row, omap, 'DISTANCIA_KM'),
+      dataEntrega: cell(row, omap, 'DATA_ENTREGA'),
+      janelaInicio: cell(row, omap, 'JANELA_INICIO'),
+      janelaFim: cell(row, omap, 'JANELA_FIM'),
+      tempoEstimadoHoras: cell(row, omap, 'TEMPO_ESTIMADO_HORAS'),
+      volume: Number(cell(row, omap, 'VOLUME_TOTAL_TONELADAS', 0) || 0)
     };
-  }).filter(o=>o.id).sort((a,b)=>new Date(b.ofertadaEm||0)-new Date(a.ofertadaEm||0));
-  const counts={pendentes:offers.filter(o=>o.status==='OFERTADA'&&!o.expirada).length,aceitas:offers.filter(o=>o.status==='ACEITA'||o.status==='ATIVO').length,recusadas:offers.filter(o=>o.status==='RECUSADA').length,expiradas:offers.filter(o=>o.status==='NAO_RESPONDEU'||o.status==='EXPIRADA').length};
-  return {user:{nome:driverName,email:session.email,perfil:session.perfil},motoristaId,diagnosticoVinculo:{motoristaId,nomeCadastro:driverName,ofertasVinculadas:own.length,ofertasPendentes:counts.pendentes},ofertas:offers,counts};
+  });
+
+  const now = Date.now();
+  const offers = own.map(row => {
+    const offerId = asText(cell(row, pmap, 'ID'));
+    const operationId = asText(cell(row, pmap, 'OPERACAO_ID'));
+    const op = ops[operationId] || {};
+    const snapDate = asText(cell(row, pmap, 'DATA_OPERACAO_OFERTA')).slice(0, 10);
+    const snapStart = asText(cell(row, pmap, 'HORARIO_OPERACAO_OFERTA'));
+    const snapEnd = asText(cell(row, pmap, 'JANELA_FIM_OFERTA'));
+    const currentDate = asText(op.dataKey || op.data).slice(0, 10);
+    const scheduleChanged = !!snapDate && (
+      snapDate !== currentDate ||
+      snapStart !== asText(op.janelaInicio) ||
+      snapEnd !== asText(op.janelaFim)
+    );
+    const rawExpiry = cell(row, pmap, 'EXPIRA_EM');
+    const expiry = rawExpiry instanceof Date ? rawExpiry : new Date(rawExpiry);
+    let status = asText(cell(row, pmap, 'STATUS_PARTICIPACAO')).toUpperCase();
+    if (status === 'OFERTADA' && scheduleChanged) status = 'CANCELADA_REPROGRAMACAO';
+    else if (status === 'OFERTADA' && (!isFinite(expiry.getTime()) || expiry.getTime() <= now)) status = 'NAO_RESPONDEU';
+
+    return {
+      id: offerId,
+      ofertaId: offerId,
+      operacaoId: operationId,
+      status: status,
+      criadaEm: asIso(cell(row, pmap, 'CRIADO_EM')),
+      ofertadaEm: asIso(cell(row, pmap, 'OFERTADA_EM') || cell(row, pmap, 'CRIADO_EM')),
+      respondidaEm: asIso(cell(row, pmap, 'RESPONDIDA_EM')),
+      expiraEm: asIso(rawExpiry),
+      expirada: status === 'NAO_RESPONDEU' || status === 'EXPIRADA',
+      agendaAlterada: status === 'CANCELADA_REPROGRAMACAO',
+      observacoes: asText(cell(row, pmap, 'OBSERVACOES_OFERTA') || cell(row, pmap, 'MOTIVO')),
+      operacao: op,
+      conjuntoId: asText(cell(row, pmap, 'CONJUNTO_ID')),
+      eventos: []
+    };
+  }).filter(offer => offer.id);
+
+  // Recupera eventos vinculados ao motorista. A guia é opcional para manter compatibilidade
+  // com bases antigas; quando existe, a leitura também é somente leitura.
+  let driverEvents = [];
+  try {
+    const eventsSheet = getSheet_('EVENTOS_ESCALA');
+    if (eventsSheet.getLastRow() > 1 && eventsSheet.getLastColumn() > 0) {
+      const emap = FT_MOTORISTA_headerMap_(eventsSheet);
+      const eventRows = eventsSheet.getDataRange().getValues().slice(1);
+      driverEvents = eventRows
+        .filter(row => asText(cell(row, emap, 'MOTORISTA_ID')) === motoristaId)
+        .map(row => {
+          const operationId = asText(cell(row, emap, 'OPERACAO_ID'));
+          return {
+            id: asText(cell(row, emap, 'ID')),
+            ofertaId: asText(cell(row, emap, 'OFERTA_ID')),
+            tipo: asText(cell(row, emap, 'TIPO_EVENTO')),
+            dataHora: asIso(cell(row, emap, 'DATA_HORA')),
+            motivo: asText(cell(row, emap, 'MOTIVO')),
+            operacaoId: operationId,
+            conjuntoId: asText(cell(row, emap, 'CONJUNTO_ID')),
+            operacao: ops[operationId] || {}
+          };
+        })
+        .sort((a, b) => new Date(b.dataHora || 0) - new Date(a.dataHora || 0));
+    }
+  } catch (error) {
+    // Não interrompe a exibição das ofertas se a guia histórica ainda não existir.
+    driverEvents = [];
+  }
+
+  const eventsByOffer = {};
+  driverEvents.forEach(event => {
+    if (!event.ofertaId) return;
+    if (!eventsByOffer[event.ofertaId]) eventsByOffer[event.ofertaId] = [];
+    eventsByOffer[event.ofertaId].push(event);
+  });
+  offers.forEach(offer => {
+    offer.eventos = eventsByOffer[offer.id] || [];
+  });
+  offers.sort((a, b) => new Date(b.ofertadaEm || b.criadaEm || 0) - new Date(a.ofertadaEm || a.criadaEm || 0));
+
+  const statuses = offers.map(offer => offer.status);
+  const counts = {
+    total: offers.length,
+    pendentes: offers.filter(offer => offer.status === 'OFERTADA' && !offer.expirada).length,
+    aceitas: offers.filter(offer => offer.status === 'ACEITA' || offer.status === 'ATIVO').length,
+    recusadas: offers.filter(offer => offer.status === 'RECUSADA').length,
+    expiradas: offers.filter(offer => offer.status === 'NAO_RESPONDEU' || offer.status === 'EXPIRADA').length,
+    canceladas: offers.filter(offer => offer.status === 'CANCELADA' || offer.status === 'CANCELADA_REPROGRAMACAO').length
+  };
+  const offerIds = new Set(offers.map(offer => offer.id));
+  const orphanEvents = driverEvents.filter(event => !event.ofertaId || !offerIds.has(event.ofertaId));
+
+  const payload = {
+    user: { nome: driverName, email: session.email || '', perfil: session.perfil },
+    motoristaId: motoristaId,
+    diagnosticoVinculo: {
+      motoristaId: motoristaId,
+      nomeCadastro: driverName,
+      ofertasVinculadas: own.length,
+      ofertasPendentes: counts.pendentes,
+      eventosHistoricos: driverEvents.length
+    },
+    ofertas: offers,
+    eventos: orphanEvents,
+    counts: counts
+  };
+
+  // Última barreira: garante que nenhum Date ou objeto não serializável chegue ao google.script.run.
+  return serializar(payload);
 }
 
 /**
