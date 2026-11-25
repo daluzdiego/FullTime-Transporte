@@ -260,7 +260,8 @@ function FT_DIAGNOSTICAR_AGENDA_OFERTAS_READONLY() {
   if (!matches.length) throw new Error('Operação TORRES não localizada. Nenhuma alteração realizada.');
   const operationIds = matches.map(r => String(r[om.ID] || '').trim()).filter(Boolean);
   const sh = getSheet_('PARTICIPACAO_OPERACOES');
-  const m = FT_AUTO_prepararCabecalhosAgenda_(sh);
+  const m = FT_AUTO_MAP_(sh);
+  ['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'].forEach(k => { if (m[k] === undefined) throw new Error('Cabeçalho ausente: ' + k + '. Diagnóstico interrompido sem alterações.'); });
   const rows = sh.getDataRange().getValues();
   const result = [];
   operationIds.forEach(opId => {
