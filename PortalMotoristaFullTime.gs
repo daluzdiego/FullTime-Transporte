@@ -378,11 +378,9 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
 
   FT_MOTORISTA_exigirDependencias_([
     'FT_CONV_appendEvent_',
-    'auditar_'
+    'auditar_',
+    'FT_colocarMotoristaNoFinalDaFila_'
   ]);
-  if (decision === 'RECUSADA') {
-    FT_MOTORISTA_exigirDependencias_(['FT_colocarMotoristaNoFinalDaFila_']);
-  }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
