@@ -105,6 +105,15 @@ function loginFullTime(email, senha) {
   return { token: token, user: session };
 }
 
+/**
+ * Restaura a sessão já autenticada usada pelo Index.html.
+ * Não cria sessão nova nem altera dados; apenas valida o token no cache.
+ */
+function restaurarSessaoFullTime(token) {
+  const session = obterSessao_(token);
+  return { user: session };
+}
+
 function encerrarSessaoFullTime(token) {
   const session = obterSessao_(token);
   auditar_(session, 'LOGOUT', 'SESSAO', '', 'Sessão encerrada');
