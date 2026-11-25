@@ -248,6 +248,8 @@ function obterPortalMotoristaFullTime(token) {
     return {
       id: offerId,
       ofertaId: offerId,
+      participacaoId: offerId,
+      motoristaId: motoristaId,
       operacaoId: operationId,
       status: status,
       criadaEm: FT_MOTORISTA_dataIso_(createdAt),
