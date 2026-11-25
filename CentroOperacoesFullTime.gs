@@ -89,6 +89,9 @@ function obterCentroOperacoesFullTime(token) {
       const trailerCap=FT_CENTRO_num_(t1.CAPACIDADE_CARGA_TONELADAS)+FT_CENTRO_num_(t2.CAPACIDADE_CARGA_TONELADAS);
       return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||'')};
     }),motoristas:Object.values(driverMap).sort((a,b)=>b.toneladas-a.toneladas),destinos:opDestinations};
+  }).sort((a,b)=>{
+    const ta=new Date(a.data||0).getTime(),tb=new Date(b.data||0).getTime();
+    return (isFinite(tb)?tb:0)-(isFinite(ta)?ta:0);
   });
   const totalTon=currentOps.reduce((n,o)=>n+o.toneladasMovimentadas,0);
   return {user:session,atualizadoEm:new Date().toISOString(),indicadores:{operacoesAtuais:currentOps.filter(o=>['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(o.status.toUpperCase())).length,conjuntosEmOperacao:currentOps.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:currentOps.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon,volumePrevisto:currentOps.reduce((n,o)=>n+o.volumeTotal,0),volumeRestante:currentOps.reduce((n,o)=>n+o.saldo,0)},operacoes:currentOps};
