@@ -80,7 +80,7 @@ function FT_MOTORISTA_horaChave_(value) {
     return String(Math.floor(minutes / 60) % 24).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
   }
   const text = String(value).trim();
-  const match = text.match(/(?:^|\\s|T)(\\d{1,2}):(\\d{2})(?::\\d{2})?/);
+  const match = text.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2})?/);
   return match ? String(Number(match[1])).padStart(2, '0') + ':' + match[2] : text;
 }
 
