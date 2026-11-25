@@ -118,6 +118,7 @@ function FT_substituirConvocadoPendenteFullTime(token, ofertaId, novoConjuntoId,
     };
     Object.keys(fields).forEach(k => FT_CONV_set_(newRow, map, k, fields[k]));
     sh.appendRow(newRow);
+    if(typeof FT_AUTO_AGENDAR_LEMBRETES_EMAIL_==='function')FT_AUTO_AGENDAR_LEMBRETES_EMAIL_();
 
     // Mantém a fila automática coerente: a nova oferta ocupa o lugar da anterior
     // e o motorista/conjunto escolhido não volta a aparecer no restante da fila.
@@ -241,6 +242,7 @@ function FT_adicionarConvocadoManualFullTime(token, operacaoId, conjuntoId, moti
     const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:operacaoId,CONJUNTO_ID:conjuntoId,MOTORISTA_ID:driverId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:motivo,REGISTRADO_POR:session.login||'ADMIN',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+(typeof FT_AUTO_TTL_==='number'?FT_AUTO_TTL_:6*60*60*1000)),ORIGEM_OFERTA:'PAINEL_ADMIN_MANUAL',OBSERVACOES_OFERTA:motivo,DATA_OPERACAO_OFERTA:op[oi.DATA_OPERACAO],HORARIO_OPERACAO_OFERTA:op[oi.JANELA_INICIO],JANELA_FIM_OFERTA:op[oi.JANELA_FIM]};
     Object.keys(fields).forEach(k=>FT_CONV_set_(row,map,k,fields[k]));
     sh.appendRow(row);
+    if(typeof FT_AUTO_AGENDAR_LEMBRETES_EMAIL_==='function')FT_AUTO_AGENDAR_LEMBRETES_EMAIL_();
     FT_CONV_appendEvent_({tipo:'OFERTA_MANUAL_CRIADA',operacaoId:operacaoId,motoristaId:driverId,conjuntoId:conjuntoId,anterior:'',nova:'OFERTADA',motivo:motivo,autor:session.login||'ADMIN',ofertaId:id});
     auditar_(session,'ADICIONAR_CONVOCADO_MANUAL','OPERACAO',operacaoId,'Oferta '+id+'; conjunto='+conjuntoId+'; motorista='+driverId+'; '+motivo);
     return {ok:true,id:id,status:'OFERTADA',message:'Convocação manual registrada. O motorista ainda precisa aceitar; a equipe não está confirmada.'};
