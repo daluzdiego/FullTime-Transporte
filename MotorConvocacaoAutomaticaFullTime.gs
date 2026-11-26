@@ -178,7 +178,7 @@ function FT_processarFilasConvocacaoAutomatica(){
       if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());
       FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'CANCELADA_REPROGRAMACAO',motivo:'Data ou janela da operação alterada; oferta anterior cancelada.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;
     }
-    if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}
+    if(st==='ATIVO'||st==='ACEITA'){if(typeof FT_ESCALA_REGISTRAR_ACEITE_==='function')FT_ESCALA_REGISTRAR_ACEITE_(opId,r);q.aceitas++;return;}
     if(['RECUSADA','EXPIRADA','NAO_RESPONDEU','RETORNOU'].includes(st))return;
     if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
