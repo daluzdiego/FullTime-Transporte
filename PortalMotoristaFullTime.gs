@@ -608,6 +608,13 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
     // O aceite do motorista é definitivo para a escala; não exige segunda aprovação administrativa.
     if (decision === 'RECUSADA') {
       FT_colocarMotoristaNoFinalDaFila_(motoristaId, 'recusou a convocação');
+    } else if (typeof FT_ESCALA_REGISTRAR_ACEITE_ === 'function') {
+      // O aceite entra imediatamente na escala e recebe o destino reservado na pré-escala.
+      const linked = FT_ESCALA_REGISTRAR_ACEITE_(operationId, {
+        ID: offerId, OPERACAO_ID: operationId, MOTORISTA_ID: ownerId,
+        CONJUNTO_ID: conjuntoId, STATUS_PARTICIPACAO: 'ACEITA'
+      });
+      if (!linked) console.warn('FULL TIME — aceite registrado; vínculo de destino será reconciliado pela fila automática.', offerId);
     }
 
     FT_CONV_appendEvent_({
