@@ -605,7 +605,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       sheet.getRange(rowNumber, map.MOTIVO + 1).setValue(note);
     }
 
-    // ACEITA ainda não significa ATIVO. A ativação é uma ação administrativa posterior.
+    // O aceite do motorista é definitivo para a escala; não exige segunda aprovação administrativa.
     if (decision === 'RECUSADA') {
       FT_colocarMotoristaNoFinalDaFila_(motoristaId, 'recusou a convocação');
     }
@@ -618,7 +618,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       anterior: 'OFERTADA',
       nova: newStatus,
       motivo: note || (decision === 'ACEITA'
-        ? 'Motorista aceitou a convocação; aguardando confirmação administrativa.'
+        ? 'Motorista aceitou a convocação; aceite definitivo registrado automaticamente.'
         : 'Motorista recusou a convocação; reposicionado ao final da fila.'),
       autor: session.email || session.login || 'PORTAL_MOTORISTA',
       ofertaId: offerId
@@ -637,7 +637,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       ofertaId: offerId,
       status: newStatus,
       message: decision === 'ACEITA'
-        ? 'Aceite registrado. Aguarde a confirmação da escala pela administração.'
+        ? 'Aceite confirmado. Sua participação na operação está registrada.'
         : 'Recusa registrada. O motorista voltou ao final da fila de convocação.'
     };
   } finally {
