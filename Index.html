@@ -53,8 +53,9 @@
   async function aprovarPreviaEscalaUI(operacaoId){
     const ok=await uiConfirm('Ao aprovar, o sistema enviará as convocações iniciais aos motoristas selecionados. Cada um terá 2 horas para responder. Deseja confirmar a escala?',{title:'Aprovar escala e convocar',ok:'Aprovar e enviar'});
     if(!ok)return;
-    const host=document.getElementById('pre-schedule-'+operacaoId);if(host)host.innerHTML='<div class="notice">Aprovando escala e enviando convocações…</div>';
-    google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>Escala aprovada.</strong> Ofertas iniciais enviadas: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+'.</div>';toast(res.message||'Escala aprovada.');}).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao aprovar escala.')+'</div>';toast(e.message||'Falha ao aprovar escala.',true);}).aprovarPreviaEscalaDestinosFullTime(authToken,operacaoId);
+    const host=document.getElementById('pre-schedule-'+operacaoId),data={operacaoId:operacaoId,alocacoes:coletarPreviaEscalaUI(operacaoId)};
+    if(host)host.innerHTML='<div class="notice">Salvando a revisão e preparando as convocações…</div>';
+    google.script.run.withSuccessHandler(()=>google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>Escala aprovada.</strong> Ofertas iniciais enviadas: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+'.</div>';toast(res.message||'Escala aprovada.');}).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao aprovar escala.')+'</div>';toast(e.message||'Falha ao aprovar escala.',true);}).aprovarPreviaEscalaDestinosFullTime(authToken,operacaoId)).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao salvar a revisão.')+'</div>';toast(e.message||'Falha ao salvar a revisão.',true);}).salvarEdicaoPreviaEscalaFullTime(authToken,data);
   }
   async function iniciarConvocacaoAutomatica(operacaoId){
     const host=document.getElementById('auto-status-'+operacaoId);
