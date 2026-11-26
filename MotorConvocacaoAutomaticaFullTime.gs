@@ -84,7 +84,7 @@ function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
   const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),or=os.getDataRange().getValues(),op=or.slice(1).find(r=>String(r[om.ID])===opId);
   if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]).toUpperCase()))throw new Error('Operação não está aberta.');
   q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
-  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();
+  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();FT_AUTO_START_TRIGGER_();
  }finally{lock.releaseLock();}
  const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 2 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
 }
@@ -297,3 +297,40 @@ function FT_DIAGNOSTICAR_AGENDA_OFERTAS_READONLY() {
 }
 
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
+\n
+/** Mantém a verificação do início agendado mesmo depois que todos os motoristas aceitam. */
+function FT_AUTO_START_TRIGGER_(){
+ if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_';}))
+  ScriptApp.newTrigger('FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_').timeBased().everyMinutes(1).create();
+}
+/**
+ * Inicia automaticamente somente quando todas as vagas foram aceitas e chegou a data/hora.
+ * Bruno ainda pode iniciar antes pela ação administrativa existente.
+ */
+function FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_(){
+ const lock=LockService.getScriptLock();if(!lock.tryLock(10000))return {ok:false,bloqueado:true};
+ try{
+  const queues=FT_AUTO_READ_(),opSheet=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(opSheet),rows=opSheet.getDataRange().getValues(),now=new Date();
+  let started=0,waiting=false;
+  Object.keys(queues).forEach(function(opId){
+   const q=queues[opId];if(!q||Number(q.aceitas||0)<Number(q.vagas||0)||q.status==='CANCELADA'||q.status==='INICIADA')return;
+   const op=rows.slice(1).find(function(r){return String(r[om.ID]||'')===String(opId);});if(!op)return;
+   const status=String(op[om.STATUS]||'').toUpperCase();
+   if(status==='EM_ANDAMENTO'){q.status='INICIADA';q.iniciadaEm=q.iniciadaEm||now.toISOString();return;}
+   if(status!=='ABERTA')return;
+   const date=FT_AUTO_dataChaveOferta_(op[om.DATA_OPERACAO]),time=FT_AUTO_horaChaveOferta_(op[om.JANELA_INICIO]);
+   if(!date||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time))return;
+   const scheduled=new Date(date+'T'+time+':00');
+   if(!isFinite(scheduled.getTime()))return;
+   if(now.getTime()<scheduled.getTime()){waiting=true;return;}
+   opSheet.getRange(rows.findIndex(function(r,i){return i>0&&String(r[om.ID]||'')===String(opId);})+1,om.STATUS+1).setValue('EM_ANDAMENTO');
+   if(om.INICIADA_EM!==undefined)opSheet.getRange(rows.findIndex(function(r,i){return i>0&&String(r[om.ID]||'')===String(opId);})+1,om.INICIADA_EM+1).setValue(now);
+   if(typeof auditar_==='function')auditar_({login:'MOTOR_AUTOMATICO',email:'MOTOR_AUTOMATICO'},'INICIO_AUTOMATICO_OPERACAO','OPERACAO',opId,'Todos os '+q.vagas+' motoristas aceitaram; início agendado atingido.');
+   q.status='INICIADA';q.iniciadaEm=now.toISOString();started++;
+  });
+  FT_AUTO_WRITE_(queues);
+  const stillWaiting=Object.keys(queues).some(function(id){const q=queues[id];return q&&Number(q.aceitas||0)>=Number(q.vagas||0)&&q.status!=='INICIADA'&&q.status!=='CANCELADA';});
+  if(!stillWaiting)ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_';}).forEach(function(t){ScriptApp.deleteTrigger(t);});
+  return {ok:true,operacoesIniciadas:started,aguardandoHorario:stillWaiting};
+ }finally{lock.releaseLock();}
+}
