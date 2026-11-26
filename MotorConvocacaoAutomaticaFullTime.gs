@@ -297,7 +297,7 @@ function FT_DIAGNOSTICAR_AGENDA_OFERTAS_READONLY() {
 }
 
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
-\n
+ 
 /** Mantém a verificação do início agendado mesmo depois que todos os motoristas aceitam. */
 function FT_AUTO_START_TRIGGER_(){
  if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_';}))
@@ -319,7 +319,7 @@ function FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_(){
    if(status==='EM_ANDAMENTO'){q.status='INICIADA';q.iniciadaEm=q.iniciadaEm||now.toISOString();return;}
    if(status!=='ABERTA')return;
    const date=FT_AUTO_dataChaveOferta_(op[om.DATA_OPERACAO]),time=FT_AUTO_horaChaveOferta_(op[om.JANELA_INICIO]);
-   if(!date||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time))return;
+   if(!date||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return;
    const scheduled=new Date(date+'T'+time+':00');
    if(!isFinite(scheduled.getTime()))return;
    if(now.getTime()<scheduled.getTime()){waiting=true;return;}
