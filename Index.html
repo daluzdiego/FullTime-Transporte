@@ -689,26 +689,30 @@
     const host=document.getElementById('dest-allocation-'+opId);if(!host)return;
     host.innerHTML='<div class="notice">Carregando destinos e motoristas confirmados…</div>';
     google.script.run.withSuccessHandler(d=>{
-      const ds=d.destinos||[],cs=d.candidatos||[],old=d.alocacoes||[],sg=d.sugestao||[];
-      if(ds.length!==5){host.innerHTML='<div class="notice">Esperados cinco destinos; encontrados '+ds.length+'.</div>';return;}
+      const ds=d.destinos||[],cs=d.candidatos||[],old=d.alocacoes||[],sg=d.sugestao||[],quotas=d.vagasPorDestino||{};
+      if(!ds.length){host.innerHTML='<div class="notice">Cadastre ao menos um destino para montar a escala.</div>';return;}
       const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
       const cards=ds.map(dest=>{
         const current=old.filter(x=>x.destinoId===dest.id),suggested=sg.filter(x=>x.destinoId===dest.id);
-        const slots=[0,1].map(i=>{
-          const item=current[i]||suggested[i],sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado&&current[i]);
-          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · deslocamento iniciado':'')+'</span><select data-dest="'+esc(dest.id)+'" '+(locked?'disabled':'')+'><option value="">Selecione motorista</option>'+cs.map(c=>'<option value="'+esc(c.participacaoId)+'" '+(c.participacaoId===sel?'selected':'')+'>'+esc(c.nome)+' · '+num(c.capacidade)+' t · '+esc(c.status)+'</option>').join('')+'</select><small>A carga será rateada conforme a capacidade dos dois conjuntos.</small></label>';
+        const count=Number(quotas[dest.id]||0),items=Array.from({length:count},(_,i)=>suggested[i]||current[i]||null);
+        const slots=items.map((item,i)=>{
+          const sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado&&current.some(x=>x.participacaoId===sel));
+          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · deslocamento iniciado':'')+'</span><select data-dest="'+esc(dest.id)+'" '+(locked?'disabled':'')+'><option value="">Selecione motorista</option>'+cs.map(x=>'<option value="'+esc(x.participacaoId)+'" '+(x.participacaoId===sel?'selected':'')+'>'+esc(x.nome)+' · '+num(x.capacidade)+' t · '+esc(x.status)+'</option>').join('')+'</select><small>Referência de carga calculada pela capacidade do conjunto.</small></label>';
         }).join('');
-        return '<section class="destination-allocation-card"><div class="destination-allocation-title"><strong>'+esc(dest.ordem+'. '+dest.cliente)+'</strong><span>'+num(dest.volume)+' t</span></div><div class="destination-allocation-slots">'+slots+'</div></section>';
+        return '<section class="destination-allocation-card"><div class="destination-allocation-title"><strong>'+esc(dest.ordem+'. '+dest.cliente)+'</strong><span>'+num(dest.volume)+' t · '+count+' motorista(s)</span></div><div class="destination-allocation-slots">'+slots+'</div></section>';
       }).join('');
-      host.innerHTML='<div class="destination-allocation-panel"><h3>Dois motoristas por destino</h3><p>Distribuição sugerida pelo volume previsto e pela capacidade dos conjuntos. Bruno pode trocar os motoristas antes de salvar.</p><div class="badge">'+cs.length+'/10 motoristas com aceite</div>'+cards+'<button class="btn btn-primary" type="button" onclick="salvarDistribuicaoDestinoCentro(\''+esc(opId)+'\')">Salvar distribuição</button><div class="destination-allocation-feedback"></div></div>';
-      if(cs.length<10)host.querySelector('.destination-allocation-feedback').textContent='Faltam '+(10-cs.length)+' motoristas com convocação aceita. A distribuição só será confirmada com dez.';
+      host.innerHTML='<div class="destination-allocation-panel"><h3>Distribuição de motoristas por destino</h3><p>O sistema distribui a quantidade total de motoristas proporcionalmente ao volume de cada destino. Bruno pode trocar os nomes antes de confirmar.</p><div class="badge">'+cs.length+'/'+Number(d.quantidadeNecessaria||0)+' motoristas elegíveis · '+ds.length+' destino(s)</div>'+cards+'<button class="btn btn-primary" type="button" onclick="salvarDistribuicaoDestinoCentro(\\''+esc(opId)+'\\')">Confirmar escala por destino</button><div class="destination-allocation-feedback"></div></div>';
+      const feedback=host.querySelector('.destination-allocation-feedback');
+      if(cs.length<Number(d.quantidadeNecessaria||0))feedback.textContent='Faltam '+(Number(d.quantidadeNeccessaria||d.quantidadeNecessaria||0)-cs.length)+' motorista(s) elegíveis. A escala não poderá ser confirmada até completar a quantidade necessária.';
     }).withFailureHandler(e=>{host.innerHTML='<div class="notice">'+esc(e.message||'Falha ao carregar distribuição.')+'</div>';}).obterAlocacaoDestinosFullTime(authToken,opId);
   }
   function salvarDistribuicaoDestinoCentro(opId){
     const host=document.getElementById('dest-allocation-'+opId);if(!host)return;
     const selects=Array.from(host.querySelectorAll('select[data-dest]')),alocacoes=selects.map(x=>({destinoId:x.dataset.dest,participacaoId:x.value})).filter(x=>x.participacaoId),fb=host.querySelector('.destination-allocation-feedback');
-    if(alocacoes.length!==10){fb.textContent='Preencha as dez vagas: dois motoristas em cada um dos cinco destinos.';return;}
-    uiConfirm('Confirma os dois motoristas para cada destino? Quem já iniciou deslocamento não poderá ser transferido depois.').then(ok=>{if(!ok)return;fb.textContent='Salvando…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
+    const expected=selects.length;
+    if(alocacoes.length!==expected){fb.textContent='Preencha todas as vagas calculadas para os destinos.';return;}
+    const unique=new Set(alocacoes.map(x=>x.participacaoId));if(unique.size!==alocacoes.length){fb.textContent='Cada motorista só pode ocupar uma vaga nesta operação.';return;}
+    uiConfirm('Confirma a escala distribuída por destino? Os motoristas que já iniciaram deslocamento permanecem protegidos contra transferência comum.').then(ok=>{if(!ok)return;fb.textContent='Salvando escala…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
   }
   function alternarDetalhesOperacaoCentro(id){
     const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
