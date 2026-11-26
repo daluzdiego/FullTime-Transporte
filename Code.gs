@@ -133,16 +133,16 @@ function FT_TESTAR_CONTRATO_PORTAL_CONVOCACOES_20261125() {
     ['FT_processarLembretesEmailConvocacao_', typeof FT_processarLembretesEmailConvocacao_ === 'function']
   ];
   const ttlMs = typeof FT_AUTO_TTL_ === 'number' ? FT_AUTO_TTL_ : null;
-  const prazoSeisHoras = ttlMs === 6 * 60 * 60 * 1000;
+  const prazoDuasHoras = ttlMs === 2 * 60 * 60 * 1000;
   const faltantes = checks.filter(item => !item[1]).map(item => item[0]);
   const result = {
-    ok: faltantes.length === 0 && prazoSeisHoras,
+    ok: faltantes.length === 0 && prazoDuasHoras,
     modo: 'SOMENTE_LEITURA_SEM_PLANILHA_SEM_EMAIL_SEM_OFERTA',
     endpointsVerificados: checks.length,
     endpointsAusentes: faltantes,
     prazoOfertaMs: ttlMs,
     prazoOfertaHoras: ttlMs === null ? null : ttlMs / 3600000,
-    prazoSeisHoras: prazoSeisHoras
+    prazoDuasHoras: prazoDuasHoras
   };
   Logger.log('FULL TIME — CONTRATO PORTAL/CONVOCACOES: ' + JSON.stringify(result));
   return result;
