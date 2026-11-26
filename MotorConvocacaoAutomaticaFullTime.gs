@@ -75,18 +75,28 @@ function FT_AUTO_READ_(){return JSON.parse(PropertiesService.getScriptProperties
 function FT_AUTO_WRITE_(q){PropertiesService.getScriptProperties().setProperty(FT_AUTO_PROP_,JSON.stringify(q));}
 function FT_AUTO_TRIGGER_(){if(!ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica'))ScriptApp.newTrigger('FT_processarFilasConvocacaoAutomatica').timeBased().everyMinutes(1).create();}
 function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
- const u=obterSessao_(token);exigirAdmin_(u);data=data||{};const opId=texto_(data.operacaoId,100),vagas=Math.floor(Number(data.vagas||0));
+ const u=obterSessao_(token);exigirAdmin_(u);data=data||{};
+ const opId=texto_(data.operacaoId,100),vagas=Math.floor(Number(data.vagas||0));
  if(!opId||vagas<1||vagas>40)throw new Error('Informe operação e vagas entre 1 e 40.');
+ if(data.preEscalaAprovada!==true||!data.rascunhoId||!Array.isArray(data.selecao)||data.selecao.length!==vagas)throw new Error('A convocação exige pré-escala revisada e aprovada.');
+ const draft=FT_ESCALA_READ_(opId);
+ if(!draft||draft.id!==String(data.rascunhoId)||draft.status!=='RASCUNHO')throw new Error('Pré-escala não está pendente de aprovação.');
+ const selected=data.selecao.map(String);
+ if(new Set(selected).size!==selected.length)throw new Error('Há conjuntos duplicados na pré-escala.');
  const lock=LockService.getScriptLock();lock.waitLock(20000);let q;
  try{
-  const all=FT_AUTO_READ_();if(all[opId]?.status==='EM_ANDAMENTO'){FT_AUTO_RECONCILIAR_FILA_(opId,all[opId]);if(all[opId]?.status==='EM_ANDAMENTO')throw new Error('Já existe fila automática ativa para esta operação, com oferta aguardando resposta.');FT_AUTO_WRITE_(all);}
-  const analise=ordenarCandidatosOperacaoFullTime(token,opId);const candidatos=analise.filter(c=>c.eligible===true);if(!candidatos.length)throw new Error('Nenhum conjunto elegível. Confira a regularização dos motoristas e documentos antes de convocar.');
-  const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),or=os.getDataRange().getValues(),op=or.slice(1).find(r=>String(r[om.ID])===opId);
+  const all=FT_AUTO_READ_();
+  if(all[opId]&&all[opId].status==='EM_ANDAMENTO'){FT_AUTO_RECONCILIAR_FILA_(opId,all[opId]);if(all[opId].status==='EM_ANDAMENTO')throw new Error('Já existe fila automática ativa.');FT_AUTO_WRITE_(all);}
+  const eligible=ordenarCandidatosOperacaoFullTime(token,opId).filter(c=>c.eligible===true),byId=Object.fromEntries(eligible.map(c=>[String(c.id),c]));
+  const first=selected.map(id=>{if(!byId[id])throw new Error('Conjunto aprovado deixou de estar elegível. Gere nova prévia.');return byId[id];});
+  const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),rows=os.getDataRange().getValues(),op=rows.slice(1).find(r=>String(r[om.ID])===opId);
   if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]).toUpperCase()))throw new Error('Operação não está aberta.');
-  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
-  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();FT_AUTO_START_TRIGGER_();
+  const ordered=first.concat(eligible.filter(c=>selected.indexOf(String(c.id))<0));
+  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas:vagas,lista:ordered.map((c,i)=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:i+1,destinoId:(draft.alocacoes.find(x=>String(x.conjuntoId)===String(c.id))||{}).destinoId||''})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO',preEscalaId:draft.id};
+  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();FT_AUTO_AGENDAR_LEMBRETES_EMAIL_();
  }finally{lock.releaseLock();}
- const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 2 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
+ const result=FT_processarFilasConvocacaoAutomatica();
+ return {ok:true,id:q.id,vagas:vagas,totalElegiveis:q.lista.length,ofertasIniciais:result.ofertasCriadas||0,message:'Escala aprovada; convocações iniciais enviadas.'};
 }
 
 /** Reconcilia fila persistida com o estado efetivo das ofertas na planilha. */
