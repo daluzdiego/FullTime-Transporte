@@ -130,13 +130,21 @@ function FT_TESTAR_CONTRATO_PORTAL_CONVOCACOES_20261125() {
     ['FT_substituirConvocadoPendenteFullTime', typeof FT_substituirConvocadoPendenteFullTime === 'function'],
     ['FT_cancelarConvocacaoPendenteFullTime', typeof FT_cancelarConvocacaoPendenteFullTime === 'function'],
     ['FT_iniciarConvocacaoAutomaticaFullTime', typeof FT_iniciarConvocacaoAutomaticaFullTime === 'function'],
+    ['gerarPreviaEscalaDestinosFullTime', typeof gerarPreviaEscalaDestinosFullTime === 'function'],
+    ['salvarEdicaoPreviaEscalaFullTime', typeof salvarEdicaoPreviaEscalaFullTime === 'function'],
+    ['aprovarPreviaEscalaDestinosFullTime', typeof aprovarPreviaEscalaDestinosFullTime === 'function'],
+    ['testarRegrasPreEscalaEditavelFullTime', typeof testarRegrasPreEscalaEditavelFullTime === 'function'],
     ['FT_processarLembretesEmailConvocacao_', typeof FT_processarLembretesEmailConvocacao_ === 'function']
   ];
   const ttlMs = typeof FT_AUTO_TTL_ === 'number' ? FT_AUTO_TTL_ : null;
   const prazoDuasHoras = ttlMs === 2 * 60 * 60 * 1000;
   const faltantes = checks.filter(item => !item[1]).map(item => item[0]);
+  const preEscalaRules = typeof testarRegrasPreEscalaEditavelFullTime === 'function' ? testarRegrasPreEscalaEditavelFullTime() : {ok:false};
+  const editRules = typeof testarRegraEdicaoConvocacaoFullTime === 'function' ? testarRegraEdicaoConvocacaoFullTime() : {ok:false};
   const result = {
-    ok: faltantes.length === 0 && prazoDuasHoras,
+    ok: faltantes.length === 0 && prazoDuasHoras && preEscalaRules.ok === true && editRules.ok === true,
+    testesRegrasPreEscala: preEscalaRules,
+    testesBloqueioConvocacaoConfirmada: editRules,
     modo: 'SOMENTE_LEITURA_SEM_PLANILHA_SEM_EMAIL_SEM_OFERTA',
     endpointsVerificados: checks.length,
     endpointsAusentes: faltantes,
