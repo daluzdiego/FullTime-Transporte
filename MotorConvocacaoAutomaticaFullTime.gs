@@ -81,8 +81,10 @@ function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
  if(data.preEscalaAprovada!==true||!data.rascunhoId||!Array.isArray(data.selecao)||data.selecao.length!==vagas)throw new Error('A convocação exige pré-escala revisada e aprovada.');
  const draft=FT_ESCALA_READ_(opId);
  if(!draft||draft.id!==String(data.rascunhoId)||draft.status!=='RASCUNHO')throw new Error('Pré-escala não está pendente de aprovação.');
+ if(Number(draft.quantidadeNecessaria)!==vagas||draft.alocacoes.length!==vagas)throw new Error('A quantidade aprovada não corresponde à pré-escala salva.');
  const selected=data.selecao.map(String);
  if(new Set(selected).size!==selected.length)throw new Error('Há conjuntos duplicados na pré-escala.');
+ const approved=new Set((draft.alocacoes||[]).map(x=>String(x.conjuntoId)));if(selected.some(id=>!approved.has(id))||approved.size!==selected.length)throw new Error('A seleção enviada não corresponde aos motoristas aprovados por Bruno.');
  const lock=LockService.getScriptLock();lock.waitLock(20000);let q;
  try{
   const all=FT_AUTO_READ_();
@@ -91,6 +93,7 @@ function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
   const first=selected.map(id=>{if(!byId[id])throw new Error('Conjunto aprovado deixou de estar elegível. Gere nova prévia.');return byId[id];});
   const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),rows=os.getDataRange().getValues(),op=rows.slice(1).find(r=>String(r[om.ID])===opId);
   if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]).toUpperCase()))throw new Error('Operação não está aberta.');
+  if(om.MOTORISTAS_NECESSARIOS===undefined){om.MOTORISTAS_NECESSARIOS=os.getLastColumn();os.getRange(1,om.MOTORISTAS_NECESSARIOS+1).setValue('MOTORISTAS_NECESSARIOS');}os.getRange(rows.findIndex(r=>String(r[om.ID])===opId)+1,om.MOTORISTAS_NECESSARIOS+1).setValue(vagas);
   const ordered=first.concat(eligible.filter(c=>selected.indexOf(String(c.id))<0));
   q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas:vagas,lista:ordered.map((c,i)=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:i+1,destinoId:(draft.alocacoes.find(x=>String(x.conjuntoId)===String(c.id))||{}).destinoId||''})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO',preEscalaId:draft.id};
   all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();FT_AUTO_AGENDAR_LEMBRETES_EMAIL_();
