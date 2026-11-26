@@ -67,9 +67,9 @@ function FT_AUTO_prepararCabecalhosAgenda_(sh){
  return FT_AUTO_MAP_(sh);
 }
 
-/** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 6 horas. */
+/** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 2 horas. */
 const FT_AUTO_PROP_='FT_AUTO_QUEUES_V1';
-const FT_AUTO_TTL_=6*60*60*1000;
+const FT_AUTO_TTL_=2*60*60*1000;
 function FT_AUTO_MAP_(s){const h=s.getRange(1,1,1,s.getLastColumn()).getDisplayValues()[0],m={};h.forEach((v,i)=>{const k=String(v||'').trim().toUpperCase();if(k&&m[k]===undefined)m[k]=i;});return m;}
 function FT_AUTO_READ_(){return JSON.parse(PropertiesService.getScriptProperties().getProperty(FT_AUTO_PROP_)||'{}');}
 function FT_AUTO_WRITE_(q){PropertiesService.getScriptProperties().setProperty(FT_AUTO_PROP_,JSON.stringify(q));}
@@ -86,7 +86,7 @@ function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
   q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
   all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();
  }finally{lock.releaseLock();}
- const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 6 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
+ const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 2 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
 }
 
 /** Reconcilia fila persistida com o estado efetivo das ofertas na planilha. */
@@ -108,7 +108,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
    if(!isFinite(ex)||ex<=Date.now()){
     sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
     if(m.RESPONDIDA_EM!==undefined&&!r[m.RESPONDIDA_EM])sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(new Date());
-    st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
+    st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
     if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
    }
   }
@@ -125,7 +125,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
 
 function FT_AUTO_AGENDAR_LEMBRETES_EMAIL_(){
  if(!ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='FT_processarLembretesEmailConvocacao_'))
-  ScriptApp.newTrigger('FT_processarLembretesEmailConvocacao_').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('FT_processarLembretesEmailConvocacao_').timeBased().everyMinutes(30).create();
 }
 function FT_processarLembretesEmailConvocacao_(){
  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_prepararCabecalhosAgenda_(sh),rows=sh.getDataRange().getValues();
@@ -142,10 +142,10 @@ function FT_AUTO_enviarLembretesEmail_(sh,m,rows){
   const exp=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
   const sentRaw=m.OFERTADA_EM!==undefined?r[m.OFERTADA_EM]:r[m.CRIADO_EM];
   const sent=sentRaw instanceof Date?sentRaw.getTime():new Date(sentRaw).getTime();
-  if(!isFinite(exp)||exp<=now||!isFinite(sent)||now-sent<3600000)return;
+  if(!isFinite(exp)||exp<=now||!isFinite(sent)||now-sent<1800000)return;
   const email=emails[String(r[m.MOTORISTA_ID]||'').trim()];if(!email||email.indexOf('@')<1)return;
   const key='FT_OFFER_EMAIL_REMINDER_'+String(r[m.ID]||'').replace(/[^A-Za-z0-9]/g,'_');
-  const last=Number(props.getProperty(key)||0);if(now-last<3600000)return;
+  const last=Number(props.getProperty(key)||0);if(now-last<1800000)return;
   const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),ov=os.getDataRange().getValues();
   const op=ov.slice(1).find(x=>String(x[om.ID]||'')===String(r[m.OPERACAO_ID]||''));
   const name=op&&om.NOME_OPERACAO!==undefined?String(op[om.NOME_OPERACAO]||'Operação Full Time'):'Operação Full Time';
@@ -197,7 +197,7 @@ function FT_processarFilasConvocacaoAutomatica(){
     const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 6 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.',DATA_OPERACAO_OFERTA:agenda.data,HORARIO_OPERACAO_OFERTA:agenda.horario,JANELA_FIM_OFERTA:agenda.fim};
     Object.keys(fields).forEach(k=>{if(m[k]!==undefined)row[m[k]]=fields[k];});
     sh.appendRow(row);rows.push(row);q.pendentes.push(id);created++;
-    FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 6 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
+    FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 2 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
    }
    if(q.aceitas>=q.vagas||(!q.pendentes.length&&q.cursor>=q.lista.length)){q.status='CONCLUIDA';q.concluidaEm=new Date().toISOString();q.motivoConclusao=q.aceitas>=q.vagas?'VAGAS_PREENCHIDAS':'FILA_ESGOTADA';}
   });
