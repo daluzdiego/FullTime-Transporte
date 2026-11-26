@@ -511,7 +511,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
-    else if(page==='escalas') { c.innerHTML=renderEscalas(); carregarOfertasAceitasAdmin(); }
+    else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -696,12 +696,12 @@
         const current=old.filter(x=>x.destinoId===dest.id),suggested=sg.filter(x=>x.destinoId===dest.id);
         const count=Number(quotas[dest.id]||0),items=Array.from({length:count},(_,i)=>suggested[i]||current[i]||null);
         const slots=items.map((item,i)=>{
-          const sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado&&current.some(x=>x.participacaoId===sel));
-          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · deslocamento iniciado':'')+'</span><select data-dest="'+esc(dest.id)+'" '+(locked?'disabled':'')+'><option value="">Selecione motorista</option>'+cs.map(x=>'<option value="'+esc(x.participacaoId)+'" '+(x.participacaoId===sel?'selected':'')+'>'+esc(x.nome)+' · '+num(x.capacidade)+' t · '+esc(x.status)+'</option>').join('')+'</select><small>Referência de carga calculada pela capacidade do conjunto.</small></label>';
+          const sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado);
+          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · confirmado':'')+'</span><select data-dest="'+esc(dest.id)+'"><option value="">Selecione motorista</option>'+cs.map(x=>'<option value="'+esc(x.participacaoId)+'" '+(x.participacaoId===sel?'selected':'')+'>'+esc(x.nome)+' · '+num(x.capacidade)+' t · '+esc(x.status)+(x.bloqueado?' · participação protegida':'')+'</option>').join('')+'</select><small>Motoristas confirmados podem mudar de destino, mas não podem ser removidos da operação.</small></label>';
         }).join('');
         return '<section class="destination-allocation-card"><div class="destination-allocation-title"><strong>'+esc(dest.ordem+'. '+dest.cliente)+'</strong><span>'+num(dest.volume)+' t · '+count+' motorista(s)</span></div><div class="destination-allocation-slots">'+slots+'</div></section>';
       }).join('');
-      host.innerHTML='<div class="destination-allocation-panel"><h3>Distribuição de motoristas por destino</h3><p>O sistema distribui a quantidade total de motoristas proporcionalmente ao volume de cada destino. Bruno pode trocar os nomes antes de confirmar.</p><div class="badge">'+cs.length+'/'+Number(d.quantidadeNecessaria||0)+' motoristas elegíveis · '+ds.length+' destino(s)</div>'+cards+'<button class="btn btn-primary" type="button" data-action="save-destination-allocation">Confirmar escala por destino</button><div class="destination-allocation-feedback"></div></div>';
+      host.innerHTML='<div class="destination-allocation-panel"><h3>Distribuição de motoristas por destino</h3><p>Bruno pode redistribuir os motoristas entre destinos. Quem já aceitou permanece na operação; somente o destino e a referência de carga são atualizados.</p><div class="badge">'+cs.length+'/'+Number(d.quantidadeNecessaria||0)+' motoristas elegíveis · '+ds.length+' destino(s)</div>'+cards+'<button class="btn btn-primary" type="button" data-action="save-destination-allocation">Confirmar escala por destino</button><div class="destination-allocation-feedback"></div></div>';
       host.querySelector('[data-action="save-destination-allocation"]')?.addEventListener('click',()=>salvarDistribuicaoDestinoCentro(opId));
       const feedback=host.querySelector('.destination-allocation-feedback');
       if(cs.length<Number(d.quantidadeNecessaria||0))feedback.textContent='Faltam '+(Number(d.quantidadeNecessaria||0)-cs.length)+' motorista(s) elegíveis. A escala não poderá ser confirmada até completar a quantidade necessária.';
@@ -713,7 +713,7 @@
     const expected=selects.length;
     if(alocacoes.length!==expected){fb.textContent='Preencha todas as vagas calculadas para os destinos.';return;}
     const unique=new Set(alocacoes.map(x=>x.participacaoId));if(unique.size!==alocacoes.length){fb.textContent='Cada motorista só pode ocupar uma vaga nesta operação.';return;}
-    uiConfirm('Confirma a escala distribuída por destino? Os motoristas que já iniciaram deslocamento permanecem protegidos contra transferência comum.').then(ok=>{if(!ok)return;fb.textContent='Salvando escala…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
+    uiConfirm('Confirma a redistribuição dos destinos? Motoristas que aceitaram permanecem na operação; apenas o destino será atualizado.').then(ok=>{if(!ok)return;fb.textContent='Salvando escala…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
   }
   function alternarDetalhesOperacaoCentro(id){
     const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
@@ -1087,47 +1087,21 @@
       '</div>'+
       '<div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">'+sets.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade útil</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+setRows+'</tbody></table></div></div></div>';
   }
-  function carregarOfertasAceitasAdmin(){
-    const host=document.getElementById('acceptedOffersAdmin');if(!host)return;
-    host.innerHTML='<div class="empty">Consultando ofertas aceitas…</div>';
-    let finalizado=false;
-    const limite=window.setTimeout(()=>{
-      if(finalizado||!document.getElementById('acceptedOffersAdmin'))return;
-      host.innerHTML='<div class="notice">A consulta está demorando mais que o esperado. Nenhum registro foi alterado. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
-    },30000);
-    google.script.run.withSuccessHandler(rows=>{
-      finalizado=true;window.clearTimeout(limite);
-      if(!document.getElementById('acceptedOffersAdmin'))return;
-      if(!Array.isArray(rows)){host.innerHTML='<div class="notice">Resposta inválida do servidor. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';return;}
-      host.innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Operação</th><th>Trecho</th><th>Conjunto</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.motorista)+'</td><td>'+esc(r.operacao)+'</td><td>'+esc(r.origem)+' → '+esc(r.destino)+'</td><td>'+esc(r.conjuntoId)+'</td><td><button class="btn btn-primary" onclick="confirmarAceiteAdmin(\''+esc(r.id)+'\')">Confirmar escala</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum aceite aguardando confirmação.</div>';
-    }).withFailureHandler(e=>{
-      finalizado=true;window.clearTimeout(limite);
-      if(!document.getElementById('acceptedOffersAdmin'))return;
-      host.innerHTML='<div class="notice">'+esc(e&&e.message?e.message:'Falha ao consultar aceites.')+' <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
-    }).listarOfertasAceitasAdminFullTime(authToken);
-  }
-  async function confirmarAceiteAdmin(id){
-    if(!await uiConfirm('O conjunto ficará ATIVO na operação.',{title:'Confirmar escala',ok:'Confirmar escala'}))return;
-    google.script.run.withSuccessHandler(r=>{toast(r.message);carregarOfertasAceitasAdmin();google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);}).obterPainelFullTime(authToken);})
-      .withFailureHandler(e=>toast(e.message||'Não foi possível confirmar a escala.',true)).confirmarAceiteOfertaAdminFullTime(authToken,id);
-  }
-
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.nome||o.campos[2]||o.id):id;};
     const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
-    const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
+    const active=parts.filter(p=>['ACEITA','ATIVO'].includes(String(p.campos[3]).toUpperCase()));
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome||o.campos[2]||o.id)+' — saldo '+esc(o.saldo||o.campos[8]||'0')+' t · '+esc(o.viagensRealizadas||0)+'/'+esc(o.viagensPrevistas||0)+' viagens</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
-      <div class="panel"><div class="panel-head"><h2>Aceites aguardando confirmação</h2><span class="muted small">Resposta dos motoristas</span></div><div class="panel-body" id="acceptedOffersAdmin"><div class="empty">Carregando…</div></div></div>
       <div class="notice">Uma designação é por operação, não por viagem. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
       <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
-        <div class="panel form-panel"><div class="panel-head"><h2>Proteção da escala confirmada</h2></div><div class="panel-body"><div class="notice"><strong>Após o aceite do motorista, a equipe fica bloqueada para alterações administrativas.</strong><p>Para substituir ou retirar uma convocação ainda pendente, acesse Operações → Detalhes → Gerenciar convocados. Para participações confirmadas, utilize apenas os fluxos operacionais de saída e retorno, preservando o histórico.</p></div></div></div><div class="panel form-panel"><div class="panel-head"><h2>Registrar retorno</h2></div><div class="panel-body"><form onsubmit="submitRetorno(event)"><div class="form-grid">
+        <div class="panel form-panel"><div class="panel-head"><h2>Proteção da escala confirmada</h2></div><div class="panel-body"><div class="notice"><strong>O aceite do motorista confirma sua participação na operação.</strong><p>Bruno pode redistribuir o motorista entre os destinos da mesma operação, sem remover sua participação nem desfazer o aceite. A saída e o retorno continuam registrados nos fluxos operacionais, com histórico preservado.</p></div></div></div><div class="panel form-panel"><div class="panel-head"><h2>Registrar retorno</h2></div><div class="panel-body"><form onsubmit="submitRetorno(event)"><div class="form-grid">
           <div class="field"><label>Operação anterior *</label><select name="operacaoId" required>${opOptions}</select></div>
           <div class="field"><label>Conjunto que saiu *</label><select name="conjuntoId" required>${setOptions}</select></div>
           <div class="field span-2"><label>Motivo do retorno *</label><textarea name="motivo" required maxlength="500"></textarea></div>
