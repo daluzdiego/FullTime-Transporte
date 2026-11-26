@@ -52,20 +52,20 @@ function FT_ESCALA_REGISTRAR_ACEITE_(operacaoId,participacao){
  var draft=FT_ESCALA_READ_(operacaoId);if(!draft||draft.status!=='APROVADA_CONVOCACOES_DISPARADAS')return false;
  var sh=ftAlocEnsure_(),map=ftAlocMap_(sh),rows=ftAlocRows_(sh);
  if(rows.some(function(x){return String(x.PARTICIPACAO_ID)===String(participacao.ID)&&String(x.STATUS).toUpperCase()==='ATIVA';}))return true;
- var chosen=(draft.alocacoes||[]).find(function(x){return String(x.motoristaId)===String(participacao.MOTORISTA_ID)&&String(x.conjuntoId)===String(participacao.CONJUNTO_ID);});
+ var chosen=(draft.alocacoes||[]).find(function(x){return String(x.motoristaId)===String(participacao.MOTORISTA_ID)&&String(x.conjuntoId)===String(participacao.CONJUNTO_ID);}),isReplacement=!chosen;
  if(!chosen){
   var active=rows.filter(function(x){return String(x.OPERACAO_ID)===String(operacaoId)&&String(x.STATUS).toUpperCase()==='ATIVA';}),counts={};
   active.forEach(function(x){var id=String(x.DESTINO_ID||'');counts[id]=(counts[id]||0)+1;});
   var psh=getSheet_('PARTICIPACAO_OPERACOES'),pm=ftAlocMap_(psh),pv=psh.getDataRange().getValues();
   pv.slice(1).forEach(function(r){if(String(r[pm.OPERACAO_ID]||'')!==String(operacaoId)||String(r[pm.STATUS_PARTICIPACAO]||'').toUpperCase()!=='OFERTADA')return;var reserve=(draft.alocacoes||[]).find(function(x){return String(x.motoristaId)===String(r[pm.MOTORISTA_ID])&&String(x.conjuntoId)===String(r[pm.CONJUNTO_ID]);});if(reserve)counts[String(reserve.destinoId)]=(counts[String(reserve.destinoId)]||0)+1;});
   var open=(draft.destinos||[]).filter(function(dest){return (counts[String(dest.id)]||0)<Number(draft.vagasPorDestino[String(dest.id)]||0);}).sort(function(a,b){return Number(b.volume||0)-Number(a.volume||0)||Number(a.ordem||0)-Number(b.ordem||0);});
-  if(open.length)chosen={destinoId:open[0].id,conjuntoId:String(participacao.CONJUNTO_ID),motoristaId:String(participacao.MOTORISTA_ID),capacidade:0};
+  if(open.length){var backup=(draft.elegiveis||[]).find(function(x){return String(x.motoristaId)===String(participacao.MOTORISTA_ID)&&String(x.conjuntoId)===String(participacao.CONJUNTO_ID);});chosen={destinoId:open[0].id,conjuntoId:String(participacao.CONJUNTO_ID),motoristaId:String(participacao.MOTORISTA_ID),capacidade:backup?Number(backup.capacidade||0):0};}
  }
  if(!chosen)return false;
  var dest=(draft.destinos||[]).find(function(x){return String(x.id)===String(chosen.destinoId);});
  var group=(draft.alocacoes||[]).filter(function(x){return String(x.destinoId)===String(chosen.destinoId);});
- var total=group.reduce(function(n,x){return n+Number(x.capacidade||0);},0),reference=Number(dest&&dest.volume||0)*(total>0?Number(chosen.capacidade||0)/total:1/Math.max(1,Number(draft.vagasPorDestino[String(chosen.destinoId)]||1)));
- var obj={ID:Utilities.getUuid(),OPERACAO_ID:operacaoId,DESTINO_ID:chosen.destinoId,PARTICIPACAO_ID:participacao.ID,CONJUNTO_ID:participacao.CONJUNTO_ID,MOTORISTA_ID:participacao.MOTORISTA_ID,TONELADAS_REFERENCIA:reference,POSICAO_DESTINO:group.length+1,STATUS:'ATIVA',CRIADO_EM:new Date(),ATUALIZADO_EM:new Date(),REGISTRADO_POR:'MOTOR_AUTOMATICO',MOTIVO:'Destino herdado da pré-escala aprovada ou vaga liberada pela fila de reposição.'};
+ var total=group.reduce(function(n,x){return n+Number(x.capacidade||0);},0),quota=Math.max(1,Number(draft.vagasPorDestino[String(chosen.destinoId)]||1)),reference=isReplacement?Number(dest&&dest.volume||0)/quota:Number(dest&&dest.volume||0)*(total>0?Number(chosen.capacidade||0)/total:1/quota),position=rows.filter(function(x){return String(x.OPERACAO_ID)===String(operacaoId)&&String(x.DESTINO_ID)===String(chosen.destinoId)&&String(x.STATUS).toUpperCase()==='ATIVA';}).length+1;
+ var obj={ID:Utilities.getUuid(),OPERACAO_ID:operacaoId,DESTINO_ID:chosen.destinoId,PARTICIPACAO_ID:participacao.ID,CONJUNTO_ID:participacao.CONJUNTO_ID,MOTORISTA_ID:participacao.MOTORISTA_ID,TONELADAS_REFERENCIA:reference,POSICAO_DESTINO:position,STATUS:'ATIVA',CRIADO_EM:new Date(),ATUALIZADO_EM:new Date(),REGISTRADO_POR:'MOTOR_AUTOMATICO',MOTIVO:'Destino herdado da pré-escala aprovada ou vaga liberada pela fila de reposição.'};
  var row=new Array(sh.getLastColumn()).fill('');Object.keys(obj).forEach(function(k){if(map[ftAlocNorm_(k)]!==undefined)row[map[ftAlocNorm_(k)]]=obj[k];});sh.appendRow(row);return true;
 }
 /** Testes puros de regras da pré-escala. Não acessa planilhas nem envia mensagens. */
