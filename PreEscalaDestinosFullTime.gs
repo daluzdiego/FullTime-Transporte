@@ -18,12 +18,16 @@ function FT_ESCALA_PREVIEW_(token,operacaoId){
 }
 function gerarPreviaEscalaDestinosFullTime(token,operacaoId){return FT_ESCALA_PREVIEW_(token,operacaoId);}
 function obterPreviaEscalaDestinosFullTime(token,operacaoId){var u=obterSessao_(token);exigirAdmin_(u);var d=FT_ESCALA_READ_(operacaoId);if(!d)throw new Error('Ainda não existe prévia para esta operação. Gere a escala sugerida.');return d;}
+function FT_ESCALA_VALIDAR_QUOTAS_(destinos,requested){
+ var quotas={},total=0;
+ destinos.forEach(function(x){var n=Number(requested&&requested[x.id]);if(!Number.isInteger(n)||n<0||n>40)throw new Error('Informe uma quantidade inteira entre 0 e 40 para o destino '+x.cliente+'.');quotas[x.id]=n;total+=n;});
+ if(total<1||total>40)throw new Error('A quantidade total deve ficar entre 1 e 40 motoristas.');
+ return {quotas:quotas,total:total};
+}
 function salvarEdicaoPreviaEscalaFullTime(token,data){
  var u=obterSessao_(token);exigirAdmin_(u);data=data||{};var opId=String(data.operacaoId||''),items=Array.isArray(data.alocacoes)?data.alocacoes:[],d=FT_ESCALA_READ_(opId);
  if(!d||d.status!=='RASCUNHO')throw new Error('A prévia não existe ou já foi aprovada. Gere uma nova prévia para editar.');
- var requested=data.vagasPorDestino&&typeof data.vagasPorDestino==='object'?data.vagasPorDestino:{},quotas={},total=0;
- d.destinos.forEach(function(x){var n=Number(requested[x.id]);if(!Number.isInteger(n)||n<0||n>40)throw new Error('Informe uma quantidade inteira entre 0 e 40 para o destino '+x.cliente+'.');quotas[x.id]=n;total+=n;});
- if(total<1||total>40)throw new Error('A quantidade total deve ficar entre 1 e 40 motoristas.');
+ var checked=FT_ESCALA_VALIDAR_QUOTAS_(d.destinos,data.vagasPorDestino),quotas=checked.quotas,total=checked.total;
  if(items.length!==total)throw new Error('A escala contém '+items.length+' seleções, mas as quantidades dos destinos somam '+total+'.');
  var dest=Object.fromEntries(d.destinos.map(function(x){return [x.id,x];})),cand=Object.fromEntries(d.elegiveis.map(function(x){return [x.conjuntoId,x];})),used={},counts={};
  items.forEach(function(x){var did=String(x.destinoId||''),sid=String(x.conjuntoId||''),c=cand[sid];if(!dest[did])throw new Error('Destino inválido na prévia.');if(!c)throw new Error('O conjunto selecionado não pertence à lista elegível atual. Gere uma nova prévia.');if(used[c.motoristaId])throw new Error('O motorista '+c.nome+' foi selecionado mais de uma vez.');used[c.motoristaId]=true;counts[did]=(counts[did]||0)+1;});
@@ -64,8 +68,14 @@ function FT_ESCALA_REGISTRAR_ACEITE_(operacaoId,participacao){
  var obj={ID:Utilities.getUuid(),OPERACAO_ID:operacaoId,DESTINO_ID:chosen.destinoId,PARTICIPACAO_ID:participacao.ID,CONJUNTO_ID:participacao.CONJUNTO_ID,MOTORISTA_ID:participacao.MOTORISTA_ID,TONELADAS_REFERENCIA:reference,POSICAO_DESTINO:group.length+1,STATUS:'ATIVA',CRIADO_EM:new Date(),ATUALIZADO_EM:new Date(),REGISTRADO_POR:'MOTOR_AUTOMATICO',MOTIVO:'Destino herdado da pré-escala aprovada ou vaga liberada pela fila de reposição.'};
  var row=new Array(sh.getLastColumn()).fill('');Object.keys(obj).forEach(function(k){if(map[ftAlocNorm_(k)]!==undefined)row[map[ftAlocNorm_(k)]]=obj[k];});sh.appendRow(row);return true;
 }
-/** Testes puros: quantidade livre por destino, soma e duplicidade. Não acessa planilhas. */
+/** Testes puros de regras da pré-escala. Não acessa planilhas nem envia mensagens. */
 function testarRegrasPreEscalaEditavelFullTime(){
- var dest=[{id:'D1',volume:60},{id:'D2',volume:30},{id:'D3',volume:10}],q=ftAlocComputeQuotas_(dest,7),sum=Object.keys(q).reduce(function(n,k){return n+q[k];},0),checks={somaPreservada:sum===7,permiteDestinoSemMotorista:q.D3===1||q.D3===0,quantidadePorDestinoInteira:Object.keys(q).every(function(k){return Number.isInteger(q[k])&&q[k]>=0;}),reducaoValida:Object.keys(ftAlocComputeQuotas_(dest,2)).reduce(function(n,k){return n+ftAlocComputeQuotas_(dest,2)[k];},0)===2};
+ var dest=[{id:'D1',cliente:'Destino 1'},{id:'D2',cliente:'Destino 2'},{id:'D3',cliente:'Destino 3'}];
+ var custom=FT_ESCALA_VALIDAR_QUOTAS_(dest,{D1:3,D2:1,D3:0});
+ var zero=FT_ESCALA_VALIDAR_QUOTAS_(dest,{D1:0,D2:2,D3:1});
+ var invalidRejected=false,overRejected=false;
+ try{FT_ESCALA_VALIDAR_QUOTAS_(dest,{D1:-1,D2:2,D3:1});}catch(e){invalidRejected=true;}
+ try{FT_ESCALA_VALIDAR_QUOTAS_(dest,{D1:41,D2:0,D3:0});}catch(e){overRejected=true;}
+ var checks={permiteQuantidadePorDestinoLivre:custom.quotas.D1===3&&custom.quotas.D2===1&&custom.quotas.D3===0&&custom.total===4,permiteDestinoSemMotorista:zero.quotas.D1===0&&zero.total===3,rejeitaQuantidadeNegativa:invalidRejected,rejeitaMaisDeQuarenta:overRejected,rateioAutomaticoPreservaSoma:Object.keys(ftAlocComputeQuotas_(dest.map(function(x,i){return {id:x.id,volume:[60,30,10][i]};}),7)).reduce(function(n,k){return n+ftAlocComputeQuotas_(dest.map(function(x,i){return {id:x.id,volume:[60,30,10][i]};}),7)[k];},0)===7};
  var result={ok:Object.keys(checks).every(function(k){return checks[k];}),checks:checks};if(!result.ok)throw new Error('Falha nas regras da pré-escala: '+JSON.stringify(result));Logger.log('FT_TESTE_PRE_ESCALA_EDITAVEL '+JSON.stringify(result));return result;
 }
