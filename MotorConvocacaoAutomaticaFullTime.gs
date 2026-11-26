@@ -109,7 +109,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
     sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
     if(m.RESPONDIDA_EM!==undefined&&!r[m.RESPONDIDA_EM])sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(new Date());
     st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
-    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
+    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
    }
   }
   if(String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
@@ -150,7 +150,7 @@ function FT_AUTO_enviarLembretesEmail_(sh,m,rows){
   const op=ov.slice(1).find(x=>String(x[om.ID]||'')===String(r[m.OPERACAO_ID]||''));
   const name=op&&om.NOME_OPERACAO!==undefined?String(op[om.NOME_OPERACAO]||'Operação Full Time'):'Operação Full Time';
   const url=ScriptApp.getService().getUrl();
-  MailApp.sendEmail({to:email,subject:'Lembrete de convocação — '+name,body:'Você tem uma convocação aguardando resposta para a operação '+name+'. Acesse o Portal do Motorista para aceitar ou recusar. O prazo total é de 6 horas.'+(url?'\n\nPortal: '+url:'')+'\n\nMensagem automática.'});
+  MailApp.sendEmail({to:email,subject:'Lembrete de convocação — '+name,body:'Você tem uma convocação aguardando resposta para a operação '+name+'. Acesse o Portal do Motorista para aceitar ou recusar. O prazo total é de 2 horas.'+(url?'\n\nPortal: '+url:'')+'\n\nMensagem automática.'});
   props.setProperty(key,String(now));
  });
 }
@@ -175,8 +175,8 @@ function FT_processarFilasConvocacaoAutomatica(){
     if(!isFinite(ex)||ex<=Date.now()){
       sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';
       if(m.RESPONDIDA_EM!==undefined&&!r[m.RESPONDIDA_EM])sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());
-      FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
-      if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
+      FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+      if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
       return;
     }
     pending.push(id);
@@ -194,7 +194,7 @@ function FT_processarFilasConvocacaoAutomatica(){
     });
     if(busy)continue;
     const now=new Date(),id='OFT-'+Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
-    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 6 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.',DATA_OPERACAO_OFERTA:agenda.data,HORARIO_OPERACAO_OFERTA:agenda.horario,JANELA_FIM_OFERTA:agenda.fim};
+    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 2 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.',DATA_OPERACAO_OFERTA:agenda.data,HORARIO_OPERACAO_OFERTA:agenda.horario,JANELA_FIM_OFERTA:agenda.fim};
     Object.keys(fields).forEach(k=>{if(m[k]!==undefined)row[m[k]]=fields[k];});
     sh.appendRow(row);rows.push(row);q.pendentes.push(id);created++;
     FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 2 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
@@ -220,8 +220,8 @@ function FT_reconciliarOfertasExpiradasFullTime(){
    if(isFinite(ex)&&ex>now)return;
    sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
    if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(stamp);
-   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
-   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
+   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
    expired++;
   });
   const queues=FT_AUTO_READ_();
