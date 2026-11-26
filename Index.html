@@ -1501,33 +1501,63 @@
   }
   function renderPreviaEscalaDestinosUI(operacaoId,d){
     const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
-    const opts=(d.elegiveis||[]).map(c=>'<option value="'+esc(c.conjuntoId)+'">'+esc(c.nome)+' · '+esc(c.capacidade)+' t</option>').join('');
-    let html='<div class="notice"><strong>Prévia gerada:</strong> '+esc(d.quantidadeNecessaria)+' motoristas · '+esc((d.destinos||[]).length)+' destino(s). As convocações continuam suspensas até a aprovação.</div>';
+    window.__ftPreEscalaData=window.__ftPreEscalaData||{};window.__ftPreEscalaData[String(operacaoId)]=d;
+    let html='<div class="notice"><strong>Prévia gerada:</strong> <span id="pre-escala-total-'+esc(operacaoId)+'">'+esc(d.quantidadeNecessaria)+'</span> motoristas · '+esc((d.destinos||[]).length)+' destino(s). Defina a quantidade de motoristas em cada destino; o total será recalculado automaticamente. Nada será convocado até sua aprovação.</div>';
     (d.destinos||[]).forEach(dest=>{
-      const rows=(d.alocacoes||[]).filter(x=>String(x.destinoId)===String(dest.id));
-      html+='<section class="panel" style="margin:10px 0;padding:12px"><h4>'+esc(dest.cliente||dest.local)+' · '+esc(dest.volume)+' t · '+rows.length+' motorista(s)</h4>';
-      rows.forEach((x,n)=>{html+='<label style="display:block;margin:8px 0">Motorista '+(n+1)+'<select class="pre-escala-select" data-destino="'+esc(dest.id)+'" style="display:block;width:100%;min-height:40px;margin-top:4px"><option value="'+esc(x.conjuntoId)+'">'+esc(x.nome)+' · '+esc(x.capacidade)+' t</option>'+opts+'</select></label>';});
-      html+='</section>';
+      const rows=(d.alocacoes||[]).filter(x=>String(x.destinoId)===String(dest.id)),count=Number((d.vagasPorDestino||{})[dest.id]||0);
+      html+='<section class="panel pre-escala-destino" data-destino-card="'+esc(dest.id)+'" style="margin:10px 0;padding:12px"><h4>'+esc(dest.cliente||dest.local)+' · '+esc(dest.volume)+' t</h4><label style="display:block;margin:8px 0;font-weight:600">Quantidade de motoristas neste destino <input type="number" class="pre-escala-count" data-destino="'+esc(dest.id)+'" min="0" max="40" step="1" value="'+count+'" onchange="ajustarVagasDestinoPreviaUI(\''+esc(operacaoId)+'\',\''+esc(dest.id)+'\')" style="display:block;width:110px;min-height:38px;margin-top:5px;padding:6px"></label><div class="pre-escala-slots" data-destino="'+esc(dest.id)+'">';
+      rows.forEach((x,n)=>{html+=FT_PRE_ESCALA_SLOT_HTML_(operacaoId,dest.id,n+1,x.conjuntoId,d.elegiveis);});
+      html+='</div></section>';
     });
-    html+='<button class="btn btn-secondary" type="button" onclick="salvarEdicaoPreviaEscalaUI(\''+esc(operacaoId)+'\')">Salvar alterações da escala</button> <button class="btn btn-primary" type="button" onclick="aprovarPreviaEscalaUI(\''+esc(operacaoId)+'\')">Aprovar escala e enviar convocações</button>';
-    host.innerHTML=html;
+    html+='<div class="notice" id="pre-escala-count-feedback-'+esc(operacaoId)+'"></div><button class="btn btn-secondary" type="button" onclick="salvarEdicaoPreviaEscalaUI(\''+esc(operacaoId)+'\')">Salvar quantidades e alterações</button> <button class="btn btn-primary" type="button" onclick="aprovarPreviaEscalaUI(\''+esc(operacaoId)+'\')">Aprovar escala e enviar convocações</button>';
+    host.innerHTML=html;atualizarTotalPreEscalaUI(operacaoId);
+  }
+  function FT_PRE_ESCALA_SLOT_HTML_(operacaoId,destinoId,pos,selected,elegiveis){
+    const options=(elegiveis||[]).map(c=>'<option value="'+esc(c.conjuntoId)+'" '+(String(c.conjuntoId)===String(selected)?'selected':'')+'>'+esc(c.nome)+' · '+esc(c.capacidade)+' t</option>').join('');
+    return '<label style="display:block;margin:8px 0">Motorista '+pos+'<select class="pre-escala-select" data-destino="'+esc(destinoId)+'" style="display:block;width:100%;min-height:40px;margin-top:4px"><option value="">Selecione um motorista elegível</option>'+options+'</select></label>';
+  }
+  function ajustarVagasDestinoPreviaUI(operacaoId,destinoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
+    const card=host.querySelector('[data-destino-card="'+CSS.escape(String(destinoId))+'"]');if(!card)return;
+    const input=card.querySelector('.pre-escala-count'),container=card.querySelector('.pre-escala-slots'),data=(window.__ftPreEscalaData||{})[String(operacaoId)];
+    let count=Math.floor(Number(input.value));if(!Number.isFinite(count)||count<0||count>40){input.value=Math.max(0,Math.min(40,Number(input.value)||0));count=Number(input.value);}
+    const selected=Array.from(container.querySelectorAll('.pre-escala-select')).map(x=>x.value);
+    while(selected.length<count)selected.push('');
+    selected.length=count;
+    container.innerHTML=selected.map((v,i)=>FT_PRE_ESCALA_SLOT_HTML_(operacaoId,destinoId,i+1,v,data?.elegiveis||[])).join('');
+    atualizarTotalPreEscalaUI(operacaoId);
+  }
+  function atualizarTotalPreEscalaUI(operacaoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
+    const total=Array.from(host.querySelectorAll('.pre-escala-count')).reduce((n,x)=>n+Math.max(0,Math.floor(Number(x.value)||0)),0);
+    const label=document.getElementById('pre-escala-total-'+operacaoId);if(label)label.textContent=String(total);
+    const fb=document.getElementById('pre-escala-count-feedback-'+operacaoId);
+    if(fb)fb.textContent=total<1?'Defina pelo menos um motorista.':total>40?'O limite operacional é de 40 motoristas por operação.':'Total definido: '+total+' motorista(s).';
   }
   function coletarPreviaEscalaUI(operacaoId){
-    const host=document.getElementById('pre-schedule-'+operacaoId),sels=Array.from(host?.querySelectorAll('.pre-escala-select')||[]);
-    return sels.map(s=>({destinoId:s.dataset.destino,conjuntoId:s.value}));
+    const host=document.getElementById('pre-schedule-'+operacaoId),vagasPorDestino={},alocacoes=[];
+    (host?.querySelectorAll('.pre-escala-count')||[]).forEach(x=>vagasPorDestino[x.dataset.destino]=Math.floor(Number(x.value)||0));
+    (host?.querySelectorAll('.pre-escala-select')||[]).forEach(x=>alocacoes.push({destinoId:x.dataset.destino,conjuntoId:x.value}));
+    return {alocacoes:alocacoes,vagasPorDestino:vagasPorDestino};
   }
   function salvarEdicaoPreviaEscalaUI(operacaoId){
-    const data={operacaoId:operacaoId,alocacoes:coletarPreviaEscalaUI(operacaoId)};
+    const picked=coletarPreviaEscalaUI(operacaoId),data={operacaoId:operacaoId,alocacoes:picked.alocacoes.filter(x=>x.conjuntoId),vagasPorDestino:picked.vagasPorDestino};
+    const total=Object.values(data.vagasPorDestino).reduce((n,x)=>n+Number(x||0),0);
+    if(data.alocacoes.length!==total){toast('Preencha todas as vagas definidas por destino.',true);return;}
+    const ids=data.alocacoes.map(x=>x.conjuntoId);if(new Set(ids).size!==ids.length){toast('Cada motorista pode ocupar apenas uma vaga.',true);return;}
     google.script.run.withSuccessHandler(res=>{toast(res.message||'Prévia salva.');obterPreviaEscalaDestinosUI(operacaoId);}).withFailureHandler(e=>toast(e.message||'Falha ao salvar prévia.',true)).salvarEdicaoPreviaEscalaFullTime(authToken,data);
   }
   function obterPreviaEscalaDestinosUI(operacaoId){
     google.script.run.withSuccessHandler(d=>renderPreviaEscalaDestinosUI(operacaoId,d)).withFailureHandler(e=>toast(e.message||'Falha ao recuperar prévia.',true)).obterPreviaEscalaDestinosFullTime(authToken,operacaoId);
   }
   async function aprovarPreviaEscalaUI(operacaoId){
-    const ok=await uiConfirm('Ao aprovar, o sistema enviará as convocações iniciais aos motoristas selecionados. Cada um terá 2 horas para responder. Deseja confirmar a escala?',{title:'Aprovar escala e convocar',ok:'Aprovar e enviar'});
+    const picked=coletarPreviaEscalaUI(operacaoId),data={operacaoId:operacaoId,alocacoes:picked.alocacoes.filter(x=>x.conjuntoId),vagasPorDestino:picked.vagasPorDestino};
+    const total=Object.values(data.vagasPorDestino).reduce((n,x)=>n+Number(x||0),0);
+    if(data.alocacoes.length!==total){toast('Preencha todas as vagas definidas por destino.',true);return;}
+    const ids=data.alocacoes.map(x=>x.conjuntoId);if(new Set(ids).size!==ids.length){toast('Cada motorista pode ocupar apenas uma vaga.',true);return;}
+    const ok=await uiConfirm('A escala terá '+total+' motorista(s), conforme as quantidades definidas por destino. Ao aprovar, as convocações serão enviadas e os aceites dos motoristas ficarão protegidos contra remoção ou substituição. Confirma?',{title:'Aprovar escala e convocar',ok:'Aprovar e enviar'});
     if(!ok)return;
-    const host=document.getElementById('pre-schedule-'+operacaoId),data={operacaoId:operacaoId,alocacoes:coletarPreviaEscalaUI(operacaoId)};
-    if(host)host.innerHTML='<div class="notice">Salvando a revisão e preparando as convocações…</div>';
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(host)host.innerHTML='<div class="notice">Salvando a revisão e preparando as convocações…</div>';
     google.script.run.withSuccessHandler(()=>google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>Escala aprovada.</strong> Ofertas iniciais enviadas: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+'.</div>';toast(res.message||'Escala aprovada.');}).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao aprovar escala.')+'</div>';toast(e.message||'Falha ao aprovar escala.',true);}).aprovarPreviaEscalaDestinosFullTime(authToken,operacaoId)).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao salvar a revisão.')+'</div>';toast(e.message||'Falha ao salvar a revisão.',true);}).salvarEdicaoPreviaEscalaFullTime(authToken,data);
   }
   async function iniciarConvocacaoAutomatica(operacaoId){
