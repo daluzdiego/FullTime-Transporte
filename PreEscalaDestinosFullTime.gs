@@ -39,3 +39,17 @@ function aprovarPreviaEscalaDestinosFullTime(token,operacaoId){
  if(typeof auditar_==='function')auditar_(u,'PREVIA_ESCALA_APROVADA_E_CONVOCADA','OPERACAO',opId,'Escala aprovada; convocações iniciais disparadas pelo motor automático.');
  return result;
 }
+
+/** Vincula a participação aceita ao destino previamente aprovado, preservando o registro de viagem. */
+function FT_ESCALA_REGISTRAR_ACEITE_(operacaoId,participacao){
+ var draft=FT_ESCALA_READ_(operacaoId);if(!draft||draft.status!=='APROVADA_CONVOCACOES_DISPARADAS')return false;
+ var chosen=(draft.alocacoes||[]).find(function(x){return String(x.motoristaId)===String(participacao.MOTORISTA_ID)&&String(x.conjuntoId)===String(participacao.CONJUNTO_ID);});
+ if(!chosen)return false;
+ var sh=ftAlocEnsure_(),map=ftAlocMap_(sh),rows=ftAlocRows_(sh);
+ if(rows.some(function(x){return String(x.PARTICIPACAO_ID)===String(participacao.ID)&&String(x.STATUS).toUpperCase()==='ATIVA';}))return true;
+ var dest=(draft.destinos||[]).find(function(x){return String(x.id)===String(chosen.destinoId);});
+ var group=(draft.alocacoes||[]).filter(function(x){return String(x.destinoId)===String(chosen.destinoId);});
+ var total=group.reduce(function(n,x){return n+Number(x.capacidade||0);},0),reference=Number(dest&&dest.volume||0)*(total>0?Number(chosen.capacidade||0)/total:1/group.length);
+ var obj={ID:Utilities.getUuid(),OPERACAO_ID:operacaoId,DESTINO_ID:chosen.destinoId,PARTICIPACAO_ID:participacao.ID,CONJUNTO_ID:participacao.CONJUNTO_ID,MOTORISTA_ID:participacao.MOTORISTA_ID,TONELADAS_REFERENCIA:reference,POSICAO_DESTINO:group.findIndex(function(x){return String(x.conjuntoId)===String(chosen.conjuntoId);})+1,STATUS:'ATIVA',CRIADO_EM:new Date(),ATUALIZADO_EM:new Date(),REGISTRADO_POR:'MOTOR_AUTOMATICO',MOTIVO:'Destino herdado da pré-escala aprovada por Bruno.'};
+ var row=new Array(sh.getLastColumn()).fill('');Object.keys(obj).forEach(function(k){if(map[ftAlocNorm_(k)]!==undefined)row[map[ftAlocNorm_(k)]]=obj[k];});sh.appendRow(row);return true;
+}
