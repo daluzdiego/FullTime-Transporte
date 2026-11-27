@@ -52,7 +52,7 @@ function ftTicketFolder_(){
 /** Execute uma vez pelo editor para autorizar Drive e preparar a guia TICKETS. */
 function prepararEstruturaRecibosViagemFullTime(){
   var sh=ftTicketSheet_(),folder=ftTicketFolder_();
-  var result={ok:true,guia:sh.getName(),colunas:sh.getLastColumn(),pastaDrive:folder.getName(),pastaIdConfigurada:true,ocr:'NAO_INCLUIDO_NESTA_ETAPA'};
+  var result={ok:true,guia:sh.getName(),colunas:sh.getLastColumn(),pastaDrive:folder.getName(),pastaIdConfigurada:true,ocr:PropertiesService.getScriptProperties().getProperty('FT_GEMINI_API_KEY')?'GEMINI_CONFIGURADO':'AGUARDANDO_CHAVE_GEMINI'};
   Logger.log('FT_RECIBOS_PREPARACAO '+JSON.stringify(result));
   return result;
 }
@@ -60,15 +60,15 @@ function registrarReciboViagemFullTime(token,data){
   var session=obterSessao_(token),isAdmin=String(session.perfil||'').toUpperCase()==='ADMIN',motoristaId='';
   if(!isAdmin)motoristaId=exigirMotorista_(session);
   data=data||{};
-  var opId=String(data.operacaoId||'').trim(),partId=String(data.participacaoId||'').trim(),destId=String(data.destinoId||'').trim();
+  var opId=String(data.operacaoId||'').trim(),partId=String(data.participacaoId||'').trim();
   var type=String(data.tipoRecibo||'').trim().toUpperCase(),mime=String(data.mimeType||'').trim().toLowerCase();
-  var name=String(data.nomeArquivo||'recibo').replace(/[\\\\/:*?"<>|]/g,'_').slice(0,150);
-  var base64=String(data.base64||'').replace(/^data:[^,]+,/,'').replace(/\\s/g,'');
+  var name=String(data.nomeArquivo||'recibo.jpg').replace(/[\\/:*?"<>|]/g,'_').slice(0,150);
+  var base64=String(data.base64||'').replace(/^data:[^,]+,/,'').replace(/\s/g,'');
   var note=String(data.observacoes||'').trim().slice(0,1000);
-  if(!opId||!partId||!destId)throw new Error('Selecione operação, participação do motorista e destino.');
+  if(!opId||!partId)throw new Error('Operação e participação são obrigatórias.');
   if(['CARREGAMENTO','DESCARGA','COMPROVANTE_ENTREGA','OUTRO'].indexOf(type)<0)throw new Error('Tipo de comprovante inválido.');
-  if(['image/jpeg','image/png','image/webp','image/heic','image/heif'].indexOf(mime)<0)throw new Error('Envie uma foto JPG, PNG ou WEBP.');
-  if(!base64||base64.length>11500000)throw new Error('A imagem está vazia ou excede o limite de 8 MB.');
+  if(['image/jpeg','image/png','image/webp'].indexOf(mime)<0)throw new Error('Envie uma foto JPG, PNG ou WEBP.');
+  if(!base64||base64.length>11500000)throw new Error('A imagem está vazia ou excede o limite permitido.');
   var lock=LockService.getScriptLock();lock.waitLock(20000);
   try{
     var opSh=getSheet_('OPERACOES'),opGrid=opSh.getDataRange().getValues(),oh=(opGrid[0]||[]).map(function(v){return String(v||'').trim().toUpperCase();}),oi={};
@@ -78,26 +78,58 @@ function registrarReciboViagemFullTime(token,data){
     if(['ABERTA','EM_ANDAMENTO'].indexOf(String(op[oi.STATUS]||'').toUpperCase())<0)throw new Error('A operação não aceita novos comprovantes neste status.');
     var parts=getSheet_('PARTICIPACAO_OPERACOES'),pm=ftTicketMap_(parts),pRows=parts.getDataRange().getValues();
     var part=pRows.slice(1).find(function(r){return String(r[pm.ID]||'')===partId&&String(r[pm.OPERACAO_ID]||'')===opId;});
-    if(!part)throw new Error('A participação selecionada não pertence a esta operação.');
+    if(!part)throw new Error('A participação não pertence a esta operação.');
     var pStatus=String(part[pm.STATUS_PARTICIPACAO]||'').toUpperCase();
-    if(['ACEITA','ATIVO','EM_VIAGEM','RETORNOU'].indexOf(pStatus)<0)throw new Error('O motorista precisa ter aceitado a convocação para anexar comprovantes.');
+    if(['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].indexOf(pStatus)<0)throw new Error('O motorista precisa ter aceitado a convocação para anexar comprovantes.');
     if(!isAdmin&&String(part[pm.MOTORISTA_ID]||'')!==motoristaId)throw new Error('Você só pode enviar comprovantes da sua própria participação.');
-    var destSh=SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID')).getSheetByName('DESTINOS_OPERACAO');
+    var dbId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID'),destId='';
+    if(!dbId)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+    if(!isAdmin){
+      var allocation=SpreadsheetApp.openById(dbId).getSheetByName('ALOCACAO_DESTINOS');
+      if(!allocation||allocation.getLastRow()<2)throw new Error('Seu destino ainda não foi distribuído nesta operação. Solicite ao administrador que conclua a distribuição.');
+      var am=ftTicketMap_(allocation),aRows=allocation.getDataRange().getValues().slice(1);
+      var active=aRows.filter(function(r){return String(r[am.PARTICIPACAO_ID]||'')===partId&&String(r[am.OPERACAO_ID]||'')===opId&&String(r[am.MOTORISTA_ID]||'')===motoristaId&&String(r[am.STATUS]||'').toUpperCase()==='ATIVA';});
+      if(active.length!==1)throw new Error(active.length?'Há mais de um destino ativo vinculado à sua participação. Solicite revisão ao administrador.':'Seu destino ainda não foi distribuído nesta operação.');
+      destId=String(active[0][am.DESTINO_ID]||'').trim();
+    }else{destId=String(data.destinoId||'').trim();if(!destId)throw new Error('O administrador deve informar o destino.');}
+    var destSh=SpreadsheetApp.openById(dbId).getSheetByName('DESTINOS_OPERACAO');
     if(!destSh)throw new Error('A guia DESTINOS_OPERACAO não está preparada.');
     var dm=ftTicketMap_(destSh),dr=destSh.getDataRange().getValues();
     var dest=dr.slice(1).find(function(r){return String(r[dm.ID]||'')===destId&&String(r[dm.OPERACAO_ID]||'')===opId;});
-    if(!dest)throw new Error('O destino selecionado não pertence a esta operação.');
-    var bytes=Utilities.base64Decode(base64),blob=Utilities.newBlob(bytes,mime,name);
-    var folder=ftTicketFolder_(),file=folder.createFile(blob);
-    var sh=ftTicketSheet_(),map=ftTicketMap_(sh),now=new Date(),id=Utilities.getUuid();
-    var row=new Array(sh.getLastColumn()).fill('');
-    var values={ID:id,RECEBIDO_EM:now,WHATSAPP_MESSAGE_ID:'',REMETENTE:isAdmin?'PAINEL_ADMIN':'PORTAL_MOTORISTA',MOTORISTA_ID:part[pm.MOTORISTA_ID],OPERACAO_ID:opId,TIPO_RECIBO:type,MEDIA_ID:'',DRIVE_FILE_ID:file.getId(),DRIVE_URL:file.getUrl(),NOME_ARQUIVO:file.getName(),MIME_TYPE:mime,STATUS:'AGUARDANDO_CONFERENCIA',DESTINO_ID:destId,PARTICIPACAO_ID:partId,OBSERVACOES:note,RETENCAO_ATE:'',METADADOS:JSON.stringify({origem:isAdmin?'CAPTURA_PAINEL':'PORTAL_MOTORISTA',registradoPor:session.login||motoristaId,destino:String(dest[dm.CLIENTE_DESTINO]||'')})};
-    Object.keys(values).forEach(function(k){if(map[k]!==undefined)row[map[k]]=values[k];});
-    sh.appendRow(row);
-    if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_ANEXADO','OPERACAO',opId,'Comprovante '+id+'; tipo='+type+'; destino='+destId+'; participação='+partId);
-    return {ok:true,id:id,url:file.getUrl(),nome:file.getName(),status:'AGUARDANDO_CONFERENCIA',message:'Foto armazenada no Drive e vinculada à operação, motorista e destino.'};
+    if(!dest)throw new Error('O destino associado à participação não pertence a esta operação.');
+    var bytes=Utilities.base64Decode(base64),blob=Utilities.newBlob(bytes,mime,name),folder=ftTicketFolder_(),file=folder.createFile(blob);
+    var sh=ftTicketSheet_(),map=ftTicketMap_(sh),now=new Date(),id=Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
+    var values={ID:id,RECEBIDO_EM:now,WHATSAPP_MESSAGE_ID:'',REMETENTE:isAdmin?'PAINEL_ADMIN':'PORTAL_MOTORISTA',MOTORISTA_ID:part[pm.MOTORISTA_ID],OPERACAO_ID:opId,TIPO_RECIBO:type,MEDIA_ID:'',DRIVE_FILE_ID:file.getId(),DRIVE_URL:file.getUrl(),NOME_ARQUIVO:file.getName(),MIME_TYPE:mime,STATUS:'AGUARDANDO_ANALISE_IA',DESTINO_ID:destId,PARTICIPACAO_ID:partId,OBSERVACOES:note,RETENCAO_ATE:'',METADADOS:JSON.stringify({origem:isAdmin?'CAPTURA_PAINEL':'PORTAL_MOTORISTA',registradoPor:session.login||motoristaId,destino:String(dest[dm.CLIENTE_DESTINO]||''),iaStatus:'AGUARDANDO'})};
+    Object.keys(values).forEach(function(k){if(map[k]!==undefined)row[map[k]]=values[k];});sh.appendRow(row);var rowNumber=sh.getLastRow();
+    var ai={status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
+    try{
+      ai=FT_analisarReciboComIA_(bytes,mime);
+      var meta={origem:isAdmin?'CAPTURA_PAINEL':'PORTAL_MOTORISTA',registradoPor:session.login||motoristaId,destino:String(dest[dm.CLIENTE_DESTINO]||''),iaStatus:ai.status,iaDados:ai.dados||null,iaErro:ai.erro||''};
+      if(map.METADADOS!==undefined)sh.getRange(rowNumber,map.METADADOS+1).setValue(JSON.stringify(meta));
+      if(map.STATUS!==undefined)sh.getRange(rowNumber,map.STATUS+1).setValue(ai.status==='ANALISADO'?'AGUARDANDO_CONFERENCIA':'AGUARDANDO_ANALISE_IA');
+    }catch(aiError){
+      ai={status:'ERRO',mensagem:'A foto foi armazenada, mas a análise por IA falhou: '+String(aiError&&aiError.message||aiError)};
+      if(map.METADADOS!==undefined)sh.getRange(rowNumber,map.METADADOS+1).setValue(JSON.stringify({origem:isAdmin?'CAPTURA_PAINEL':'PORTAL_MOTORISTA',registradoPor:session.login||motoristaId,destino:String(dest[dm.CLIENTE_DESTINO]||''),iaStatus:'ERRO',iaErro:ai.mensagem}));
+    }
+    if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_ANEXADO','OPERACAO',opId,'Comprovante '+id+'; tipo='+type+'; destino automático='+destId+'; participação='+partId+'; IA='+ai.status);
+    return {ok:true,id:id,url:file.getUrl(),nome:file.getName(),status:'AGUARDANDO_CONFERENCIA',analiseIA:ai,message:ai.status==='ANALISADO'?'Comprovante recebido e analisado pela IA. Confira os dados extraídos.':'Foto armazenada e vinculada ao seu destino. '+(ai.mensagem||'')};
   }finally{lock.releaseLock();}
 }
+function FT_analisarReciboComIA_(bytes,mime){
+  var props=PropertiesService.getScriptProperties(),apiKey=props.getProperty('FT_GEMINI_API_KEY');
+  if(!apiKey)return {status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
+  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-2.5-flash';
+  var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
+  var prompt='Você é um leitor de comprovantes de transporte. Analise a imagem e extraia somente informações visíveis. Não invente valores. Responda exclusivamente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array). Use null quando não estiver legível. Preserve números exatamente como impressos. Não trate o destino impresso como autorização para alterar o destino cadastrado da operação.';
+  var payload={contents:[{parts:[{text:prompt},{inlineData:{mimeType:mime,data:Utilities.base64Encode(bytes)}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
+  var response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',payload:JSON.stringify(payload),muteHttpExceptions:true});
+  var status=response.getResponseCode(),body=response.getContentText();
+  if(status<200||status>=300)throw new Error('Gemini API HTTP '+status+': '+body.slice(0,700));
+  var parsed=JSON.parse(body),textOut=parsed.candidates&&parsed.candidates[0]&&parsed.candidates[0].content&&parsed.candidates[0].content.parts&&parsed.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
+  if(!textOut)throw new Error('A IA não retornou conteúdo legível.');
+  return {status:'ANALISADO',modelo:model,dados:JSON.parse(textOut),mensagem:'Leitura automática concluída. Confira os campos antes de usar os dados.'};
+}
+
 function listarRecibosViagemFullTime(token,operacaoId){
   var session=obterSessao_(token);exigirAdmin_(session);
   operacaoId=String(operacaoId||'').trim();if(!operacaoId)throw new Error('Informe a operação.');
