@@ -124,25 +124,36 @@ function FT_TESTAR_CONTRATO_PORTAL_CONVOCACOES_20261125() {
     ['obterPortalMotoristaFullTime', typeof obterPortalMotoristaFullTime === 'function'],
     ['obterPortalMotoristaFullTimeV2', typeof obterPortalMotoristaFullTimeV2 === 'function'],
     ['responderOfertaMotoristaFullTime', typeof responderOfertaMotoristaFullTime === 'function'],
+    ['listarDestinosPortalMotoristaFullTime', typeof listarDestinosPortalMotoristaFullTime === 'function'],
+    ['registrarReciboViagemFullTime', typeof registrarReciboViagemFullTime === 'function'],
+    ['FT_analisarReciboComIA_', typeof FT_analisarReciboComIA_ === 'function'],
     ['obterPainelFullTime', typeof obterPainelFullTime === 'function'],
     ['obterCentroOperacoesFullTime', typeof obterCentroOperacoesFullTime === 'function'],
     ['FT_adicionarConvocadoManualFullTime', typeof FT_adicionarConvocadoManualFullTime === 'function'],
     ['FT_substituirConvocadoPendenteFullTime', typeof FT_substituirConvocadoPendenteFullTime === 'function'],
     ['FT_cancelarConvocacaoPendenteFullTime', typeof FT_cancelarConvocacaoPendenteFullTime === 'function'],
     ['FT_iniciarConvocacaoAutomaticaFullTime', typeof FT_iniciarConvocacaoAutomaticaFullTime === 'function'],
+    ['gerarPreviaEscalaDestinosFullTime', typeof gerarPreviaEscalaDestinosFullTime === 'function'],
+    ['salvarEdicaoPreviaEscalaFullTime', typeof salvarEdicaoPreviaEscalaFullTime === 'function'],
+    ['aprovarPreviaEscalaDestinosFullTime', typeof aprovarPreviaEscalaDestinosFullTime === 'function'],
+    ['testarRegrasPreEscalaEditavelFullTime', typeof testarRegrasPreEscalaEditavelFullTime === 'function'],
     ['FT_processarLembretesEmailConvocacao_', typeof FT_processarLembretesEmailConvocacao_ === 'function']
   ];
   const ttlMs = typeof FT_AUTO_TTL_ === 'number' ? FT_AUTO_TTL_ : null;
-  const prazoSeisHoras = ttlMs === 6 * 60 * 60 * 1000;
+  const prazoDuasHoras = ttlMs === 2 * 60 * 60 * 1000;
   const faltantes = checks.filter(item => !item[1]).map(item => item[0]);
+  const preEscalaRules = typeof testarRegrasPreEscalaEditavelFullTime === 'function' ? testarRegrasPreEscalaEditavelFullTime() : {ok:false};
+  const editRules = typeof testarRegraEdicaoConvocacaoFullTime === 'function' ? testarRegraEdicaoConvocacaoFullTime() : {ok:false};
   const result = {
-    ok: faltantes.length === 0 && prazoSeisHoras,
+    ok: faltantes.length === 0 && prazoDuasHoras && preEscalaRules.ok === true && editRules.ok === true,
+    testesRegrasPreEscala: preEscalaRules,
+    testesBloqueioConvocacaoConfirmada: editRules,
     modo: 'SOMENTE_LEITURA_SEM_PLANILHA_SEM_EMAIL_SEM_OFERTA',
     endpointsVerificados: checks.length,
     endpointsAusentes: faltantes,
     prazoOfertaMs: ttlMs,
     prazoOfertaHoras: ttlMs === null ? null : ttlMs / 3600000,
-    prazoSeisHoras: prazoSeisHoras
+    prazoDuasHoras: prazoDuasHoras
   };
   Logger.log('FULL TIME — CONTRATO PORTAL/CONVOCACOES: ' + JSON.stringify(result));
   return result;
@@ -708,6 +719,18 @@ function listarOperacoesFullTime(token) {
   const sh=getSheet_('OPERACOES'), grid=sh.getDataRange().getValues(), headers=grid[0].map(h=>String(h||'').trim().toUpperCase()), ix={};
   headers.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(ix,h))ix[h]=i;});
   const val=(row,key)=>ix[key]===undefined?'':row[ix[key]];
+  const horaTela=value=>{
+    if(value===null||value===undefined||value==='')return '';
+    if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'HH:mm');
+    if(typeof value==='number'&&isFinite(value)){const n=Math.round((((value%1)+1)%1)*1440);return String(Math.floor(n/60)%24).padStart(2,'0')+':'+String(n%60).padStart(2,'0');}
+    const raw=String(value).trim(),m=raw.match(/(?:^|\\s|T)(\\d{1,2}):(\\d{2})(?::\\d{2})?/);
+    return m?String(Number(m[1])).padStart(2,'0')+':'+m[2]:raw;
+  };
+  const destSheet=getSheet_('DESTINOS_OPERACAO'),destGrid=destSheet&&destSheet.getLastRow()>1?destSheet.getDataRange().getValues():[];
+  const dh=(destGrid[0]||[]).map(h=>String(h||'').trim().toUpperCase()),di={};dh.forEach((h,i)=>{if(h&&!Object.prototype.hasOwnProperty.call(di,h))di[h]=i;});
+  const dv=(row,key)=>di[key]===undefined?'':row[di[key]],destinosPorOperacao={};
+  destGrid.slice(1).forEach(r=>{const opId=String(dv(r,'OPERACAO_ID')||'');if(!opId)return;(destinosPorOperacao[opId]=destinosPorOperacao[opId]||[]).push({id:String(dv(r,'ID')||''),ordem:Number(dv(r,'ORDEM_ENTREGA')||0),cliente:String(dv(r,'CLIENTE_DESTINO')||''),local:String(dv(r,'LOCAL_ENTREGA')||''),cidadeUf:String(dv(r,'CIDADE_UF')||''),volume:Number(dv(r,'VOLUME_PREVISTO_TONELADAS')||0),dataPrevista:dv(r,'DATA_PREVISTA')||'',status:String(dv(r,'STATUS')||'')});});
+  Object.keys(destinosPorOperacao).forEach(k=>destinosPorOperacao[k].sort((a,b)=>a.ordem-b.ordem));
   // Monta o formato legado diretamente da mesma leitura da guia OPERACOES.
   // Evita uma segunda ida ao Sheets apenas para reconstruir os campos da operação.
   const legacyFields=['DATA_OPERACAO','CLIENTE','NOME_OPERACAO','ORIGEM','DESTINO','CATEGORIA','VOLUME_TOTAL_TONELADAS','TOTAL_VIAGENS_PREVISTAS','SALDO_TONELADAS','OBSERVACOES','CRIADO_POR','VIAGENS_REALIZADAS','TIPO_OPERACAO'];
@@ -715,7 +738,7 @@ function listarOperacoesFullTime(token) {
     const id=String(val(row,'ID')),legacy={id,criado:String(val(row,'CRIADO_EM')||''),status:String(val(row,'STATUS')||''),campos:legacyFields.map(k=>String(val(row,k)||''))};
     const previstas=Math.max(0,Math.floor(Number(val(row,'TOTAL_VIAGENS_PREVISTAS')||0)));
     const realizadas=Math.max(0,Math.floor(Number(val(row,'VIAGENS_REALIZADAS')||val(row,'TOTAL_VIAGENS_CONCLUIDAS')||viagensPorOperacao[id]||0)));
-    return Object.assign({},legacy,{data:val(row,'DATA_OPERACAO'),cliente:val(row,'CLIENTE'),nome:val(row,'NOME_OPERACAO'),origem:val(row,'ORIGEM'),destino:val(row,'DESTINO'),categoria:val(row,'CATEGORIA'),volumeTotal:Number(val(row,'VOLUME_TOTAL_TONELADAS')||0),viagensPrevistas:previstas,tipoOperacao:val(row,'TIPO_OPERACAO')||'OUTRA',viagensRealizadas:realizadas,viagensRestantes:Math.max(0,previstas-realizadas),saldo:Number(val(row,'SALDO_TONELADAS')||0),observacoes:val(row,'OBSERVACOES'),criadoPor:val(row,'CRIADO_POR'),produto:val(row,'PRODUTO_SERVICO'),distanciaKm:Number(val(row,'DISTANCIA_KM')||0),prazoEntrega:val(row,'DATA_ENTREGA'),janelaInicio:val(row,'JANELA_INICIO'),janelaFim:val(row,'JANELA_FIM'),tempoEstimadoHoras:Number(val(row,'TEMPO_ESTIMADO_HORAS')||0),motoristasNecessarios:Math.max(0,Math.floor(Number(val(row,'MOTORISTAS_NECESSARIOS')||0)))});
+    return Object.assign({},legacy,{data:val(row,'DATA_OPERACAO'),cliente:val(row,'CLIENTE'),nome:val(row,'NOME_OPERACAO'),origem:val(row,'ORIGEM'),destino:val(row,'DESTINO'),destinosDetalhados:destinosPorOperacao[id]||[],categoria:val(row,'CATEGORIA'),volumeTotal:Number(val(row,'VOLUME_TOTAL_TONELADAS')||0),viagensPrevistas:previstas,tipoOperacao:val(row,'TIPO_OPERACAO')||'OUTRA',viagensRealizadas:realizadas,viagensRestantes:Math.max(0,previstas-realizadas),saldo:Number(val(row,'SALDO_TONELADAS')||0),observacoes:val(row,'OBSERVACOES'),criadoPor:val(row,'CRIADO_POR'),produto:val(row,'PRODUTO_SERVICO'),distanciaKm:Number(val(row,'DISTANCIA_KM')||0),prazoEntrega:val(row,'DATA_ENTREGA'),janelaInicio:horaTela(val(row,'JANELA_INICIO')),janelaFim:horaTela(val(row,'JANELA_FIM')),tempoEstimadoHoras:Number(val(row,'TEMPO_ESTIMADO_HORAS')||0),motoristasNecessarios:Math.max(0,Math.floor(Number(val(row,'MOTORISTAS_NECESSARIOS')||0)))});
   });
 }
 function salvarOperacaoFullTime(token, data) {

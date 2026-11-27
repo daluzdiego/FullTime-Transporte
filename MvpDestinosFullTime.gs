@@ -79,6 +79,28 @@ function listarDestinosOperacaoFullTime(token,operacaoId){
  return rows.filter(function(r){return String(get(r,'OPERACAO_ID'))===operacaoId;}).map(function(r){return {id:String(get(r,'ID')),ordem:Number(get(r,'ORDEM_ENTREGA')||0),cliente:String(get(r,'CLIENTE_DESTINO')||''),local:String(get(r,'LOCAL_ENTREGA')||''),cidadeUf:String(get(r,'CIDADE_UF')||''),previsto:ftMvpNum_(get(r,'VOLUME_PREVISTO_TONELADAS')),entregue:ftMvpNum_(get(r,'VOLUME_ENTREGUE_TONELADAS')),saldo:ftMvpNum_(get(r,'SALDO_TONELADAS')),status:String(get(r,'STATUS')||''),dataPrevista:String(get(r,'DATA_PREVISTA')||''),observacoes:String(get(r,'OBSERVACOES')||'')};}).sort(function(a,b){return a.ordem-b.ordem;});
 }
 
+function simularRateioProporcionalDestinosFullTime(token,operacaoId){
+ var s=obterSessao_(token);exigirAdmin_(s);operacaoId=ftMvpText_(operacaoId,100);if(!operacaoId)throw new Error('Informe a operação.');
+ var id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');if(!id)throw new Error('FT_REGISTRY_DATABASE_ID não configurado.');
+ var ss=SpreadsheetApp.openById(id),ops=ftMvpSheet_('OPERACOES'),dest=ss.getSheetByName('DESTINOS_OPERACAO');if(!ops||!dest)throw new Error('Guias obrigatórias ausentes.');
+ var om=ftMvpMap_(ops),dm=ftMvpMap_(dest),or=ftMvpReadRows_(ops).filter(function(r){return String(r.values[ftMvpCol_(om,'ID')])===operacaoId;});if(or.length!==1)throw new Error('Operação não encontrada ou ID duplicado.');
+ var operationStatus=String(or[0].values[ftMvpCol_(om,'STATUS')]||'').toUpperCase();if(!['ABERTA','EM_ANDAMENTO'].includes(operationStatus))throw new Error('Rateio permitido somente em operação aberta ou em andamento.');
+ var total=ftMvpNum_(or[0].values[ftMvpCol_(om,'VOLUME_TOTAL_TONELADAS')]),rows=ftMvpReadRows_(dest).filter(function(r){return String(r.values[ftMvpCol_(dm,'OPERACAO_ID')])===operacaoId;}),sum=rows.reduce(function(n,r){return n+ftMvpNum_(r.values[ftMvpCol_(dm,'VOLUME_PREVISTO_TONELADAS')]);},0);
+ if(!rows.length||!(total>0&&sum>0))throw new Error('Volume total e volumes atuais dos destinos precisam ser maiores que zero.');
+ var moves=ftMvpSheet_('MOVIMENTACOES_OPERACAO');if(moves&&moves.getLastRow()>1){var moveMap=ftMvpMap_(moves),moveRows=ftMvpReadRows_(moves),hasMoves=moveRows.some(function(r){return String(r.values[ftMvpCol_(moveMap,'OPERACAO_ID')])===operacaoId&&ftMvpNum_(r.values[ftMvpCol_(moveMap,'TONELADAS')])>0;});if(hasMoves)throw new Error('Rateio bloqueado: existem movimentações de peso nesta operação, mesmo que o saldo da guia de destinos esteja desatualizado.');}
+ var cents=Math.round(total*100),raw=rows.map(function(r){var old=ftMvpNum_(r.values[ftMvpCol_(dm,'VOLUME_PREVISTO_TONELADAS')]),exact=cents*old/sum;return {row:r,old:old,cents:Math.floor(exact),fraction:exact-Math.floor(exact)};});
+ var rem=cents-raw.reduce(function(n,x){return n+x.cents;},0);raw.slice().sort(function(a,b){return b.fraction-a.fraction;}).forEach(function(x,i){if(i<rem)x.cents++;});
+ var result=raw.map(function(x){var planned=x.cents/100,loaded=ftMvpNum_(x.row.values[ftMvpCol_(dm,'VOLUME_ENTREGUE_TONELADAS')]);return {linha:x.row.row,id:String(x.row.values[ftMvpCol_(dm,'ID')]),destino:String(x.row.values[ftMvpCol_(dm,'CLIENTE_DESTINO')]),volumeAnterior:x.old,volumeNovo:planned,carregado:loaded,saldoNovo:Math.max(0,planned-loaded)};});
+ return {ok:true,somenteLeitura:true,operacaoId:operacaoId,volumeContratado:total,volumeAnterior:sum,volumeNovo:result.reduce(function(n,x){return n+x.volumeNovo;},0),destinos:result,possuiEntregas:result.some(function(x){return x.carregado>0;}),mensagem:'Prévia calculada sem alterar dados.'};
+}
+function aplicarRateioProporcionalDestinosFullTime(token,operacaoId){
+ var s=obterSessao_(token);exigirAdmin_(s);var lock=LockService.getScriptLock();lock.waitLock(20000);try{var preview=simularRateioProporcionalDestinosFullTime(token,operacaoId);if(preview.possuiEntregas)throw new Error('Rateio bloqueado: já existem cargas registradas.');var id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID'),sh=SpreadsheetApp.openById(id).getSheetByName('DESTINOS_OPERACAO'),map=ftMvpMap_(sh);
+ preview.destinos.forEach(function(d){sh.getRange(d.linha,ftMvpCol_(map,'VOLUME_PREVISTO_TONELADAS')+1).setValue(d.volumeNovo);sh.getRange(d.linha,ftMvpCol_(map,'SALDO_TONELADAS')+1).setValue(d.volumeNovo);sh.getRange(d.linha,ftMvpCol_(map,'STATUS')+1).setValue('PENDENTE');});
+ _ftMvpAuditSafe_(s,'RATEIO_PROPORCIONAL_DESTINOS',operacaoId,preview.volumeContratado+' t rateadas entre '+preview.destinos.length+' destinos.');
+ return {ok:true,volumeTotal:preview.volumeNovo,destinos:preview.destinos,message:'Rateio aplicado; soma dos destinos igual ao volume contratado.'};
+ }finally{lock.releaseLock();}
+}
+
 /** Entrega associada obrigatoriamente a um destino; mantém saldo geral e saldo individual coerentes. */
 function registrarEntregaDestinoFullTime(token,data){
  var session=obterSessao_(token);exigirAdmin_(session);data=data||{};
@@ -172,3 +194,49 @@ function testarRegrasMvpDestinosFullTime(){
 function diagnosticarCadastroManualMvpFullTime(token){
  var s=obterSessao_(token);exigirAdmin_(s);return {ok:true,endpoint:'salvarOperacaoComDestinosFullTime',dependenciaIA:false,guiaDestinos:'DESTINOS_OPERACAO',aprovacaoAutomatica:false};
 }
+
+
+/**
+ * Diagnóstico somente leitura dos destinos individuais da operação TORRES.
+ * Não grava, corrige, reordena nem exclui dados.
+ */
+function diagnosticarDestinosOperacaoTorresReadOnlyFullTime() {
+  var opId = '3ab9cdda-7743-4bdb-a3b9-4618479e6681';
+  var ops = ftMvpSheet_('OPERACOES');
+  var om = ftMvpMap_(ops);
+  var opRows = ftMvpReadRows_(ops);
+  var getOp = function(r,k){var i=om[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
+  var op = opRows.find(function(r){return String(getOp(r,'ID'))===opId;});
+  if(!op) throw new Error('Operação TORRES não encontrada pelo ID conhecido. Nenhuma alteração realizada.');
+  var sh = ftMvpSheet_('DESTINOS_OPERACAO');
+  var map = ftMvpMap_(sh);
+  var required = ['ID','OPERACAO_ID','ORDEM_ENTREGA','CLIENTE_DESTINO','LOCAL_ENTREGA','CIDADE_UF','VOLUME_PREVISTO_TONELADAS'];
+  var missing = required.filter(function(k){return map[ftMvpNorm_(k)]===undefined;});
+  if(missing.length) throw new Error('DESTINOS_OPERACAO sem cabeçalhos: '+missing.join(', ')+'. Nenhuma alteração realizada.');
+  var rows = ftMvpReadRows_(sh);
+  var get = function(r,k){var i=map[ftMvpNorm_(k)];return i===undefined?'':r.values[i];};
+  var destinations = rows.filter(function(r){return String(get(r,'OPERACAO_ID'))===opId;})
+    .map(function(r){return {
+      linha:r.row,id:String(get(r,'ID')),ordem:Number(get(r,'ORDEM_ENTREGA')||0),
+      cliente:String(get(r,'CLIENTE_DESTINO')||''),local:String(get(r,'LOCAL_ENTREGA')||''),
+      cidadeUf:String(get(r,'CIDADE_UF')||''),volumePrevisto:ftMvpNum_(get(r,'VOLUME_PREVISTO_TONELADAS')),
+      volumeEntregue:ftMvpNum_(get(r,'VOLUME_ENTREGUE_TONELADAS')),
+      saldo:ftMvpNum_(get(r,'SALDO_TONELADAS')),status:String(get(r,'STATUS')||''),
+      dataPrevista:String(get(r,'DATA_PREVISTA')||'')
+    };}).sort(function(a,b){return a.ordem-b.ordem;});
+  var total = destinations.reduce(function(n,d){return n+d.volumePrevisto;},0);
+  var opVolume = ftMvpNum_(getOp(op,'VOLUME_TOTAL_TONELADAS'));
+  var result = {
+    somenteLeitura:true,naoAlterouDados:true,operacao:{id:opId,nome:String(getOp(op,'NOME_OPERACAO')||''),cliente:String(getOp(op,'CLIENTE')||''),origem:String(getOp(op,'ORIGEM')||''),destinoLegado:String(getOp(op,'DESTINO')||''),volumeTotal:opVolume},
+    quantidadeDestinos:destinations.length,volumeDistribuido:total,saldoNaoDistribuido:Math.max(0,opVolume-total),
+    divergenciaVolume:total>opVolume+0.0001,alertas:[],destinos:destinations
+  };
+  if(destinations.length!==5)result.alertas.push('Esperados 5 destinos; encontrados '+destinations.length+'.');
+  if(destinations.some(function(d){return !d.cliente||!d.local;}))result.alertas.push('Há destino sem recebedor ou local.');
+  if(destinations.some(function(d){return !(d.volumePrevisto>0);}))result.alertas.push('Há destino sem volume previsto válido.');
+  if(result.divergenciaVolume)result.alertas.push('A soma dos volumes por destino ultrapassa o volume total da operação.');
+  var ids={};destinations.forEach(function(d){if(ids[d.id])result.alertas.push('ID de destino duplicado: '+d.id);ids[d.id]=true;});
+  console.log('FULL TIME — DESTINOS TORRES — SOMENTE LEITURA: '+JSON.stringify(result));
+  return result;
+}
+

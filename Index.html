@@ -47,6 +47,9 @@
       #appView .top-right{gap:6px}
       #appView .top-right .btn{min-height:36px;padding:7px 10px}
       #appView .today{display:none}
+      #appView .topbar{position:sticky;top:0;z-index:24;padding-top:env(safe-area-inset-top);height:calc(64px + env(safe-area-inset-top));align-items:center;background:rgba(255,255,255,.97);backdrop-filter:blur(14px)}
+      #appView .topbar-logout{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:12px;z-index:2;min-height:40px!important;padding:8px 12px!important;border-radius:10px;font-size:12px!important;font-weight:750;box-shadow:0 2px 8px rgba(18,42,76,.08)}
+      #appView .top-right{padding-right:76px;min-width:0}
     }
     @media(prefers-reduced-motion:reduce){#appView .sidebar{transition:none}}
 
@@ -96,6 +99,60 @@
 @media(max-width:1150px){.center-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.center-ops-panel{overflow-x:auto}.center-ops-table{min-width:900px}}
 @media(max-width:650px){.center-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.center-ops-toolbar{align-items:flex-start}}
 /* FULL TIME — Centro de Operações: painel executivo de despacho */
+/* Centro de Operações — layout compacto e legível */
+.center-ops-table{table-layout:fixed;min-width:0}
+.center-ops-table th:nth-child(1),.center-ops-table td:nth-child(1){width:15%}
+.center-ops-table th:nth-child(2),.center-ops-table td:nth-child(2){width:27%}
+.center-ops-table th:nth-child(3),.center-ops-table td:nth-child(3){width:7%;text-align:center}
+.center-ops-table th:nth-child(4),.center-ops-table td:nth-child(4){width:18%}
+.center-ops-table th:nth-child(5),.center-ops-table td:nth-child(5){width:16%}
+.center-ops-table th:nth-child(6),.center-ops-table td:nth-child(6){width:17%}
+.center-ops-table th,.center-ops-table td{padding:9px 10px;overflow-wrap:anywhere}
+.center-route-cell{display:grid;gap:3px;line-height:1.3}
+.center-route-cell>div:first-child,.center-route-cell>div:last-child{display:grid;gap:2px}
+.center-route-cell small,.center-destination-index,.center-destination-metrics small,.center-weight-summary small{font-size:9px;letter-spacing:.045em;font-weight:800;color:#64748b}
+.center-route-cell strong{font-size:11px;color:#1e3554;font-weight:650}
+.center-route-divider{font-size:11px;color:#94a3b8;line-height:1}
+.center-op-count{font-weight:800;color:#173c6b}
+.center-op-driver-panel{padding:0 0 12px}
+.center-weight-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(180px,1.5fr);gap:10px;padding:12px;margin:12px;background:#eef4fc;border:1px solid #dce7f4;border-radius:10px}
+.center-weight-summary>div:not(.center-weight-progress){display:grid;gap:4px}
+.center-weight-summary strong{font-size:21px;color:#15375f}
+.center-weight-summary>div:nth-child(2) strong{color:#087443}
+.center-weight-summary>div:nth-child(3) strong{color:#a45b00}
+.center-weight-progress{align-self:center}
+.center-weight-progress small{display:block;margin-top:5px;color:#64748b;font-size:10px}
+.center-subsection-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px}
+.center-subsection-heading h3{margin:0;padding:0;border:0;font-size:13px}
+.center-subsection-heading>span{font-size:11px;color:#64748b;font-weight:650}
+.center-driver-heading{border-bottom:1px solid var(--line)}
+.center-op-driver-table{table-layout:fixed}
+.center-op-driver-table th:nth-child(1){width:22%}
+.center-op-driver-table th:nth-child(2){width:17%}
+.center-op-driver-table th:nth-child(3){width:15%}
+.center-op-driver-table th:nth-child(4){width:31%}
+.center-op-driver-table th:nth-child(5){width:15%}
+.center-op-driver-table th,.center-op-driver-table td{padding:8px 9px;overflow-wrap:anywhere}
+.center-destination-section{margin:12px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.center-destination-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:9px;padding:10px;background:#f8faff}
+.center-destination-card{min-width:0;padding:12px;border:1px solid #dce5f0;border-radius:9px;background:#fff;display:grid;gap:10px}
+.center-destination-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.center-destination-heading>div{display:grid;gap:3px;min-width:0}
+.center-destination-heading strong{font-size:12px;color:#17365e;overflow-wrap:anywhere}
+.center-destination-heading small{font-size:10px;color:#64748b;line-height:1.35}
+.center-destination-percent{flex:none;padding:4px 7px;border-radius:6px;background:#eaf1fb;color:#174b8f;font-size:11px;font-weight:800}
+.center-destination-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.center-destination-metrics>div{display:grid;gap:3px}
+.center-destination-metrics strong{font-size:13px;color:#1e3554;white-space:nowrap}
+.center-destination-metrics>div:nth-child(2) strong{color:#087443}
+.center-destination-metrics>div:nth-child(3) strong{color:#a45b00}
+.center-destination-card .center-progress-track{height:6px;margin:0}
+.destination-allocation-entry{padding:10px 12px 0;border-top:1px solid var(--line)}
+.center-allocation-actions{display:flex;gap:8px;flex-wrap:wrap}
+.center-allocation-actions .btn{min-height:38px}
+@media(max-width:1150px){.center-ops-panel{overflow-x:auto}.center-ops-table{min-width:850px}}
+@media(max-width:700px){.center-weight-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.center-weight-progress{grid-column:1/-1}.center-destination-grid{grid-template-columns:1fr}.center-op-driver-table{min-width:760px}}
+
 /* Portal do motorista — identidade visual Full Time */
 #appView.driver-portal .sidebar{background:#082b5c;border-right:1px solid #173f70;color:#e8f1ff}
 #appView.driver-portal .sidebar .brand,#appView.driver-portal .sidebar .brand small{color:#e8f1ff}
@@ -232,6 +289,104 @@
     .sol-dest-row .form-grid{gap:10px}
     .manual-destination-row{border:1px solid #dbe5f0;border-radius:10px;padding:12px;margin:10px 0;background:#fbfdff}
     .receipt-preview{max-width:220px;max-height:180px;object-fit:contain;border:1px solid #dbe5f0;border-radius:8px;margin-top:8px}
+
+.portal-receipt-area{margin-top:16px;padding:14px;border:1px solid #dbe6f4;border-radius:14px;background:#f7faff}.portal-receipt-open{width:100%;min-height:48px}.portal-receipt-form{display:grid;gap:10px;margin-top:12px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:12px}.portal-receipt-form h3{margin:0 0 4px;font-size:17px}.portal-receipt-form label{font-weight:700;font-size:13px}.portal-receipt-form select,.portal-receipt-form input,.portal-receipt-form textarea{width:100%;min-width:0;min-height:46px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font:inherit}.portal-receipt-form small{color:#64748b;line-height:1.45}.portal-receipt-form button{width:100%;min-height:48px}.portal-receipt-error{color:#b42318;font-size:13px}@media(max-width:700px),(hover:none) and (pointer:coarse){#content .portal-driver-card{min-width:0;width:100%}#content .portal-driver-card .panel-head{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;align-items:start}#content .portal-driver-card .panel-head .badge{justify-self:start;white-space:normal}#content .portal-driver-card .panel-body{padding:14px}#content .portal-driver-card .grid-two{grid-template-columns:minmax(0,1fr);gap:12px}#content .portal-driver-card .form-actions{display:grid;grid-template-columns:1fr;gap:9px}#content .portal-driver-card .form-actions .btn{width:100%;min-height:48px}}
+.destination-allocation-entry{margin-top:16px}.destination-allocation-panel{margin-top:12px;padding:14px;border:1px solid #cbd9eb;border-radius:12px;background:#f7faff}.destination-allocation-panel h3{margin:0 0 6px}.destination-allocation-panel>p{font-size:13px;color:#52657c}.destination-allocation-card{margin-top:10px;padding:12px;background:#fff;border:1px solid #dce5f0;border-radius:10px}.destination-allocation-title{display:flex;justify-content:space-between;gap:8px}.destination-allocation-title span{font-weight:700}.destination-allocation-slots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.destination-slot{display:grid;gap:6px;font-size:13px;font-weight:700}.destination-slot select{min-width:0;width:100%;min-height:44px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;background:white}.destination-slot small,.destination-allocation-feedback{font-size:12px;color:#64748b}.destination-allocation-panel>.btn{margin-top:12px;min-height:46px}@media(max-width:700px){.destination-allocation-slots{grid-template-columns:1fr}}
+/* Portal do motorista — mobile first, sem navegação administrativa */
+#appView.driver-portal .sidebar{display:none!important}
+#appView.driver-portal .main{margin-left:0!important;width:100%;min-width:0;flex:1}
+#appView.driver-portal .topbar{height:58px;padding:0 14px;position:sticky;top:0;z-index:8}
+#appView.driver-portal .menu-toggle{display:none!important}
+#appView.driver-portal .top-title{font-size:15px;font-weight:800}
+#appView.driver-portal .top-right{gap:8px}
+#appView.driver-portal .today{display:none}
+#appView.driver-portal .content{width:100%;max-width:760px;margin:0 auto;padding:14px 12px calc(28px + env(safe-area-inset-bottom))}
+#appView.driver-portal .page-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px}
+#appView.driver-portal .page-head h1{font-size:20px;margin:0 0 3px}
+#appView.driver-portal .page-head p{font-size:12px;line-height:1.35;margin:0}
+#appView.driver-portal .head-actions{margin:0;flex:none}
+#appView.driver-portal .head-actions .btn{min-height:38px;padding:8px 10px;font-size:12px}
+#appView.driver-portal .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 16px}
+#appView.driver-portal .stat-card{min-height:62px;padding:9px 10px;border-radius:10px;box-shadow:0 2px 8px rgba(8,43,92,.045)}
+#appView.driver-portal .stat-label{font-size:10px;line-height:1.2}
+#appView.driver-portal .stat-value{font-size:19px;line-height:1.1;margin-top:4px}
+#appView.driver-portal .portal-driver-card{margin:0 0 10px!important;border:1px solid #dbe5f1;border-radius:13px;overflow:hidden;box-shadow:0 3px 12px rgba(15,45,80,.055)}
+#appView.driver-portal .portal-driver-card .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:11px 12px;background:#f6f9fe}
+#appView.driver-portal .portal-driver-card .panel-head h2{font-size:14px;line-height:1.25;margin:0 0 3px}
+#appView.driver-portal .portal-driver-card .panel-head .muted{font-size:10px;line-height:1.25}
+#appView.driver-portal .portal-driver-card .badge{font-size:9px;padding:5px 7px;max-width:44%;white-space:normal;text-align:center;line-height:1.15}
+#appView.driver-portal .portal-driver-card .panel-body{padding:11px 12px;display:grid;gap:9px}
+#appView.driver-portal .driver-route{display:grid;gap:5px;padding:9px 10px;border:1px solid #e1eaf5;border-radius:9px;background:#fbfdff}
+#appView.driver-portal .driver-route small{font-size:9px;font-weight:800;letter-spacing:.04em;color:#71839b;text-transform:uppercase}
+#appView.driver-portal .driver-route strong{font-size:12px;line-height:1.35;color:#18385f;overflow-wrap:anywhere}
+#appView.driver-portal .driver-route .driver-destinations{display:grid;gap:4px;margin-top:3px}
+#appView.driver-portal .driver-destination-line{font-size:11px;line-height:1.3;color:#334b68;overflow-wrap:anywhere}
+#appView.driver-portal .driver-chips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#appView.driver-portal .driver-chip{min-width:0;padding:7px 8px;border-radius:8px;background:#f2f6fc}
+#appView.driver-portal .driver-chip span{display:block;font-size:9px;color:#718096;margin-bottom:3px}
+#appView.driver-portal .driver-chip strong{display:block;font-size:11px;line-height:1.25;color:#18385f;overflow-wrap:anywhere}
+#appView.driver-portal .driver-assigned{padding:9px 10px;border:1px solid #cfe0f8;border-left:3px solid #1769e0;border-radius:9px;background:#f3f8ff}
+#appView.driver-portal .driver-assigned small{display:block;font-size:9px;font-weight:800;color:#52729b}
+#appView.driver-portal .driver-assigned strong{display:block;font-size:14px;color:#123b6b;margin:3px 0}
+#appView.driver-portal .driver-assigned span{font-size:10px;color:#52677f;line-height:1.35}
+#appView.driver-portal .portal-driver-card .form-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:0}
+#appView.driver-portal .portal-driver-card .form-actions .btn{min-height:44px;width:100%;font-size:12px}
+#appView.driver-portal .portal-receipt-area{margin:0;padding:9px;border-radius:10px}
+#appView.driver-portal .portal-receipt-open{min-height:44px;font-size:12px}
+#appView.driver-portal .portal-receipt-form{padding:10px;gap:8px;margin-top:8px}
+#appView.driver-portal .portal-receipt-form h3{font-size:14px}
+#appView.driver-portal .portal-receipt-form label{font-size:11px}
+#appView.driver-portal .portal-receipt-form select,#appView.driver-portal .portal-receipt-form input,#appView.driver-portal .portal-receipt-form textarea{min-height:44px;padding:10px;font-size:14px}
+#appView.driver-portal .portal-receipt-form input[type=file]{height:auto;min-height:54px;padding:9px;background:#f8fbff}
+#appView.driver-portal .portal-receipt-form button{min-height:46px}
+#appView.driver-portal .driver-details,#appView.driver-portal .driver-history{border-top:1px solid #e8eef6;padding-top:7px}
+#appView.driver-portal .driver-details summary,#appView.driver-portal .driver-history summary{font-size:11px;font-weight:750;color:#31557e;cursor:pointer;min-height:28px;display:flex;align-items:center}
+#appView.driver-portal .driver-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:8px 0}
+#appView.driver-portal .driver-detail-grid>div{font-size:11px;line-height:1.3;overflow-wrap:anywhere}
+#appView.driver-portal .driver-detail-grid strong{display:block;font-size:9px;color:#718096;margin-bottom:2px;text-transform:uppercase}
+#appView.driver-portal .driver-history .driver-event{font-size:10px;line-height:1.3;padding:7px 0;border-top:1px solid #edf1f6}
+#appView.driver-portal .driver-history .driver-event strong{font-size:11px}
+@media(max-width:380px){#appView.driver-portal .stats{grid-template-columns:repeat(2,minmax(0,1fr))}#appView.driver-portal .driver-chips{grid-template-columns:repeat(2,minmax(0,1fr))}#appView.driver-portal .page-head h1{font-size:18px}}
+@media(min-width:701px){#appView.driver-portal .content{padding:18px 20px 30px}#appView.driver-portal .stats{grid-template-columns:repeat(6,minmax(0,1fr))}}
+
+#appView.driver-portal .receipt-camera-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#appView.driver-portal .receipt-camera-actions .btn{min-height:48px;width:100%;font-size:12px}
+#appView.driver-portal .receipt-photo-preview{display:grid;place-items:center;gap:6px;min-height:72px;padding:8px;border:1px dashed #b8c9df;border-radius:10px;background:#f8fbff;color:#60748e;font-size:11px;text-align:center}
+#appView.driver-portal .receipt-photo-preview img{display:block;max-width:100%;max-height:230px;object-fit:contain;border-radius:8px}
+#appView.driver-portal .receipt-ai-result{padding:10px;border:1px solid #b9d9c6;border-radius:10px;background:#f2fbf5;font-size:12px}
+#appView.driver-portal .receipt-ai-result pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
+
+  /* Central projetável: viagens detalhadas ficam imediatamente abaixo de cada motorista. */
+  .center-driver-trips-row td{padding:0 12px 12px!important;background:#f7faff;border-bottom:2px solid #dce7f5!important}
+  .center-driver-trips{padding:10px 12px 12px 26px;border-left:3px solid #8fb6e8}
+  .center-driver-trips-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px;color:#163b69}
+  .center-driver-trip-summary{display:flex;gap:16px;flex-wrap:wrap;color:#52677f;font-size:11px}
+  .center-driver-trip-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
+  .center-driver-trip-card{padding:10px 12px;border:1px solid #dce6f2;border-radius:9px;background:#fff}
+  .center-driver-trip-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .center-driver-trip-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+  .center-driver-trip-grid small{display:block;color:#71839a;font-size:9px;font-weight:800;letter-spacing:.04em;margin-bottom:3px}
+  .center-driver-trip-grid strong{display:block;color:#263d58;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+  .center-driver-no-trips{padding:9px 12px;color:#64748b;background:#fff;border:1px dashed #cbd5e1;border-radius:8px;font-size:11px}
+  /* Operações: tabela mais compacta e alinhada para leitura em monitor/projetor. */
+  .ops-table{width:100%;min-width:1080px;table-layout:fixed;border-spacing:0}
+  .ops-table th{padding:9px 8px;font-size:10px;line-height:1.25;vertical-align:bottom}
+  .ops-table td{padding:9px 8px;font-size:11px;line-height:1.35;vertical-align:middle}
+  .ops-table th:nth-child(1){width:16%}.ops-table th:nth-child(2){width:9%}.ops-table th:nth-child(3){width:21%}
+  .ops-table th:nth-child(4){width:9%}.ops-table th:nth-child(5){width:7%}.ops-table th:nth-child(6){width:6%}
+  .ops-table th:nth-child(7){width:7%}.ops-table th:nth-child(8){width:7%}.ops-table th:nth-child(9){width:8%}
+  .ops-table th:nth-child(10){width:7%}.ops-table th:nth-child(11){width:10%}
+  .ops-route-cell{white-space:normal;min-width:0;line-height:1.4}
+  .ops-row-actions{gap:5px;align-items:center;flex-wrap:nowrap}
+  .ops-detail-btn{padding:7px 9px;white-space:nowrap}
+  @media(max-width:760px){
+    .center-driver-trips{padding:9px 6px 10px}
+    .center-driver-trips-heading{align-items:flex-start}
+    .center-driver-trip-summary{gap:8px}
+    .center-driver-trip-list{grid-template-columns:1fr}
+    .ops-table{min-width:1050px}
+  }
+
 </style>
 </head>
 <body>
@@ -259,7 +414,7 @@
       <div class="sidebar-bottom"><div class="user-line"><div class="avatar" id="avatar">D</div><div class="user-meta"><strong id="sideUser">Administrador</strong><span id="sideRole">Administrador</span></div><button class="icon-btn" title="Sair" onclick="logout()">↪</button></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
+      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary topbar-logout" type="button" onclick="logout()" aria-label="Sair do sistema">Sair <span aria-hidden="true">↪</span></button></div></header>
       <div class="content" id="content"></div>
     </main>
   </section>
@@ -304,7 +459,8 @@
   let operacoesRefreshBusy=false;
   let portalRefreshTimer=null;
   let portalRefreshBusy=false;
-  const PORTAL_REFRESH_MS=60*1000;
+  let portalLastLoadedAt=0;
+  const PORTAL_REFRESH_MS=5*60*1000;
   let operacoesLastLoadedAt=0;
   const OPERACOES_REFRESH_MS=5*60*1000;
   const DOC_ALERT_DELAY_MS=24*60*60*1000;
@@ -326,7 +482,7 @@
   function submitPasswordReset(ev){ev.preventDefault();const p=document.getElementById('resetNewPassword').value,c=document.getElementById('resetConfirmPassword').value,out=document.getElementById('resetFeedback');if(p!==c){out.textContent='As senhas não conferem.';return;}out.textContent='Salvando…';google.script.run.withSuccessHandler(r=>{out.textContent=r.message;document.getElementById('resetNewPassword').value='';document.getElementById('resetConfirmPassword').value='';}).withFailureHandler(e=>{out.textContent=e.message||'Link inválido ou expirado.';}).redefinirSenhaPorTokenFullTime(FT_RESET_TOKEN,p);}
   if(FT_RESET_TOKEN){document.getElementById('resetPasswordModal').classList.remove('hidden');}
   function changeInitialPassword(ev){ev.preventDefault();const p=document.getElementById('newPassword').value;const c=document.getElementById('confirmPassword').value;const out=document.getElementById('passwordError');out.textContent='';if(p!==c){out.textContent='As senhas não conferem.';return;}google.script.run.withSuccessHandler(res=>{currentUser=res.user;document.getElementById('passwordModal').classList.add('hidden');toast('Senha atualizada com sucesso.');loadApp();}).withFailureHandler(err=>out.textContent=err.message||'Não foi possível atualizar a senha.').trocarSenhaInicial(authToken,p);}
-  function showAppShell(){document.getElementById('loginView').classList.add('hidden');document.getElementById('appView').classList.remove('hidden');buildNav();}
+  function showAppShell(){document.getElementById('loginView').classList.add('hidden');const app=document.getElementById('appView');app.classList.toggle('driver-portal',String(currentUser?.perfil||'').toUpperCase()==='MOTORISTA');app.classList.remove('hidden');buildNav();}
   function parsePainelResponse(data){
     if(typeof data==='string'){
       try{data=JSON.parse(data);}catch(e){throw new Error('Resposta do painel não contém JSON válido: '+e.message);}
@@ -358,6 +514,7 @@
         window.__FT_UI_RECEBIMENTO={keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user};
         try {
           dashboard=received;
+          if(isDriver)portalLastLoadedAt=Date.now();
           currentUser={...currentUser,...(received.user||{}),...(isDriver?{motoristaId:received.motoristaId||currentUser?.motoristaId}:{})};
           paintNav();
           renderPage(currentPage);
@@ -509,7 +666,7 @@
     else if(page==='conjuntos'||page==='carretas'||page==='cavalos') c.innerHTML=renderConjuntos();
     else if(page==='operacoes') c.innerHTML=renderOperacoes();
     else if(page==='solicitacoes') { c.innerHTML=renderSolicitacoes(); carregarSolicitacoesFullTime(); }
-    else if(page==='escalas') { c.innerHTML=renderEscalas(); carregarOfertasAceitasAdmin(); }
+    else if(page==='escalas') c.innerHTML=renderEscalas();
     else c.innerHTML=renderDevelopment(titles[page]||page);
     if(page==='carretas'||page==='conjuntos'||page==='cavalos')setTimeout(()=>focusFrotaSection(page),0);
     if(page==='operacoes')setTimeout(renderDocumentExpiryNotice,0);
@@ -562,7 +719,7 @@
     };
     const labels={
       OFERTADA:'PENDENTE',ACEITA:'ACEITA PELO MOTORISTA',ATIVO:'ESCALA CONFIRMADA',
-      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA NO PORTAL — PRAZO DE 2 HORAS',
+      RECUSADA:'RECUSADA PELO MOTORISTA',NAO_RESPONDEU:'SEM RESPOSTA NO PORTAL — PRAZO DE 2 horas',
       EXPIRADA:'PRAZO ENCERRADO — SEM RESPOSTA NO PORTAL',CANCELADA_REPROGRAMACAO:'CANCELADA — OPERAÇÃO REPROGRAMADA',
       CANCELADA:'CANCELADA',SAIU:'EM EXECUÇÃO',EM_VIAGEM:'EM VIAGEM',RETORNOU:'CONCLUÍDA'
     };
@@ -577,9 +734,13 @@
       const negativeStatuses=['RECUSADA','NAO_RESPONDEU','EXPIRADA','CANCELADA','CANCELADA_REPROGRAMACAO'];
       const badgeTone=isPending||negativeStatuses.includes(o.status)?'badge-pending':'badge-active';
       const events=Array.isArray(o.eventos)?o.eventos:[];
-      const eventHtml=events.length?events.map(eventLine).join(''):'<div class="muted small" style="padding-top:8px">Sem evento complementar registrado. Os dados da participação permanecem no histórico.</div>';
-      const responseInfo=o.respondidaEm?'<div><strong>Decisão registrada</strong><div>'+dateTime(o.respondidaEm)+'</div></div>':'';
-      return '<div class="panel" style="margin-bottom:14px"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted small">'+esc(op.cliente||'')+' · Convite: '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+badgeTone+'">'+esc(statusLabel)+'</span></div><div class="panel-body"><div class="grid-two"><div><strong>Origem</strong><div>'+esc(op.origem||'—')+'</div></div><div><strong>Destino</strong><div>'+esc(op.destino||'—')+'</div></div><div><strong>Data da operação</strong><div>'+esc(formatDate(op.data))+'</div></div><div><strong>Produto / material</strong><div>'+esc(op.produto||'—')+'</div></div><div><strong>Distância</strong><div>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div></div><div><strong>Entrega até</strong><div>'+esc(formatDate(op.dataEntrega)||'—')+'</div></div><div><strong>Janela</strong><div>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div></div><div><strong>Volume da operação</strong><div>'+esc(op.volume||0)+' t</div></div><div><strong>Prazo para resposta</strong><div>'+dateTime(o.expiraEm)+'</div></div>'+responseInfo+'</div>'+(o.observacoes?'<p class="notice" style="margin-top:14px">'+esc(o.observacoes)+'</p>':'')+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+'<details style="margin-top:14px"><summary style="cursor:pointer;font-weight:700;color:var(--blue-dark)">Ver histórico deste convite ('+events.length+' eventos)</summary><div style="padding-top:10px">'+eventHtml+'</div></details></div></div>';
+      const eventHtml=events.length?events.map(e=>'<div class="driver-event"><strong>'+esc(eventLabel(e))+'</strong><div class="muted">'+dateTime(e.dataHora)+'</div>'+(e.motivo?'<div>'+esc(e.motivo)+'</div>':'')+'</div>').join(''):'<div class="muted small">Nenhum evento complementar.</div>';
+      const destinations=Array.isArray(op.destinos)?op.destinos:[];
+      const destinationHtml=destinations.length?destinations.map(d=>'<div class="driver-destination-line">'+(d.ordem?'<b>'+esc(d.ordem)+'.</b> ':'')+esc(d.cliente||d.local||'Destino')+(d.cidadeUf?' · '+esc(d.cidadeUf):'')+(d.volume?' · '+Number(d.volume).toLocaleString('pt-BR',{maximumFractionDigits:2})+' t':'')+'</div>').join(''):'<div class="driver-destination-line">'+esc(op.destino||'Destino não informado')+'</div>';
+      const assigned=o.destinoAlocado&&o.destinoAlocado.destino?'<div class="driver-assigned"><small>SEU DESTINO DESIGNADO</small><strong>'+esc(o.destinoAlocado.destino.cliente||'Destino definido')+'</strong><span>'+esc([o.destinoAlocado.destino.local,o.destinoAlocado.destino.cidadeUf].filter(Boolean).join(' · '))+' · Referência: '+Number(o.destinoAlocado.toneladasReferencia||0).toLocaleString('pt-BR',{maximumFractionDigits:2})+' t</span></div>':'';
+      const receipt=['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(o.status||'').toUpperCase());
+      const details='<details class="driver-details"><summary>Detalhes da operação</summary><div class="driver-detail-grid"><div><strong>Produto / material</strong>'+esc(op.produto||'—')+'</div><div><strong>Distância</strong>'+esc(op.distanciaKm||'—')+(op.distanciaKm?' km':'')+'</div><div><strong>Entrega até</strong>'+esc(formatDate(op.dataEntrega)||'—')+'</div><div><strong>Janela</strong>'+esc(op.janelaInicio||'—')+' até '+esc(op.janelaFim||'—')+'</div><div><strong>Prazo para resposta</strong>'+dateTime(o.expiraEm)+'</div><div><strong>Decisão registrada</strong>'+dateTime(o.respondidaEm)+'</div></div>'+(o.observacoes?'<div class="notice">'+esc(o.observacoes)+'</div>':'')+'</details>';
+      return '<article class="panel portal-driver-card"><div class="panel-head"><div><h2>'+esc(op.nome||('Operação '+(o.operacaoId||'')))+'</h2><div class="muted">'+esc(op.cliente||'')+' · '+dateTime(o.ofertadaEm||o.criadaEm)+'</div></div><span class="badge '+badgeTone+'">'+esc(statusLabel)+'</span></div><div class="panel-body">'+assigned+'<div class="driver-route"><div><small>Origem</small><strong>'+esc(op.origem||'—')+'</strong></div><div><small>Destinos da operação</small><div class="driver-destinations">'+destinationHtml+'</div></div></div><div class="driver-chips"><div class="driver-chip"><span>Data</span><strong>'+esc(formatDate(op.data))+'</strong></div><div class="driver-chip"><span>Volume</span><strong>'+Number(op.volume||0).toLocaleString('pt-BR',{maximumFractionDigits:2})+' t</strong></div><div class="driver-chip"><span>Janela</span><strong>'+esc(op.janelaInicio||'—')+'</strong></div></div>'+(isPending?'<div class="form-actions"><button class="btn btn-primary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'ACEITA\')">Aceitar oferta</button><button class="btn btn-secondary" onclick="responderOfertaPortal(\''+esc(o.id)+'\',\'RECUSADA\')">Recusar</button></div>':'')+(receipt?'<div class="portal-receipt-area"><button class="btn btn-primary portal-receipt-open" type="button" onclick="abrirReciboPortal(\''+esc(o.id)+'\',\''+esc(o.operacaoId)+'\')">📷 Tirar foto / enviar recibo</button><div id="portal-receipt-'+esc(o.id)+'"></div></div>':'')+details+'<details class="driver-history"><summary>Histórico ('+events.length+' eventos)</summary>'+eventHtml+'</details></div></article>';
     };
     const standalone=orphanEvents.length?'<div class="panel" style="margin-top:18px"><div class="panel-head"><h2>Outros eventos do seu histórico</h2></div><div class="panel-body">'+orphanEvents.map(e=>'<div style="padding:9px 0;border-bottom:1px solid var(--line)"><strong>'+esc(eventLabel(e))+'</strong><div class="muted small">'+dateTime(e.dataHora)+' · '+esc(e.operacao?.nome||e.operacaoId||'Operação não identificada')+'</div>'+(e.motivo?'<div class="small">'+esc(e.motivo)+'</div>':'')+'</div>').join('')+'</div></div>':'';
     return '<div class="page-head"><div><h1>Painel de Convocações</h1><p>Olá, '+esc(currentUser?.nome||'motorista')+'. Aqui estão todos os convites e decisões vinculados ao seu cadastro.</p></div><div class="head-actions"><button class="btn btn-secondary" onclick="atualizarPortalMotorista()">↻ Atualizar</button></div></div>'+
@@ -603,6 +764,12 @@
   }
   function atualizarPortalMotorista(silencioso){
     if(portalRefreshBusy||!authToken||String(currentUser?.perfil||'').toUpperCase()!=='MOTORISTA')return;
+    // Não desmonta o formulário enquanto o motorista está usando a câmera, escolhendo
+    // uma foto, conferindo a prévia ou enviando o comprovante.
+    const receiptOpen=document.querySelector('.portal-receipt-area > div.is-open .portal-receipt-form');
+    if(receiptOpen){console.info('FT_PORTAL_REFRESH_ADIADO','Formulário de comprovante em uso.');return;}
+    // Atualizações silenciosas (timer, retorno da câmera ou foco) respeitam o intervalo mínimo.
+    if(silencioso&&Date.now()-portalLastLoadedAt<PORTAL_REFRESH_MS)return;
     portalRefreshBusy=true;
     const content=document.getElementById('content');
     if(!silencioso&&content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
@@ -614,6 +781,7 @@
         return;
       }
       dashboard=data;
+      portalLastLoadedAt=Date.now();
       currentUser={...currentUser,...(data.user||{}),perfil:'MOTORISTA',motoristaId:data.motoristaId||currentUser?.motoristaId};
       paintNav();
       const host=document.getElementById('content');
@@ -630,6 +798,144 @@
       }
     }).obterPortalMotoristaFullTime(authToken);
   }
+
+  function abrirReciboPortal(participacaoId,operacaoId){
+    const host=document.getElementById('portal-receipt-'+participacaoId);if(!host)return;
+    if(host.dataset.loaded==='1'){host.classList.toggle('is-open');return;}
+    const offer=(dashboard?.ofertas||[]).find(o=>String(o.id)===String(participacaoId)&&String(o.operacaoId)===String(operacaoId));
+    const destinos=Array.isArray(offer?.operacao?.destinos)?offer.operacao.destinos:[];
+    const aloc=offer?.destinoAlocado||null;
+    const destino=aloc&&aloc.destinoId?destinos.find(d=>String(d.id)===String(aloc.destinoId)):null;
+    if(!destino){host.innerHTML='<div class="notice">Seu destino ainda não está definido nesta operação. Avise o administrador para concluir a distribuição antes de enviar o recibo.</div>';return;}
+    host.dataset.loaded='1';host.classList.add('is-open');
+    const destinoLabel=[destino.cliente,destino.local,destino.cidadeUf].filter(Boolean).join(' · ');
+    host.innerHTML='<form class="portal-receipt-form" onsubmit="return false"><h3>Comprovante da viagem</h3><div class="driver-assigned"><small>DESTINO IDENTIFICADO AUTOMATICAMENTE</small><strong>'+esc(destino.cliente||'Destino designado')+'</strong><span>'+esc([destino.local,destino.cidadeUf].filter(Boolean).join(' · '))+'</span></div><input type="hidden" name="destinoId" value="'+esc(destino.id)+'"><label>Tipo de comprovante</label><select name="tipoRecibo" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option></select><div class="receipt-camera-actions"><button class="btn btn-primary" type="button" onclick="document.getElementById(\'receipt-camera-'+esc(participacaoId)+'\').click()">📷 Tirar foto agora</button><button class="btn btn-secondary" type="button" onclick="document.getElementById(\'receipt-gallery-'+esc(participacaoId)+'\').click()">Escolher da galeria</button></div><input id="receipt-camera-'+esc(participacaoId)+'" type="file" accept="image/*" capture="environment" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\',\''+esc(operacaoId)+'\')"><input id="receipt-gallery-'+esc(participacaoId)+'" type="file" accept="image/*" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\',\''+esc(operacaoId)+'\')"><div id="receipt-photo-preview-'+esc(participacaoId)+'" class="receipt-photo-preview"><span>Nenhuma foto selecionada</span></div><small>A IA fará a leitura assim que a foto for carregada. Só pediremos complemento se algum dado essencial não estiver legível.</small><input type="hidden" name="fotoBase64"><input type="hidden" name="mimeType"><input type="hidden" name="nomeArquivo"><div class="portal-receipt-error" aria-live="polite"></div><div id="receipt-ai-result-'+esc(participacaoId)+'"></div></form>';
+  }
+  function prepararFotoReciboPortal(fileInput,participacaoId,operacaoId){
+    const selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files.item(0) : null;
+    if(!selectedFile) return;
+    const receiptHost = document.getElementById('portal-receipt-'+participacaoId);
+    const form = receiptHost ? receiptHost.querySelector('form') : null;
+    if(!form) return;
+    const error = form.querySelector('.portal-receipt-error');
+    const preview = document.getElementById('receipt-photo-preview-'+participacaoId);
+    const controls = form.querySelectorAll('button');
+    const setBusy = busy => controls.forEach(control => { control.disabled = !!busy; });
+    if(!selectedFile.type || !selectedFile.type.toLowerCase().startsWith('image/')){
+      error.textContent = 'Selecione uma imagem válida.';
+      fileInput.value = '';
+      return;
+    }
+    if(selectedFile.size > 15 * 1024 * 1024){
+      error.textContent = 'A imagem deve ter no máximo 15 MB.';
+      fileInput.value = '';
+      return;
+    }
+    error.textContent = 'Preparando a foto para leitura automática…';
+    setBusy(true);
+    const fileReader = new FileReader();
+    fileReader.onerror = function(){
+      error.textContent = 'Não foi possível abrir a foto. Tente novamente.';
+      setBusy(false);
+    };
+    fileReader.onload = function(){
+      const photo = new Image();
+      photo.onerror = function(){
+        error.textContent = 'A imagem não pôde ser processada. Tente outra foto.';
+        setBusy(false);
+      };
+      photo.onload = function(){
+        try{
+          const maxSide = 2200;
+          const resizeFactor = Math.min(1, maxSide / Math.max(photo.naturalWidth || photo.width, photo.naturalHeight || photo.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((photo.naturalWidth || photo.width) * resizeFactor));
+          canvas.height = Math.max(1, Math.round((photo.naturalHeight || photo.height) * resizeFactor));
+          const context = canvas.getContext('2d');
+          if(!context) throw new Error('Não foi possível preparar a imagem neste navegador.');
+          context.drawImage(photo, 0, 0, canvas.width, canvas.height);
+          const imageDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          const encodedImage = imageDataUrl.split(',')[1] || '';
+          if(!encodedImage || encodedImage.length > 11500000) throw new Error('A foto ficou muito grande. Tente fotografar o ticket mais de perto.');
+          form.elements.fotoBase64.value = imageDataUrl;
+          form.elements.mimeType.value = 'image/jpeg';
+          form.elements.nomeArquivo.value = (selectedFile.name || 'ticket').replace(/\\.[^.]+$/, '') + '.jpg';
+          preview.innerHTML = '<img alt="Prévia do ticket" src="'+imageDataUrl+'"><span>Foto carregada · iniciando leitura da IA…</span>';
+          enviarReciboPortal(participacaoId,operacaoId);
+        }catch(processError){
+          error.textContent = processError && processError.message ? processError.message : 'Falha ao preparar a foto.';
+          setBusy(false);
+        }
+      };
+      photo.src = String(fileReader.result || '');
+    };
+    fileReader.readAsDataURL(selectedFile);
+  }
+  function enviarReciboPortal(participacaoId,operacaoId){
+    const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(!form)return;
+    const error=form.querySelector('.portal-receipt-error'),preview=document.getElementById('receipt-photo-preview-'+participacaoId);
+    const dataUrl=form.elements.fotoBase64.value;if(!dataUrl){error.textContent='Selecione uma foto.';return;}
+    error.textContent='Enviando e aguardando a leitura da IA…';
+    const data={operacaoId:operacaoId,participacaoId:participacaoId,tipoRecibo:form.elements.tipoRecibo.value,mimeType:'image/jpeg',nomeArquivo:form.elements.nomeArquivo.value,base64:dataUrl,observacoes:''};
+    google.script.run.withSuccessHandler(res=>{
+      const ai=res.analiseIA||{},d=ai.dados||{},host=document.getElementById('receipt-ai-result-'+participacaoId);
+      const labels={tipo_documento:'Tipo lido',emissor:'Emissor',numero_documento:'Ticket',data_hora:'Data/hora',placa_veiculo:'Placa',motorista:'Motorista',produto:'Produto',peso_bruto_kg:'Peso bruto (kg)',tara_kg:'Tara (kg)',peso_liquido_kg:'Peso líquido (kg)',origem:'Origem',destino_impresso:'Destino impresso'};
+      let out='<div class="notice"><strong>✓ Foto recebida e vinculada à viagem.</strong></div>';
+      if(ai.status==='ANALISADO'){
+        const fields=Object.keys(labels).filter(k=>d[k]!==null&&d[k]!==undefined&&d[k]!=='').map(k=>'<div><strong>'+labels[k]+':</strong> '+esc(String(d[k]))+'</div>').join('');
+        out+='<div class="receipt-ai-result"><strong>Leitura automática da IA</strong>'+(fields||'<p>Não foram identificados campos legíveis.</p>')+'<small>Confiança: '+esc(String(d.confianca_geral??'não informada'))+'</small></div>';
+      }else out+='<div class="notice">'+esc(ai.mensagem||'A IA não concluiu a leitura. Verifique a configuração da chave Gemini.')+'</div>';
+      const needs=ai.status!=='ANALISADO'||d.precisa_complemento===true||(Array.isArray(d.campos_duvidosos)&&d.campos_duvidosos.length>0)||Number(d.confianca_geral||0)<0.8;
+      if(needs)out+='<div class="field" style="margin-top:10px"><label>Complemento — somente os dados que a IA não conseguiu ler</label><textarea id="receipt-note-'+participacaoId+'" rows="2" maxlength="1000" placeholder="Informe o dado ausente ou ilegível"></textarea><button class="btn btn-secondary" type="button" onclick="salvarComplementoReciboPortal('+JSON.stringify(participacaoId)+','+JSON.stringify(res.id)+')">Salvar complemento</button></div>';
+      if(d.campos_duvidosos&&d.campos_duvidosos.length)out+='<small>Conferir: '+esc(d.campos_duvidosos.join(', '))+'</small>';
+      if(ai.status==='ANALISADO'){
+        const action=String(d.tipo_documento||'').toUpperCase()==='CARREGAMENTO'?'confirmarTicketCarregamentoPortal':'confirmarTicketDescargaPortal';
+        const label=needs?'Confirmar após revisão manual':(action==='confirmarTicketCarregamentoPortal'?'Confirmar carregamento e contabilizar peso':'Confirmar descarga e concluir viagem');
+        out+='<div class="notice" style="margin-top:10px"><strong>Confira os dados antes de confirmar.</strong><br>'+(needs?'Salve o complemento manual antes de confirmar. ':'')+'O peso será contabilizado somente no carregamento. A descarga apenas conclui a viagem.</div><button class="btn btn-primary" type="button" data-ft-ticket-action="'+action+'" data-ft-recibo-id="'+esc(res.id)+'" data-ft-participacao-id="'+esc(participacaoId)+'" style="width:100%;min-height:48px">'+label+'</button>';
+      }
+      if(host){
+        host.innerHTML=out;
+        const confirmButton=host.querySelector('[data-ft-ticket-action]');
+        if(confirmButton){
+          confirmButton.addEventListener('click',()=>{
+            const fn=confirmButton.dataset.ftTicketAction;
+            const id=confirmButton.dataset.ftReciboId;
+            const participacao=confirmButton.dataset.ftParticipacaoId;
+            if(fn==='confirmarTicketCarregamentoPortal')confirmarTicketCarregamentoPortal(id,participacao);
+            else if(fn==='confirmarTicketDescargaPortal')confirmarTicketDescargaPortal(id,participacao);
+          },{once:true});
+        }
+      }
+      if(preview)preview.innerHTML='<span>Foto enviada · leitura da IA concluída</span>';
+      toast('Ticket recebido e interpretado. Confira os dados e confirme o envio.');
+    }).withFailureHandler(e=>{
+      error.textContent=e.message||'Falha ao enviar/analisar. Selecione a foto novamente para tentar.';
+      form.querySelectorAll('button').forEach(b=>b.disabled=false);
+    }).registrarReciboPortalMotoristaV2(authToken,data);
+  }
+  async function confirmarTicketCarregamentoPortal(reciboId,participacaoId){
+    if(!await uiConfirm('Confirma este ticket de carregamento? O peso líquido será lançado uma única vez no saldo da operação.',{title:'Confirmar carregamento',ok:'Confirmar e contabilizar'}))return;
+    const host=document.getElementById('receipt-ai-result-'+participacaoId);
+    if(host)host.querySelectorAll('button').forEach(b=>b.disabled=true);
+    google.script.run.withSuccessHandler(res=>{
+      if(host)host.innerHTML='<div class="notice"><strong>✓ '+esc(res.message||'Carregamento confirmado.')+'</strong></div><div class="receipt-ai-result">Peso contabilizado: '+esc(String(res.pesoToneladas))+' t<br>Saldo restante da operação: '+esc(String(res.saldoOperacao))+' t</div><p><strong>Próximo passo:</strong> envie agora o ticket de descarga desta mesma viagem.</p>';
+      const form=document.querySelector('#portal-receipt-'+participacaoId+' form');
+      if(form){form.elements.tipoRecibo.value='DESCARGA';form.elements.fotoBase64.value='';form.elements.nomeArquivo.value='';form.elements.mimeType.value='';form.querySelectorAll('input[type=file]').forEach(el=>el.value='');const preview=document.getElementById('receipt-photo-preview-'+participacaoId);if(preview)preview.innerHTML='<span>Carregamento contabilizado. Aguardando foto do ticket de descarga.</span>';}
+      toast('Carregamento contabilizado. Envie o ticket de descarga.');
+    }).withFailureHandler(e=>{if(host)host.insertAdjacentHTML('beforeend','<div class="notice" style="border-color:#f3c4c4;color:#9b2929">'+esc(e.message||'Falha ao confirmar carregamento.')+'</div>');if(host)host.querySelectorAll('button').forEach(b=>b.disabled=false);}).confirmarTicketCarregamentoFullTime(authToken,reciboId);
+  }
+  async function confirmarTicketDescargaPortal(reciboId,participacaoId){
+    if(!await uiConfirm('Confirma este ticket de descarga? A viagem será validada e contabilizada, sem descontar o peso novamente.',{title:'Confirmar descarga',ok:'Confirmar conclusão'}))return;
+    const host=document.getElementById('receipt-ai-result-'+participacaoId);
+    if(host)host.querySelectorAll('button').forEach(b=>b.disabled=true);
+    google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>✓ '+esc(res.message||'Viagem validada.')+'</strong></div><div class="receipt-ai-result">Status: VIAGEM VÁLIDA E CONTABILIZADA<br>O peso não foi lançado novamente.</div>';const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(form){form.elements.fotoBase64.value='';form.elements.nomeArquivo.value='';form.elements.mimeType.value='';form.querySelectorAll('input[type=file]').forEach(el=>el.value='');}toast('Viagem concluída e contabilizada.');}).withFailureHandler(e=>{if(host)host.insertAdjacentHTML('beforeend','<div class="notice" style="border-color:#f3c4c4;color:#9b2929">'+esc(e.message||'Falha ao confirmar descarga.')+'</div>');if(host)host.querySelectorAll('button').forEach(b=>b.disabled=false);}).confirmarTicketDescargaFullTime(authToken,reciboId);
+  }
+  function salvarComplementoReciboPortal(participacaoId,reciboId){
+    const note=document.getElementById('receipt-note-'+participacaoId)?.value||'';
+    if(!note.trim()){toast('Informe o complemento.',true);return;}
+    google.script.run.withSuccessHandler(r=>toast(r.message||'Complemento salvo.')).withFailureHandler(e=>toast(e.message||'Falha ao salvar complemento.',true)).complementarReciboViagemFullTime(authToken,reciboId,note);
+  }
+
   async function responderOfertaPortal(id,resposta){
     const acao=resposta==='ACEITA'?'aceitar':'recusar';
     if(!await uiConfirm('Confirma que deseja '+acao+' esta oferta?',{title:'Responder à oferta',ok:acao==='aceitar'?'Aceitar oferta':'Recusar oferta',danger:acao==='recusar'}))return;
@@ -648,18 +954,74 @@
     const running=['EM_ANDAMENTO','EM ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(status);
     const statusLabel=o.atrasada?'ATRASADA':status==='ABERTA'?'AGUARDANDO ESCALA':status.replace(/_/g,' ');
     const statusClass=o.atrasada||status==='SUSPENSA'?'is-alert':status==='ABERTA'?'is-waiting':'is-active';
+    const destinations=o.destinos||[];
+    const destinationText=destinations.length?destinations.map(d=>d.cliente||d.local||'Destino').join(' · '):((/^\d+\s+destinos?$/i.test(String(o.destino||'')))?'Destinos não individualizados — revisar cadastro':(o.destino||'—'));
+    const routeCell='<div class="center-route-cell"><div><small>ORIGEM</small><strong>'+esc(o.origem||'—')+'</strong></div><div class="center-route-divider">↓</div><div><small>DESTINO'+(destinations.length>1?'S':'')+(destinations.length?' · '+destinations.length:'')+'</small><strong>'+esc(destinationText)+'</strong></div></div>';
     const drivers=o.conjuntos||[];
     const driverRows=drivers.length?drivers.map(s=>{
       const st=String(s.status||'').toUpperCase();
-      const label=st==='EM_VIAGEM'?'Em viagem':st==='SAIU'?'Em deslocamento':st==='ATIVO'?'Escalado':st.replace(/_/g,' ').toLowerCase();
+      const label=st==='EM_VIAGEM'?'Em viagem':st==='SAIU'?'Em deslocamento':st==='ATIVO'?'Escalado':st==='ACEITA'?'Aceite confirmado':st.replace(/_/g,' ').toLowerCase();
       const cls=['EM_VIAGEM','SAIU'].includes(st)?'is-active':st==='ATIVO'?'is-waiting':'';
       const last=s.ultimaAtualizacao||s.saida||s.retorno||'—';
-      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(o.nome||'—')+'</td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+esc(last)+'</td></tr>';
-    }).join(''):'<tr><td colspan="6" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
+      const assigned=s.destinoAlocado?[s.destinoAlocado.cliente,s.destinoAlocado.local,s.destinoAlocado.cidadeUf].filter(Boolean).join(' · '):'Não distribuído';
+      const trips=Array.isArray(s.viagens)?s.viagens:[];
+      const tripPlan=Number(s.viagensPrevistasMotorista||0),done=Number(s.viagensConcluidas||0),pendingUnload=trips.filter(t=>t.status!=='CONCLUIDA').length;
+      const tripSummary='<div class="center-driver-trip-summary"><span><strong>'+done+'</strong> concluída(s)</span><span><strong>'+pendingUnload+'</strong> aguardando descarga</span><span><strong>'+(tripPlan>0?Math.max(0,tripPlan-done):'—')+'</strong> faltante(s) para meta'+(tripPlan>0?' de '+tripPlan:' não definida')+'</span></div>';
+      const tripCards=trips.length?trips.map(t=>'<article class="center-driver-trip-card"><div class="center-driver-trip-top"><strong>Viagem '+esc(t.numero||'—')+'</strong><span class="center-op-status '+(t.status==='CONCLUIDA'?'is-active':'is-waiting')+'">'+(t.status==='CONCLUIDA'?'Concluída':'Aguardando descarga')+'</span></div><div class="center-driver-trip-grid"><div><small>DATA / HORA</small><strong>'+esc(t.dataHora||'—')+'</strong></div><div><small>PESO</small><strong>'+num(t.toneladas)+' t</strong></div><div><small>ORIGEM</small><strong>'+esc(t.origem||'—')+'</strong></div><div><small>DESTINO</small><strong>'+esc(t.destino||'—')+'</strong></div></div></article>').join(''):'<div class="center-driver-no-trips">Nenhuma viagem registrada para este motorista nesta operação.</div>';
+      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(assigned)+'</td><td>'+esc(last)+'</td></tr><tr class="center-driver-trips-row"><td colspan="5"><div class="center-driver-trips"><div class="center-driver-trips-heading"><strong>Viagens de '+esc(s.motorista||'Motorista')+'</strong>'+tripSummary+'</div><div class="center-driver-trip-list">'+tripCards+'</div></div></td></tr>';
+    }).join(''):'<tr><td colspan="5" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
+    const destinationCards=destinations.length?'<section class="center-destination-section"><div class="center-subsection-heading"><h3>Controle de peso por destino</h3><span>'+destinations.length+' destino(s)</span></div><div class="center-destination-grid">'+destinations.map(d=>{
+      const percent=Math.min(100,Math.max(0,Number(d.percentual||0)));
+      return '<article class="center-destination-card"><div class="center-destination-heading"><div><span class="center-destination-index">DESTINO '+esc(d.ordem||'')+'</span><strong>'+esc(d.cliente||'Destino sem nome')+'</strong><small>'+esc([d.local,d.cidadeUf].filter(Boolean).join(' · '))+'</small></div><span class="center-destination-percent">'+percent.toFixed(1)+'%</span></div><div class="center-destination-metrics"><div><small>PREVISTO</small><strong>'+num(d.previsto)+' t</strong></div><div><small>CARREGADO</small><strong>'+num(d.carregado)+' t</strong></div><div><small>FALTA</small><strong>'+num(d.falta)+' t</strong></div></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+percent.toFixed(1)+'%"></div></div></article>';
+    }).join('')+'</div></section>':'';
     const canClose=!!o.sugestaoConclusao;
     const canStart=status==='ABERTA'&&drivers.some(s=>String(s.status||'').toUpperCase()==='ATIVO');
     const actions='<div class="center-op-actions">'+(status==='ABERTA'?'<button class="btn btn-primary" '+(canStart?'':'disabled title="Confirme a escala de pelo menos um motorista antes de iniciar."')+' onclick="event.stopPropagation();iniciarOperacaoCentro(\''+esc(o.id)+'\')">▶ Iniciar operação</button>':'')+'<button class="btn btn-secondary" '+(canClose?'':'disabled title="Saldo, viagens e participações ainda possuem pendências."')+' onclick="event.stopPropagation();confirmarConclusaoCentro(\''+esc(o.id)+'\')">Encerrar operação</button></div>';
-    return '<tr class="center-op-row '+(running?'is-running':'')+'" data-op-row="'+esc(o.id)+'" onclick="alternarDetalhesOperacaoCentro(\''+esc(o.id)+'\')" aria-expanded="false"><td><button class="center-op-toggle" type="button" tabindex="-1"><span class="chevron">▶</span>'+esc(o.nome||'Operação')+'</button></td><td>'+esc(o.origem||'—')+' → '+esc(o.destino||'—')+'</td><td>'+drivers.length+'</td><td class="center-op-progress-cell"><div class="center-op-progress-line"><strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong><span>'+pct.toFixed(0)+'%</span></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span class="muted small">'+esc(num(o.viagensPrevistas-o.viagensRealizadas))+' viagens pendentes</span></td><td><strong>'+esc(num(o.toneladasMovimentadas))+' / '+esc(num(o.volumeTotal))+' TON</strong><div class="muted small">Saldo: '+esc(num(o.saldo))+' TON</div></td><td><span class="center-op-status '+statusClass+'">'+esc(statusLabel)+'</span></td></tr><tr class="center-op-detail-row" data-op-detail="'+esc(o.id)+'" hidden><td colspan="6"><div class="center-op-driver-panel"><h3>♙ Motoristas da operação ('+drivers.length+')</h3><div class="table-wrap"><table class="center-op-driver-table"><thead><tr><th>Motorista</th><th>Operação</th><th>Conjunto</th><th>Situação atual</th><th>Origem / Destino</th><th>Última atualização</th></tr></thead><tbody>'+driverRows+'</tbody></table></div>'+actions+'</div></td></tr>';
+    return '<tr class="center-op-row '+(running?'is-running':'')+'" data-op-row="'+esc(o.id)+'" onclick="alternarDetalhesOperacaoCentro(\''+esc(o.id)+'\')" aria-expanded="false"><td><button class="center-op-toggle" type="button" tabindex="-1"><span class="chevron">▶</span>'+esc(o.nome||'Operação')+'</button></td><td>'+routeCell+'</td><td class="center-op-count">'+drivers.length+'</td><td class="center-op-progress-cell"><div class="center-op-progress-line"><strong>'+esc(num(o.viagensRealizadas))+' / '+esc(num(o.viagensPrevistas))+'</strong><span>'+pct.toFixed(0)+'%</span></div><div class="center-progress-track"><div class="center-progress-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span class="muted small">'+esc(num(o.viagensPrevistas-o.viagensRealizadas))+' viagens pendentes</span></td><td><strong>'+esc(num(o.toneladasMovimentadas))+' / '+esc(num(o.volumeTotal))+' t</strong><div class="muted small">Saldo: '+esc(num(o.saldo))+' t</div></td><td><span class="center-op-status '+statusClass+'">'+esc(statusLabel)+'</span></td></tr><tr class="center-op-detail-row" data-op-detail="'+esc(o.id)+'" hidden><td colspan="6"><div class="center-op-driver-panel"><div class="center-weight-summary"><div><small>PESO CONTRATADO</small><strong>'+num(o.volumeTotal)+' t</strong></div><div><small>CARREGADO</small><strong>'+num(o.toneladasMovimentadas)+' t</strong></div><div><small>FALTA CARREGAR</small><strong>'+num(o.saldo)+' t</strong></div><div class="center-weight-progress"><div class="center-progress-track"><div class="center-progress-fill" style="width:'+Number(o.percentualCarregado||0).toFixed(1)+'%"></div></div><small>'+Number(o.percentualCarregado||0).toFixed(1)+'% do peso carregado</small></div></div><div class="center-subsection-heading center-driver-heading"><h3>Motoristas da operação</h3><span>'+drivers.length+' conjunto(s)</span></div><div class="table-wrap"><table class="center-op-driver-table"><thead><tr><th>Motorista</th><th>Conjunto</th><th>Situação</th><th>Destino alocado</th><th>Última atualização</th></tr></thead><tbody>'+driverRows+'</tbody></table></div>'+destinationCards+actions+'<div class="destination-allocation-entry"><div class="center-allocation-actions"><button class="btn btn-secondary" type="button" onclick="event.stopPropagation();abrirDistribuicaoDestinoCentro(\''+esc(o.id)+'\')">⚖ Distribuir motoristas por destino</button><button class="btn btn-secondary" type="button" onclick="event.stopPropagation();ratearDestinosCentro(\''+esc(o.id)+'\')">⇄ Ratear peso entre destinos</button></div><div id="dest-allocation-'+esc(o.id)+'"></div></div></div></td></tr>';
+  }
+  function ratearDestinosCentro(opId){
+    uiConfirm('O sistema calculará a prévia proporcional do peso total entre os destinos. A aplicação só será permitida se ainda não houver carga registrada.',{title:'Rateio proporcional',ok:'Calcular prévia'}).then(ok=>{
+      if(!ok)return;
+      google.script.run.withSuccessHandler(p=>{
+        const lines=(p.destinos||[]).map(d=>d.destino+': '+Number(d.volumeNovo).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' t').join('\\n');
+        if(p.possuiEntregas){toast('Rateio bloqueado: já existem cargas registradas.',true);return;}
+        uiConfirm('Prévia ('+Number(p.volumeNovo).toLocaleString('pt-BR')+' t):\\n\\n'+lines+'\\n\\nAplicar?',{title:'Confirmar rateio',ok:'Aplicar'}).then(apply=>{
+          if(!apply)return;
+          google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>toast(e.message||'Falha ao aplicar rateio.',true)).aplicarRateioProporcionalDestinosFullTime(authToken,opId);
+        });
+      }).withFailureHandler(e=>toast(e.message||'Falha ao calcular rateio.',true)).simularRateioProporcionalDestinosFullTime(authToken,opId);
+    });
+  }
+
+  function abrirDistribuicaoDestinoCentro(opId){
+    const host=document.getElementById('dest-allocation-'+opId);if(!host)return;
+    host.innerHTML='<div class="notice">Carregando destinos e motoristas confirmados…</div>';
+    google.script.run.withSuccessHandler(d=>{
+      const ds=d.destinos||[],cs=d.candidatos||[],old=d.alocacoes||[],sg=d.sugestao||[],quotas=d.vagasPorDestino||{};
+      if(!ds.length){host.innerHTML='<div class="notice">Cadastre ao menos um destino para montar a escala.</div>';return;}
+      const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2});
+      const cards=ds.map(dest=>{
+        const current=old.filter(x=>x.destinoId===dest.id),suggested=sg.filter(x=>x.destinoId===dest.id);
+        const count=Number(quotas[dest.id]||0),items=Array.from({length:count},(_,i)=>suggested[i]||current[i]||null);
+        const slots=items.map((item,i)=>{
+          const sel=item?item.participacaoId:'',candidate=cs.find(x=>x.participacaoId===sel),locked=!!(candidate&&candidate.bloqueado);
+          return '<label class="destination-slot"><span>Motorista '+(i+1)+(locked?' · confirmado':'')+'</span><select data-dest="'+esc(dest.id)+'"><option value="">Selecione motorista</option>'+cs.map(x=>'<option value="'+esc(x.participacaoId)+'" '+(x.participacaoId===sel?'selected':'')+'>'+esc(x.nome)+' · '+num(x.capacidade)+' t · '+esc(x.status)+(x.bloqueado?' · participação protegida':'')+'</option>').join('')+'</select><small>Motoristas confirmados podem mudar de destino, mas não podem ser removidos da operação.</small></label>';
+        }).join('');
+        return '<section class="destination-allocation-card"><div class="destination-allocation-title"><strong>'+esc(dest.ordem+'. '+dest.cliente)+'</strong><span>'+num(dest.volume)+' t · '+count+' motorista(s)</span></div><div class="destination-allocation-slots">'+slots+'</div></section>';
+      }).join('');
+      host.innerHTML='<div class="destination-allocation-panel"><h3>Distribuição de motoristas por destino</h3><p>Bruno pode redistribuir os motoristas entre destinos. Quem já aceitou permanece na operação; somente o destino e a referência de carga são atualizados.</p><div class="badge">'+cs.length+'/'+Number(d.quantidadeNecessaria||0)+' motoristas elegíveis · '+ds.length+' destino(s)</div>'+cards+'<button class="btn btn-primary" type="button" data-action="save-destination-allocation">Confirmar escala por destino</button><div class="destination-allocation-feedback"></div></div>';
+      host.querySelector('[data-action="save-destination-allocation"]')?.addEventListener('click',()=>salvarDistribuicaoDestinoCentro(opId));
+      const feedback=host.querySelector('.destination-allocation-feedback');
+      if(cs.length<Number(d.quantidadeNecessaria||0))feedback.textContent='Faltam '+(Number(d.quantidadeNecessaria||0)-cs.length)+' motorista(s) elegíveis. A escala não poderá ser confirmada até completar a quantidade necessária.';
+    }).withFailureHandler(e=>{host.innerHTML='<div class="notice">'+esc(e.message||'Falha ao carregar distribuição.')+'</div>';}).obterAlocacaoDestinosFullTime(authToken,opId);
+  }
+  function salvarDistribuicaoDestinoCentro(opId){
+    const host=document.getElementById('dest-allocation-'+opId);if(!host)return;
+    const selects=Array.from(host.querySelectorAll('select[data-dest]')),alocacoes=selects.map(x=>({destinoId:x.dataset.dest,participacaoId:x.value})).filter(x=>x.participacaoId),fb=host.querySelector('.destination-allocation-feedback');
+    const expected=selects.length;
+    if(alocacoes.length!==expected){fb.textContent='Preencha todas as vagas calculadas para os destinos.';return;}
+    const unique=new Set(alocacoes.map(x=>x.participacaoId));if(unique.size!==alocacoes.length){fb.textContent='Cada motorista só pode ocupar uma vaga nesta operação.';return;}
+    uiConfirm('Confirma a redistribuição dos destinos? Motoristas que aceitaram permanecem na operação; apenas o destino será atualizado.').then(ok=>{if(!ok)return;fb.textContent='Salvando escala…';google.script.run.withSuccessHandler(r=>{toast(r.message);carregarCentroOperacoes();}).withFailureHandler(e=>{fb.textContent=e.message||'Falha ao salvar.';}).salvarAlocacaoDestinosFullTime(authToken,{operacaoId:opId,alocacoes:alocacoes});});
   }
   function alternarDetalhesOperacaoCentro(id){
     const row=document.querySelector('[data-op-row="'+CSS.escape(String(id))+'"]');
@@ -1033,47 +1395,21 @@
       '</div>'+
       '<div class="panel"><div class="panel-head"><h2>Conjuntos cadastrados</h2><span class="muted small">'+sets.length+' registro(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Cavalo</th><th>Carreta meio</th><th>Carreta final</th><th>Capacidade útil</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+setRows+'</tbody></table></div></div></div>';
   }
-  function carregarOfertasAceitasAdmin(){
-    const host=document.getElementById('acceptedOffersAdmin');if(!host)return;
-    host.innerHTML='<div class="empty">Consultando ofertas aceitas…</div>';
-    let finalizado=false;
-    const limite=window.setTimeout(()=>{
-      if(finalizado||!document.getElementById('acceptedOffersAdmin'))return;
-      host.innerHTML='<div class="notice">A consulta está demorando mais que o esperado. Nenhum registro foi alterado. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
-    },30000);
-    google.script.run.withSuccessHandler(rows=>{
-      finalizado=true;window.clearTimeout(limite);
-      if(!document.getElementById('acceptedOffersAdmin'))return;
-      if(!Array.isArray(rows)){host.innerHTML='<div class="notice">Resposta inválida do servidor. <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';return;}
-      host.innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Motorista</th><th>Operação</th><th>Trecho</th><th>Conjunto</th><th>Ação</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.motorista)+'</td><td>'+esc(r.operacao)+'</td><td>'+esc(r.origem)+' → '+esc(r.destino)+'</td><td>'+esc(r.conjuntoId)+'</td><td><button class="btn btn-primary" onclick="confirmarAceiteAdmin(\''+esc(r.id)+'\')">Confirmar escala</button></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Nenhum aceite aguardando confirmação.</div>';
-    }).withFailureHandler(e=>{
-      finalizado=true;window.clearTimeout(limite);
-      if(!document.getElementById('acceptedOffersAdmin'))return;
-      host.innerHTML='<div class="notice">'+esc(e&&e.message?e.message:'Falha ao consultar aceites.')+' <button class="btn btn-secondary" onclick="carregarOfertasAceitasAdmin()">Tentar novamente</button></div>';
-    }).listarOfertasAceitasAdminFullTime(authToken);
-  }
-  async function confirmarAceiteAdmin(id){
-    if(!await uiConfirm('O conjunto ficará ATIVO na operação.',{title:'Confirmar escala',ok:'Confirmar escala'}))return;
-    google.script.run.withSuccessHandler(r=>{toast(r.message);carregarOfertasAceitasAdmin();google.script.run.withSuccessHandler(d=>{dashboard=parsePainelResponse(d);}).obterPainelFullTime(authToken);})
-      .withFailureHandler(e=>toast(e.message||'Não foi possível confirmar a escala.',true)).confirmarAceiteOfertaAdminFullTime(authToken,id);
-  }
-
   function renderEscalas(){
     const parts=dashboard?.participacoesOperacoes||[],ops=dashboard?.operacoes||[],sets=dashboard?.conjuntos||[],drivers=dashboard?.motoristas||[];
     const opName=id=>{const o=ops.find(x=>x.id===id);return o?String(o.nome||o.campos[2]||o.id):id;};
     const setName=id=>{const s=sets.find(x=>x.id===id);return s?String(s.campos[0]||s.id):id;};
     const driverName=id=>{const d=drivers.find(x=>x.id===id);return d?String(d.campos[0]||d.id):id;};
-    const active=parts.filter(p=>String(p.campos[3])==='ATIVO');
+    const active=parts.filter(p=>['ACEITA','ATIVO'].includes(String(p.campos[3]).toUpperCase()));
     const departed=parts.filter(p=>String(p.campos[3])==='SAIU');
     const opOptions='<option value="">Selecione</option>'+ops.filter(o=>['ABERTA','EM_ANDAMENTO'].includes(o.status)).map(o=>'<option value="'+esc(o.id)+'">'+esc(o.nome||o.campos[2]||o.id)+' — saldo '+esc(o.saldo||o.campos[8]||'0')+' t · '+esc(o.viagensRealizadas||0)+'/'+esc(o.viagensPrevistas||0)+' viagens</option>').join('');
     const setOptions='<option value="">Selecione</option>'+sets.filter(s=>s.status==='ATIVO').map(s=>'<option value="'+esc(s.id)+'">'+esc(s.campos[0]||s.id)+'</option>').join('');
     return `
       <div class="page-head"><div><h1>Escalas por operação</h1><p>Gerencie conjuntos designados, remanejamentos e retornos com histórico de auditoria.</p></div></div>
-      <div class="panel"><div class="panel-head"><h2>Aceites aguardando confirmação</h2><span class="muted small">Resposta dos motoristas</span></div><div class="panel-body" id="acceptedOffersAdmin"><div class="empty">Carregando…</div></div></div>
       <div class="notice">Uma designação é por operação, não por viagem. O conjunto só pode estar ativo em uma operação por vez. O saldo diminui pelas toneladas efetivamente registradas.</div>
       <div class="panel"><div class="panel-head"><h2>Conjuntos em operação</h2><span class="muted small">${active.length} participação(ões) ativa(s)</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Operação</th><th>Motorista</th><th>Conjunto</th><th>Início</th><th>Toneladas</th><th>Viagens</th></tr></thead><tbody>${active.length?active.map(p=>'<tr><td>'+esc(opName(p.campos[0]))+'</td><td>'+esc(driverName(p.campos[2]))+'</td><td>'+esc(setName(p.campos[1]))+'</td><td>'+esc(formatDate(String(p.campos[4]||'').slice(0,10)))+'</td><td>'+esc(p.campos[7]||'0')+' t</td><td>'+esc(p.campos[8]||'0')+'</td></tr>').join(''):'<tr><td colspan="6"><div class="empty"><strong>Nenhum conjunto designado</strong>Crie uma operação e use “Ver candidatos” para designar conjuntos.</div></td></tr>'}</tbody></table></div></div></div>
       <div class="grid-two">
-        <div class="panel form-panel"><div class="panel-head"><h2>Proteção da escala confirmada</h2></div><div class="panel-body"><div class="notice"><strong>Após o aceite do motorista, a equipe fica bloqueada para alterações administrativas.</strong><p>Para substituir ou retirar uma convocação ainda pendente, acesse Operações → Detalhes → Gerenciar convocados. Para participações confirmadas, utilize apenas os fluxos operacionais de saída e retorno, preservando o histórico.</p></div></div></div><div class="panel form-panel"><div class="panel-head"><h2>Registrar retorno</h2></div><div class="panel-body"><form onsubmit="submitRetorno(event)"><div class="form-grid">
+        <div class="panel form-panel"><div class="panel-head"><h2>Proteção da escala confirmada</h2></div><div class="panel-body"><div class="notice"><strong>O aceite do motorista confirma sua participação na operação.</strong><p>Bruno pode redistribuir o motorista entre os destinos da mesma operação, sem remover sua participação nem desfazer o aceite. A saída e o retorno continuam registrados nos fluxos operacionais, com histórico preservado.</p></div></div></div><div class="panel form-panel"><div class="panel-head"><h2>Registrar retorno</h2></div><div class="panel-body"><form onsubmit="submitRetorno(event)"><div class="form-grid">
           <div class="field"><label>Operação anterior *</label><select name="operacaoId" required>${opOptions}</select></div>
           <div class="field"><label>Conjunto que saiu *</label><select name="conjuntoId" required>${setOptions}</select></div>
           <div class="field span-2"><label>Motivo do retorno *</label><textarea name="motivo" required maxlength="500"></textarea></div>
@@ -1093,7 +1429,8 @@
   }
 
   function renderOperacoes(){
-    const ops=dashboard?.operacoes||[],parts=dashboard?.participacoesOperacoes||[];
+    const parseOpDate=v=>{if(v instanceof Date)return v.getTime();const t=Date.parse(v||'');return Number.isFinite(t)?t:0;};
+    const ops=[...(dashboard?.operacoes||[])].sort((a,b)=>parseOpDate(b.data||b.campos?.[0])-parseOpDate(a.data||a.campos?.[0])||parseOpDate(b.criado)-parseOpDate(a.criado)),parts=dashboard?.participacoesOperacoes||[];
     const norm=v=>String(v||'').trim().toUpperCase();
     const statusCount=(...values)=>ops.filter(o=>values.includes(norm(o.status))).length;
     const total=ops.length,active=statusCount('EM_ANDAMENTO','EM EXECUCAO','EM EXECUÇÃO'),formation=statusCount('EM_FORMACAO','EM FORMAÇÃO','PENDENTE_REVISAO','PENDENTE REVISÃO'),waiting=statusCount('ABERTA','AGUARDANDO_INICIO','AGUARDANDO INÍCIO'),done=statusCount('CONCLUIDA','CONCLUÍDA','ENCERRADA');
@@ -1110,7 +1447,7 @@
       return `<tr id="op-row-${oid}" class="ops-row" data-search="${esc(search)}" data-status="${esc(status)}">
         <td><button class="ops-name-button" id="details-btn-${oid}" onclick="showDetalhesOperacao('${oid}')"><span class="ops-row-chevron">›</span><strong>${esc(name)}</strong></button></td>
         <td>${esc(periodStart)} <span class="ops-muted">—</span> ${esc(periodEnd)}</td>
-        <td class="ops-route-cell">${esc(o.origem||o.campos?.[3]||'—')} <span class="ops-route-arrow">→</span> ${esc(o.destino||o.campos?.[4]||'—')}</td>
+        <td class="ops-route-cell">${esc(o.origem||o.campos?.[3]||'—')} <span class="ops-route-arrow">→</span> ${esc((o.destinosDetalhados||[]).length?(o.destinosDetalhados||[]).map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):((/^\d+\s+destinos?$/i.test(String(o.destino||o.campos?.[4]||'')))?'Destinos não individualizados — revisar cadastro':(o.destino||o.campos?.[4]||'—')))}</td>
         <td>${esc(o.produto||'—')}</td><td><strong>${esc(o.volumeTotal||o.campos?.[6]||'0')} t</strong></td>
         <td class="ops-center-cell">${setIds.length}</td><td class="ops-center-cell">${driverIds.length}</td>
         <td><strong>${completed} / ${planned}</strong></td><td>${esc(startLabel)}</td><td>${statusBadge(o.status)}</td>
@@ -1347,7 +1684,7 @@
       (parts.length?'<form id="receipt-form-'+esc(id)+'" onsubmit="enviarReciboViagemUI(event,\''+esc(id)+'\')"><div class="form-grid">'+
       '<div class="field"><label>Motorista / participação *</label><select id="receipt-part-'+esc(id)+'" required>'+options+'</select></div>'+
       '<div class="field"><label>Destino *</label><select id="receipt-dest-'+esc(id)+'" required><option value="">Carregando destinos…</option></select></div>'+
-      '<div class="field"><label>Tipo de comprovante *</label><select id="receipt-type-'+esc(id)+'" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option><option value="COMPROVANTE_ENTREGA">Comprovante de entrega</option><option value="OUTRO">Outro</option></select></div>'+
+      '<div class="field"><label>Tipo de comprovante *</label><select id="receipt-type-'+esc(id)+'" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option></select></div>'+
       '<div class="field"><label>Foto do recibo *</label><input id="receipt-file-'+esc(id)+'" type="file" accept="image/*" capture="environment" required><span class="muted small">No celular, abre a câmera. No computador, permite selecionar a imagem.</span></div>'+
       '<div class="field span-2"><label>Observações</label><textarea id="receipt-note-'+esc(id)+'" rows="2" maxlength="1000"></textarea></div></div>'+
       '<div id="receipt-error-'+esc(id)+'" class="error"></div><div class="form-actions"><button id="receipt-submit-'+esc(id)+'" class="btn btn-primary" type="submit">Salvar comprovante</button></div></form>':'<div class="notice">Não há motorista com aceite registrado nesta operação. O comprovante ficará disponível após a confirmação da convocação.</div>')+
@@ -1399,7 +1736,7 @@
     const planned=Number(op.viagensPrevistas||0),done=Number(op.viagensRealizadas||0),pct=planned?Math.min(100,Math.round(done/planned*100)):0;
     const status=String(op.status||'').toUpperCase(),confirmed=parts.some(p=>['ACEITA','ATIVO','SAIU','EM_VIAGEM','RETORNOU'].includes(String(p.campos?.[3]||'').toUpperCase()));
     return '<div class="ops-detail-grid">'+
-      '<section class="ops-info-card"><h3>▣ Dados da Operação</h3>'+[['Cliente',op.cliente],['Período',(formatDate(op.data||op.campos?.[0])||'—')+' a '+(op.prazoEntrega?formatDate(op.prazoEntrega):'—')],['Tipo',op.tipoOperacao||op.campos?.[12]||'—'],['Carga',op.produto||'—'],['Volume',num(op.volumeTotal||op.campos?.[6])+' TON'],['Origem / Destino',(op.origem||op.campos?.[3]||'—')+' → '+(op.destino||op.campos?.[4]||'—')],['Prioridade',op.categoria||'Normal']].map(x=>'<div class="ops-info-line"><span>'+esc(x[0])+'</span><strong>'+esc(x[1]||'—')+'</strong></div>').join('')+'</section>'+
+      '<section class="ops-info-card"><h3>▣ Dados da Operação</h3>'+[['Cliente',op.cliente],['Período',(formatDate(op.data||op.campos?.[0])||'—')+' a '+(op.prazoEntrega?formatDate(op.prazoEntrega):'—')],['Tipo',op.tipoOperacao||op.campos?.[12]||'—'],['Carga',op.produto||'—'],['Volume',num(op.volumeTotal||op.campos?.[6])+' TON'],['Origem / Destinos',(op.origem||op.campos?.[3]||'—')+' → '+((op.destinosDetalhados||[]).length?op.destinosDetalhados.map(d=>[d.cliente,d.local,d.cidadeUf].filter(Boolean).join(' · ')).join(' | '):((/^\d+\s+destinos?$/i.test(String(op.destino||op.campos?.[4]||'')))?'Destinos não individualizados — revisar cadastro':(op.destino||op.campos?.[4]||'—')))],['Prioridade',op.categoria||'Normal']].map(x=>'<div class="ops-info-line"><span>'+esc(x[0])+'</span><strong>'+esc(x[1]||'—')+'</strong></div>').join('')+'</section>'+
       '<section class="ops-info-card"><h3>⚙ Planejamento Automático</h3><div class="ops-info-line"><span>Conjuntos definidos</span><strong>'+sets.length+'</strong></div><div class="ops-info-line"><span>Viagens previstas</span><strong>'+planned+'</strong></div><div class="ops-info-line"><span>Viagens concluídas</span><strong>'+done+'</strong></div><div class="ops-info-line"><span>Capacidade total</span><strong>Não consolidada</strong></div><div class="ops-info-note">A seleção de conjuntos depende de capacidade validada, disponibilidade e compatibilidade documental.</div></section>'+
       '<section class="ops-info-card"><h3>◷ Início da Operação</h3><div class="ops-info-line"><span>Programado</span><strong>'+esc((op.janelaInicio||'—')+' · '+(formatDate(op.data||op.campos?.[0])||'—'))+'</strong></div><div class="ops-info-line"><span>Status</span><strong>'+esc(op.status||'—')+'</strong></div><div class="ops-info-line"><span>Início efetivo</span><strong>—</strong></div><div class="ops-info-note">O início efetivo será mostrado quando o evento for devolvido pelo histórico operacional.</div></section>'+
       '<section class="ops-info-card ops-movement-card"><h3>▱ Movimentação</h3><div class="ops-movement-values"><div><strong>'+num((Number(op.volumeTotal||op.campos?.[6]||0)-Number(op.saldo||op.campos?.[8]||0)))+' TON</strong><small>Realizado</small></div><div><strong>'+num(op.saldo||op.campos?.[8]||0)+' TON</strong><small>Restante</small></div><div><strong>'+pct+'%</strong><small>Progresso por viagens</small></div></div><div class="ops-progress-track"><span style="width:'+pct+'%"></span></div></section>'+
@@ -1416,7 +1753,7 @@
     host.innerHTML='<section class="ops-detail-shell"><div class="ops-detail-heading"><div><span class="ops-detail-symbol">▣</span><strong>'+esc(op.nome||op.campos?.[2]||'Operação')+'</strong><span class="ops-status-pill">'+esc(status.replace(/_/g,' '))+'</span></div><div class="ops-detail-actions"><button class="btn btn-primary" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\'escala\');document.getElementById(\'candidate-list-'+esc(id)+'\')?.scrollIntoView({behavior:\'smooth\',block:\'center\'})">⚙ Gerar Escala</button><button class="btn btn-secondary" onclick="abrirAbaDetalheOperacao(\''+esc(id)+'\',\'equipe\')">♧ Gerenciar convocados</button><span class="ops-confirmed '+(confirmed?'':'is-pending')+'">✓ '+(confirmed?'Escala Confirmada':'Escala não confirmada')+'</span><button class="btn btn-secondary" disabled title="Edição de operação ainda não possui rotina de atualização segura no backend.">✎ Editar</button><button class="btn btn-danger" onclick="confirmarConclusaoCentro(\''+esc(id)+'\')">⚑ Encerrar Operação</button></div></div>'+
       '<nav class="ops-detail-tabs">'+tabs.map(t=>'<button data-op-tab="'+t[0]+'" class="'+(t[0]===activeTab?'active':'')+'" onclick="selecionarAbaOperacao(\''+esc(id)+'\',\''+t[0]+'\')"><span>'+t[1]+'</span>'+t[2]+'</button>').join('')+'</nav>'+
       '<div class="ops-tab-panel" data-op-panel="resumo">'+renderResumoOperacao(id,op,parts,candidates)+'</div>'+
-       '<div class="ops-tab-panel hidden" data-op-panel="escala"><div class="panel" style="display:block!important;width:100%;margin:12px 0;padding:16px;box-sizing:border-box"><h3 style="margin:0 0 6px">1. Escala automática</h3><p style="margin:0 0 14px">'+aptos+' motorista(s)/conjunto(s) apto(s). Informe quantos motoristas esta operação precisa convocar.</p><div style="display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:10px!important;width:100%"><label for="auto-slots-'+esc(id)+'" style="font-weight:700">Quantidade de motoristas</label><input id="auto-slots-'+esc(id)+'" type="number" min="1" max="40" step="1" value="'+Math.max(1,Math.min(40,Number(op.motoristasNecessarios||aptos||1)))+'" style="width:180px;max-width:100%;min-height:42px;padding:8px 12px;box-sizing:border-box;border:1px solid #9db5d1;border-radius:7px;background:#fff;color:#173b66"><button class="btn btn-primary" type="button" style="display:inline-flex!important;visibility:visible!important;opacity:1!important;min-height:42px;padding:10px 18px" onclick="iniciarConvocacaoAutomatica(\''+esc(id)+'\')">Confirmar e iniciar convocação de '+Math.max(1,Math.min(40,Number(op.motoristasNecessarios||aptos||1)))+' motoristas</button></div></div><div class="panel" style="display:block!important;width:100%;margin:12px 0;padding:16px;box-sizing:border-box"><h3 style="margin:0 0 6px">2. Convocação manual de um conjunto</h3><p style="margin:0 0 14px">Use somente se quiser escolher pessoalmente um conjunto. A seleção não envia a oferta; o motorista ainda precisará aceitar.</p><div style="display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:10px!important;width:100%"><label for="add-conjunto-scale-'+esc(id)+'" style="font-weight:700">Conjunto elegível</label><select id="add-conjunto-scale-'+esc(id)+'" style="width:min(100%,520px);min-height:42px;padding:8px 12px;box-sizing:border-box;border:1px solid #9db5d1;border-radius:7px;background:#fff"><option value="">Selecione um conjunto apto</option>'+candidates.filter(x=>x.eligible===true).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.driverName||x.id)+' · '+esc(x.capacity)+' t</option>').join('')+'</select><button class="btn btn-secondary" type="button" style="display:inline-flex!important;visibility:visible!important;opacity:1!important;min-height:42px;padding:10px 18px" '+(candidates.some(x=>x.eligible===true)?'':'disabled')+' onclick="adicionarConvocadoManualUI(\''+esc(id)+'\',true)">Enviar convocação manual</button></div></div><div id="auto-status-'+esc(id)+'"></div><div id="candidate-list-'+esc(id)+'"></div></div>'+
+       '<div class="ops-tab-panel hidden" data-op-panel="escala"><div class="panel" style="display:block!important;width:100%;margin:12px 0;padding:16px;box-sizing:border-box"><h3 style="margin:0 0 6px">1. Prévia da escala por destino</h3><p style="margin:0 0 14px">O sistema distribui os motoristas conforme o volume de cada destino. Revise ou troque os nomes antes de aprovar. Nenhuma convocação é enviada nesta etapa.</p><button class="btn btn-primary" type="button" onclick="gerarPreviaEscalaDestinosUI(\''+esc(id)+'\')">Gerar escala sugerida</button><div id="pre-schedule-'+esc(id)+'" style="margin-top:14px"></div></div><div class="panel" style="display:block!important;width:100%;margin:12px 0;padding:16px;box-sizing:border-box"><h3 style="margin:0 0 6px">2. Convocação manual de um conjunto</h3><p style="margin:0 0 14px">Use somente se quiser escolher pessoalmente um conjunto. A seleção não envia a oferta; o motorista ainda precisará aceitar.</p><div style="display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:10px!important;width:100%"><label for="add-conjunto-scale-'+esc(id)+'" style="font-weight:700">Conjunto elegível</label><select id="add-conjunto-scale-'+esc(id)+'" style="width:min(100%,520px);min-height:42px;padding:8px 12px;box-sizing:border-box;border:1px solid #9db5d1;border-radius:7px;background:#fff"><option value="">Selecione um conjunto apto</option>'+candidates.filter(x=>x.eligible===true).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.driverName||x.id)+' · '+esc(x.capacity)+' t</option>').join('')+'</select><button class="btn btn-secondary" type="button" style="display:inline-flex!important;visibility:visible!important;opacity:1!important;min-height:42px;padding:10px 18px" '+(candidates.some(x=>x.eligible===true)?'':'disabled')+' onclick="adicionarConvocadoManualUI(\''+esc(id)+'\',true)">Enviar convocação manual</button></div></div><div id="auto-status-'+esc(id)+'"></div><div id="candidate-list-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="equipe"><div id="op-equipe-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="viagens"><div id="op-viagens-'+esc(id)+'"></div></div>'+
       '<div class="ops-tab-panel hidden" data-op-panel="pesagens"><div id="op-pesagens-'+esc(id)+'"></div></div>'+
@@ -1440,6 +1777,71 @@
     }).ordenarCandidatosOperacaoFullTime(authToken,id);
   }
 
+  function gerarPreviaEscalaDestinosUI(operacaoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(host)host.innerHTML='<div class="notice">Calculando distribuição e validando elegibilidade…</div>';
+    google.script.run.withSuccessHandler(d=>renderPreviaEscalaDestinosUI(operacaoId,d)).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao gerar prévia.')+'</div>';}).gerarPreviaEscalaDestinosFullTime(authToken,operacaoId);
+  }
+  function renderPreviaEscalaDestinosUI(operacaoId,d){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
+    window.__ftPreEscalaData=window.__ftPreEscalaData||{};window.__ftPreEscalaData[String(operacaoId)]=d;
+    let html='<div class="notice"><strong>Prévia gerada:</strong> <span id="pre-escala-total-'+esc(operacaoId)+'">'+esc(d.quantidadeNecessaria)+'</span> motoristas · '+esc((d.destinos||[]).length)+' destino(s). Defina a quantidade de motoristas em cada destino; o total será recalculado automaticamente. Nada será convocado até sua aprovação.</div>';
+    (d.destinos||[]).forEach(dest=>{
+      const rows=(d.alocacoes||[]).filter(x=>String(x.destinoId)===String(dest.id)),count=Number((d.vagasPorDestino||{})[dest.id]||0);
+      html+='<section class="panel pre-escala-destino" data-destino-card="'+esc(dest.id)+'" style="margin:10px 0;padding:12px"><h4>'+esc(dest.cliente||dest.local)+' · '+esc(dest.volume)+' t</h4><label style="display:block;margin:8px 0;font-weight:600">Quantidade de motoristas neste destino <input type="number" class="pre-escala-count" data-destino="'+esc(dest.id)+'" min="0" max="40" step="1" value="'+count+'" onchange="ajustarVagasDestinoPreviaUI(\''+esc(operacaoId)+'\',\''+esc(dest.id)+'\')" style="display:block;width:110px;min-height:38px;margin-top:5px;padding:6px"></label><div class="pre-escala-slots" data-destino="'+esc(dest.id)+'">';
+      rows.forEach((x,n)=>{html+=FT_PRE_ESCALA_SLOT_HTML_(operacaoId,dest.id,n+1,x.conjuntoId,d.elegiveis);});
+      html+='</div></section>';
+    });
+    html+='<div class="notice" id="pre-escala-count-feedback-'+esc(operacaoId)+'"></div><button class="btn btn-secondary" type="button" onclick="salvarEdicaoPreviaEscalaUI(\''+esc(operacaoId)+'\')">Salvar quantidades e alterações</button> <button class="btn btn-primary" type="button" onclick="aprovarPreviaEscalaUI(\''+esc(operacaoId)+'\')">Aprovar escala e enviar convocações</button>';
+    host.innerHTML=html;atualizarTotalPreEscalaUI(operacaoId);
+  }
+  function FT_PRE_ESCALA_SLOT_HTML_(operacaoId,destinoId,pos,selected,elegiveis){
+    const options=(elegiveis||[]).map(c=>'<option value="'+esc(c.conjuntoId)+'" '+(String(c.conjuntoId)===String(selected)?'selected':'')+'>'+esc(c.nome)+' · '+esc(c.capacidade)+' t</option>').join('');
+    return '<label style="display:block;margin:8px 0">Motorista '+pos+'<select class="pre-escala-select" data-destino="'+esc(destinoId)+'" style="display:block;width:100%;min-height:40px;margin-top:4px"><option value="">Selecione um motorista elegível</option>'+options+'</select></label>';
+  }
+  function ajustarVagasDestinoPreviaUI(operacaoId,destinoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
+    const card=host.querySelector('[data-destino-card="'+CSS.escape(String(destinoId))+'"]');if(!card)return;
+    const input=card.querySelector('.pre-escala-count'),container=card.querySelector('.pre-escala-slots'),data=(window.__ftPreEscalaData||{})[String(operacaoId)];
+    let count=Math.floor(Number(input.value));if(!Number.isFinite(count)||count<0||count>40){input.value=Math.max(0,Math.min(40,Number(input.value)||0));count=Number(input.value);}
+    const selected=Array.from(container.querySelectorAll('.pre-escala-select')).map(x=>x.value);
+    while(selected.length<count)selected.push('');
+    selected.length=count;
+    container.innerHTML=selected.map((v,i)=>FT_PRE_ESCALA_SLOT_HTML_(operacaoId,destinoId,i+1,v,data?.elegiveis||[])).join('');
+    atualizarTotalPreEscalaUI(operacaoId);
+  }
+  function atualizarTotalPreEscalaUI(operacaoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(!host)return;
+    const total=Array.from(host.querySelectorAll('.pre-escala-count')).reduce((n,x)=>n+Math.max(0,Math.floor(Number(x.value)||0)),0);
+    const label=document.getElementById('pre-escala-total-'+operacaoId);if(label)label.textContent=String(total);
+    const fb=document.getElementById('pre-escala-count-feedback-'+operacaoId);
+    if(fb)fb.textContent=total<1?'Defina pelo menos um motorista.':total>40?'O limite operacional é de 40 motoristas por operação.':'Total definido: '+total+' motorista(s).';
+  }
+  function coletarPreviaEscalaUI(operacaoId){
+    const host=document.getElementById('pre-schedule-'+operacaoId),vagasPorDestino={},alocacoes=[];
+    (host?.querySelectorAll('.pre-escala-count')||[]).forEach(x=>vagasPorDestino[x.dataset.destino]=Math.floor(Number(x.value)||0));
+    (host?.querySelectorAll('.pre-escala-select')||[]).forEach(x=>alocacoes.push({destinoId:x.dataset.destino,conjuntoId:x.value}));
+    return {alocacoes:alocacoes,vagasPorDestino:vagasPorDestino};
+  }
+  function salvarEdicaoPreviaEscalaUI(operacaoId){
+    const picked=coletarPreviaEscalaUI(operacaoId),data={operacaoId:operacaoId,alocacoes:picked.alocacoes.filter(x=>x.conjuntoId),vagasPorDestino:picked.vagasPorDestino};
+    const total=Object.values(data.vagasPorDestino).reduce((n,x)=>n+Number(x||0),0);
+    if(data.alocacoes.length!==total){toast('Preencha todas as vagas definidas por destino.',true);return;}
+    const ids=data.alocacoes.map(x=>x.conjuntoId);if(new Set(ids).size!==ids.length){toast('Cada motorista pode ocupar apenas uma vaga.',true);return;}
+    google.script.run.withSuccessHandler(res=>{toast(res.message||'Prévia salva.');obterPreviaEscalaDestinosUI(operacaoId);}).withFailureHandler(e=>toast(e.message||'Falha ao salvar prévia.',true)).salvarEdicaoPreviaEscalaFullTime(authToken,data);
+  }
+  function obterPreviaEscalaDestinosUI(operacaoId){
+    google.script.run.withSuccessHandler(d=>renderPreviaEscalaDestinosUI(operacaoId,d)).withFailureHandler(e=>toast(e.message||'Falha ao recuperar prévia.',true)).obterPreviaEscalaDestinosFullTime(authToken,operacaoId);
+  }
+  async function aprovarPreviaEscalaUI(operacaoId){
+    const picked=coletarPreviaEscalaUI(operacaoId),data={operacaoId:operacaoId,alocacoes:picked.alocacoes.filter(x=>x.conjuntoId),vagasPorDestino:picked.vagasPorDestino};
+    const total=Object.values(data.vagasPorDestino).reduce((n,x)=>n+Number(x||0),0);
+    if(data.alocacoes.length!==total){toast('Preencha todas as vagas definidas por destino.',true);return;}
+    const ids=data.alocacoes.map(x=>x.conjuntoId);if(new Set(ids).size!==ids.length){toast('Cada motorista pode ocupar apenas uma vaga.',true);return;}
+    const ok=await uiConfirm('A escala terá '+total+' motorista(s), conforme as quantidades definidas por destino. Ao aprovar, as convocações serão enviadas e os aceites dos motoristas ficarão protegidos contra remoção ou substituição. Confirma?',{title:'Aprovar escala e convocar',ok:'Aprovar e enviar'});
+    if(!ok)return;
+    const host=document.getElementById('pre-schedule-'+operacaoId);if(host)host.innerHTML='<div class="notice">Salvando a revisão e preparando as convocações…</div>';
+    google.script.run.withSuccessHandler(()=>google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>Escala aprovada.</strong> Ofertas iniciais enviadas: '+esc(res.ofertasIniciais||0)+' · Elegíveis na fila: '+esc(res.totalElegiveis||0)+'.</div>';toast(res.message||'Escala aprovada.');}).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao aprovar escala.')+'</div>';toast(e.message||'Falha ao aprovar escala.',true);}).aprovarPreviaEscalaDestinosFullTime(authToken,operacaoId)).withFailureHandler(e=>{if(host)host.innerHTML='<div class="notice error">'+esc(e.message||'Falha ao salvar a revisão.')+'</div>';toast(e.message||'Falha ao salvar a revisão.',true);}).salvarEdicaoPreviaEscalaFullTime(authToken,data);
+  }
   async function iniciarConvocacaoAutomatica(operacaoId){
     const host=document.getElementById('auto-status-'+operacaoId);
     const button=document.querySelector('#auto-status-'+operacaoId)?.previousElementSibling?.querySelector('button')
@@ -1543,7 +1945,7 @@
   // Recupera o perfil no servidor antes de escolher o painel. Nunca presume ADMIN.
   if(authToken){
     document.getElementById('loginView').classList.add('hidden');
-    document.getElementById('appView').classList.remove('hidden');
+    // Mantém o shell oculto até o servidor confirmar o perfil. Evita qualquer flash de navegação administrativa.
     google.script.run.withSuccessHandler(res=>{
       if(!res||!res.user)throw new Error('Resposta de sessão inválida.');
       currentUser=res.user;

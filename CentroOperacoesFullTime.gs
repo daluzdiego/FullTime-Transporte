@@ -52,6 +52,12 @@ function obterCentroOperacoesFullTime(token) {
   const trailers=FT_CENTRO_rows_('CARRETAS');
   const sets=FT_CENTRO_rows_('CONJUNTOS');
   const destinations=FT_CENTRO_rows_('DESTINOS_OPERACAO');
+  let allocationRows=[];try{
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    if(registryId){const allocationSheet=SpreadsheetApp.openById(registryId).getSheetByName('ALOCACAO_DESTINOS');if(allocationSheet&&allocationSheet.getLastRow()>1){const headers=allocationSheet.getRange(1,1,1,allocationSheet.getLastColumn()).getDisplayValues()[0],ix={};headers.forEach((v,i)=>{const k=FT_CENTRO_norm_(v);if(k&&ix[k]===undefined)ix[k]=i;});allocationRows=allocationSheet.getRange(2,1,allocationSheet.getLastRow()-1,allocationSheet.getLastColumn()).getValues().map(row=>{const o={};Object.keys(ix).forEach(k=>o[k]=row[ix[k]]);return o;}).filter(x=>String(x.STATUS||'').toUpperCase()==='ATIVA');}}
+  }catch(e){console.warn('FULL TIME — alocações do Centro indisponíveis: '+String(e&&e.message||e));}
+  const allocationByParticipation=Object.create(null);allocationRows.forEach(x=>{allocationByParticipation[String(x.PARTICIPACAO_ID||'')]=x;});
+  const destinationById=Object.fromEntries(destinations.map(x=>[String(x.ID||''),x]));
   const byId=a=>Object.fromEntries(a.map(x=>[String(x.ID||''),x]));
   const dBy=byId(drivers),hBy=byId(horses),tBy=byId(trailers),sBy=byId(sets);
   const partById=byId(parts);
@@ -81,14 +87,26 @@ function obterCentroOperacoesFullTime(token) {
       const destId=String(d.ID||'');
       const delivered=operationMoves.filter(m=>String(m.ID_DESTINO||'')===destId).reduce((n,m)=>n+FT_CENTRO_num_(m.TONELADAS),0);
       const destPlanned=FT_CENTRO_num_(d.VOLUME_PREVISTO_TONELADAS);
-      return {id:destId,cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),status:String(d.STATUS||'')};
+      return {id:destId,ordem:FT_CENTRO_num_(d.ORDEM_ENTREGA),cliente:String(d.CLIENTE_DESTINO||''),local:String(d.LOCAL_ENTREGA||''),cidadeUf:String(d.CIDADE_UF||''),previsto:destPlanned,carregado:delivered,falta:Math.max(0,destPlanned-delivered),excedente:Math.max(0,delivered-destPlanned),percentual:destPlanned>0?Math.min(100,delivered/destPlanned*100):0,status:String(d.STATUS||'')};
     });
     return {id,nome:String(o.NOME_OPERACAO||''),cliente:String(o.CLIENTE||''),status:String(o.STATUS||''),data:String(o.DATA_OPERACAO||''),origem:String(o.ORIGEM||''),destino:String(o.DESTINO||''),distanciaKm:FT_CENTRO_num_(o.DISTANCIA_KM),produto:String(o.PRODUTO_SERVICO||o.PRODUTO||''),volumeTotal:planned,toneladasMovimentadas:moved,saldo:remaining,excedente:overrun,percentualCarregado:progress.percentual,viagensPrevistas:FT_CENTRO_num_(o.TOTAL_VIAGENS_PREVISTAS),viagensRealizadas:trips,conjuntos:related.map(p=>{
       const sid=String(p.CONJUNTO_ID||''),s=sBy[sid]||{},did=String(s.MOTORISTA_ID||p.MOTORISTA_ID||''),h=hBy[String(s.CAVALO_ID||'')]||{},t1=tBy[String(s.CARRETA_MEIO_ID||'')]||{},t2=tBy[String(s.CARRETA_FINAL_ID||'')]||{};
       const trailerTare=FT_CENTRO_num_(t1.TARA_TONELADAS)+FT_CENTRO_num_(t2.TARA_TONELADAS);
       const trailerCap=FT_CENTRO_num_(t1.CAPACIDADE_CARGA_TONELADAS)+FT_CENTRO_num_(t2.CAPACIDADE_CARGA_TONELADAS);
-      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,cavaloPlaca:String(h.PLACA||''),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||'')};
+      const allocation=allocationByParticipation[String(p.ID||'')],assignedDestination=allocation?destinationById[String(allocation.DESTINO_ID||'')]:null;
+      const driverMoves=operationMoves.filter(m=>String(m.PARTICIPACAO_ID||'')===String(p.ID||'')||(!m.PARTICIPACAO_ID&&String(m.CONJUNTO_ID||'')===sid)).sort((a,b)=>String(a.DATA_HORA||a.DATA_MOVIMENTACAO||'').localeCompare(String(b.DATA_HORA||b.DATA_MOVIMENTACAO||'')));
+      const tripPlan=FT_CENTRO_num_(p.VIAGENS_PREVISTAS||p.QUANTIDADE_VIAGENS_PREVISTAS||p.META_VIAGENS||p.TOTAL_VIAGENS_PREVISTAS);
+      const tripRows=driverMoves.map((m,index)=>{
+        const dest=destinationById[String(m.ID_DESTINO||'')]||{};
+        const completed=String(m.VIAGEM_CONCLUIDA||'').toUpperCase()==='SIM'||FT_CENTRO_num_(m.QUANTIDADE_VIAGENS)>0;
+        return {numero:index+1,dataHora:String(m.DATA_HORA||m.DATA_MOVIMENTACAO||m.CRIADO_EM||m.REGISTRADO_EM||''),origem:String(m.ORIGEM||o.ORIGEM||''),destino:[dest.CLIENTE_DESTINO,dest.LOCAL_ENTREGA,dest.CIDADE_UF].filter(Boolean).join(' · ')||String(m.DESTINO||''),toneladas:FT_CENTRO_num_(m.TONELADAS),status:completed?'CONCLUIDA':'AGUARDANDO_DESCARGA'};
+      });
+      const completedTrips=tripRows.filter(x=>x.status==='CONCLUIDA').length;
+      return {participacaoId:String(p.ID||''),conjuntoId:sid,motorista:dBy[did]?.NOME_COMPLETO||did,destinoAlocado:assignedDestination?{id:String(assignedDestination.ID||''),cliente:String(assignedDestination.CLIENTE_DESTINO||''),local:String(assignedDestination.LOCAL_ENTREGA||''),cidadeUf:String(assignedDestination.CIDADE_UF||''),toneladasReferencia:FT_CENTRO_num_(allocation.TONELADAS_REFERENCIA)}:null,cavaloPlaca:String(h.PLACA||''),carretaMeio:String(t1.PLACA||''),carretaFinal:String(t2.PLACA||''),carretasTara:trailerTare,carretasCapacidade:trailerCap,taraTotal:FT_CENTRO_num_(h.TARA_TONELADAS)+trailerTare,capacidadeUtil:FT_CENTRO_num_(s.CAPACIDADE_UTIL_TONELADAS),toneladasCarregadas:FT_CENTRO_num_(p.TONELADAS_MOVIMENTADAS),status:String(p.STATUS_PARTICIPACAO||''),saida:String(p.SAIDA_EM||''),retorno:String(p.RETORNO_EM||''),viagens:tripRows,viagensConcluidas:completedTrips,viagensPrevistasMotorista:tripPlan,viagensFaltantesMotorista:tripPlan>0?Math.max(0,tripPlan-completedTrips):null};
     }),motoristas:Object.values(driverMap).sort((a,b)=>b.toneladas-a.toneladas),destinos:opDestinations};
+  }).sort((a,b)=>{
+    const ta=new Date(a.data||0).getTime(),tb=new Date(b.data||0).getTime();
+    return (isFinite(tb)?tb:0)-(isFinite(ta)?ta:0);
   });
   const totalTon=currentOps.reduce((n,o)=>n+o.toneladasMovimentadas,0);
   return {user:session,atualizadoEm:new Date().toISOString(),indicadores:{operacoesAtuais:currentOps.filter(o=>['ABERTA','EM_ANDAMENTO','EM_EXECUCAO','EM TRANSPORTE'].includes(o.status.toUpperCase())).length,conjuntosEmOperacao:currentOps.reduce((n,o)=>n+o.conjuntos.length,0),viagensPendentes:currentOps.reduce((n,o)=>n+Math.max(0,o.viagensPrevistas-o.viagensRealizadas),0),toneladasMovimentadas:totalTon,volumePrevisto:currentOps.reduce((n,o)=>n+o.volumeTotal,0),volumeRestante:currentOps.reduce((n,o)=>n+o.saldo,0)},operacoes:currentOps};

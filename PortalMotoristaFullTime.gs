@@ -72,6 +72,18 @@ function FT_MOTORISTA_dataIso_(value) {
   return isFinite(parsed.getTime()) ? parsed.toISOString() : String(value);
 }
 
+function FT_MOTORISTA_horaChave_(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  if (value instanceof Date) return isFinite(value.getTime()) ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'HH:mm') : '';
+  if (typeof value === 'number' && isFinite(value)) {
+    const minutes = Math.round((((value % 1) + 1) % 1) * 1440);
+    return String(Math.floor(minutes / 60) % 24).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+  }
+  const text = String(value).trim();
+  const match = text.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2})?/);
+  return match ? String(Number(match[1])).padStart(2, '0') + ':' + match[2] : text;
+}
+
 function FT_MOTORISTA_dataChave_(value) {
   if (value === '' || value === null || value === undefined) return '';
   if (value instanceof Date) {
@@ -178,6 +190,29 @@ function obterPortalMotoristaFullTime(token) {
 
   const operationRows = operationsSheet.getDataRange().getValues();
   const operationsById = Object.create(null);
+  let destinationsByOperation = Object.create(null);
+  try {
+    const destinationSheet = getSheet_('DESTINOS_OPERACAO');
+    if (destinationSheet && destinationSheet.getLastRow() > 1) {
+      const destinationMap = FT_MOTORISTA_headerMap_(destinationSheet);
+      const destinationRows = destinationSheet.getDataRange().getValues().slice(1);
+      destinationRows.forEach(row => {
+        const operationId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'OPERACAO_ID'));
+        if (!operationId) return;
+        (destinationsByOperation[operationId] = destinationsByOperation[operationId] || []).push({
+          id: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'ID')),
+          ordem: Number(FT_MOTORISTA_valor_(row, destinationMap, 'ORDEM_ENTREGA', 0)) || 0,
+          cliente: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'CLIENTE_DESTINO')),
+          local: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'LOCAL_ENTREGA')),
+          cidadeUf: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, destinationMap, 'CIDADE_UF')),
+          volume: Number(FT_MOTORISTA_valor_(row, destinationMap, 'VOLUME_PREVISTO_TONELADAS', 0)) || 0
+        });
+      });
+      Object.keys(destinationsByOperation).forEach(id => destinationsByOperation[id].sort((a,b) => a.ordem-b.ordem));
+    }
+  } catch (destinationError) {
+    console.warn('FULL TIME — destinos detalhados indisponíveis: ' + String(destinationError && destinationError.message || destinationError));
+  }
 
   operationRows.slice(1).forEach(row => {
     const id = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'ID'));
@@ -193,16 +228,27 @@ function obterPortalMotoristaFullTime(token) {
       nome: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'NOME_OPERACAO')),
       origem: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'ORIGEM')),
       destino: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'DESTINO')),
+      destinos: destinationsByOperation[id] || [],
       produto: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, operationMap, 'PRODUTO_SERVICO')),
       distanciaKm: FT_MOTORISTA_valor_(row, operationMap, 'DISTANCIA_KM'),
       dataEntrega: FT_MOTORISTA_valor_(row, operationMap, 'DATA_ENTREGA'),
-      janelaInicio: FT_MOTORISTA_valor_(row, operationMap, 'JANELA_INICIO'),
-      janelaFim: FT_MOTORISTA_valor_(row, operationMap, 'JANELA_FIM'),
+      janelaInicio: FT_MOTORISTA_horaChave_(FT_MOTORISTA_valor_(row, operationMap, 'JANELA_INICIO')),
+      janelaFim: FT_MOTORISTA_horaChave_(FT_MOTORISTA_valor_(row, operationMap, 'JANELA_FIM')),
       tempoEstimadoHoras: FT_MOTORISTA_valor_(row, operationMap, 'TEMPO_ESTIMADO_HORAS'),
       volume: Number(FT_MOTORISTA_valor_(row, operationMap, 'VOLUME_TOTAL_TONELADAS', 0)) || 0
     };
   });
 
+
+  const allocationByParticipation = Object.create(null);
+  try {
+    const registryId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+    if(registryId){
+      const registry=SpreadsheetApp.openById(registryId),as=registry.getSheetByName('ALOCACAO_DESTINOS'),ds=registry.getSheetByName('DESTINOS_OPERACAO');
+      if(as&&as.getLastRow()>1){const am=FT_MOTORISTA_headerMap_(as);as.getDataRange().getValues().slice(1).forEach(r=>{if(FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'STATUS')).toUpperCase()!=='ATIVA')return;const pid=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'PARTICIPACAO_ID')),did=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,am,'DESTINO_ID'));if(pid&&did)allocationByParticipation[pid]={destinoId:did,toneladasReferencia:Number(FT_MOTORISTA_valor_(r,am,'TONELADAS_REFERENCIA',0))||0};});}
+      if(ds&&ds.getLastRow()>1){const dm=FT_MOTORISTA_headerMap_(ds);ds.getDataRange().getValues().slice(1).forEach(r=>{const did=FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'ID'));Object.keys(allocationByParticipation).forEach(pid=>{const x=allocationByParticipation[pid];if(x.destinoId===did)x.destino={cliente:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'CLIENTE_DESTINO')),local:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'LOCAL_ENTREGA')),cidadeUf:FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(r,dm,'CIDADE_UF')),volume:Number(FT_MOTORISTA_valor_(r,dm,'VOLUME_PREVISTO_TONELADAS',0))||0};});});}
+    }
+  } catch(e){console.warn('FULL TIME — alocação individual indisponível: '+String(e&&e.message||e));}
   const now = Date.now();
   const offers = ownRows.map(row => {
     const offerId = FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, participationMap, 'ID'));
@@ -222,8 +268,8 @@ function obterPortalMotoristaFullTime(token) {
     const hasScheduleSnapshot = !!snapshotDate;
     const scheduleChanged = hasScheduleSnapshot && (
       snapshotDate !== FT_MOTORISTA_texto_(operation.dataKey) ||
-      snapshotStart !== FT_MOTORISTA_texto_(operation.janelaInicio) ||
-      snapshotEnd !== FT_MOTORISTA_texto_(operation.janelaFim)
+      FT_MOTORISTA_horaChave_(snapshotStart) !== FT_MOTORISTA_horaChave_(operation.janelaInicio) ||
+      FT_MOTORISTA_horaChave_(snapshotEnd) !== FT_MOTORISTA_horaChave_(operation.janelaFim)
     );
 
     const rawExpiry = FT_MOTORISTA_valor_(row, participationMap, 'EXPIRA_EM');
@@ -248,6 +294,8 @@ function obterPortalMotoristaFullTime(token) {
     return {
       id: offerId,
       ofertaId: offerId,
+      participacaoId: offerId,
+      motoristaId: motoristaId,
       operacaoId: operationId,
       status: status,
       criadaEm: FT_MOTORISTA_dataIso_(createdAt),
@@ -262,6 +310,7 @@ function obterPortalMotoristaFullTime(token) {
       ),
       operacao: operation,
       conjuntoId: FT_MOTORISTA_texto_(FT_MOTORISTA_valor_(row, participationMap, 'CONJUNTO_ID')),
+      destinoAlocado: allocationByParticipation[offerId] || null,
       eventos: []
     };
   }).filter(offer => offer.id);
@@ -556,9 +605,16 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       sheet.getRange(rowNumber, map.MOTIVO + 1).setValue(note);
     }
 
-    // ACEITA ainda não significa ATIVO. A ativação é uma ação administrativa posterior.
+    // O aceite do motorista é definitivo para a escala; não exige segunda aprovação administrativa.
     if (decision === 'RECUSADA') {
       FT_colocarMotoristaNoFinalDaFila_(motoristaId, 'recusou a convocação');
+    } else if (typeof FT_ESCALA_REGISTRAR_ACEITE_ === 'function') {
+      // O aceite entra imediatamente na escala e recebe o destino reservado na pré-escala.
+      const linked = FT_ESCALA_REGISTRAR_ACEITE_(operationId, {
+        ID: offerId, OPERACAO_ID: operationId, MOTORISTA_ID: ownerId,
+        CONJUNTO_ID: conjuntoId, STATUS_PARTICIPACAO: 'ACEITA'
+      });
+      if (!linked) console.warn('FULL TIME — aceite registrado; vínculo de destino será reconciliado pela fila automática.', offerId);
     }
 
     FT_CONV_appendEvent_({
@@ -569,7 +625,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       anterior: 'OFERTADA',
       nova: newStatus,
       motivo: note || (decision === 'ACEITA'
-        ? 'Motorista aceitou a convocação; aguardando confirmação administrativa.'
+        ? 'Motorista aceitou a convocação; aceite definitivo registrado automaticamente.'
         : 'Motorista recusou a convocação; reposicionado ao final da fila.'),
       autor: session.email || session.login || 'PORTAL_MOTORISTA',
       ofertaId: offerId
@@ -588,7 +644,7 @@ function responderOfertaMotoristaFullTime(token, ofertaId, resposta, observacao)
       ofertaId: offerId,
       status: newStatus,
       message: decision === 'ACEITA'
-        ? 'Aceite registrado. Aguarde a confirmação da escala pela administração.'
+        ? 'Aceite confirmado. Sua participação na operação está registrada.'
         : 'Recusa registrada. O motorista voltou ao final da fila de convocação.'
     };
   } finally {

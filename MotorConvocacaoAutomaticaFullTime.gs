@@ -21,18 +21,43 @@ function FT_colocarMotoristaNoFinalDaFila_(motoristaId, motivo){
 
 
 /** Agenda vigente da operação; ofertas antigas deixam de valer quando data/horário mudam. */
+/** Normaliza horas de células Sheets (Date, texto ou fração numérica) para HH:mm. */
+function FT_AUTO_horaChaveOferta_(value){
+ if(value===null||value===undefined||value==='')return '';
+ if(value instanceof Date&&isFinite(value.getTime()))return Utilities.formatDate(value,Session.getScriptTimeZone(),'HH:mm');
+ if(typeof value==='number'&&isFinite(value)){
+  const mins=Math.round(((value%1)+1)%1*1440);
+  return String(Math.floor(mins/60)%24).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+ }
+ const raw=String(value).trim();if(!raw)return '';
+ const match=raw.match(/(?:^|\s|T)(\d{1,2}):(\d{2})(?::\d{2})?/);
+ if(match)return String(Number(match[1])).padStart(2,'0')+':'+match[2];
+ return raw;
+}
 function FT_AUTO_agendaAtual_(opId){
  const sh=getSheet_('OPERACOES'),m=FT_AUTO_MAP_(sh),rows=sh.getDataRange().getValues();
  const r=rows.slice(1).find(x=>String(x[m.ID]||'')===String(opId));
  if(!r)throw new Error('Operação não encontrada para validar a agenda.');
- const date=r[m.DATA_OPERACAO] instanceof Date?Utilities.formatDate(r[m.DATA_OPERACAO],Session.getScriptTimeZone(),'yyyy-MM-dd'):String(r[m.DATA_OPERACAO]||'').slice(0,10);
- return {data:date,horario:String(r[m.JANELA_INICIO]||'').trim(),fim:String(r[m.JANELA_FIM]||'').trim()};
+ const date=FT_AUTO_dataChaveOferta_(r[m.DATA_OPERACAO]);
+ return {data:date,horario:FT_AUTO_horaChaveOferta_(r[m.JANELA_INICIO]),fim:FT_AUTO_horaChaveOferta_(r[m.JANELA_FIM])};
+}
+function FT_AUTO_dataChaveOferta_(value){
+ if(value instanceof Date && isFinite(value.getTime())) return Utilities.formatDate(value,Session.getScriptTimeZone(),'yyyy-MM-dd');
+ if(typeof value==='number'&&isFinite(value)){
+  const d=new Date(Math.round((value-25569)*86400000));
+  return Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd');
+ }
+ const raw=String(value==null?'':value).trim();
+ if(!raw)return '';
+ if(/^\d{4}-\d{2}-\d{2}/.test(raw))return raw.slice(0,10);
+ const parsed=new Date(raw);
+ return isFinite(parsed.getTime())?Utilities.formatDate(parsed,Session.getScriptTimeZone(),'yyyy-MM-dd'):raw.slice(0,10);
 }
 function FT_AUTO_agendaOfertaIgual_(row,map,agenda){
- const d=map.DATA_OPERACAO_OFERTA===undefined?'':String(row[map.DATA_OPERACAO_OFERTA]||'').slice(0,10);
- const h=map.HORARIO_OPERACAO_OFERTA===undefined?'':String(row[map.HORARIO_OPERACAO_OFERTA]||'').trim();
- const f=map.JANELA_FIM_OFERTA===undefined?'':String(row[map.JANELA_FIM_OFERTA]||'').trim();
- return !!d&&d===agenda.data&&h===agenda.horario&&f===agenda.fim;
+ const d=map.DATA_OPERACAO_OFERTA===undefined?'':FT_AUTO_dataChaveOferta_(row[map.DATA_OPERACAO_OFERTA]);
+ const h=map.HORARIO_OPERACAO_OFERTA===undefined?'':FT_AUTO_horaChaveOferta_(row[map.HORARIO_OPERACAO_OFERTA]);
+ const f=map.JANELA_FIM_OFERTA===undefined?'':FT_AUTO_horaChaveOferta_(row[map.JANELA_FIM_OFERTA]);
+ return !!d&&d===String(agenda.data||'').slice(0,10)&&h===FT_AUTO_horaChaveOferta_(agenda.horario)&&f===FT_AUTO_horaChaveOferta_(agenda.fim);
 }
 function FT_AUTO_prepararCabecalhosAgenda_(sh){
  const required=['DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'];
@@ -42,26 +67,39 @@ function FT_AUTO_prepararCabecalhosAgenda_(sh){
  return FT_AUTO_MAP_(sh);
 }
 
-/** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 6 horas. */
+/** FULL TIME — FILA AUTOMÁTICA DE CONVOCAÇÃO. Prazo de resposta: 2 horas. */
 const FT_AUTO_PROP_='FT_AUTO_QUEUES_V1';
-const FT_AUTO_TTL_=6*60*60*1000;
+const FT_AUTO_TTL_=2*60*60*1000;
 function FT_AUTO_MAP_(s){const h=s.getRange(1,1,1,s.getLastColumn()).getDisplayValues()[0],m={};h.forEach((v,i)=>{const k=String(v||'').trim().toUpperCase();if(k&&m[k]===undefined)m[k]=i;});return m;}
 function FT_AUTO_READ_(){return JSON.parse(PropertiesService.getScriptProperties().getProperty(FT_AUTO_PROP_)||'{}');}
 function FT_AUTO_WRITE_(q){PropertiesService.getScriptProperties().setProperty(FT_AUTO_PROP_,JSON.stringify(q));}
 function FT_AUTO_TRIGGER_(){if(!ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='FT_processarFilasConvocacaoAutomatica'))ScriptApp.newTrigger('FT_processarFilasConvocacaoAutomatica').timeBased().everyMinutes(1).create();}
 function FT_iniciarConvocacaoAutomaticaFullTime(token,data){
- const u=obterSessao_(token);exigirAdmin_(u);data=data||{};const opId=texto_(data.operacaoId,100),vagas=Math.floor(Number(data.vagas||0));
+ const u=obterSessao_(token);exigirAdmin_(u);data=data||{};
+ const opId=texto_(data.operacaoId,100),vagas=Math.floor(Number(data.vagas||0));
  if(!opId||vagas<1||vagas>40)throw new Error('Informe operação e vagas entre 1 e 40.');
+ if(data.preEscalaAprovada!==true||!data.rascunhoId||!Array.isArray(data.selecao)||data.selecao.length!==vagas)throw new Error('A convocação exige pré-escala revisada e aprovada.');
+ const draft=FT_ESCALA_READ_(opId);
+ if(!draft||draft.id!==String(data.rascunhoId)||draft.status!=='RASCUNHO')throw new Error('Pré-escala não está pendente de aprovação.');
+ if(Number(draft.quantidadeNecessaria)!==vagas||draft.alocacoes.length!==vagas)throw new Error('A quantidade aprovada não corresponde à pré-escala salva.');
+ const selected=data.selecao.map(String);
+ if(new Set(selected).size!==selected.length)throw new Error('Há conjuntos duplicados na pré-escala.');
+ const approved=new Set((draft.alocacoes||[]).map(x=>String(x.conjuntoId)));if(selected.some(id=>!approved.has(id))||approved.size!==selected.length)throw new Error('A seleção enviada não corresponde aos motoristas aprovados por Bruno.');
  const lock=LockService.getScriptLock();lock.waitLock(20000);let q;
  try{
-  const all=FT_AUTO_READ_();if(all[opId]?.status==='EM_ANDAMENTO'){FT_AUTO_RECONCILIAR_FILA_(opId,all[opId]);if(all[opId]?.status==='EM_ANDAMENTO')throw new Error('Já existe fila automática ativa para esta operação, com oferta aguardando resposta.');FT_AUTO_WRITE_(all);}
-  const analise=ordenarCandidatosOperacaoFullTime(token,opId);const candidatos=analise.filter(c=>c.eligible===true);if(!candidatos.length)throw new Error('Nenhum conjunto elegível. Confira a regularização dos motoristas e documentos antes de convocar.');
-  const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),or=os.getDataRange().getValues(),op=or.slice(1).find(r=>String(r[om.ID])===opId);
+  const all=FT_AUTO_READ_();
+  if(all[opId]&&all[opId].status==='EM_ANDAMENTO'){FT_AUTO_RECONCILIAR_FILA_(opId,all[opId]);if(all[opId].status==='EM_ANDAMENTO')throw new Error('Já existe fila automática ativa.');FT_AUTO_WRITE_(all);}
+  const eligible=ordenarCandidatosOperacaoFullTime(token,opId).filter(c=>c.eligible===true),byId=Object.fromEntries(eligible.map(c=>[String(c.id),c]));
+  const first=selected.map(id=>{if(!byId[id])throw new Error('Conjunto aprovado deixou de estar elegível. Gere nova prévia.');return byId[id];});
+  const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),rows=os.getDataRange().getValues(),op=rows.slice(1).find(r=>String(r[om.ID])===opId);
   if(!op||!['ABERTA','EM_ANDAMENTO'].includes(String(op[om.STATUS]).toUpperCase()))throw new Error('Operação não está aberta.');
-  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas,lista:candidatos.map(c=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:c.posicao})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO'};
-  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();
+  if(om.MOTORISTAS_NECESSARIOS===undefined){om.MOTORISTAS_NECESSARIOS=os.getLastColumn();os.getRange(1,om.MOTORISTAS_NECESSARIOS+1).setValue('MOTORISTAS_NECESSARIOS');}os.getRange(rows.findIndex(r=>String(r[om.ID])===opId)+1,om.MOTORISTAS_NECESSARIOS+1).setValue(vagas);
+  const ordered=first.concat(eligible.filter(c=>selected.indexOf(String(c.id))<0));
+  q={id:'AUTO-'+Utilities.getUuid(),operacaoId:opId,vagas:vagas,lista:ordered.map((c,i)=>({conjuntoId:String(c.id),motoristaId:String(c.driverId),nome:String(c.driverName||''),posicao:i+1,destinoId:(draft.alocacoes.find(x=>String(x.conjuntoId)===String(c.id))||{}).destinoId||''})),cursor:0,aceitas:0,pendentes:[],status:'EM_ANDAMENTO',preEscalaId:draft.id};
+  all[opId]=q;FT_AUTO_WRITE_(all);FT_AUTO_TRIGGER_();FT_AUTO_AGENDAR_LEMBRETES_EMAIL_();
  }finally{lock.releaseLock();}
- const r=FT_processarFilasConvocacaoAutomatica();return {ok:true,id:q.id,vagas,totalElegiveis:q.lista.length,ofertasIniciais:r.ofertasCriadas||0,message:'Fila iniciada. Prazo de 6 horas por oferta; aceite ativa a escala e recusa/expiração chama o próximo elegível.'};
+ const result=FT_processarFilasConvocacaoAutomatica();
+ return {ok:true,id:q.id,vagas:vagas,totalElegiveis:q.lista.length,ofertasIniciais:result.ofertasCriadas||0,message:'Escala aprovada; convocações iniciais enviadas.'};
 }
 
 /** Reconcilia fila persistida com o estado efetivo das ofertas na planilha. */
@@ -83,8 +121,8 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
    if(!isFinite(ex)||ex<=Date.now()){
     sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
     if(m.RESPONDIDA_EM!==undefined&&!r[m.RESPONDIDA_EM])sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(new Date());
-    st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
-    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
+    st='NAO_RESPONDEU';r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+    if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_RECONCILIACAO',ofertaId:r[m.ID]});
    }
   }
   if(String(r[m.ORIGEM_OFERTA]||'')!=='FILA_AUTOMATICA')return;
@@ -100,7 +138,7 @@ function FT_AUTO_RECONCILIAR_FILA_(opId,q){
 
 function FT_AUTO_AGENDAR_LEMBRETES_EMAIL_(){
  if(!ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='FT_processarLembretesEmailConvocacao_'))
-  ScriptApp.newTrigger('FT_processarLembretesEmailConvocacao_').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('FT_processarLembretesEmailConvocacao_').timeBased().everyMinutes(30).create();
 }
 function FT_processarLembretesEmailConvocacao_(){
  const sh=getSheet_('PARTICIPACAO_OPERACOES'),m=FT_AUTO_prepararCabecalhosAgenda_(sh),rows=sh.getDataRange().getValues();
@@ -117,15 +155,15 @@ function FT_AUTO_enviarLembretesEmail_(sh,m,rows){
   const exp=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
   const sentRaw=m.OFERTADA_EM!==undefined?r[m.OFERTADA_EM]:r[m.CRIADO_EM];
   const sent=sentRaw instanceof Date?sentRaw.getTime():new Date(sentRaw).getTime();
-  if(!isFinite(exp)||exp<=now||!isFinite(sent)||now-sent<3600000)return;
+  if(!isFinite(exp)||exp<=now||!isFinite(sent)||now-sent<1800000)return;
   const email=emails[String(r[m.MOTORISTA_ID]||'').trim()];if(!email||email.indexOf('@')<1)return;
   const key='FT_OFFER_EMAIL_REMINDER_'+String(r[m.ID]||'').replace(/[^A-Za-z0-9]/g,'_');
-  const last=Number(props.getProperty(key)||0);if(now-last<3600000)return;
+  const last=Number(props.getProperty(key)||0);if(now-last<1800000)return;
   const os=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(os),ov=os.getDataRange().getValues();
   const op=ov.slice(1).find(x=>String(x[om.ID]||'')===String(r[m.OPERACAO_ID]||''));
   const name=op&&om.NOME_OPERACAO!==undefined?String(op[om.NOME_OPERACAO]||'Operação Full Time'):'Operação Full Time';
   const url=ScriptApp.getService().getUrl();
-  MailApp.sendEmail({to:email,subject:'Lembrete de convocação — '+name,body:'Você tem uma convocação aguardando resposta para a operação '+name+'. Acesse o Portal do Motorista para aceitar ou recusar. O prazo total é de 6 horas.'+(url?'\n\nPortal: '+url:'')+'\n\nMensagem automática.'});
+  MailApp.sendEmail({to:email,subject:'Lembrete de convocação — '+name,body:'Você tem uma convocação aguardando resposta para a operação '+name+'. Acesse o Portal do Motorista para aceitar ou recusar. O prazo total é de 2 horas.'+(url?'\n\nPortal: '+url:'')+'\n\nMensagem automática.'});
   props.setProperty(key,String(now));
  });
 }
@@ -143,15 +181,15 @@ function FT_processarFilasConvocacaoAutomatica(){
       if(m.RESPONDIDA_EM!==undefined)sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());
       FT_CONV_appendEvent_({tipo:'OFERTA_CANCELADA_REPROGRAMACAO',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'CANCELADA_REPROGRAMACAO',motivo:'Data ou janela da operação alterada; oferta anterior cancelada.',autor:'MOTOR_AUTOMATICO',ofertaId:id});return;
     }
-    if(st==='ATIVO'||st==='ACEITA'){q.aceitas++;return;}
+    if(st==='ATIVO'||st==='ACEITA'){if(typeof FT_ESCALA_REGISTRAR_ACEITE_==='function')FT_ESCALA_REGISTRAR_ACEITE_(opId,r);q.aceitas++;return;}
     if(['RECUSADA','EXPIRADA','NAO_RESPONDEU','RETORNOU'].includes(st))return;
     if(st!=='OFERTADA')return;
     const ex=r[m.EXPIRA_EM] instanceof Date?r[m.EXPIRA_EM].getTime():new Date(r[m.EXPIRA_EM]).getTime();
     if(!isFinite(ex)||ex<=Date.now()){
       sh.getRange(n+1,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');r[m.STATUS_PARTICIPACAO]='NAO_RESPONDEU';
       if(m.RESPONDIDA_EM!==undefined&&!r[m.RESPONDIDA_EM])sh.getRange(n+1,m.RESPONDIDA_EM+1).setValue(new Date());
-      FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
-      if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
+      FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+      if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:opId,motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
       return;
     }
     pending.push(id);
@@ -169,10 +207,10 @@ function FT_processarFilasConvocacaoAutomatica(){
     });
     if(busy)continue;
     const now=new Date(),id='OFT-'+Utilities.getUuid(),row=new Array(sh.getLastColumn()).fill('');
-    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 6 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.',DATA_OPERACAO_OFERTA:agenda.data,HORARIO_OPERACAO_OFERTA:agenda.horario,JANELA_FIM_OFERTA:agenda.fim};
+    const fields={ID:id,CRIADO_EM:now,OPERACAO_ID:opId,CONJUNTO_ID:c.conjuntoId,MOTORISTA_ID:c.motoristaId,STATUS_PARTICIPACAO:'OFERTADA',INICIO_EM:'',SAIDA_EM:'',RETORNO_EM:'',TONELADAS_MOVIMENTADAS:0,VIAGENS_CONCLUIDAS:0,MOTIVO:'Convocação automática — posição '+c.posicao+'. Responda em até 2 horas.',REGISTRADO_POR:'MOTOR_AUTOMATICO',OFERTADA_EM:now,RESPONDIDA_EM:'',EXPIRA_EM:new Date(now.getTime()+FT_AUTO_TTL_),ORIGEM_OFERTA:'FILA_AUTOMATICA',OBSERVACOES_OFERTA:'Reposição automática em caso de recusa ou expiração.',DATA_OPERACAO_OFERTA:agenda.data,HORARIO_OPERACAO_OFERTA:agenda.horario,JANELA_FIM_OFERTA:agenda.fim};
     Object.keys(fields).forEach(k=>{if(m[k]!==undefined)row[m[k]]=fields[k];});
     sh.appendRow(row);rows.push(row);q.pendentes.push(id);created++;
-    FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 6 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
+    FT_CONV_appendEvent_({tipo:'OFERTA_ENVIADA',operacaoId:opId,motoristaId:c.motoristaId,conjuntoId:c.conjuntoId,anterior:'',nova:'OFERTADA',motivo:'Fila automática, posição '+c.posicao+', prazo de 2 horas.',autor:'MOTOR_AUTOMATICO',ofertaId:id});
    }
    if(q.aceitas>=q.vagas||(!q.pendentes.length&&q.cursor>=q.lista.length)){q.status='CONCLUIDA';q.concluidaEm=new Date().toISOString();q.motivoConclusao=q.aceitas>=q.vagas?'VAGAS_PREENCHIDAS':'FILA_ESGOTADA';}
   });
@@ -195,8 +233,8 @@ function FT_reconciliarOfertasExpiradasFullTime(){
    if(isFinite(ex)&&ex>now)return;
    sh.getRange(i+2,m.STATUS_PARTICIPACAO+1).setValue('NAO_RESPONDEU');
    if(m.RESPONDIDA_EM!==undefined)sh.getRange(i+2,m.RESPONDIDA_EM+1).setValue(stamp);
-   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 6 horas');
-   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 6 horas; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
+   FT_colocarMotoristaNoFinalDaFila_(r[m.MOTORISTA_ID],'não respondeu em 2 horas');
+   if(typeof FT_CONV_appendEvent_==='function')FT_CONV_appendEvent_({tipo:'OFERTA_EXPIRADA',operacaoId:r[m.OPERACAO_ID],motoristaId:r[m.MOTORISTA_ID],conjuntoId:r[m.CONJUNTO_ID],anterior:'OFERTADA',nova:'NAO_RESPONDEU',motivo:'Não respondeu em 2 horas; motorista reposicionado ao final da fila.',autor:'SISTEMA_RECONCILIACAO',ofertaId:r[m.ID]});
    expired++;
   });
   const queues=FT_AUTO_READ_();
@@ -218,4 +256,94 @@ function FT_AUTO_CANCELAR_OPERACAO_(opId,motivo){
   return {ok:true,ofertasCanceladas:cancelled};
  }finally{lock.releaseLock();}
 }
+
+/**
+ * Diagnóstico SOMENTE LEITURA: compara a agenda gravada em cada oferta com a agenda atual.
+ * Executar pelo editor Apps Script e consultar o Registro de execução.
+ * Não altera ofertas, fila, motoristas ou operação.
+ */
+function FT_DIAGNOSTICAR_AGENDA_OFERTAS_READONLY() {
+  const ops = getSheet_('OPERACOES');
+  const om = FT_AUTO_MAP_(ops);
+  const operationRows = ops.getDataRange().getValues();
+  const matches = operationRows.slice(1).filter(r =>
+    String(r[om.NOME_OPERACAO] || '').trim().toUpperCase() === 'TORRES' ||
+    String(r[om.CLIENTE] || '').trim().toUpperCase() === 'TORRES'
+  );
+  if (!matches.length) throw new Error('Operação TORRES não localizada. Nenhuma alteração realizada.');
+  const operationIds = matches.map(r => String(r[om.ID] || '').trim()).filter(Boolean);
+  const sh = getSheet_('PARTICIPACAO_OPERACOES');
+  const m = FT_AUTO_MAP_(sh);
+  ['ID','OPERACAO_ID','MOTORISTA_ID','STATUS_PARTICIPACAO','DATA_OPERACAO_OFERTA','HORARIO_OPERACAO_OFERTA','JANELA_FIM_OFERTA'].forEach(k => { if (m[k] === undefined) throw new Error('Cabeçalho ausente: ' + k + '. Diagnóstico interrompido sem alterações.'); });
+  const rows = sh.getDataRange().getValues();
+  const result = [];
+  operationIds.forEach(opId => {
+    const agenda = FT_AUTO_agendaAtual_(opId);
+    rows.slice(1).forEach(r => {
+      if (String(r[m.OPERACAO_ID] || '').trim() !== opId) return;
+      const rawDate = m.DATA_OPERACAO_OFERTA === undefined ? '' : r[m.DATA_OPERACAO_OFERTA];
+      const rawStart = m.HORARIO_OPERACAO_OFERTA === undefined ? '' : r[m.HORARIO_OPERACAO_OFERTA];
+      const rawEnd = m.JANELA_FIM_OFERTA === undefined ? '' : r[m.JANELA_FIM_OFERTA];
+      const snapshot = {
+        data: FT_AUTO_dataChaveOferta_(rawDate),
+        horario: FT_AUTO_horaChaveOferta_(rawStart),
+        fim: FT_AUTO_horaChaveOferta_(rawEnd)
+      };
+      result.push({
+        operacaoId: opId,
+        ofertaId: String(r[m.ID] || ''),
+        motoristaId: String(r[m.MOTORISTA_ID] || ''),
+        statusRealNaPlanilha: String(r[m.STATUS_PARTICIPACAO] || ''),
+        snapshotBruto: {
+          data: rawDate instanceof Date ? Utilities.formatDate(rawDate, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawDate || ''),
+          inicio: rawStart instanceof Date ? Utilities.formatDate(rawStart, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawStart || ''),
+          fim: rawEnd instanceof Date ? Utilities.formatDate(rawEnd, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss") : String(rawEnd || '')
+        },
+        snapshotNormalizado: snapshot,
+        agendaAtual: agenda,
+        agendaConfere: FT_AUTO_agendaOfertaIgual_(r, m, agenda)
+      });
+    });
+  });
+  console.log('FULL TIME — DIAGNÓSTICO SOMENTE LEITURA — AGENDA DAS OFERTAS: ' + JSON.stringify(result));
+  return result;
+}
+
 function FT_statusConvocacaoAutomaticaFullTime(token,opId){const u=obterSessao_(token);exigirAdmin_(u);const q=FT_AUTO_READ_()[String(opId)];if(!q)return {ativa:false,status:'NAO_INICIADA'};return {ativa:q.status==='EM_ANDAMENTO',status:q.status,vagas:q.vagas,aceitas:q.aceitas,pendentes:q.pendentes.length,filaRestante:q.lista.length-q.cursor};}
+ 
+/** Mantém a verificação do início agendado mesmo depois que todos os motoristas aceitam. */
+function FT_AUTO_START_TRIGGER_(){
+ if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_';}))
+  ScriptApp.newTrigger('FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_').timeBased().everyMinutes(1).create();
+}
+/**
+ * Inicia automaticamente somente quando todas as vagas foram aceitas e chegou a data/hora.
+ * Bruno ainda pode iniciar antes pela ação administrativa existente.
+ */
+function FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_(){
+ const lock=LockService.getScriptLock();if(!lock.tryLock(10000))return {ok:false,bloqueado:true};
+ try{
+  const queues=FT_AUTO_READ_(),opSheet=getSheet_('OPERACOES'),om=FT_AUTO_MAP_(opSheet),rows=opSheet.getDataRange().getValues(),now=new Date();
+  let started=0,waiting=false;
+  Object.keys(queues).forEach(function(opId){
+   const q=queues[opId];if(!q||Number(q.aceitas||0)<Number(q.vagas||0)||q.status==='CANCELADA'||q.status==='INICIADA')return;
+   const op=rows.slice(1).find(function(r){return String(r[om.ID]||'')===String(opId);});if(!op)return;
+   const status=String(op[om.STATUS]||'').toUpperCase();
+   if(status==='EM_ANDAMENTO'){q.status='INICIADA';q.iniciadaEm=q.iniciadaEm||now.toISOString();return;}
+   if(status!=='ABERTA')return;
+   const date=FT_AUTO_dataChaveOferta_(op[om.DATA_OPERACAO]),time=FT_AUTO_horaChaveOferta_(op[om.JANELA_INICIO]);
+   if(!date||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return;
+   const scheduled=new Date(date+'T'+time+':00');
+   if(!isFinite(scheduled.getTime()))return;
+   if(now.getTime()<scheduled.getTime()){waiting=true;return;}
+   opSheet.getRange(rows.findIndex(function(r,i){return i>0&&String(r[om.ID]||'')===String(opId);})+1,om.STATUS+1).setValue('EM_ANDAMENTO');
+   if(om.INICIADA_EM!==undefined)opSheet.getRange(rows.findIndex(function(r,i){return i>0&&String(r[om.ID]||'')===String(opId);})+1,om.INICIADA_EM+1).setValue(now);
+   if(typeof auditar_==='function')auditar_({login:'MOTOR_AUTOMATICO',email:'MOTOR_AUTOMATICO'},'INICIO_AUTOMATICO_OPERACAO','OPERACAO',opId,'Todos os '+q.vagas+' motoristas aceitaram; início agendado atingido.');
+   q.status='INICIADA';q.iniciadaEm=now.toISOString();started++;
+  });
+  FT_AUTO_WRITE_(queues);
+  const stillWaiting=Object.keys(queues).some(function(id){const q=queues[id];return q&&Number(q.aceitas||0)>=Number(q.vagas||0)&&q.status!=='INICIADA'&&q.status!=='CANCELADA';});
+  if(!stillWaiting)ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='FT_AUTO_INICIAR_OPERACOES_NO_HORARIO_';}).forEach(function(t){ScriptApp.deleteTrigger(t);});
+  return {ok:true,operacoesIniciadas:started,aguardandoHorario:stillWaiting};
+ }finally{lock.releaseLock();}
+}

@@ -210,3 +210,53 @@ function FT_AUDITORIA_COMPACTA_TORRES_20261125() {
   Logger.log('FT_AUDITORIA_COMPACTA_TORRES '+JSON.stringify(result));
   return result;
 }
+
+
+/**
+ * RESUMO OPERACIONAL TORRES — ultimas ofertas e estado da fila.
+ * Somente leitura: nao grava planilhas, propriedades, nem dispara convocacoes.
+ * Execute: FT_AUDITORIA_RESUMO_FILA_TORRES_20261125
+ */
+function FT_AUDITORIA_RESUMO_FILA_TORRES_20261125() {
+  const id=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID');
+  if(!id)throw new Error('FT_REGISTRY_DATABASE_ID nao configurado.');
+  const ss=SpreadsheetApp.openById(id);
+  function read(name){
+    const sh=ss.getSheetByName(name);if(!sh)throw new Error('Guia ausente: '+name);
+    const v=sh.getDataRange().getValues(),h=(v[0]||[]).map(x=>String(x||'').trim().toUpperCase()),m={};
+    h.forEach((x,i)=>{if(x&&m[x]===undefined)m[x]=i;});
+    return {rows:v.slice(1),map:m};
+  }
+  function val(r,m,k){return m[k]===undefined?'':r[m[k]];}
+  function iso(x){if(!x)return '';const d=x instanceof Date?x:new Date(x);return isFinite(d.getTime())?d.toISOString():String(x);}
+  const opData=read('OPERACOES');
+  const ops=opData.rows.filter(r=>/TORRES/i.test(String(val(r,opData.map,'NOME_OPERACAO')||'')));
+  if(ops.length!==1)throw new Error('Esperada uma operacao TORRES; encontradas '+ops.length);
+  const op=ops[0],opId=String(val(op,opData.map,'ID')||'');
+  const p=read('PARTICIPACAO_OPERACOES');
+  const rows=p.rows.filter(r=>String(val(r,p.map,'OPERACAO_ID')||'')===opId).map(r=>({
+    id:String(val(r,p.map,'ID')||''),motoristaId:String(val(r,p.map,'MOTORISTA_ID')||''),
+    conjuntoId:String(val(r,p.map,'CONJUNTO_ID')||''),status:String(val(r,p.map,'STATUS_PARTICIPACAO')||''),
+    origem:String(val(r,p.map,'ORIGEM_OFERTA')||''),registradoPor:String(val(r,p.map,'REGISTRADO_POR')||''),
+    ofertadaEm:iso(val(r,p.map,'OFERTADA_EM')||val(r,p.map,'CRIADO_EM')),
+    expiraEm:iso(val(r,p.map,'EXPIRA_EM')),respondidaEm:iso(val(r,p.map,'RESPONDIDA_EM')),
+    dataOferta:iso(val(r,p.map,'DATA_OPERACAO_OFERTA')),
+    horarioOferta:String(val(r,p.map,'HORARIO_OPERACAO_OFERTA')||''),
+    janelaFimOferta:String(val(r,p.map,'JANELA_FIM_OFERTA')||''),
+    motivo:String(val(r,p.map,'MOTIVO')||''),observacoes:String(val(r,p.map,'OBSERVACOES_OFERTA')||'')
+  })).sort((a,b)=>String(b.ofertadaEm).localeCompare(String(a.ofertadaEm)));
+  const counts={};rows.forEach(x=>{const k=x.status||'(VAZIO)';counts[k]=(counts[k]||0)+1;});
+  const e=read('EVENTOS_ESCALA');
+  const events=e.rows.filter(r=>String(val(r,e.map,'OPERACAO_ID')||'')===opId).map(r=>({
+    dataHora:iso(val(r,e.map,'DATA_HORA')),tipo:String(val(r,e.map,'TIPO_EVENTO')||''),
+    motoristaId:String(val(r,e.map,'MOTORISTA_ID')||''),ofertaId:String(val(r,e.map,'OFERTA_ID')||''),
+    motivo:String(val(r,e.map,'MOTIVO')||'')
+  })).sort((a,b)=>String(b.dataHora).localeCompare(String(a.dataHora))).slice(0,30);
+  const q=JSON.parse(PropertiesService.getScriptProperties().getProperty('FT_AUTO_QUEUES_V1')||'{}')[opId]||null;
+  const queue=q?{id:q.id,status:q.status,vagas:q.vagas,cursor:q.cursor,aceitas:q.aceitas,
+    pendentes:(q.pendentes||[]).length,totalCandidatos:(q.lista||[]).length,
+    proximosCandidatos:(q.lista||[]).slice(q.cursor||0,(q.cursor||0)+12).map(x=>({motoristaId:x.motoristaId,nome:x.nome,posicao:x.posicao}))}:null;
+  const result={somenteLeitura:true,naoAlterouDados:true,operacao:{id:opId,nome:val(op,opData.map,'NOME_OPERACAO'),status:val(op,opData.map,'STATUS'),data:iso(val(op,opData.map,'DATA_OPERACAO')),janelaInicio:String(val(op,opData.map,'JANELA_INICIO')||''),janelaFim:String(val(op,opData.map,'JANELA_FIM')||'')},totalParticipacoes:rows.length,status:counts,filaAutomatica:queue,ultimasParticipacoes:rows.slice(0,30),ultimosEventos:events};
+  Logger.log('FT_AUDITORIA_RESUMO_FILA_TORRES '+JSON.stringify(result));
+  return result;
+}
