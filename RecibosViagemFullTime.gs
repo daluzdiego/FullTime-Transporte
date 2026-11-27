@@ -66,7 +66,7 @@ function registrarReciboViagemFullTime(token,data){
   var base64=String(data.base64||'').replace(/^data:[^,]+,/,'').replace(/\s/g,'');
   var note=String(data.observacoes||'').trim().slice(0,1000);
   if(!opId||!partId)throw new Error('Operação e participação são obrigatórias.');
-  if(['CARREGAMENTO','DESCARGA','COMPROVANTE_ENTREGA','OUTRO'].indexOf(type)<0)throw new Error('Tipo de comprovante inválido.');
+  if(['CARREGAMENTO','DESCARGA'].indexOf(type)<0)throw new Error('Tipo de comprovante inválido. Use apenas carregamento ou descarga.');
   if(['image/jpeg','image/png','image/webp'].indexOf(mime)<0)throw new Error('Envie uma foto JPG, PNG ou WEBP.');
   if(!base64||base64.length>11500000)throw new Error('A imagem está vazia ou excede o limite permitido.');
   var lock=LockService.getScriptLock();lock.waitLock(20000);
@@ -115,12 +115,29 @@ function registrarReciboViagemFullTime(token,data){
     return {ok:true,id:id,url:file.getUrl(),nome:file.getName(),status:'AGUARDANDO_CONFERENCIA',analiseIA:ai,message:ai.status==='ANALISADO'?'Comprovante recebido e analisado pela IA. Confira os dados extraídos.':'Foto armazenada e vinculada ao seu destino. '+(ai.mensagem||'')};
   }finally{lock.releaseLock();}
 }
+
+/** Complemento restrito ao motorista dono do comprovante ou a administrador. */
+function complementarReciboViagemFullTime(token,reciboId,observacoes){
+  var session=obterSessao_(token),isAdmin=String(session.perfil||'').toUpperCase()==='ADMIN',motoristaId='';
+  if(!isAdmin)motoristaId=exigirMotorista_(session);
+  reciboId=String(reciboId||'').trim();observacoes=String(observacoes||'').trim().slice(0,1000);
+  if(!reciboId||!observacoes)throw new Error('Comprovante e complemento são obrigatórios.');
+  var sh=ftTicketSheet_(),map=ftTicketMap_(sh),last=sh.getLastRow();if(last<2)throw new Error('Comprovante não encontrado.');
+  var rows=sh.getRange(2,1,last-1,sh.getLastColumn()).getValues(),idx=rows.findIndex(function(r){return String(r[map.ID]||'')===reciboId;});
+  if(idx<0)throw new Error('Comprovante não encontrado.');
+  var row=rows[idx];if(!isAdmin&&String(row[map.MOTORISTA_ID]||'')!==motoristaId)throw new Error('Você só pode complementar seus próprios comprovantes.');
+  var rn=idx+2;if(map.OBSERVACOES!==undefined)sh.getRange(rn,map.OBSERVACOES+1).setValue(observacoes);
+  if(map.METADADOS!==undefined){var meta={};try{meta=JSON.parse(String(row[map.METADADOS]||'{}'));}catch(e){}meta.complementoMotorista=observacoes;meta.complementadoEm=new Date().toISOString();sh.getRange(rn,map.METADADOS+1).setValue(JSON.stringify(meta));}
+  if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_COMPLEMENTADO','OPERACAO',String(row[map.OPERACAO_ID]||''),'Comprovante '+reciboId+' complementado.');
+  return {ok:true,message:'Complemento salvo.'};
+}
+
 function FT_analisarReciboComIA_(bytes,mime){
   var props=PropertiesService.getScriptProperties(),apiKey=props.getProperty('FT_GEMINI_API_KEY');
   if(!apiKey)return {status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
-  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-3.8-flash';
+  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-2.5-flash';
   var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
-  var prompt='Você é um leitor de comprovantes de transporte. Analise a imagem e extraia somente informações visíveis. Não invente valores. Responda exclusivamente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array). Use null quando não estiver legível. Preserve números exatamente como impressos. Não trate o destino impresso como autorização para alterar o destino cadastrado da operação.';
+  var prompt='Você é especialista em leitura de tickets rodoviários de pesagem, carregamento e descarga no Brasil. Leia a imagem inteira, inclusive textos pequenos, placas, datas, número do ticket, tara, peso bruto e líquido. Extraia somente informações visíveis, nunca invente nem complete por suposição. Classifique tipo_documento exclusivamente como CARREGAMENTO ou DESCARGA. Responda somente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array), precisa_complemento (boolean), motivo_complemento. Use null para campo ausente ou ilegível; preserve números como impressos. Marque precisa_complemento=true somente se houver dado essencial ilegível ou dúvida relevante. Não confunda volume total da operação com peso desta viagem e não altere o destino cadastrado com base no texto impresso.';
   var payload={contents:[{parts:[{text:prompt},{inlineData:{mimeType:mime,data:Utilities.base64Encode(bytes)}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
   var response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',payload:JSON.stringify(payload),muteHttpExceptions:true});
   var status=response.getResponseCode(),body=response.getContentText();
