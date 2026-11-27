@@ -147,7 +147,9 @@ function complementarReciboViagemFullTime(token,reciboId,observacoes){
 function FT_analisarReciboComIA_(bytes,mime){
   var props=PropertiesService.getScriptProperties(),apiKey=props.getProperty('FT_GEMINI_API_KEY');
   if(!apiKey)return {status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
-  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-2.5-flash';
+  var model=String(props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-3.8-flash').trim();
+   // Migra automaticamente a configuração antiga: o Gemini 2.5 Flash não aceita novas contas/projetos.
+   if(model==='gemini-2.5-flash')model='gemini-3.8-flash';
   var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
   var prompt='Você é especialista em leitura de tickets rodoviários de pesagem, carregamento e descarga no Brasil. Leia a imagem inteira, inclusive textos pequenos, placas, datas, número do ticket, tara, peso bruto e líquido. Extraia somente informações visíveis, nunca invente nem complete por suposição. Classifique tipo_documento exclusivamente como CARREGAMENTO ou DESCARGA. Responda somente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array), precisa_complemento (boolean), motivo_complemento. Use null para campo ausente ou ilegível; preserve números como impressos. Marque precisa_complemento=true somente se houver dado essencial ilegível ou dúvida relevante. Não confunda volume total da operação com peso desta viagem e não altere o destino cadastrado com base no texto impresso.';
   var payload={contents:[{parts:[{text:prompt},{inlineData:{mimeType:mime,data:Utilities.base64Encode(bytes)}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
