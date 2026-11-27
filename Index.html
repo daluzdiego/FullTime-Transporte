@@ -859,7 +859,7 @@
     }).withFailureHandler(e=>{
       error.textContent=e.message||'Falha ao enviar/analisar. Selecione a foto novamente para tentar.';
       form.querySelectorAll('button').forEach(b=>b.disabled=false);
-    }).registrarReciboViagemFullTime(authToken,data);
+    }).registrarReciboPortalMotoristaV2(authToken,data);
   }
   function salvarComplementoReciboPortal(participacaoId,reciboId){
     const note=document.getElementById('receipt-note-'+participacaoId)?.value||'';
