@@ -424,7 +424,8 @@
   let operacoesRefreshBusy=false;
   let portalRefreshTimer=null;
   let portalRefreshBusy=false;
-  const PORTAL_REFRESH_MS=60*1000;
+  let portalLastLoadedAt=0;
+  const PORTAL_REFRESH_MS=5*60*1000;
   let operacoesLastLoadedAt=0;
   const OPERACOES_REFRESH_MS=5*60*1000;
   const DOC_ALERT_DELAY_MS=24*60*60*1000;
@@ -478,6 +479,7 @@
         window.__FT_UI_RECEBIMENTO={keys:Object.keys(received),counts:receivedCounts,userPresent:!!received.user};
         try {
           dashboard=received;
+          if(isDriver)portalLastLoadedAt=Date.now();
           currentUser={...currentUser,...(received.user||{}),...(isDriver?{motoristaId:received.motoristaId||currentUser?.motoristaId}:{})};
           paintNav();
           renderPage(currentPage);
@@ -727,6 +729,12 @@
   }
   function atualizarPortalMotorista(silencioso){
     if(portalRefreshBusy||!authToken||String(currentUser?.perfil||'').toUpperCase()!=='MOTORISTA')return;
+    // Não desmonta o formulário enquanto o motorista está usando a câmera, escolhendo
+    // uma foto, conferindo a prévia ou enviando o comprovante.
+    const receiptOpen=document.querySelector('.portal-receipt-area > div.is-open .portal-receipt-form');
+    if(receiptOpen){console.info('FT_PORTAL_REFRESH_ADIADO','Formulário de comprovante em uso.');return;}
+    // Atualizações silenciosas (timer, retorno da câmera ou foco) respeitam o intervalo mínimo.
+    if(silencioso&&Date.now()-portalLastLoadedAt<PORTAL_REFRESH_MS)return;
     portalRefreshBusy=true;
     const content=document.getElementById('content');
     if(!silencioso&&content)content.innerHTML='<div class="panel"><div class="empty">Atualizando suas ofertas…</div></div>';
@@ -738,6 +746,7 @@
         return;
       }
       dashboard=data;
+      portalLastLoadedAt=Date.now();
       currentUser={...currentUser,...(data.user||{}),perfil:'MOTORISTA',motoristaId:data.motoristaId||currentUser?.motoristaId};
       paintNav();
       const host=document.getElementById('content');
