@@ -126,6 +126,7 @@ function FT_TESTAR_CONTRATO_PORTAL_CONVOCACOES_20261125() {
     ['responderOfertaMotoristaFullTime', typeof responderOfertaMotoristaFullTime === 'function'],
     ['listarDestinosPortalMotoristaFullTime', typeof listarDestinosPortalMotoristaFullTime === 'function'],
     ['registrarReciboViagemFullTime', typeof registrarReciboViagemFullTime === 'function'],
+    ['FT_analisarReciboComIA_', typeof FT_analisarReciboComIA_ === 'function'],
     ['obterPainelFullTime', typeof obterPainelFullTime === 'function'],
     ['obterCentroOperacoesFullTime', typeof obterCentroOperacoesFullTime === 'function'],
     ['FT_adicionarConvocadoManualFullTime', typeof FT_adicionarConvocadoManualFullTime === 'function'],
