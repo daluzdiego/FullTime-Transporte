@@ -118,7 +118,7 @@ function registrarReciboViagemFullTime(token,data){
 function FT_analisarReciboComIA_(bytes,mime){
   var props=PropertiesService.getScriptProperties(),apiKey=props.getProperty('FT_GEMINI_API_KEY');
   if(!apiKey)return {status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
-  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-2.5-flash';
+  var model=props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-3.8-flash';
   var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
   var prompt='Você é um leitor de comprovantes de transporte. Analise a imagem e extraia somente informações visíveis. Não invente valores. Responda exclusivamente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array). Use null quando não estiver legível. Preserve números exatamente como impressos. Não trate o destino impresso como autorização para alterar o destino cadastrado da operação.';
   var payload={contents:[{parts:[{text:prompt},{inlineData:{mimeType:mime,data:Utilities.base64Encode(bytes)}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
