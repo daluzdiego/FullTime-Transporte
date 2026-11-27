@@ -390,8 +390,21 @@ function confirmarTicketDescargaFullTime(token,reciboId){
     if(String(candidate[map.OPERACAO_ID]||'')===opId&&String(candidate[map.PARTICIPACAO_ID]||'')===partId&&String(candidate[map.DESTINO_ID]||'')===destId&&String(candidate[map.TIPO_RECIBO]||'').toUpperCase()==='CARREGAMENTO'&&cm.contabilizacaoPeso==='CONFIRMADA'&&cm.statusFluxo==='AGUARDANDO_TICKET_DESCARGA'){load={row:candidate,rowNumber:i+1,meta:cm};break;}
   }
   if(!load)throw new Error('Não existe carregamento contabilizado aguardando descarga para esta operação e destino. Envie primeiro o ticket de carregamento.');
-  var loadAi=load.meta.iaDados||{},loadPlate=String(loadAi.placa_veiculo||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(),unloadPlate=String(ai.placa_veiculo||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
-  if(loadPlate&&unloadPlate&&loadPlate!==unloadPlate)throw new Error('A placa do ticket de descarga diverge do carregamento. Não validei a viagem.');
+  var loadAi=load.meta.iaDados||{};
+  var loadPlateText=String(loadAi.placa_veiculo||'').toUpperCase();
+  var unloadPlateText=String(ai.placa_veiculo||'').toUpperCase();
+  // A IA pode retornar somente o cavalo no carregamento e cavalo + carreta na descarga.
+  // Compara placas individualmente; não compara a concatenação dos textos completos.
+  var extractPlates=function(value){
+    var normalized=String(value||'').replace(/[^A-Z0-9]/g,'');
+    var found=normalized.match(/[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g)||[];
+    if(!found.length&&normalized.length===7)found=[normalized];
+    return Array.from(new Set(found));
+  };
+  var loadPlates=extractPlates(loadPlateText),unloadPlates=extractPlates(unloadPlateText);
+  if(loadPlates.length&&unloadPlates.length&&!loadPlates.some(function(plate){return unloadPlates.indexOf(plate)>=0;})){
+    throw new Error('Nenhuma placa do ticket de descarga corresponde às placas identificadas no carregamento ('+loadPlates.join(', ')+'). Confira o documento antes de validar a viagem.');
+  }
   var moveSh=ss.getSheetByName('MOVIMENTACOES_OPERACAO'),mm=ftMvpMap_(moveSh),moves=ftMvpReadRows_(moveSh),move=moves.find(function(x){return String(x.values[ftMvpCol_(mm,'ID')])===String(load.meta.movimentacaoId);});
   if(!move)throw new Error('Movimentação de carregamento não encontrada. Não validei a viagem.');
   var lock=LockService.getScriptLock();lock.waitLock(20000);
