@@ -47,6 +47,9 @@
       #appView .top-right{gap:6px}
       #appView .top-right .btn{min-height:36px;padding:7px 10px}
       #appView .today{display:none}
+      #appView .topbar{position:sticky;top:0;z-index:24;padding-top:env(safe-area-inset-top);height:calc(64px + env(safe-area-inset-top));align-items:center;background:rgba(255,255,255,.97);backdrop-filter:blur(14px)}
+      #appView .topbar-logout{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:12px;z-index:2;min-height:40px!important;padding:8px 12px!important;border-radius:10px;font-size:12px!important;font-weight:750;box-shadow:0 2px 8px rgba(18,42,76,.08)}
+      #appView .top-right{padding-right:76px;min-width:0}
     }
     @media(prefers-reduced-motion:reduce){#appView .sidebar{transition:none}}
 
@@ -379,7 +382,7 @@
       <div class="sidebar-bottom"><div class="user-line"><div class="avatar" id="avatar">D</div><div class="user-meta"><strong id="sideUser">Administrador</strong><span id="sideRole">Administrador</span></div><button class="icon-btn" title="Sair" onclick="logout()">↪</button></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary" onclick="logout()">Sair</button></div></header>
+      <header class="topbar"><div class="top-heading"><button class="menu-toggle" id="menuToggle" type="button" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false"><span></span><span></span><span></span></button><div><div class="top-title" id="topTitle">Visão geral</div><div class="small muted" id="topSubtitle">Resumo da operação</div></div></div><div class="top-right"><div class="center-top-meta hidden" id="centerTopMeta"><strong>Centro de Operações</strong><span class="center-live"><i></i> AO VIVO</span><small>Última atualização: <span id="centerTopLastUpdated">Carregando…</span></small></div><div class="today" id="today"></div><button class="btn btn-secondary topbar-logout" type="button" onclick="logout()" aria-label="Sair do sistema">Sair <span aria-hidden="true">↪</span></button></div></header>
       <div class="content" id="content"></div>
     </main>
   </section>
