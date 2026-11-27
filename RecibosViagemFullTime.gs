@@ -56,7 +56,7 @@ function prepararEstruturaRecibosViagemFullTime(){
   Logger.log('FT_RECIBOS_PREPARACAO '+JSON.stringify(result));
   return result;
 }
-function registrarReciboViagemFullTime(token,data){
+function ftRegistrarReciboViagemCore_(token,data){
   var session=obterSessao_(token),isAdmin=String(session.perfil||'').toUpperCase()==='ADMIN',motoristaId='';
   if(!isAdmin)motoristaId=exigirMotorista_(session);
   data=data||{};
@@ -114,6 +114,18 @@ function registrarReciboViagemFullTime(token,data){
     if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_ANEXADO','OPERACAO',opId,'Comprovante '+id+'; tipo='+type+'; destino automático='+destId+'; participação='+partId+'; IA='+ai.status);
     return {ok:true,id:id,url:file.getUrl(),nome:file.getName(),status:'AGUARDANDO_CONFERENCIA',analiseIA:ai,message:ai.status==='ANALISADO'?'Comprovante recebido e analisado pela IA. Confira os dados extraídos.':'Foto armazenada e vinculada ao seu destino. '+(ai.mensagem||'')};
   }finally{lock.releaseLock();}
+}
+
+
+/**
+ * Endpoints públicos de compatibilidade e do portal.
+ * O nome V2 é exclusivo para evitar colisão com versões antigas do projeto Apps Script.
+ */
+function registrarReciboViagemFullTime(token,data){
+  return ftRegistrarReciboViagemCore_(token,data);
+}
+function registrarReciboPortalMotoristaV2(token,data){
+  return ftRegistrarReciboViagemCore_(token,data);
 }
 
 /** Complemento restrito ao motorista dono do comprovante ou a administrador. */
