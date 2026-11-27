@@ -296,7 +296,7 @@ function ftTicketNumber_(d){
 }
 function ftTicketWeightTons_(d){
   var raw=d&&d.peso_liquido_kg!=null?String(d.peso_liquido_kg):'';
-  var n=Number(raw.replace(/[^0-9,.-]/g,'').replace(/\.(?=.*\.)/g,'').replace(',','.'));
+  var normalized=raw.replace(/[^0-9,.-]/g,'');if(normalized.indexOf(',')>=0)normalized=normalized.replace(/\./g,'').replace(',','.');var n=Number(normalized);
   if(!(n>0&&isFinite(n)))throw new Error('A IA não identificou um peso líquido válido no ticket.');
   var unit=String(d.unidade_peso||'KG').toUpperCase();
   var tons=(unit.indexOf('TON')>=0||unit==='T')?n:n/1000;
