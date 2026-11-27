@@ -859,9 +859,21 @@
       if(ai.status==='ANALISADO'){
         const action=String(d.tipo_documento||'').toUpperCase()==='CARREGAMENTO'?'confirmarTicketCarregamentoPortal':'confirmarTicketDescargaPortal';
         const label=needs?'Confirmar após revisão manual':(action==='confirmarTicketCarregamentoPortal'?'Confirmar carregamento e contabilizar peso':'Confirmar descarga e concluir viagem');
-        out+='<div class="notice" style="margin-top:10px"><strong>Confira os dados antes de confirmar.</strong><br>'+(needs?'Salve o complemento manual antes de confirmar. ':'')+'O peso será contabilizado somente no carregamento. A descarga apenas conclui a viagem.</div><button class="btn btn-primary" type="button" style="width:100%;min-height:48px" onclick="'+action+'('+JSON.stringify(res.id)+','+JSON.stringify(participacaoId)+')">'+label+'</button>';
+        out+='<div class="notice" style="margin-top:10px"><strong>Confira os dados antes de confirmar.</strong><br>'+(needs?'Salve o complemento manual antes de confirmar. ':'')+'O peso será contabilizado somente no carregamento. A descarga apenas conclui a viagem.</div><button class="btn btn-primary" type="button" data-ft-ticket-action="'+action+'" data-ft-recibo-id="'+esc(res.id)+'" data-ft-participacao-id="'+esc(participacaoId)+'" style="width:100%;min-height:48px">'+label+'</button>';
       }
-      if(host)host.innerHTML=out;
+      if(host){
+        host.innerHTML=out;
+        const confirmButton=host.querySelector('[data-ft-ticket-action]');
+        if(confirmButton){
+          confirmButton.addEventListener('click',()=>{
+            const fn=confirmButton.dataset.ftTicketAction;
+            const id=confirmButton.dataset.ftReciboId;
+            const participacao=confirmButton.dataset.ftParticipacaoId;
+            if(fn==='confirmarTicketCarregamentoPortal')confirmarTicketCarregamentoPortal(id,participacao);
+            else if(fn==='confirmarTicketDescargaPortal')confirmarTicketDescargaPortal(id,participacao);
+          },{once:true});
+        }
+      }
       if(preview)preview.innerHTML='<span>Foto enviada · leitura da IA concluída</span>';
       toast('Ticket recebido e interpretado. Confira os dados e confirme o envio.');
     }).withFailureHandler(e=>{
