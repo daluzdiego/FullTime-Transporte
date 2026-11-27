@@ -145,20 +145,47 @@ function complementarReciboViagemFullTime(token,reciboId,observacoes){
 }
 
 function FT_analisarReciboComIA_(bytes,mime){
-  var props=PropertiesService.getScriptProperties(),apiKey=props.getProperty('FT_GEMINI_API_KEY');
+  var props=PropertiesService.getScriptProperties();
+  var apiKey=String(props.getProperty('FT_GEMINI_API_KEY')||'').trim();
   if(!apiKey)return {status:'PENDENTE',mensagem:'A foto foi salva. Configure FT_GEMINI_API_KEY nas propriedades do projeto para ativar a leitura automática.'};
-  var model=String(props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-3.8-flash').trim();
-   // Migra automaticamente a configuração antiga: o Gemini 2.5 Flash não aceita novas contas/projetos.
-   if(model==='gemini-2.5-flash')model='gemini-3.8-flash';
-  var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
+
+  var primary=String(props.getProperty('FT_GEMINI_MODEL_RECIBOS')||'gemini-3.8-flash').trim();
+  if(primary==='gemini-2.5-flash')primary='gemini-3.8-flash';
+  var fallback=String(props.getProperty('FT_GEMINI_MODEL_RECIBOS_FALLBACK')||'gemini-3.6-flash').trim();
+  var models=[primary];
+  if(fallback && fallback!==primary)models.push(fallback);
+
   var prompt='Você é especialista em leitura de tickets rodoviários de pesagem, carregamento e descarga no Brasil. Leia a imagem inteira, inclusive textos pequenos, placas, datas, número do ticket, tara, peso bruto e líquido. Extraia somente informações visíveis, nunca invente nem complete por suposição. Classifique tipo_documento exclusivamente como CARREGAMENTO ou DESCARGA. Responda somente JSON válido com as chaves: tipo_documento, emissor, cnpj_emissor, numero_documento, data_hora, placa_veiculo, motorista, produto, peso_bruto_kg, tara_kg, peso_liquido_kg, unidade_peso, origem, destino_impresso, observacoes_visiveis, texto_extraido, confianca_geral (0 a 1), campos_duvidosos (array), precisa_complemento (boolean), motivo_complemento. Use null para campo ausente ou ilegível; preserve números como impressos. Marque precisa_complemento=true somente se houver dado essencial ilegível ou dúvida relevante. Não confunda volume total da operação com peso desta viagem e não altere o destino cadastrado com base no texto impresso.';
   var payload={contents:[{parts:[{text:prompt},{inlineData:{mimeType:mime,data:Utilities.base64Encode(bytes)}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
-  var response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',payload:JSON.stringify(payload),muteHttpExceptions:true});
-  var status=response.getResponseCode(),body=response.getContentText();
-  if(status<200||status>=300)throw new Error('Gemini API HTTP '+status+': '+body.slice(0,700));
-  var parsed=JSON.parse(body),textOut=parsed.candidates&&parsed.candidates[0]&&parsed.candidates[0].content&&parsed.candidates[0].content.parts&&parsed.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
-  if(!textOut)throw new Error('A IA não retornou conteúdo legível.');
-  return {status:'ANALISADO',modelo:model,dados:JSON.parse(textOut),mensagem:'Leitura automática concluída. Confira os campos antes de usar os dados.'};
+  var lastError=null,attempt=0;
+  for(var modelIndex=0;modelIndex<models.length && attempt<3;modelIndex++){
+    var model=models[modelIndex];
+    var maxForModel=modelIndex===0?2:1;
+    for(var localAttempt=0;localAttempt<maxForModel && attempt<3;localAttempt++){
+      if(attempt>0)Utilities.sleep(attempt===1?1000:2000);
+      attempt++;
+      var endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(apiKey);
+      var response;
+      try{
+        response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',payload:JSON.stringify(payload),muteHttpExceptions:true});
+      }catch(fetchError){
+        lastError=fetchError;
+        continue;
+      }
+      var status=response.getResponseCode(),body=response.getContentText();
+      if(status>=200 && status<300){
+        var parsed=JSON.parse(body);
+        var textOut=parsed.candidates&&parsed.candidates[0]&&parsed.candidates[0].content&&parsed.candidates[0].content.parts&&parsed.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
+        if(!textOut)throw new Error('A IA não retornou conteúdo legível.');
+        return {status:'ANALISADO',modelo:model,tentativas:attempt,dados:JSON.parse(textOut),mensagem:'Leitura automática concluída. Confira os campos antes de usar os dados.'};
+      }
+      lastError=new Error('Gemini API HTTP '+status+': '+body.slice(0,700));
+      // Somente falhas temporárias de disponibilidade/servidor justificam retry/fallback.
+      if([500,502,503,504].indexOf(status)<0)throw lastError;
+    }
+  }
+  var detail=lastError&&lastError.message?lastError.message:String(lastError||'Falha desconhecida');
+  return {status:'PENDENTE',mensagem:'A foto foi armazenada e vinculada à viagem, mas a IA não conseguiu concluir a leitura após tentativas automáticas. Você pode salvar um complemento manual. Detalhe técnico: '+detail};
 }
 
 function listarRecibosViagemFullTime(token,operacaoId){
