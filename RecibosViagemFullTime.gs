@@ -139,7 +139,7 @@ function complementarReciboViagemFullTime(token,reciboId,observacoes){
   if(idx<0)throw new Error('Comprovante não encontrado.');
   var row=rows[idx];if(!isAdmin&&String(row[map.MOTORISTA_ID]||'')!==motoristaId)throw new Error('Você só pode complementar seus próprios comprovantes.');
   var rn=idx+2;if(map.OBSERVACOES!==undefined)sh.getRange(rn,map.OBSERVACOES+1).setValue(observacoes);
-  if(map.METADADOS!==undefined){var meta={};try{meta=JSON.parse(String(row[map.METADADOS]||'{}'));}catch(e){}meta.complementoMotorista=observacoes;meta.complementadoEm=new Date().toISOString();sh.getRange(rn,map.METADADOS+1).setValue(JSON.stringify(meta));}
+  if(map.METADADOS!==undefined){var meta={};try{meta=JSON.parse(String(row[map.METADADOS]||'{}'));}catch(e){}meta.complementoMotorista=observacoes;meta.complementadoEm=new Date().toISOString();meta.complementoConfirmado=true;sh.getRange(rn,map.METADADOS+1).setValue(JSON.stringify(meta));}
   if(typeof auditar_==='function')auditar_(session,'RECIBO_VIAGEM_COMPLEMENTADO','OPERACAO',String(row[map.OPERACAO_ID]||''),'Comprovante '+reciboId+' complementado.');
   return {ok:true,message:'Complemento salvo.'};
 }
@@ -330,7 +330,7 @@ function confirmarTicketCarregamentoFullTime(token,reciboId){
   if(meta.contabilizacaoPeso==='CONFIRMADA')return {ok:true,jaContabilizado:true,message:'Carregamento já estava contabilizado. O peso não foi lançado novamente.'};
   if(String(row[map.STATUS]||'')!=='AGUARDANDO_CONFERENCIA'||!meta.iaDados)throw new Error('A leitura da IA precisa estar concluída antes da confirmação.');
   if(String(ai.tipo_documento||'').toUpperCase()!=='CARREGAMENTO')throw new Error('A IA não classificou este documento como ticket de carregamento.');
-  if(ai.precisa_complemento===true||Number(ai.confianca_geral||0)<0.8)throw new Error('A leitura possui campos duvidosos. Salve o complemento e confira o ticket antes de confirmar.');
+  if((ai.precisa_complemento===true||Number(ai.confianca_geral||0)<0.8)&&meta.complementoConfirmado!==true)throw new Error('A leitura possui campos duvidosos. Salve o complemento e confira o ticket antes de confirmar.');
   var number=ftTicketNumber_(ai),tons=ftTicketWeightTons_(ai);
   ftTicketCheckUniqueNumber_(map,number,reciboId);
   var opId=String(row[map.OPERACAO_ID]||''),partId=String(row[map.PARTICIPACAO_ID]||''),destId=String(row[map.DESTINO_ID]||''),setId='';
@@ -377,7 +377,7 @@ function confirmarTicketDescargaFullTime(token,reciboId){
   if(meta.viagemValidada==='SIM')return {ok:true,jaValidada:true,message:'Esta viagem já foi validada. Nenhum saldo foi alterado.'};
   if(String(row[map.STATUS]||'')!=='AGUARDANDO_CONFERENCIA'||!meta.iaDados)throw new Error('A leitura da IA precisa estar concluída antes da confirmação.');
   if(String(ai.tipo_documento||'').toUpperCase()!=='DESCARGA')throw new Error('A IA não classificou este documento como ticket de descarga.');
-  if(ai.precisa_complemento===true||Number(ai.confianca_geral||0)<0.8)throw new Error('A leitura possui campos duvidosos. Salve o complemento e confira o ticket antes de confirmar.');
+  if((ai.precisa_complemento===true||Number(ai.confianca_geral||0)<0.8)&&meta.complementoConfirmado!==true)throw new Error('A leitura possui campos duvidosos. Salve o complemento e confira o ticket antes de confirmar.');
   var number=ftTicketNumber_(ai);ftTicketCheckUniqueNumber_(map,number,reciboId);
   var opId=String(row[map.OPERACAO_ID]||''),partId=String(row[map.PARTICIPACAO_ID]||''),destId=String(row[map.DESTINO_ID]||'');
   var dbId=PropertiesService.getScriptProperties().getProperty('FT_REGISTRY_DATABASE_ID'),ss=SpreadsheetApp.openById(dbId),tickets=sh.getDataRange().getValues();
