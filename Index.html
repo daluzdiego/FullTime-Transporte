@@ -776,27 +776,65 @@
     const destinoLabel=[destino.cliente,destino.local,destino.cidadeUf].filter(Boolean).join(' · ');
     host.innerHTML='<form class="portal-receipt-form" onsubmit="return false"><h3>Comprovante da viagem</h3><div class="driver-assigned"><small>DESTINO IDENTIFICADO AUTOMATICAMENTE</small><strong>'+esc(destino.cliente||'Destino designado')+'</strong><span>'+esc([destino.local,destino.cidadeUf].filter(Boolean).join(' · '))+'</span></div><input type="hidden" name="destinoId" value="'+esc(destino.id)+'"><label>Tipo de comprovante</label><select name="tipoRecibo" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option></select><div class="receipt-camera-actions"><button class="btn btn-primary" type="button" onclick="document.getElementById(\'receipt-camera-'+esc(participacaoId)+'\').click()">📷 Tirar foto agora</button><button class="btn btn-secondary" type="button" onclick="document.getElementById(\'receipt-gallery-'+esc(participacaoId)+'\').click()">Escolher da galeria</button></div><input id="receipt-camera-'+esc(participacaoId)+'" type="file" accept="image/*" capture="environment" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\',\''+esc(operacaoId)+'\')"><input id="receipt-gallery-'+esc(participacaoId)+'" type="file" accept="image/*" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\',\''+esc(operacaoId)+'\')"><div id="receipt-photo-preview-'+esc(participacaoId)+'" class="receipt-photo-preview"><span>Nenhuma foto selecionada</span></div><small>A IA fará a leitura assim que a foto for carregada. Só pediremos complemento se algum dado essencial não estiver legível.</small><input type="hidden" name="fotoBase64"><input type="hidden" name="mimeType"><input type="hidden" name="nomeArquivo"><div class="portal-receipt-error" aria-live="polite"></div><div id="receipt-ai-result-'+esc(participacaoId)+'"></div></form>';
   }
-  function prepararFotoReciboPortal(input,participacaoId,operacaoId){
-    const file=input.files&&input.files[0];if(!file)return;
-    const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(!form)return;
-    const error=form.querySelector('.portal-receipt-error'),preview=document.getElementById('receipt-photo-preview-'+participacaoId);
-    if(!/^image\\//i.test(file.type)){error.textContent='Selecione uma imagem válida.';input.value='';return;}
-    if(file.size>15*1024*1024){error.textContent='A imagem deve ter no máximo 15 MB.';input.value='';return;}
-    error.textContent='Preparando imagem para leitura automática…';form.querySelectorAll('button').forEach(b=>b.disabled=true);
-    const reader=new FileReader();reader.onerror=()=>{error.textContent='Não foi possível abrir a foto.';form.querySelectorAll('button').forEach(b=>b.disabled=false);};
-    reader.onload=()=>{
-      const img=new Image();img.onerror=()=>{error.textContent='Imagem inválida. Tente JPG ou PNG.';form.querySelectorAll('button').forEach(b=>b.disabled=false);};
-      img.onload=()=>{
-        const scale=Math.min(1,2200/Math.max(img.width,img.height)),canvas=document.createElement('canvas');
-        canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
-        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-        const dataUrl=canvas.toDataURL('image/jpeg',0.9),base64=dataUrl.split(',')[1]||'';
-        if(base64.length>10*1024*1024){error.textContent='Foto muito grande. Tente novamente.';form.querySelectorAll('button').forEach(b=>b.disabled=false);return;}
-        form.elements.fotoBase64.value=dataUrl;form.elements.mimeType.value='image/jpeg';form.elements.nomeArquivo.value=(file.name||'ticket').replace(/\\.[^.]+$/,'')+'.jpg';
-        preview.innerHTML='<img alt="Prévia do ticket" src="'+dataUrl+'"><span>Foto carregada · IA lendo o comprovante…</span>';
-        enviarReciboPortal(participacaoId,operacaoId);
-      };img.src=String(reader.result||'');
-    };reader.readAsDataURL(file);
+  function prepararFotoReciboPortal(fileInput,participacaoId,operacaoId){
+    const selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files.item(0) : null;
+    if(!selectedFile) return;
+    const receiptHost = document.getElementById('portal-receipt-'+participacaoId);
+    const form = receiptHost ? receiptHost.querySelector('form') : null;
+    if(!form) return;
+    const error = form.querySelector('.portal-receipt-error');
+    const preview = document.getElementById('receipt-photo-preview-'+participacaoId);
+    const controls = form.querySelectorAll('button');
+    const setBusy = busy => controls.forEach(control => { control.disabled = !!busy; });
+    if(!selectedFile.type || !selectedFile.type.toLowerCase().startsWith('image/')){
+      error.textContent = 'Selecione uma imagem válida.';
+      fileInput.value = '';
+      return;
+    }
+    if(selectedFile.size > 15 * 1024 * 1024){
+      error.textContent = 'A imagem deve ter no máximo 15 MB.';
+      fileInput.value = '';
+      return;
+    }
+    error.textContent = 'Preparando a foto para leitura automática…';
+    setBusy(true);
+    const fileReader = new FileReader();
+    fileReader.onerror = function(){
+      error.textContent = 'Não foi possível abrir a foto. Tente novamente.';
+      setBusy(false);
+    };
+    fileReader.onload = function(){
+      const photo = new Image();
+      photo.onerror = function(){
+        error.textContent = 'A imagem não pôde ser processada. Tente outra foto.';
+        setBusy(false);
+      };
+      photo.onload = function(){
+        try{
+          const maxSide = 2200;
+          const resizeFactor = Math.min(1, maxSide / Math.max(photo.naturalWidth || photo.width, photo.naturalHeight || photo.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((photo.naturalWidth || photo.width) * resizeFactor));
+          canvas.height = Math.max(1, Math.round((photo.naturalHeight || photo.height) * resizeFactor));
+          const context = canvas.getContext('2d');
+          if(!context) throw new Error('Não foi possível preparar a imagem neste navegador.');
+          context.drawImage(photo, 0, 0, canvas.width, canvas.height);
+          const imageDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          const encodedImage = imageDataUrl.split(',')[1] || '';
+          if(!encodedImage || encodedImage.length > 11500000) throw new Error('A foto ficou muito grande. Tente fotografar o ticket mais de perto.');
+          form.elements.fotoBase64.value = imageDataUrl;
+          form.elements.mimeType.value = 'image/jpeg';
+          form.elements.nomeArquivo.value = (selectedFile.name || 'ticket').replace(/\\.[^.]+$/, '') + '.jpg';
+          preview.innerHTML = '<img alt="Prévia do ticket" src="'+imageDataUrl+'"><span>Foto carregada · iniciando leitura da IA…</span>';
+          enviarReciboPortal(participacaoId,operacaoId);
+        }catch(processError){
+          error.textContent = processError && processError.message ? processError.message : 'Falha ao preparar a foto.';
+          setBusy(false);
+        }
+      };
+      photo.src = String(fileReader.result || '');
+    };
+    fileReader.readAsDataURL(selectedFile);
   }
   function enviarReciboPortal(participacaoId,operacaoId){
     const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(!form)return;
