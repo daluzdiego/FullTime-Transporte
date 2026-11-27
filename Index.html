@@ -856,10 +856,10 @@
       const needs=ai.status!=='ANALISADO'||d.precisa_complemento===true||(Array.isArray(d.campos_duvidosos)&&d.campos_duvidosos.length>0)||Number(d.confianca_geral||0)<0.8;
       if(needs)out+='<div class="field" style="margin-top:10px"><label>Complemento — somente os dados que a IA não conseguiu ler</label><textarea id="receipt-note-'+participacaoId+'" rows="2" maxlength="1000" placeholder="Informe o dado ausente ou ilegível"></textarea><button class="btn btn-secondary" type="button" onclick="salvarComplementoReciboPortal('+JSON.stringify(participacaoId)+','+JSON.stringify(res.id)+')">Salvar complemento</button></div>';
       if(d.campos_duvidosos&&d.campos_duvidosos.length)out+='<small>Conferir: '+esc(d.campos_duvidosos.join(', '))+'</small>';
-      if(ai.status==='ANALISADO'&&!needs){
+      if(ai.status==='ANALISADO'){
         const action=String(d.tipo_documento||'').toUpperCase()==='CARREGAMENTO'?'confirmarTicketCarregamentoPortal':'confirmarTicketDescargaPortal';
-        const label=action==='confirmarTicketCarregamentoPortal'?'Confirmar carregamento e contabilizar peso':'Confirmar descarga e concluir viagem';
-        out+='<div class="notice" style="margin-top:10px"><strong>Confira os dados antes de confirmar.</strong><br>O peso será contabilizado somente no carregamento. A descarga apenas conclui a viagem.</div><button class="btn btn-primary" type="button" style="width:100%;min-height:48px" onclick="'+action+'('+JSON.stringify(res.id)+','+JSON.stringify(participacaoId)+')">'+label+'</button>';
+        const label=needs?'Confirmar após revisão manual':(action==='confirmarTicketCarregamentoPortal'?'Confirmar carregamento e contabilizar peso':'Confirmar descarga e concluir viagem');
+        out+='<div class="notice" style="margin-top:10px"><strong>Confira os dados antes de confirmar.</strong><br>'+(needs?'Salve o complemento manual antes de confirmar. ':'')+'O peso será contabilizado somente no carregamento. A descarga apenas conclui a viagem.</div><button class="btn btn-primary" type="button" style="width:100%;min-height:48px" onclick="'+action+'('+JSON.stringify(res.id)+','+JSON.stringify(participacaoId)+')">'+label+'</button>';
       }
       if(host)host.innerHTML=out;
       if(preview)preview.innerHTML='<span>Foto enviada · leitura da IA concluída</span>';
