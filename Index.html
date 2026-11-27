@@ -774,40 +774,59 @@
     if(!destino){host.innerHTML='<div class="notice">Seu destino ainda não está definido nesta operação. Avise o administrador para concluir a distribuição antes de enviar o recibo.</div>';return;}
     host.dataset.loaded='1';host.classList.add('is-open');
     const destinoLabel=[destino.cliente,destino.local,destino.cidadeUf].filter(Boolean).join(' · ');
-    host.innerHTML='<form class="portal-receipt-form" onsubmit="return enviarReciboPortal(event,\''+esc(participacaoId)+'\',\''+esc(operacaoId)+'\')"><h3>Comprovante da viagem</h3><div class="driver-assigned"><small>DESTINO IDENTIFICADO AUTOMATICAMENTE</small><strong>'+esc(destino.cliente||'Destino designado')+'</strong><span>'+esc([destino.local,destino.cidadeUf].filter(Boolean).join(' · '))+'</span></div><input type="hidden" name="destinoId" value="'+esc(destino.id)+'"><label>Tipo de comprovante</label><select name="tipoRecibo" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option><option value="COMPROVANTE_ENTREGA">Comprovante de entrega</option><option value="OUTRO">Outro</option></select><div class="receipt-camera-actions"><button class="btn btn-primary" type="button" onclick="document.getElementById(\'receipt-camera-'+esc(participacaoId)+'\').click()">📷 Tirar foto agora</button><button class="btn btn-secondary" type="button" onclick="document.getElementById(\'receipt-gallery-'+esc(participacaoId)+'\').click()">Escolher da galeria</button></div><input id="receipt-camera-'+esc(participacaoId)+'" name="fotoCamera" type="file" accept="image/*" capture="environment" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\')"><input id="receipt-gallery-'+esc(participacaoId)+'" name="fotoGaleria" type="file" accept="image/*" hidden onchange="prepararFotoReciboPortal(this,\''+esc(participacaoId)+'\')"><div id="receipt-photo-preview-'+esc(participacaoId)+'" class="receipt-photo-preview"><span>Nenhuma foto selecionada</span></div><small>A IA vai ler o comprovante e tentar identificar data, peso, número do ticket e demais informações visíveis. Confira a imagem antes de enviar.</small><input type="hidden" name="fotoBase64"><input type="hidden" name="mimeType"><input type="hidden" name="nomeArquivo"><label>Tipo de comprovante</label><select name="tipoRecibo" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option><option value="COMPROVANTE_ENTREGA">Comprovante de entrega</option><option value="OUTRO">Outro</option></select><label>Observações (opcional)</label><textarea name="observacoes" rows="2" maxlength="1000" placeholder="Informação adicional, se necessário"></textarea><div class="portal-receipt-error" aria-live="polite"></div><button class="btn btn-primary" type="submit" disabled>Enviar foto para análise</button></form>';
+    host.innerHTML='<form class="portal-receipt-form" onsubmit="return false"><h3>Comprovante da viagem</h3><div class="driver-assigned"><small>DESTINO IDENTIFICADO AUTOMATICAMENTE</small><strong>'+esc(destino.cliente||'Destino designado')+'</strong><span>'+esc([destino.local,destino.cidadeUf].filter(Boolean).join(' · '))+'</span></div><input type="hidden" name="destinoId" value="'+esc(destino.id)+'"><label>Tipo de comprovante</label><select name="tipoRecibo" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option></select><div class="receipt-camera-actions"><button class="btn btn-primary" type="button" onclick="document.getElementById(\\'receipt-camera-'+esc(participacaoId)+'\\').click()">📷 Tirar foto agora</button><button class="btn btn-secondary" type="button" onclick="document.getElementById(\\'receipt-gallery-'+esc(participacaoId)+'\\').click()">Escolher da galeria</button></div><input id="receipt-camera-'+esc(participacaoId)+'" type="file" accept="image/*" capture="environment" hidden onchange="prepararFotoReciboPortal(this,\\''+esc(participacaoId)+'\\',\\''+esc(operacaoId)+'\\')"><input id="receipt-gallery-'+esc(participacaoId)+'" type="file" accept="image/*" hidden onchange="prepararFotoReciboPortal(this,\\''+esc(participacaoId)+'\\',\\''+esc(operacaoId)+'\\')"><div id="receipt-photo-preview-'+esc(participacaoId)+'" class="receipt-photo-preview"><span>Nenhuma foto selecionada</span></div><small>A IA fará a leitura assim que a foto for carregada. Só pediremos complemento se algum dado essencial não estiver legível.</small><input type="hidden" name="fotoBase64"><input type="hidden" name="mimeType"><input type="hidden" name="nomeArquivo"><div class="portal-receipt-error" aria-live="polite"></div><div id="receipt-ai-result-'+esc(participacaoId)+'"></div></form>';
   }
-  function prepararFotoReciboPortal(input,participacaoId){
+  function prepararFotoReciboPortal(input,participacaoId,operacaoId){
     const file=input.files&&input.files[0];if(!file)return;
-    const host=document.getElementById('portal-receipt-'+participacaoId),form=host&&host.querySelector('form');if(!form)return;
-    const error=form.querySelector('.portal-receipt-error'),preview=document.getElementById('receipt-photo-preview-'+participacaoId),button=form.querySelector('button[type="submit"]');
-    if(!/^image\//i.test(file.type)){error.textContent='Selecione uma imagem válida.';input.value='';return;}
+    const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(!form)return;
+    const error=form.querySelector('.portal-receipt-error'),preview=document.getElementById('receipt-photo-preview-'+participacaoId);
+    if(!/^image\\//i.test(file.type)){error.textContent='Selecione uma imagem válida.';input.value='';return;}
     if(file.size>15*1024*1024){error.textContent='A imagem deve ter no máximo 15 MB.';input.value='';return;}
-    error.textContent='Preparando imagem…';button.disabled=true;
-    const reader=new FileReader();reader.onerror=()=>{error.textContent='Não foi possível abrir a foto.';};
+    error.textContent='Preparando imagem para leitura automática…';form.querySelectorAll('button').forEach(b=>b.disabled=true);
+    const reader=new FileReader();reader.onerror=()=>{error.textContent='Não foi possível abrir a foto.';form.querySelectorAll('button').forEach(b=>b.disabled=false);};
     reader.onload=()=>{
-      const img=new Image();img.onerror=()=>{error.textContent='Formato de imagem não suportado. Escolha JPG ou PNG.';};
+      const img=new Image();img.onerror=()=>{error.textContent='Imagem inválida. Tente JPG ou PNG.';form.querySelectorAll('button').forEach(b=>b.disabled=false);};
       img.onload=()=>{
-        const scale=Math.min(1,1800/Math.max(img.width,img.height)),canvas=document.createElement('canvas');
+        const scale=Math.min(1,2200/Math.max(img.width,img.height)),canvas=document.createElement('canvas');
         canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
         canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-        const dataUrl=canvas.toDataURL('image/jpeg',0.84),base64=dataUrl.split(',')[1]||'';
-        if(base64.length>10*1024*1024){error.textContent='A foto ficou muito grande. Tente novamente com uma imagem menor.';return;}
-        form.elements.fotoBase64.value=dataUrl;form.elements.mimeType.value='image/jpeg';form.elements.nomeArquivo.value=(file.name||'recibo').replace(/\.[^.]+$/,'')+'.jpg';
-        preview.innerHTML='<img alt="Prévia do recibo" src="'+dataUrl+'"><span>Foto pronta para envio</span>';error.textContent='';button.disabled=false;
+        const dataUrl=canvas.toDataURL('image/jpeg',0.9),base64=dataUrl.split(',')[1]||'';
+        if(base64.length>10*1024*1024){error.textContent='Foto muito grande. Tente novamente.';form.querySelectorAll('button').forEach(b=>b.disabled=false);return;}
+        form.elements.fotoBase64.value=dataUrl;form.elements.mimeType.value='image/jpeg';form.elements.nomeArquivo.value=(file.name||'ticket').replace(/\\.[^.]+$/,'')+'.jpg';
+        preview.innerHTML='<img alt="Prévia do ticket" src="'+dataUrl+'"><span>Foto carregada · IA lendo o comprovante…</span>';
+        enviarReciboPortal(participacaoId,operacaoId);
       };img.src=String(reader.result||'');
     };reader.readAsDataURL(file);
   }
-  function enviarReciboPortal(event,participacaoId,operacaoId){
-    event.preventDefault();const form=event.currentTarget,error=form.querySelector('.portal-receipt-error'),button=form.querySelector('button[type="submit"]');
-    const dataUrl=form.elements.fotoBase64.value;if(!dataUrl){error.textContent='Tire uma foto ou escolha uma imagem antes de enviar.';return false;}
-    button.disabled=true;button.textContent='Enviando e analisando com IA…';error.textContent='';
+  function enviarReciboPortal(participacaoId,operacaoId){
+    const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(!form)return;
+    const error=form.querySelector('.portal-receipt-error'),preview=document.getElementById('receipt-photo-preview-'+participacaoId);
+    const dataUrl=form.elements.fotoBase64.value;if(!dataUrl){error.textContent='Selecione uma foto.';return;}
+    error.textContent='Enviando e aguardando a leitura da IA…';
+    const data={operacaoId:operacaoId,participacaoId:participacaoId,tipoRecibo:form.elements.tipoRecibo.value,mimeType:'image/jpeg',nomeArquivo:form.elements.nomeArquivo.value,base64:dataUrl,observacoes:''};
     google.script.run.withSuccessHandler(res=>{
-      const host=document.getElementById('portal-receipt-'+participacaoId),ai=res.analiseIA||{};
-      const aiHtml=ai.status==='ANALISADO'?'<div class="receipt-ai-result"><strong>Leitura da IA concluída</strong><pre>'+esc(JSON.stringify(ai.dados||{},null,2))+'</pre><small>Confira os dados extraídos. A IA pode cometer erros de leitura.</small></div>':'<div class="notice">Foto armazenada. '+esc(ai.mensagem||'Análise automática pendente.')+'</div>';
-      if(host)host.innerHTML='<div class="notice">✓ Comprovante recebido e vinculado ao seu destino.</div>'+aiHtml;
-      toast(res.message||'Comprovante enviado.');
-    }).withFailureHandler(e=>{button.disabled=false;button.textContent='Enviar foto para análise';error.textContent=e.message||'Falha ao enviar o comprovante.';}).registrarReciboViagemFullTime(authToken,{operacaoId:operacaoId,participacaoId:participacaoId,tipoRecibo:form.elements.tipoRecibo.value,mimeType:'image/jpeg',nomeArquivo:form.elements.nomeArquivo.value,base64:dataUrl,observacoes:form.elements.observacoes.value||''});
-    return false;
+      const ai=res.analiseIA||{},d=ai.dados||{},host=document.getElementById('receipt-ai-result-'+participacaoId);
+      const labels={tipo_documento:'Tipo lido',emissor:'Emissor',numero_documento:'Ticket',data_hora:'Data/hora',placa_veiculo:'Placa',motorista:'Motorista',produto:'Produto',peso_bruto_kg:'Peso bruto (kg)',tara_kg:'Tara (kg)',peso_liquido_kg:'Peso líquido (kg)',origem:'Origem',destino_impresso:'Destino impresso'};
+      let out='<div class="notice"><strong>✓ Foto recebida e vinculada à viagem.</strong></div>';
+      if(ai.status==='ANALISADO'){
+        const fields=Object.keys(labels).filter(k=>d[k]!==null&&d[k]!==undefined&&d[k]!=='').map(k=>'<div><strong>'+labels[k]+':</strong> '+esc(String(d[k]))+'</div>').join('');
+        out+='<div class="receipt-ai-result"><strong>Leitura automática da IA</strong>'+(fields||'<p>Não foram identificados campos legíveis.</p>')+'<small>Confiança: '+esc(String(d.confianca_geral??'não informada'))+'</small></div>';
+      }else out+='<div class="notice">'+esc(ai.mensagem||'A IA não concluiu a leitura. Verifique a configuração da chave Gemini.')+'</div>';
+      const needs=ai.status!=='ANALISADO'||d.precisa_complemento===true||(Array.isArray(d.campos_duvidosos)&&d.campos_duvidosos.length>0)||Number(d.confianca_geral||0)<0.8;
+      if(needs)out+='<div class="field" style="margin-top:10px"><label>Complemento — somente os dados que a IA não conseguiu ler</label><textarea id="receipt-note-'+participacaoId+'" rows="2" maxlength="1000" placeholder="Informe o dado ausente ou ilegível"></textarea><button class="btn btn-secondary" type="button" onclick="salvarComplementoReciboPortal(\\''+participacaoId+'\\',\\''+res.id+'\\')">Salvar complemento</button></div>';
+      if(d.campos_duvidosos&&d.campos_duvidosos.length)out+='<small>Conferir: '+esc(d.campos_duvidosos.join(', '))+'</small>';
+      if(host)host.innerHTML=out;
+      if(preview)preview.innerHTML='<span>Foto enviada e leitura concluída</span>';
+      toast('Comprovante registrado.');
+    }).withFailureHandler(e=>{
+      error.textContent=e.message||'Falha ao enviar/analisar. Selecione a foto novamente para tentar.';
+      form.querySelectorAll('button').forEach(b=>b.disabled=false);
+    }).registrarReciboViagemFullTime(authToken,data);
+  }
+  function salvarComplementoReciboPortal(participacaoId,reciboId){
+    const note=document.getElementById('receipt-note-'+participacaoId)?.value||'';
+    if(!note.trim()){toast('Informe o complemento.',true);return;}
+    google.script.run.withSuccessHandler(r=>toast(r.message||'Complemento salvo.')).withFailureHandler(e=>toast(e.message||'Falha ao salvar complemento.',true)).complementarReciboViagemFullTime(authToken,reciboId,note);
   }
 
   async function responderOfertaPortal(id,resposta){
@@ -1554,7 +1573,7 @@
       (parts.length?'<form id="receipt-form-'+esc(id)+'" onsubmit="enviarReciboViagemUI(event,\''+esc(id)+'\')"><div class="form-grid">'+
       '<div class="field"><label>Motorista / participação *</label><select id="receipt-part-'+esc(id)+'" required>'+options+'</select></div>'+
       '<div class="field"><label>Destino *</label><select id="receipt-dest-'+esc(id)+'" required><option value="">Carregando destinos…</option></select></div>'+
-      '<div class="field"><label>Tipo de comprovante *</label><select id="receipt-type-'+esc(id)+'" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option><option value="COMPROVANTE_ENTREGA">Comprovante de entrega</option><option value="OUTRO">Outro</option></select></div>'+
+      '<div class="field"><label>Tipo de comprovante *</label><select id="receipt-type-'+esc(id)+'" required><option value="CARREGAMENTO">Ticket de carregamento</option><option value="DESCARGA">Ticket de descarga</option></select></div>'+
       '<div class="field"><label>Foto do recibo *</label><input id="receipt-file-'+esc(id)+'" type="file" accept="image/*" capture="environment" required><span class="muted small">No celular, abre a câmera. No computador, permite selecionar a imagem.</span></div>'+
       '<div class="field span-2"><label>Observações</label><textarea id="receipt-note-'+esc(id)+'" rows="2" maxlength="1000"></textarea></div></div>'+
       '<div id="receipt-error-'+esc(id)+'" class="error"></div><div class="form-actions"><button id="receipt-submit-'+esc(id)+'" class="btn btn-primary" type="submit">Salvar comprovante</button></div></form>':'<div class="notice">Não há motorista com aceite registrado nesta operação. O comprovante ficará disponível após a confirmação da convocação.</div>')+
