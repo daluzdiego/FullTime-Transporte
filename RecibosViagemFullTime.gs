@@ -353,6 +353,9 @@ function confirmarTicketCarregamentoFullTime(token,reciboId){
     // Releitura dentro do lock impede dois cliques simultâneos de duplicarem o peso.
     var fresh=ftTicketOwnedRow_(session,reciboId),freshMeta=ftTicketJsonMeta_(fresh.row,fresh.map);
     if(freshMeta.contabilizacaoPeso==='CONFIRMADA')return {ok:true,jaContabilizado:true,message:'Carregamento já contabilizado.'};
+    var ticketRows=sh.getDataRange().getValues();
+    var otherPending=ticketRows.slice(1).some(function(r){if(String(r[map.ID]||'')===String(reciboId))return false;if(String(r[map.OPERACAO_ID]||'')!==opId||String(r[map.PARTICIPACAO_ID]||'')!==partId||String(r[map.DESTINO_ID]||'')!==destId||String(r[map.TIPO_RECIBO]||'').toUpperCase()!=='CARREGAMENTO')return false;var m=ftTicketJsonMeta_(r,map);return m.contabilizacaoPeso==='CONFIRMADA'&&m.statusFluxo==='AGUARDANDO_TICKET_DESCARGA';});
+    if(otherPending)throw new Error('Já existe um carregamento contabilizado aguardando descarga para esta participação. Envie primeiro o ticket de descarga pendente.');
     moveSh.appendRow(newMoveRow);
     var newOpBalance=Math.max(0,opBalance-tons),opRow=op.row;
     ops.getRange(opRow,ftMvpCol_(om,'SALDO_TONELADAS')+1).setValue(newOpBalance);
