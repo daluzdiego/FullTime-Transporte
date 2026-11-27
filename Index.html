@@ -355,6 +355,38 @@
 #appView.driver-portal .receipt-photo-preview img{display:block;max-width:100%;max-height:230px;object-fit:contain;border-radius:8px}
 #appView.driver-portal .receipt-ai-result{padding:10px;border:1px solid #b9d9c6;border-radius:10px;background:#f2fbf5;font-size:12px}
 #appView.driver-portal .receipt-ai-result pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
+
+  /* Central projetável: viagens detalhadas ficam imediatamente abaixo de cada motorista. */
+  .center-driver-trips-row td{padding:0 12px 12px!important;background:#f7faff;border-bottom:2px solid #dce7f5!important}
+  .center-driver-trips{padding:10px 12px 12px 26px;border-left:3px solid #8fb6e8}
+  .center-driver-trips-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px;color:#163b69}
+  .center-driver-trip-summary{display:flex;gap:16px;flex-wrap:wrap;color:#52677f;font-size:11px}
+  .center-driver-trip-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
+  .center-driver-trip-card{padding:10px 12px;border:1px solid #dce6f2;border-radius:9px;background:#fff}
+  .center-driver-trip-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .center-driver-trip-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+  .center-driver-trip-grid small{display:block;color:#71839a;font-size:9px;font-weight:800;letter-spacing:.04em;margin-bottom:3px}
+  .center-driver-trip-grid strong{display:block;color:#263d58;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+  .center-driver-no-trips{padding:9px 12px;color:#64748b;background:#fff;border:1px dashed #cbd5e1;border-radius:8px;font-size:11px}
+  /* Operações: tabela mais compacta e alinhada para leitura em monitor/projetor. */
+  .ops-table{width:100%;min-width:1080px;table-layout:fixed;border-spacing:0}
+  .ops-table th{padding:9px 8px;font-size:10px;line-height:1.25;vertical-align:bottom}
+  .ops-table td{padding:9px 8px;font-size:11px;line-height:1.35;vertical-align:middle}
+  .ops-table th:nth-child(1){width:16%}.ops-table th:nth-child(2){width:9%}.ops-table th:nth-child(3){width:21%}
+  .ops-table th:nth-child(4){width:9%}.ops-table th:nth-child(5){width:7%}.ops-table th:nth-child(6){width:6%}
+  .ops-table th:nth-child(7){width:7%}.ops-table th:nth-child(8){width:7%}.ops-table th:nth-child(9){width:8%}
+  .ops-table th:nth-child(10){width:7%}.ops-table th:nth-child(11){width:10%}
+  .ops-route-cell{white-space:normal;min-width:0;line-height:1.4}
+  .ops-row-actions{gap:5px;align-items:center;flex-wrap:nowrap}
+  .ops-detail-btn{padding:7px 9px;white-space:nowrap}
+  @media(max-width:760px){
+    .center-driver-trips{padding:9px 6px 10px}
+    .center-driver-trips-heading{align-items:flex-start}
+    .center-driver-trip-summary{gap:8px}
+    .center-driver-trip-list{grid-template-columns:1fr}
+    .ops-table{min-width:1050px}
+  }
+
 </style>
 </head>
 <body>
@@ -881,8 +913,8 @@
       form.querySelectorAll('button').forEach(b=>b.disabled=false);
     }).registrarReciboPortalMotoristaV2(authToken,data);
   }
-  function confirmarTicketCarregamentoPortal(reciboId,participacaoId){
-    if(!confirm('Confirma este ticket de carregamento? O peso líquido será lançado uma única vez no saldo da operação.'))return;
+  async function confirmarTicketCarregamentoPortal(reciboId,participacaoId){
+    if(!await uiConfirm('Confirma este ticket de carregamento? O peso líquido será lançado uma única vez no saldo da operação.',{title:'Confirmar carregamento',ok:'Confirmar e contabilizar'}))return;
     const host=document.getElementById('receipt-ai-result-'+participacaoId);
     if(host)host.querySelectorAll('button').forEach(b=>b.disabled=true);
     google.script.run.withSuccessHandler(res=>{
@@ -892,8 +924,8 @@
       toast('Carregamento contabilizado. Envie o ticket de descarga.');
     }).withFailureHandler(e=>{if(host)host.insertAdjacentHTML('beforeend','<div class="notice" style="border-color:#f3c4c4;color:#9b2929">'+esc(e.message||'Falha ao confirmar carregamento.')+'</div>');if(host)host.querySelectorAll('button').forEach(b=>b.disabled=false);}).confirmarTicketCarregamentoFullTime(authToken,reciboId);
   }
-  function confirmarTicketDescargaPortal(reciboId,participacaoId){
-    if(!confirm('Confirma este ticket de descarga? A viagem será validada e contabilizada, sem descontar o peso novamente.'))return;
+  async function confirmarTicketDescargaPortal(reciboId,participacaoId){
+    if(!await uiConfirm('Confirma este ticket de descarga? A viagem será validada e contabilizada, sem descontar o peso novamente.',{title:'Confirmar descarga',ok:'Confirmar conclusão'}))return;
     const host=document.getElementById('receipt-ai-result-'+participacaoId);
     if(host)host.querySelectorAll('button').forEach(b=>b.disabled=true);
     google.script.run.withSuccessHandler(res=>{if(host)host.innerHTML='<div class="notice"><strong>✓ '+esc(res.message||'Viagem validada.')+'</strong></div><div class="receipt-ai-result">Status: VIAGEM VÁLIDA E CONTABILIZADA<br>O peso não foi lançado novamente.</div>';const form=document.querySelector('#portal-receipt-'+participacaoId+' form');if(form){form.elements.fotoBase64.value='';form.elements.nomeArquivo.value='';form.elements.mimeType.value='';form.querySelectorAll('input[type=file]').forEach(el=>el.value='');}toast('Viagem concluída e contabilizada.');}).withFailureHandler(e=>{if(host)host.insertAdjacentHTML('beforeend','<div class="notice" style="border-color:#f3c4c4;color:#9b2929">'+esc(e.message||'Falha ao confirmar descarga.')+'</div>');if(host)host.querySelectorAll('button').forEach(b=>b.disabled=false);}).confirmarTicketDescargaFullTime(authToken,reciboId);
@@ -932,7 +964,11 @@
       const cls=['EM_VIAGEM','SAIU'].includes(st)?'is-active':st==='ATIVO'?'is-waiting':'';
       const last=s.ultimaAtualizacao||s.saida||s.retorno||'—';
       const assigned=s.destinoAlocado?[s.destinoAlocado.cliente,s.destinoAlocado.local,s.destinoAlocado.cidadeUf].filter(Boolean).join(' · '):'Não distribuído';
-      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(assigned)+'</td><td>'+esc(last)+'</td></tr>';
+      const trips=Array.isArray(s.viagens)?s.viagens:[];
+      const tripPlan=Number(s.viagensPrevistasMotorista||0),done=Number(s.viagensConcluidas||0),pendingUnload=trips.filter(t=>t.status!=='CONCLUIDA').length;
+      const tripSummary='<div class="center-driver-trip-summary"><span><strong>'+done+'</strong> concluída(s)</span><span><strong>'+pendingUnload+'</strong> aguardando descarga</span><span><strong>'+(tripPlan>0?Math.max(0,tripPlan-done):'—')+'</strong> faltante(s) para meta'+(tripPlan>0?' de '+tripPlan:' não definida')+'</span></div>';
+      const tripCards=trips.length?trips.map(t=>'<article class="center-driver-trip-card"><div class="center-driver-trip-top"><strong>Viagem '+esc(t.numero||'—')+'</strong><span class="center-op-status '+(t.status==='CONCLUIDA'?'is-active':'is-waiting')+'">'+(t.status==='CONCLUIDA'?'Concluída':'Aguardando descarga')+'</span></div><div class="center-driver-trip-grid"><div><small>DATA / HORA</small><strong>'+esc(t.dataHora||'—')+'</strong></div><div><small>PESO</small><strong>'+num(t.toneladas)+' t</strong></div><div><small>ORIGEM</small><strong>'+esc(t.origem||'—')+'</strong></div><div><small>DESTINO</small><strong>'+esc(t.destino||'—')+'</strong></div></div></article>').join(''):'<div class="center-driver-no-trips">Nenhuma viagem registrada para este motorista nesta operação.</div>';
+      return '<tr><td><strong>♙ '+esc(s.motorista||'Motorista não identificado')+'</strong></td><td>'+esc(s.conjuntoId||'—')+'</td><td><span class="center-op-status '+cls+'">'+esc(label)+'</span></td><td>'+esc(assigned)+'</td><td>'+esc(last)+'</td></tr><tr class="center-driver-trips-row"><td colspan="5"><div class="center-driver-trips"><div class="center-driver-trips-heading"><strong>Viagens de '+esc(s.motorista||'Motorista')+'</strong>'+tripSummary+'</div><div class="center-driver-trip-list">'+tripCards+'</div></div></td></tr>';
     }).join(''):'<tr><td colspan="5" class="muted">Nenhum motorista com participação ativa nesta operação.</td></tr>';
     const destinationCards=destinations.length?'<section class="center-destination-section"><div class="center-subsection-heading"><h3>Controle de peso por destino</h3><span>'+destinations.length+' destino(s)</span></div><div class="center-destination-grid">'+destinations.map(d=>{
       const percent=Math.min(100,Math.max(0,Number(d.percentual||0)));
